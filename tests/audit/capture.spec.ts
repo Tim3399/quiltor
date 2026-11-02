@@ -436,14 +436,19 @@ async function textScenario(s: Session): Promise<void> {
     });
   });
 
-  // Book export dialogs behind the "Buch exportieren" menu.
+  // Book export dialogs in the toolbar's overflow menu
+  // ("Weitere Aktionen", T-104).
+  const manuscriptMore = () =>
+    page
+      .getByRole("toolbar", { name: "Manuskript", exact: true })
+      .getByRole("button", { name: "Weitere Aktionen", exact: true });
   for (const [item, state] of [
     ["DOCX fürs Lektorat", "workspace.text/dialog.manuscript-export"],
     ["EPUB für E-Reader", "workspace.text/dialog.manuscript-export-epub"],
   ] as const) {
     const toExport = async () => {
       await base();
-      await s.tap(s.button("Buch exportieren"));
+      await s.tap(manuscriptMore());
       await s.tap(page.getByRole("menuitem", { name: item }));
     };
     await base();
@@ -452,7 +457,7 @@ async function textScenario(s: Session): Promise<void> {
       "dialog",
       toExport,
       async () => {
-        await s.tap(s.button("Buch exportieren"));
+        await s.tap(manuscriptMore());
         await s.tap(page.getByRole("menuitem", { name: item }));
       },
       { enumerate: true },

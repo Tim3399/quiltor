@@ -38,6 +38,4 @@ export const worlds = {
   unreachable: "Workshop unavailable",
   restartServerHint: "Start the local server with {code} and reload the page.",
   languageChoice: "Language",
-  germanLanguage: "German",
-  englishLanguage: "English",
 } as const;

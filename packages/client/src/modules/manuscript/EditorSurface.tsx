@@ -17,6 +17,7 @@ import type { SnapshotInfo, VersionDiffProjection } from "../history";
 import { type FigureNode, type FigureState, kindLabel } from "../story-world";
 import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
 import { ChapterTurnAffordance, type ChapterTurnTarget } from "./ChapterTurnAffordance";
+import { holdScrollUntilStable } from "./holdScrollUntilStable";
 import {
   advanceChapterOverscroll,
   CHAPTER_OVERSCROLL_REGRIP_GRACE_MS,
@@ -352,9 +353,17 @@ export function EditorSurface({
       }
     };
     const afterMeasure = editorRef.current?.afterMeasure;
+    const scroller = scrollRef.current;
     let cancel: () => void;
-    if (afterMeasure) {
-      cancel = afterMeasure(finishRestore);
+    if (afterMeasure && scroller) {
+      // A later measure may still correct line heights and move the position (ci.md F7),
+      // so the position is written again until a measure passes without moving it.
+      cancel = holdScrollUntilStable({
+        scroller,
+        top: Math.max(0, saved.scrollTop),
+        afterMeasure,
+        onSettled: finishRestore,
+      });
     } else {
       const frame = requestAnimationFrame(() => finishRestore(Boolean(editorRef.current)));
       cancel = () => cancelAnimationFrame(frame);

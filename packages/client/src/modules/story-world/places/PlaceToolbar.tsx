@@ -1,5 +1,6 @@
 import {
   Copy,
+  Ellipsis,
   Grid3X3,
   Image,
   ImageOff,
@@ -8,8 +9,10 @@ import {
   LockOpen,
   MapPinPlus,
   MoreHorizontal,
+  Redo2,
   Ruler,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -17,6 +20,7 @@ import {
   MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
+  useMediaMatch,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
   WorkspaceToolbarCreateButton,
@@ -68,6 +72,8 @@ export function PlaceToolbar({
   onDelete: () => void;
 }) {
   const { t } = useI18n();
+  // Seven touch buttons need about 366 px here; below 381 px undo and redo move into a menu.
+  const historyInMenu = useMediaMatch("(max-width: 380px)");
   return (
     <WorkspaceToolbar className="places-toolbar" label={t("places")}>
       <WorkspaceToolbarTitle
@@ -134,17 +140,19 @@ export function PlaceToolbar({
           </>
         }
         history={
-          <WorkspaceToolbarGroup label={`${t("undoPlaces")} / ${t("redoPlaces")}`}>
-            <UndoRedoControls
-              label={`${t("undoPlaces")} / ${t("redoPlaces")}`}
-              undoLabel={t("undoPlaces")}
-              redoLabel={t("redoPlaces")}
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={() => onUndo?.()}
-              onRedo={() => onRedo?.()}
-            />
-          </WorkspaceToolbarGroup>
+          !historyInMenu && (
+            <WorkspaceToolbarGroup label={`${t("undoPlaces")} / ${t("redoPlaces")}`}>
+              <UndoRedoControls
+                label={`${t("undoPlaces")} / ${t("redoPlaces")}`}
+                undoLabel={t("undoPlaces")}
+                redoLabel={t("redoPlaces")}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onUndo={() => onUndo?.()}
+                onRedo={() => onRedo?.()}
+              />
+            </WorkspaceToolbarGroup>
+          )
         }
         actions={
           <WorkspaceToolbarGroup label={t("placeActions")}>
@@ -173,6 +181,35 @@ export function PlaceToolbar({
               />
             </DropdownMenu>
           </WorkspaceToolbarGroup>
+        }
+        overflow={
+          historyInMenu && (
+            <DropdownMenu
+              label={t("toolbarMoreActions")}
+              renderTrigger={({ ref, ...triggerProps }) => (
+                <ToolbarButton
+                  {...triggerProps}
+                  ref={ref}
+                  label={t("toolbarMoreActions")}
+                  labelMode="hidden"
+                  icon={<Ellipsis />}
+                />
+              )}
+            >
+              <MenuItem
+                icon={<Undo2 />}
+                label={t("undoPlaces")}
+                disabled={!canUndo}
+                onSelect={() => onUndo?.()}
+              />
+              <MenuItem
+                icon={<Redo2 />}
+                label={t("redoPlaces")}
+                disabled={!canRedo}
+                onSelect={() => onRedo?.()}
+              />
+            </DropdownMenu>
+          )
         }
       />
     </WorkspaceToolbar>

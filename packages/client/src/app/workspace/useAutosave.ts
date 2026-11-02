@@ -150,12 +150,14 @@ export function useAutosave<T>(
     acceptedReplacement.current = loaded;
   }, []);
   // Drop all save state when the documents leave. Refuses while a save is still out.
-  const discard = useCallback((): boolean => {
+  // `onScreen` keeps the current value as the baseline: the documents stay visible, so the
+  // next change is an edit that must reach `save` (and beforeunload), not a fresh load.
+  const discard = useCallback(({ onScreen = false }: { onScreen?: boolean } = {}): boolean => {
     if (pending.current) return false;
     clearTimeout(timer.current);
     dirty.current = false;
     acceptedReplacement.current = null;
-    initialized.current = false;
+    if (!onScreen) initialized.current = false;
     setPhase("idle");
     setError("");
     setFailure(null);
