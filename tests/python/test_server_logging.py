@@ -675,29 +675,127 @@ class LoggerTests(unittest.TestCase):
             self.assertRegex(accepted, GENERATED_ID)
 
 
+def _event_name_argument(call: ast.Call, position: int, keyword: str) -> ast.expr | None:
+    if len(call.args) > position:
+        return call.args[position]
+    for given in call.keywords:
+        if given.arg == keyword:
+            return given.value
+    return None
+
+
+def _callee_name(call: ast.Call) -> str | None:
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    return None
+
+
+def _event_names_in_source() -> tuple[list[tuple[str, int, str]], list[str]]:
+    """Every event name written under src/ as (file, line, name), plus the wrappers found.
+
+    A name reaches `logger.event(level, name, ...)` either as a literal or through a
+    function parameter, as `_observe_failure(app, event, exc)` and `log_rejection` do.
+    Wrappers are found by fixpoint: a function that passes one of its parameters as the
+    name to `.event(` or to another wrapper is a wrapper, and the literal handed to it
+    at each call site is an event name too. A new wrapper is picked up without being listed.
+    """
+    trees = {
+        path: ast.parse(path.read_text(encoding="utf-8")) for path in sorted(SOURCE.rglob("*.py"))
+    }
+    # wrapper name -> (positional index of the name parameter, its keyword)
+    wrappers: dict[str, tuple[int, str]] = {}
+    changed = True
+    while changed:
+        changed = False
+        for tree in trees.values():
+            for func in ast.walk(tree):
+                if not isinstance(func, ast.FunctionDef | ast.AsyncFunctionDef):
+                    continue
+                if func.name in wrappers:
+                    continue
+                params = [a.arg for a in func.args.posonlyargs + func.args.args]
+                if params[:1] in (["self"], ["cls"]):
+                    params = params[1:]
+                params += [a.arg for a in func.args.kwonlyargs]
+                for call in ast.walk(func):
+                    if not isinstance(call, ast.Call):
+                        continue
+                    callee = _callee_name(call)
+                    if callee == "event":
+                        argument = _event_name_argument(call, 1, "name")
+                    elif callee in wrappers:
+                        argument = _event_name_argument(call, *wrappers[callee])
+                    else:
+                        continue
+                    if isinstance(argument, ast.Name) and argument.id in params:
+                        wrappers[func.name] = (params.index(argument.id), argument.id)
+                        changed = True
+                        break
+    found: list[tuple[str, int, str]] = []
+    for path, tree in trees.items():
+        relative = path.relative_to(ROOT).as_posix()
+        for call in ast.walk(tree):
+            if not isinstance(call, ast.Call):
+                continue
+            callee = _callee_name(call)
+            if callee == "event":
+                argument = _event_name_argument(call, 1, "name")
+            elif callee in wrappers:
+                argument = _event_name_argument(call, *wrappers[callee])
+            else:
+                continue
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                found.append((relative, call.lineno, argument.value))
+    return found, sorted(wrappers)
+
+
+# Names that routes/backup.py hands to `_observe_failure` and that were never registered
+# (found by T-72 / F-71-3, which made this test see names passed through a parameter).
+# Registering them is product code and belongs to its own task: register each in
+# observability/schema.py, then delete it here. An entry that is no longer needed fails.
+KNOWN_UNREGISTERED: frozenset[str] = frozenset(
+    {
+        "backup.preview_failed",
+        "backup.remote_worlds_failed",
+        "backup.snapshot_failed",
+        "backup.remote_restore_failed",
+        "backup.local_restore_request_invalid",
+        "backup.local_restore_failed",
+        "backup.login_start_failed",
+        "backup.login_callback_rejected",
+        "backup.login_callback_failed",
+    }
+)
+
+
 class EventRegistryTests(unittest.TestCase):
     def test_every_event_literal_is_registered(self):
         known = log_schema.EVENTS.keys() | log_schema.LEGACY_EVENTS
-        unregistered = []
-        for path in SOURCE.rglob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if not (
-                    isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "event"
-                    and len(node.args) >= 2
-                ):
-                    continue
-                name = node.args[1]
-                if (
-                    isinstance(name, ast.Constant)
-                    and isinstance(name.value, str)
-                    and name.value not in known
-                ):
-                    relative = path.relative_to(ROOT).as_posix()
-                    unregistered.append(f"{relative}:{node.lineno}: {name.value}")
+        found, _ = _event_names_in_source()
+        unregistered = [
+            f"{file}:{line}: {name}"
+            for file, line, name in found
+            if name not in known and name not in KNOWN_UNREGISTERED
+        ]
         self.assertEqual(unregistered, [], "register these in observability/schema.py")
+
+    def test_the_known_unregistered_list_holds_only_names_still_in_use(self):
+        known = log_schema.EVENTS.keys() | log_schema.LEGACY_EVENTS
+        found, _ = _event_names_in_source()
+        used = {name for _, _, name in found}
+        self.assertEqual(sorted(KNOWN_UNREGISTERED - used), [], "delete these from the list")
+        self.assertEqual(sorted(KNOWN_UNREGISTERED & known), [], "registered now: delete them")
+
+    def test_names_passed_through_a_parameter_are_checked_too(self):
+        found, wrappers = _event_names_in_source()
+        self.assertIn("_observe_failure", wrappers)
+        self.assertIn("log_rejection", wrappers)
+        passed_on = {name for file, _, name in found if file.endswith("routes/backup.py")}
+        self.assertIn("backup.preview_failed", passed_on)
+        self.assertIn("backup.login_callback_failed", passed_on)
+        self.assertGreater(len(passed_on), 5)
 
 
 if __name__ == "__main__":
