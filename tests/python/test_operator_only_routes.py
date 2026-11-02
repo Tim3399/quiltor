@@ -93,5 +93,34 @@ class LocalInstallTest(_InstallStubs):
                     self.installer(path).assert_called_once()
 
 
+class InstallableStatusTest(_InstallStubs):
+    def setUp(self):
+        super().setUp()
+        self.application.writing_assistance.status.return_value = {
+            "installed": False,
+            "grammar": {"installed": False, "available": False},
+        }
+        self.application.assistant.status.return_value = {"available": False}
+        self.application.assistant_installation.is_configured.return_value = False
+
+    def statuses(self):
+        _, _, writing = self.request("GET", "/api/writing-assistance/status")
+        _, _, assistant = self.request("GET", f"/api/assistant/status?world={self.world_id}")
+        return json.loads(writing), json.loads(assistant)
+
+    def test_hosted_status_says_not_installable(self):
+        self.application.operation_profile = "hosted"
+        writing, assistant = self.statuses()
+        self.assertIs(writing["installable"], False)
+        self.assertIs(writing["grammar"]["installable"], False)
+        self.assertIs(assistant["installable"], False)
+
+    def test_local_status_says_installable(self):
+        writing, assistant = self.statuses()
+        self.assertIs(writing["installable"], True)
+        self.assertIs(writing["grammar"]["installable"], True)
+        self.assertIs(assistant["installable"], True)
+
+
 if __name__ == "__main__":
     unittest.main()

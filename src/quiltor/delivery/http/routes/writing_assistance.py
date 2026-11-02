@@ -8,7 +8,13 @@ from quiltor.delivery.http.routes import Request, get, save
 
 @get("/api/writing-assistance/status")
 def status(handler, request: Request, app) -> None:
-    handler.send_json({"ok": True, **app.writing_assistance.status()})
+    # `installable` is False on a hosted server: the operator installs the data and
+    # LanguageTool there, and the client shows no install button for either.
+    status = app.writing_assistance.status()
+    grammar = status.get("grammar")
+    if isinstance(grammar, dict):
+        status = {**status, "grammar": {**grammar, "installable": app.installable}}
+    handler.send_json({"ok": True, **status, "installable": app.installable})
 
 
 @save("/api/writing-assistance/install", operator_only=True)

@@ -93,6 +93,7 @@ class AssistantRouteServices:
     assistant_jobs: Any
     assistant_installation: AssistantInstallation
     lock: threading.Lock
+    installable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +149,7 @@ class IdentityRouteServices:
 @dataclass(frozen=True, slots=True)
 class WritingAssistanceRouteServices:
     writing_assistance: WritingAssistanceService
+    installable: bool = True
 
 
 HOSTED = "hosted"
@@ -271,6 +273,7 @@ class WebApplication:
                 self.assistant_jobs,
                 self.assistant_installation,
                 self.lock,
+                self.installable,
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
@@ -299,7 +302,7 @@ class WebApplication:
         if path.startswith("/api/history"):
             return HistoryRouteServices(self.application.history, self.lock)
         if path.startswith("/api/writing-assistance"):
-            return WritingAssistanceRouteServices(self.writing_assistance)
+            return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
         return IdentityRouteServices(self.identity, self.observability, self.version)
 
 
