@@ -164,6 +164,57 @@ test.describe("clipped-text", () => {
     );
     expect(byRule(findings, "clipped-text")).toEqual([]);
   });
+
+  test("reports text cut off in a nested block of a clipping box", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<aside id="panel" style="width:120px;overflow:hidden"><div><p>Donaudampfschifffahrtsgesellschaftskapitaen</p></div></aside>',
+    );
+    const hits = byRule(findings, "clipped-text");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ severity: "high", selector: "aside#panel" });
+    expect(hits[0].message).toContain("Donaudampf");
+  });
+
+  test("reports text pushed below a clipping box vertically", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div id="short" style="width:200px;height:20px;overflow:hidden"><p style="margin:0">First line</p><p style="margin:0">Second line</p></div>',
+    );
+    expect(byRule(findings, "clipped-text")).toHaveLength(1);
+  });
+
+  test("stays quiet when a descendant box is larger but no text is cut", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div style="width:200px;height:60px;overflow:hidden"><span>Fits</span><div style="width:500px;height:10px;background:#ccc"></div></div>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("stays quiet when an inner scroller owns the overflowing text", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<aside style="width:200px;height:100px;overflow:hidden"><div style="height:150px;overflow-y:auto"><p style="margin:0">One</p><p style="margin:0;margin-top:300px">Far below</p></div></aside>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("stays quiet for a pan surface whose content lies beyond the window", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div style="width:300px;height:200px;overflow:hidden;position:relative"><div style="position:absolute;inset:0;transform:translate(0,0) scale(1)"><div style="position:absolute;left:900px;top:40px">Node far to the right</div><div style="position:absolute;left:10px;top:600px">Node far below</div></div></div>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("stays quiet for the content of a collapsed details element", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<details style="width:200px;height:30px;overflow:hidden"><summary>Title</summary><p>Hidden body that is long enough to wrap onto several lines of text in the box</p></details>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
 });
 
 test.describe("overlap", () => {
