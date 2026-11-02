@@ -52,12 +52,13 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
   // later (T-115).
   const [state, setState] = useState(() => ({
     key: storageKey,
+    mode,
     layout: storedLayout(storageKey, mode),
   }));
   let layout = state.layout;
-  if (state.key !== storageKey) {
-    layout = storedLayout(storageKey, mode);
-    setState({ key: storageKey, layout });
+  if (state.key !== storageKey || state.mode !== mode) {
+    layout = state.key !== storageKey ? storedLayout(storageKey, mode) : constrained(mode, layout);
+    setState({ key: storageKey, mode, layout });
   }
   const setLayout = useCallback(
     (update: (current: WorkspaceLayout) => WorkspaceLayout) =>
@@ -67,9 +68,6 @@ export function useWorkspaceLayout(worldId: string | undefined, workspace: Works
   useEffect(() => {
     if (storageKey) quiltorClient.platform.preferences.set(storageKey, JSON.stringify(layout));
   }, [storageKey, layout]);
-  useEffect(() => {
-    setLayout((current) => constrained(mode, current));
-  }, [mode, setLayout]);
 
   const setNavigationOpen = useCallback(
     (open: boolean) =>

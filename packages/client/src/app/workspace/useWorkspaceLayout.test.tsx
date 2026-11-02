@@ -66,6 +66,16 @@ describe("workspace layout persistence", () => {
     expect(seen.filter((entry) => entry.world === "world-2" && entry.navigationOpen)).toEqual([]);
   });
 
+  it("closes both panels when the window shrinks to a compact layout", () => {
+    const { result } = renderHook(() => useWorkspaceLayout("world-1", "text"));
+    expect(result.current.layout.navigationOpen).toBe(true);
+    act(() => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 600 });
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(result.current.layout).toMatchObject({ navigationOpen: false, inspectorOpen: false });
+  });
+
   it("allows at most one panel in regular layouts", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
     const { result } = renderHook(() => useWorkspaceLayout("world-1", "text"));
