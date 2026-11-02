@@ -164,7 +164,7 @@ async function openWorldAndSaveOnce() {
 
 async function undoAndSaveBehind(focused: HTMLElement) {
   focused.focus();
-  // The first change after a release only primes the autosave; the redo is a real edit.
+  // Undo and redo are both edits at the released binding; each save attempt must be refused.
   fireEvent.keyDown(focused, { key: "z", ctrlKey: true });
   await wait(50);
   fireEvent.keyDown(focused, { key: "z", ctrlKey: true, shiftKey: true });
@@ -173,40 +173,62 @@ async function undoAndSaveBehind(focused: HTMLElement) {
   await wait(100);
 }
 
+function mockBackupRestore() {
+  const backup = quiltorClient.application.backup;
+  vi.spyOn(backup, "location").mockResolvedValue({
+    ok: true,
+    storage: {
+      databasePath: "C:\\Quiltor\\world.sqlite3",
+      backupDirectory: "C:\\Quiltor\\backups",
+      lastSuccessfulBackup: "2026-10-30T08:30:00Z",
+      scope: "application-host",
+      canOpenFolder: false,
+    },
+  });
+  vi.spyOn(backup, "list").mockResolvedValue({
+    ok: true,
+    backups: [{ name: "snapshot-1", created: "2026-10-30T08:30:00Z", size: 2048 }],
+  });
+  vi.spyOn(backup, "preview").mockResolvedValue({
+    ok: true,
+    documents: {
+      manuscript: {
+        chapters: [{ id: "chapter-1", title: "Sicherung", body: "Alter Stand", note: "" }],
+      },
+      figures: { nodes: [], edges: [] },
+      storyboards: { boards: [], nodes: [], edges: [] },
+    },
+  });
+  return vi
+    .spyOn(backup, "restore")
+    .mockResolvedValue({ ok: true, warnings: ["backup.mirror_failed"] });
+}
+
+async function restoreBackupBehindReload() {
+  fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Sicherungen" }));
+  fireEvent.click(await screen.findByRole("button", { name: /2 KB/ }));
+  await screen.findByText("Sicherung");
+  fireEvent.click(screen.getByRole("button", { name: "Sicherung wiederherstellen" }));
+  const dialog = screen.getByRole("alertdialog", { name: "Sicherung wiederherstellen" });
+  vi.useFakeTimers();
+  try {
+    const confirm = within(dialog).getByRole("button", { name: /gedrückt halten/i });
+    fireEvent.pointerDown(confirm, { pointerId: 1 });
+    await vi.advanceTimersByTimeAsync(3000);
+  } finally {
+    vi.useRealTimers();
+  }
+  return screen.findByRole("button", { name: "Quiltor neu laden" });
+}
+
 const refusedSave = (warn: { mock: { calls: unknown[][] } }) =>
   warn.mock.calls.some((call) => String(call[0]).startsWith("[quiltor] save refused"));
 
 describe("a world replaced on the server is never saved over (P-Q4)", () => {
   it("refuses every save after a backup restore that stops before reloading", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const backup = quiltorClient.application.backup;
-    vi.spyOn(backup, "location").mockResolvedValue({
-      ok: true,
-      storage: {
-        databasePath: "C:\\Quiltor\\world.sqlite3",
-        backupDirectory: "C:\\Quiltor\\backups",
-        lastSuccessfulBackup: "2026-10-30T08:30:00Z",
-        scope: "application-host",
-        canOpenFolder: false,
-      },
-    });
-    vi.spyOn(backup, "list").mockResolvedValue({
-      ok: true,
-      backups: [{ name: "snapshot-1", created: "2026-10-30T08:30:00Z", size: 2048 }],
-    });
-    vi.spyOn(backup, "preview").mockResolvedValue({
-      ok: true,
-      documents: {
-        manuscript: {
-          chapters: [{ id: "chapter-1", title: "Sicherung", body: "Alter Stand", note: "" }],
-        },
-        figures: { nodes: [], edges: [] },
-        storyboards: { boards: [], nodes: [], edges: [] },
-      },
-    });
-    const restore = vi
-      .spyOn(backup, "restore")
-      .mockResolvedValue({ ok: true, warnings: ["backup.mirror_failed"] });
+    const restore = mockBackupRestore();
     await openWorldAndSaveOnce();
 
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
@@ -229,6 +251,23 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
     await undoAndSaveBehind(reload);
     expect(saves).toHaveLength(1);
     expect(refusedSave(warn)).toBe(true);
+  });
+
+  it("asks before unloading after a single edit behind the restore dialog (O1, T-100)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockBackupRestore();
+    await openWorldAndSaveOnce();
+    const reload = await restoreBackupBehindReload();
+
+    // One edit only: the documents stay on screen, so it is a change, not a fresh load.
+    reload.focus();
+    fireEvent.keyDown(reload, { key: "z", ctrlKey: true });
+    await wait(1000);
+    expect(saves).toHaveLength(1);
+    expect(refusedSave(warn)).toBe(true);
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
   });
 
   it("refuses every save after a cloud synchronisation that requires a reload", async () => {

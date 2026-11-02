@@ -462,9 +462,9 @@ export function App() {
       if (force) {
         // The server already holds other documents; unbind before anything else can run.
         documentsBinding.current = null;
-        discardManuscript();
-        discardFigures();
-        discardStoryboards();
+        discardManuscript({ onScreen: true });
+        discardFigures({ onScreen: true });
+        discardStoryboards({ onScreen: true });
         return true;
       }
       if (isManuscriptDirty() || isFiguresDirty() || isStoryboardsDirty()) {
