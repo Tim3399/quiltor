@@ -134,8 +134,6 @@ export const shared = {
   // Shown when an export does not reach its destination: rarely in the browser, but in
   // the desktop app whenever the native save bridge cannot write the file.
   exportFailed: "Der Export konnte nicht gespeichert werden.",
-  saveConflict:
-    "Die gespeicherte Fassung wurde in einem anderen Tab geändert. Bewahre deinen Entwurf auf und vergleiche ihn mit der gespeicherten Fassung.",
   timeline: "Timeline",
   moment: "Zeitpunkt",
   moments: "Zeitpunkte",

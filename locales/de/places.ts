@@ -30,7 +30,6 @@ export const places = {
     "Das Bild konnte nicht übertragen werden. Versuche es erneut. Falls der Fehler bleibt, melde den Zeitpunkt.",
   placeMapActions: "Kartenaktionen",
   placeMapChrome: "Karte: {name}",
-  placeMapInformation: "Karteninformationen",
   placeMapOnePlace: "1 Ort",
   placeMapPlaceCount: "{n} Orte",
   placeMapGrid: "Raster",

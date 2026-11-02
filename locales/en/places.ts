@@ -29,7 +29,6 @@ export const places = {
     "The image could not be transferred. Try again. If the error persists, report the time it occurred.",
   placeMapActions: "Map actions",
   placeMapChrome: "Map: {name}",
-  placeMapInformation: "Map information",
   placeMapOnePlace: "1 place",
   placeMapPlaceCount: "{n} places",
   placeMapGrid: "Grid",
