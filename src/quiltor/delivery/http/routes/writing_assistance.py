@@ -11,7 +11,7 @@ def status(handler, request: Request, app) -> None:
     handler.send_json({"ok": True, **app.writing_assistance.status()})
 
 
-@save("/api/writing-assistance/install")
+@save("/api/writing-assistance/install", operator_only=True)
 def install(handler, request: Request, app) -> None:
     try:
         handler.send_json(app.writing_assistance.install())
@@ -19,7 +19,7 @@ def install(handler, request: Request, app) -> None:
         handler.send_exception(exc)
 
 
-@save("/api/writing-assistance/grammar/install")
+@save("/api/writing-assistance/grammar/install", operator_only=True)
 def install_grammar(handler, request: Request, app) -> None:
     try:
         handler.send_json(app.writing_assistance.install_grammar())

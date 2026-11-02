@@ -77,7 +77,7 @@ def install_status(handler, request: Request, app) -> None:
     )
 
 
-@save("/api/assistant/install")
+@save("/api/assistant/install", operator_only=True)
 def install(handler, request: Request, app) -> None:
     """Start asynchronous local-runtime installation.
 

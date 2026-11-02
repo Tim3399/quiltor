@@ -1,0 +1,97 @@
+"""Installing software is the operator's job on a hosted server (D-59, T-101).
+
+Every route that installs something is marked `operator_only`. In the `hosted`
+operation profile the dispatch refuses it with `403 install.forbidden_hosted`
+before the route runs and before any body is read; locally it runs as before.
+"""
+
+import json
+import unittest
+from unittest.mock import MagicMock, patch
+
+from quiltor.delivery.http import routes as api_routes
+from quiltor.hosts.web import server
+from tests.python.test_server_logging import _LiveServer
+
+# The install endpoints, each with the call on the application that does the work.
+INSTALL_ENDPOINTS = {
+    "/api/assistant/install": ("assistant_installation", "start_async"),
+    "/api/writing-assistance/install": ("writing_assistance", "install"),
+    "/api/writing-assistance/grammar/install": ("writing_assistance", "install_grammar"),
+}
+
+
+class OperatorOnlyTableTest(unittest.TestCase):
+    def test_every_install_route_is_operator_only(self):
+        api_routes.load()
+        install_paths = {
+            path
+            for table in (api_routes.GET, api_routes.SAVE)
+            for path in table
+            if "install" in path
+        }
+        # The status probe reads only; it stays open so a hosted client can show "Bereit".
+        install_paths.discard("/api/assistant/install/status")
+        self.assertEqual(install_paths, set(INSTALL_ENDPOINTS))
+        for path in sorted(install_paths):
+            registration = api_routes.SAVE.get(path) or api_routes.GET[path]
+            with self.subTest(path=path):
+                self.assertTrue(registration.operator_only, f"{path} is not operator_only")
+
+    def test_reading_routes_are_not_operator_only(self):
+        api_routes.load()
+        self.assertFalse(api_routes.GET["/api/assistant/install/status"].operator_only)
+        self.assertFalse(api_routes.GET["/api/writing-assistance/status"].operator_only)
+
+
+class _InstallStubs(_LiveServer):
+    def setUp(self):
+        super().setUp()
+        self.application.assistant_installation = MagicMock()
+        self.application.assistant_installation.start_async.return_value = True
+        self.application.writing_assistance = MagicMock()
+        self.application.writing_assistance.install.return_value = {"ok": True}
+        self.application.writing_assistance.install_grammar.return_value = {"ok": True}
+
+    def installer(self, path):
+        owner, method = INSTALL_ENDPOINTS[path]
+        return getattr(getattr(self.application, owner), method)
+
+
+class HostedInstallTest(_InstallStubs):
+    def setUp(self):
+        super().setUp()
+        self.application.operation_profile = "hosted"
+
+    def test_hosted_refuses_every_install_endpoint_without_reading_the_body(self):
+        for path in INSTALL_ENDPOINTS:
+            with self.subTest(path=path):
+                self.fresh()
+                with patch.object(
+                    server.Handler, "_read_json_body", side_effect=AssertionError("body read")
+                ) as read_body:
+                    status, _, raw = self.request("POST", path, {"worldId": self.world_id})
+                self.assertEqual(status, 403)
+                self.assertEqual(json.loads(raw)["error"]["code"], "install.forbidden_hosted")
+                self.assertFalse(json.loads(raw)["error"]["retryable"])
+                read_body.assert_not_called()
+                self.installer(path).assert_not_called()
+                line = self.only("install.forbidden_hosted")
+                self.assertEqual(line["level"], "warning")
+                self.assertEqual(line["route"], path)
+
+
+class LocalInstallTest(_InstallStubs):
+    def test_local_runs_every_install_endpoint(self):
+        for profile in ("local", "desktop"):
+            self.application.operation_profile = profile
+            for path in INSTALL_ENDPOINTS:
+                with self.subTest(profile=profile, path=path):
+                    self.installer(path).reset_mock()
+                    status, _, _ = self.request("POST", path, {})
+                    self.assertEqual(status, 200)
+                    self.installer(path).assert_called_once()
+
+
+if __name__ == "__main__":
+    unittest.main()
