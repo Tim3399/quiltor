@@ -63,7 +63,8 @@ for (const theme of ["light", "dark"] as const) {
 
         const header = page.locator(".world-list-panel > header");
         const actions = header.getByRole("button");
-        await expect(actions).toHaveCount(4);
+        // Import, Trash and New world: one import button since T-105.
+        await expect(actions).toHaveCount(3);
         const geometry = await header.evaluate((element) => {
           const panel = element.parentElement!.getBoundingClientRect();
           const heading = element.querySelector("h2")!.getBoundingClientRect();
@@ -94,7 +95,6 @@ for (const theme of ["light", "dark"] as const) {
         }
         if (scenario.width <= 719 && !scenario.enlarged) {
           expect(geometry.actions[0].top).toBe(geometry.actions[1].top);
-          expect(geometry.actions[2].top).toBe(geometry.actions[3].top);
           expect(geometry.actions[2].top).toBeGreaterThan(geometry.actions[0].top);
         }
         for (const action of await actions.all()) {
