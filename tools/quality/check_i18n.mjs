@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
+import { findDeadKeys, readSearchedCode } from "./locale_dead_keys.mjs";
 import { analyzeLocaleRegistry, closeLocaleRegistryParser } from "./locale_registry.mjs";
 import { findForbiddenSpellings, stringsInSource } from "./term_spelling.mjs";
 
@@ -162,6 +163,11 @@ for (const locale of locales) {
 
 const base = catalogs.get(baseLocale);
 if (base) {
+  const dead = findDeadKeys(base.messages.keys(), readSearchedCode(root));
+  if (dead.length)
+    failures.push(
+      `locales/${baseLocale}: unused keys ${dead.join(", ")} (delete them from every locale)`,
+    );
   for (const [locale, candidate] of catalogs) {
     if (locale === baseLocale) continue;
     const missingFiles = base.files.filter((name) => !candidate.files.includes(name));
