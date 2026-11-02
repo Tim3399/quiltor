@@ -49,12 +49,12 @@ zusammengeführt; prüfe vor der Auswahl den vollständigen Projektstand.
 
 ## Mit einer Aufgabe beginnen
 
-| Aufgabe                     | Einstieg                                                                                                                                                                                                                         |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schreiben                   | Öffne **Text**, wähle **Neues Kapitel** und beginne im Kapiteltext.                                                                                                                                                              |
-| Vorhandenen Text übernehmen | Lege ein Kapitel an und füge deinen Text aus der bisherigen Anwendung ein. Prüfe Absätze, Formatierungen und Links. Übernimm längere Texte kapitelweise. Für ein vollständiges Quiltor-Projekt verwende **Projekt importieren**. |
-| Eine Figur nachschlagen     | Öffne **Suchen & Befehle**, suche ihren Namen und öffne den Treffer. **Text** bringt dich zum zuletzt bearbeiteten Kapitel zurück.                                                                                               |
-| Weltwissen vorbereiten      | Öffne den Assistenten und wähle ausdrücklich die zu berücksichtigenden Kapitel. Richte das lokale Modell erst für diese Funktion ein und prüfe Vorschläge vor dem Übernehmen.                                                    |
+| Aufgabe                     | Einstieg                                                                                                                                                                                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schreiben                   | Öffne **Text**, wähle **Neues Kapitel** und beginne im Kapiteltext.                                                                                                                                                                                              |
+| Vorhandenen Text übernehmen | Lege ein Kapitel an und füge deinen Text aus der bisherigen Anwendung ein. Prüfe Absätze, Formatierungen und Links. Übernimm längere Texte kapitelweise. Für ein vollständiges Quiltor-Projekt wähle in der Projektauswahl **Importieren** und dann **Projekt**. |
+| Eine Figur nachschlagen     | Öffne **Suchen & Befehle**, suche ihren Namen und öffne den Treffer. **Text** bringt dich zum zuletzt bearbeiteten Kapitel zurück.                                                                                                                               |
+| Weltwissen vorbereiten      | Öffne den Assistenten und wähle ausdrücklich die zu berücksichtigenden Kapitel. Richte das lokale Modell erst für diese Funktion ein und prüfe Vorschläge vor dem Übernehmen.                                                                                    |
 
 Der Assistent schreibt oder überarbeitet keine Romanprosa. Standardanalysen
 berücksichtigen Kapitel im Buch. Zurückgestellte Kapitel sind ausdrücklich auswählbar;

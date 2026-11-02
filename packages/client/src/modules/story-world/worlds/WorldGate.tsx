@@ -299,6 +299,7 @@ export function WorldGate({
                 label={t("importChoiceManuscript")}
                 title={t("importChoiceManuscript")}
                 description={t("importChoiceManuscriptHelp")}
+                descriptionLayout="wrap"
                 leading={<FileText />}
                 indicator={<ChevronRight />}
                 onSelect={() => {
@@ -312,6 +313,7 @@ export function WorldGate({
                 label={t("importChoiceProject")}
                 title={t("importChoiceProject")}
                 description={t("importChoiceProjectHelp")}
+                descriptionLayout="wrap"
                 leading={<Upload />}
                 indicator={<ChevronRight />}
                 onSelect={() => {

@@ -113,3 +113,52 @@ for (const theme of ["light", "dark"] as const) {
     }
   });
 }
+
+for (const scenario of [
+  { width: 320, height: 568, enlarged: false },
+  { width: 390, height: 844, enlarged: true },
+]) {
+  test(`Import choice shows each explanation in full at ${scenario.width} px${
+    scenario.enlarged ? " with 200% text" : ""
+  }`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "wide", "This test owns its viewport.");
+    await page.setViewportSize({ width: scenario.width, height: scenario.height });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.addInitScript(() => localStorage.setItem("quiltor-interface-language", "de"));
+    await page.goto("/");
+    await page.getByRole("button", { name: "Importieren", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Was möchtest du importieren?" });
+    await expect(dialog).toBeVisible();
+    if (scenario.enlarged) {
+      await dialog.evaluate((root) => {
+        const elements = [root, ...root.querySelectorAll<HTMLElement>("*")] as HTMLElement[];
+        const sizes = elements.map((element) =>
+          Number.parseFloat(getComputedStyle(element).fontSize),
+        );
+        elements.forEach((element, index) => {
+          element.style.transition = "none";
+          element.style.fontSize = `${sizes[index] * 2}px`;
+        });
+      });
+    }
+    const descriptions = dialog.locator(".selection-card__description");
+    await expect(descriptions).toHaveCount(2);
+    const clipped = await descriptions.evaluateAll((elements) =>
+      elements
+        .filter((element) => {
+          const card = element.closest(".selection-card");
+          if (!card) return true;
+          const own = element.getBoundingClientRect();
+          const outer = card.getBoundingClientRect();
+          return (
+            element.scrollWidth > element.clientWidth + 1 ||
+            element.scrollHeight > element.clientHeight + 1 ||
+            own.right > outer.right + 1 ||
+            own.bottom > outer.bottom + 1
+          );
+        })
+        .map((element) => element.textContent),
+    );
+    expect(clipped).toEqual([]);
+  });
+}
