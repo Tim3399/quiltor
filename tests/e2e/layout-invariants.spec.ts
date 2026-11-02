@@ -1,7 +1,6 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
+import { toolbarRowFindings } from "../audit/support/toolbar-row";
 import { mockWorkshop as mockWorkshopRoutes } from "./support/application-api";
-import { waitForSettledLayout } from "./support/layout-settled";
 import {
   closePlaceSheet,
   mockExpandedMapWorld,
@@ -9,6 +8,8 @@ import {
   selectMapChild,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { waitForSettledLayout } from "./support/layout-settled";
+import { expect, test } from "./support/transient-network";
 
 /*
  * Geometry invariants.
@@ -343,6 +344,12 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
 
 const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as const;
 
+// From the project's own width down: each project walks the widths below it, so the compact
+// project stays at the phone and the wide one covers every breakpoint in between.
+const TOOLBAR_WIDTHS = [
+  1440, 1280, 1180, 1100, 1024, 960, 900, 860, 820, 768, 719, 640, 560, 500, 430, 390, 360, 320,
+];
+
 for (const viewport of [
   { name: "inspector sheet boundary", width: 820, height: 800, coarse: false },
   { name: "compact controls boundary", width: 719, height: 800, coarse: false },
@@ -494,6 +501,42 @@ for (const workspace of workspaces) {
 
     expect(await violations(page, TOLERANCE)).toEqual([]);
   });
+
+  /*
+   * T-104: every toolbar is exactly one row, and none of its controls is hidden or cut off --
+   * not wrapped onto a second row (the storyboard's undo alone below the rest), not clipped at
+   * the edge ("Element nach vorne"), not under a scrollbar (the manuscript strip). The three
+   * project viewports alone missed the storyboard, which wraps between them, so the test walks
+   * a row of widths from the widest layout down to the phone.
+   */
+  for (const theme of ["light", "dark"] as const) {
+    test(`${workspace}: every toolbar is one row with nothing hidden (${theme})`, async ({
+      page,
+    }) => {
+      await page.addInitScript((chosen) => {
+        localStorage.setItem("quiltor-theme", chosen);
+        localStorage.setItem("quiltor-interface-language", "de");
+      }, theme);
+      await mockWorkshop(page);
+      await page.goto("/");
+      await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+      await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+      if (workspace !== "Text") {
+        await page.getByRole("button", { name: workspace, exact: true }).click();
+      }
+      await waitForSettledLayout(page);
+      const start = page.viewportSize() ?? { width: 1440, height: 900 };
+      const messages: string[] = [];
+      for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+        await page.setViewportSize({ width, height: start.height });
+        await waitForSettledLayout(page);
+        for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+          messages.push(`${width}px: ${finding.message}`);
+        }
+      }
+      expect(messages).toEqual([]);
+    });
+  }
 }
 
 /*
