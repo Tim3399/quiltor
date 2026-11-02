@@ -186,5 +186,4 @@ export const shared = {
   nRelationships: "{n} Beziehungen",
   nMoments: "{n} Zeitpunkte",
   nChanges: "{n} Änderungen",
-  nPlaces: "{n} Orte",
 } as const;

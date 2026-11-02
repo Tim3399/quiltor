@@ -78,7 +78,9 @@ export function PlaceToolbar({
     <WorkspaceToolbar className="places-toolbar" label={t("places")}>
       <WorkspaceToolbarTitle
         title={t("places")}
-        detail={t("nPlaces").replace("{n}", String(placesCount))}
+        detail={
+          placesCount === 1 ? t("placeMapOnePlace") : t("placeMapPlaceCount", { n: placesCount })
+        }
       />
       <WorkspaceToolbarActions
         create={

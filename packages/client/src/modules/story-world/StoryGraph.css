@@ -59,6 +59,15 @@
   color: var(--warning-text);
   font-size: var(--font-size-body-compact);
 }
+.mode-banner--info {
+  border-color: var(--info-border);
+  background: var(--info-bg);
+  box-shadow: var(--shadow);
+  color: var(--info-text);
+}
+.mode-banner--info .mode-banner-icon {
+  color: var(--info-icon);
+}
 .mode-banner svg {
   width: 15px;
   flex-shrink: 0;

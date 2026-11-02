@@ -182,5 +182,4 @@ export const shared = {
   nRelationships: "{n} relationships",
   nMoments: "{n} moments",
   nChanges: "{n} changes",
-  nPlaces: "{n} places",
 } as const;

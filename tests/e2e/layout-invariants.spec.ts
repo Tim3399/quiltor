@@ -446,6 +446,21 @@ for (const viewport of [
       await expect(page.locator(".places-measure-overlays")).toBeVisible();
       await expect(page.locator(".place-map-chrome")).toBeVisible();
       await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
+
+      // Inside a level the trail joins the hint and the scale at the top edge. On the top
+      // level there is no trail, so only this step can find the three on one spot.
+      await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+      await expect(page.locator(".places-measure-overlays")).toHaveCount(0);
+      await page
+        .locator(".place-map-chrome")
+        .getByRole("button", { name: "Weltkarte öffnen", exact: true })
+        .click();
+      await expect(page.locator(".place-level-trail")).toContainText("Weltkarte");
+      await waitForMapViewport(page);
+      await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+      await expect(page.locator(".places-measure-overlays")).toBeVisible();
+      await expect(page.locator(".place-level-trail")).toBeVisible();
+      await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
     } finally {
       await context.close();
     }
