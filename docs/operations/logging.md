@@ -69,8 +69,6 @@ grep '"event": "http.error"' quiltor-server.log
 
 Further events from other parts of the server (backup, identity, assistant) keep their own fields.
 
-`identity.login_without_roles` carries no free-text `hint`, because `hint` is not on the list of allowed fields. When it appears, check the identity provider's role mapper: `roles_claim_present: false` means the token carries neither `realm_access` nor `resource_access`, so the mapper does not put roles into the token at all; `true` means the claim arrives, but without a Quiltor role for this account.
-
 ## What is never in the log
 
 The log must be safe to attach to a bug report. These never appear in it:

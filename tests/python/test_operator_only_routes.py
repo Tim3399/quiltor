@@ -6,13 +6,18 @@ before the route runs and before any body is read; locally it runs as before.
 """
 
 import json
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+from quiltor.bootstrap.application import AssistantServices, build_identity
+from quiltor.bootstrap.web import build_web_application
 from quiltor.delivery.http import routes as api_routes
 from quiltor.hosts.web import server
-from tests.python.test_server_logging import _LiveServer
+from tests.python.test_server_logging import _directories, _LiveServer
 
 # The install endpoints, each with the call on the application that does the work.
 INSTALL_ENDPOINTS = {
@@ -127,3 +132,42 @@ class InstallableStatusTest(_InstallStubs):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfileWiringTest(unittest.TestCase):
+    """build_web_application derives the profile from the identity it is given.
+
+    The other tests set `operation_profile` by hand or call `operation_profile_for`
+    directly; this one holds the line in between (T-101 review, F-101-1).
+    """
+
+    def _profile(self, oidc: bool) -> tuple[str, bool]:
+        identity = build_identity(
+            oidc, issuer="https://issuer.example", client_id="c", client_secret="s"
+        )
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.dict(
+                os.environ,
+                {"QUILTOR_HOST": "127.0.0.1", "QUILTOR_PUBLIC_URL": "https://quiltor.example"},
+            ),
+            patch(
+                "quiltor.bootstrap.web.build_assistant_services",
+                return_value=AssistantServices(MagicMock(), MagicMock()),
+            ),
+        ):
+            application = build_web_application(
+                identity=identity,
+                ensure_assistant_installed=False,
+                app_directories=_directories(Path(tmp)),
+            )
+            try:
+                return application.operation_profile, application.installable
+            finally:
+                application.close()
+
+    def test_oidc_identity_builds_a_hosted_application(self):
+        self.assertEqual(self._profile(oidc=True), ("hosted", False))
+
+    def test_single_user_identity_builds_a_local_application(self):
+        self.assertEqual(self._profile(oidc=False), ("local", True))
