@@ -293,6 +293,17 @@ class _PrivacyServer(_LiveServer):
         with self._failing_route("/api/test-sqlite-text", full):
             self.assertIn(self.request("GET", "/api/test-sqlite-text")[0], {500, 503})
 
+    def scenario_operator_only(self):
+        # A hosted server refuses an install; its line names the route, not the body.
+        self.application.operation_profile = "hosted"
+        try:
+            status, _, _ = self.request(
+                "POST", "/api/writing-assistance/grammar/install", {"x": CANARIES["prose"]}
+            )
+            self.assertEqual(status, 403)
+        finally:
+            self.application.operation_profile = "local"
+
     SCENARIOS = (
         "scenario_content",
         "scenario_rejected_saves",
@@ -301,6 +312,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_worlds",
         "scenario_unhandled",
         "scenario_storage",
+        "scenario_operator_only",
     )
 
 
