@@ -863,6 +863,8 @@ jobs:
           tests/e2e/chapter-navigation.spec.ts
           tests/e2e/manuscript-import.spec.ts
           tests/e2e/manuscript-export.spec.ts
+          tests/e2e/editor-session-state.spec.ts
+          tests/e2e/chapter-version-diff.spec.ts
           --output=test-results/product --reporter=line
 
       - name: Upload browser diagnostics

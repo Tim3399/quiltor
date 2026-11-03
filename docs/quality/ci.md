@@ -361,14 +361,16 @@ plan or get any job-level `if:` other than the path filter's browser group (see 
 On Windows and macOS a pull request runs `npx vitest run` and these product specs (test.yml,
 `cross-platform-smoke`, "Product smoke specs"):
 
-| Spec                                      | Tests | Why this one shows a system difference                                                                              |
-| ----------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
-| `tests/e2e/visual-baseline.spec.ts`       | 15    | Compares pixels against that system's own baseline set -- font rasterisation and native controls differ per system. |
-| `tests/e2e/world-gate-responsive.spec.ts` | 6     | Creates and opens a world: file creation, locks and paths in the data directory, at several window sizes.           |
-| `tests/e2e/chapter-navigation.spec.ts`    | 3     | Opens and switches chapters, which writes and reads the manuscript files.                                           |
-| `tests/e2e/manuscript-import.spec.ts`     | 9     | Imports manuscript files: file pickers, path separators and text encodings, where Windows differs most.             |
-| `tests/e2e/manuscript-export.spec.ts`     | 18    | Exports to files: file names, line endings and encodings of what is written.                                        |
-| **Total**                                 | 51    | of 531 product tests; Windows ran out of network buffers above 115 in one process                                   |
+| Spec                                      | Tests | Why this one shows a system difference                                                                                                |
+| ----------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/e2e/visual-baseline.spec.ts`       | 15    | Compares pixels against that system's own baseline set -- font rasterisation and native controls differ per system.                   |
+| `tests/e2e/world-gate-responsive.spec.ts` | 6     | Creates and opens a world: file creation, locks and paths in the data directory, at several window sizes.                             |
+| `tests/e2e/chapter-navigation.spec.ts`    | 3     | Opens and switches chapters, which writes and reads the manuscript files.                                                             |
+| `tests/e2e/manuscript-import.spec.ts`     | 9     | Imports manuscript files: file pickers, path separators and text encodings, where Windows differs most.                               |
+| `tests/e2e/manuscript-export.spec.ts`     | 18    | Exports to files: file names, line endings and encodings of what is written.                                                          |
+| `tests/e2e/editor-session-state.spec.ts`  | 15    | Keeps cursor, scroll and selection per chapter: Home/End are Cmd+Arrow on macOS, and the state is stored beside the manuscript files. |
+| `tests/e2e/chapter-version-diff.spec.ts`  | 21    | Compares chapter versions: select-all is Cmd+A on macOS, and the versions come from files written and read back.                      |
+| **Total**                                 | 87    | of 531 product tests; Windows ran out of network buffers above 115 in one process                                                     |
 
 Left out on purpose: `workspaces.spec.ts` (126 tests, more than the Windows limit on its own) and
 the design suite, whose system differences the visual baseline already samples. Everything left
