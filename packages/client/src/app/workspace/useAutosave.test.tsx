@@ -145,6 +145,24 @@ describe("explicit autosave flush", () => {
     expect(result.current.phase).toBe("saved");
   });
 
+  it("lets the debounce timer save through the save function of the latest render", async () => {
+    vi.useFakeTimers();
+    const first = vi.fn().mockResolvedValue(undefined);
+    const latest = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = renderHook(({ value, save }) => useAutosave(value, save, 25), {
+      initialProps: { value: { body: "saved" }, save: first },
+      wrapper,
+    });
+    const draft = { body: "draft" };
+    rerender({ value: draft, save: first });
+    rerender({ value: draft, save: latest });
+
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+
+    expect(latest).toHaveBeenCalledWith(draft);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   // F-17-6: replace() hands over the server-confirmed value, and callers go on with it before
   // React renders again. resolve() and a second replace() must compare against `persisted`.
   it("resolves the persisted value right after a replace, without a render in between", async () => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
 import { ApplicationGatewayError } from "../../platform/application/errors";
 import type { SavePhase } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
 
 // The request id is what an operator searches the server log for; code says what failed.
 function reportSaveFailure(reason: unknown): void {
@@ -35,7 +36,14 @@ export function useAutosave<T>(
   const dirty = useRef(false);
   const initialized = useRef(false);
   const acceptedReplacement = useRef<T | null>(null);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
+  // Not useLatest, deliberately (T-17 F-17-2): `latest` has two writers. The render gives it
+  // the current value; replace() gives it the server-confirmed `persisted`, and flush(),
+  // resolve() and the timer compare against that before the next render. An assignment in an
+  // insertion effect would overwrite the handler's value with the prop at the next commit
+  // whenever the caller does not re-render with `persisted` at once -- a new window in the
+  // save path for a purely formal gain. Covered by "resolves the persisted value right after a
+  // replace…" and the test after it.
+  // eslint-disable-next-line react-hooks/refs -- two writers (render and replace) by design, F-17-2; see above
   latest.current = value;
 
   const flush = useCallback((): Promise<void> => {
@@ -68,9 +76,8 @@ export function useAutosave<T>(
     });
     return pending.current;
   }, [save, t]);
-  const flushRef = useRef(flush);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  flushRef.current = flush;
+  // Read only, by the debounce timer, which must run the flush of the latest render.
+  const flushRef = useLatest(flush);
 
   useEffect(() => {
     if (!value) return;

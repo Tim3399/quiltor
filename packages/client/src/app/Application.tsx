@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useInsertionEffect, useMemo, useRef, useState } from "react";
 import { PRODUCT_MARK } from "../config/branding";
 import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
@@ -73,8 +73,9 @@ export function App() {
   const documentsBinding = useRef<WorldBinding | null>(null);
   // Which load the workspace shows; the editor stays unmounted until it is "loaded".
   const [documentsLoad, setDocumentsLoad] = useState<DocumentsLoad | null>(null);
-  // Latest render's state for the identity-stable loadDocuments; filled in after the hooks below.
-  const live = useRef<{
+  // Latest commit's state for the identity-stable loadDocuments; filled by the insertion effect
+  // after the save hooks below.
+  const liveRef = useRef<{
     saves: {
       manuscript: ReturnType<typeof useAutosave<Manuscript>>;
       figures: ReturnType<typeof useAutosave<FigureState>>;
@@ -104,7 +105,7 @@ export function App() {
       }: LoadedWorldDocuments,
       binding: WorldBinding,
     ) => {
-      const latest = live.current;
+      const latest = liveRef.current;
       const saves = latest?.saves;
       // Rule 2: a load over unsaved changes of the same world never replaces them, in any
       // family; the author decides in the recovery dialog. The order matters (F-69-10): compare
@@ -303,13 +304,20 @@ export function App() {
   // A held-back load is a conflict as well: the server has another version than the draft.
   const recoveryInConflictMode =
     recoveryHasConflict || (recoveryFamily !== null && pendingLoads.includes(recoveryFamily));
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the identity-stable loadDocuments
-  live.current = {
-    saves: { manuscript: manuscriptSave, figures: figureSave, storyboards: storyboardSave },
-    recoveryHasConflict,
-    recoveryFamily,
-    currentChapterId,
-  };
+  // The latest commit's state for the identity-stable loadDocuments, assigned the way useLatest
+  // does it: in an insertion effect, before any layout effect of the same commit, so no load
+  // path started from a child's layout effect sees an older save state, and never during
+  // render. useLatest itself cannot be called here: loadDocuments must exist before
+  // useWorldSession, and the save states it reads come from hooks that depend on that session,
+  // so the ref is declared above it and only filled here.
+  useInsertionEffect(() => {
+    liveRef.current = {
+      saves: { manuscript: manuscriptSave, figures: figureSave, storyboards: storyboardSave },
+      recoveryHasConflict,
+      recoveryFamily,
+      currentChapterId,
+    };
+  });
   // Once the author has chosen for every held-back family, the workspace shows the chosen
   // versions again.
   const settlePendingLoad = useCallback(
