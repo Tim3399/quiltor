@@ -166,14 +166,14 @@ jobs:
             --check-not-older --current-version "$VERSION"
           FILES="$(python distribution/tooling/release_manifest.py files \
             --manifest release-assets/release-manifest.json)"
-          mapfile -t MANIFEST_FILES <<< "$FILES"
           ASSETS=("release-assets/release-manifest.json")
-          for file in "${MANIFEST_FILES[@]}"; do
+          # A read loop, nothing from bash 4: the release tests run this step under macOS's bash 3.2.
+          while IFS= read -r file; do
             [ -n "$file" ] || { echo "::error::manifest returned an empty release filename"; exit 1; }
             [ -f "release-assets/$file" ] \
               || { echo "::error::verified release file disappeared: $file"; exit 1; }
             ASSETS+=("release-assets/$file")
-          done
+          done <<< "$FILES"
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             [ "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true ] \
               || { echo "::error::v$VERSION is already published"; exit 1; }

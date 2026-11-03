@@ -2942,6 +2942,21 @@ class PathFilterContractTests(unittest.TestCase):
                 workflow_contract.validate_path_filter(sources, tracked=tracked)
 
 
+# Constructs bash 3.2 lacks. macOS ships 3.2, and these tests run workflow steps under the
+# machine's own bash, so a step that needs bash 4 fails there although the Linux runner is fine.
+BASH4_ONLY = re.compile(
+    r"\b(?:mapfile|readarray|coproc)\b|\b(?:declare|local|typeset) -[a-zA-Z]*[An]"
+    r"|\$\{[A-Za-z_][A-Za-z_0-9]*(?:,,?|\^\^?)\}|\|&|&>>|\[\[ -v |\bwait -n\b"
+)
+
+
+def assert_bash32(script, where):
+    """Fail on a bash-4-only construct in a script these tests run under the local bash."""
+
+    match = BASH4_ONLY.search(script)
+    assert match is None, f"{where} uses {match.group(0)!r}, which bash 3.2 (macOS) lacks"
+
+
 def run_gate_script(workflow, values):
     """
     Run browser-e2e's real gate script under bash with the given environment.
@@ -2958,6 +2973,7 @@ def run_gate_script(workflow, values):
     script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
     assert script is not None, "browser-e2e has no run block"
     body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
+    assert_bash32(body, "browser-e2e")
     with tempfile.TemporaryDirectory() as directory:
         output = Path(directory) / "output"
         output.write_bytes(b"")
@@ -3355,6 +3371,7 @@ def run_step_script(workflow, job, step_name, preamble, cwd=None):
     assert script is not None, f"{step_name} has no run block"
     text = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
     text = text.replace("${{ github.repository }}", "owner/repo")
+    assert_bash32(text, step_name)
     completed = subprocess.run(
         [bash, "-s"], input=(preamble + text).encode(), capture_output=True, check=False, cwd=cwd
     )
