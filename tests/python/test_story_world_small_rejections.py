@@ -39,6 +39,13 @@ class EntityResolutionRejectionTests(unittest.TestCase):
         self.assertIsNone(result.resolved_id)
         self.assertEqual(result.candidates, [])
 
+    def test_nodes_and_edges_that_are_not_lists_resolve_nothing(self) -> None:
+        for figures in ({"nodes": "anna"}, {"nodes": {"anna": 1}}, {}, {"nodes": [5, None]}):
+            with self.subTest(figures=figures):
+                self.assertEqual(resolve_entity(figures, "anna").status, "not_found")
+        malformed_edges = {"nodes": [{"id": "anna", "name": "Anna"}], "edges": "x"}
+        self.assertEqual(resolve_entity(malformed_edges, "Anna").resolved_id, "anna")
+
     def test_a_mention_without_letters_is_not_found(self) -> None:
         figures = {"nodes": [{"id": "anna", "name": "Anna"}]}
         self.assertEqual(resolve_entity(figures, "  --  ").status, "not_found")
