@@ -26,6 +26,13 @@ export type GrammarStatus = {
   download: { url: string; checksum: string; license: string };
 };
 
+export type WritingDataRelease = {
+  available: boolean;
+  reason: "not_published" | null;
+  version: string | null;
+  bytes: number | null;
+};
+
 export type WritingAssistanceStatus = {
   ok: boolean;
   installed: boolean;
@@ -39,6 +46,12 @@ export type WritingAssistanceStatus = {
   /** False when the server's operator installs the language data; missing means true. */
   installable?: boolean;
   version: string | null;
+  /**
+   * Whether this release can download a dictionary at all. available false
+   * with reason "not_published": no data release exists yet, so there is no
+   * install to offer. Missing on older servers, which means available.
+   */
+  data?: WritingDataRelease;
   sources: Record<
     string,
     { version: string; url: string; checksum: string; license: string; attribution: string }

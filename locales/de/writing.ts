@@ -47,6 +47,7 @@ export const writing = {
   writingDataMissing: "Sprachdaten sind nicht installiert.",
   writingDataInstall: "Sprachdaten installieren",
   writingInstalledByOperator: "Wird vom Betreiber eingerichtet",
+  writingDataNotPublished: "Die Sprachdaten folgen mit einem späteren Update.",
   writingDataInstalling: "Sprachdaten werden installiert …",
   writingRequestError: "Die Anfrage konnte nicht ausgeführt werden.",
   writingStatusError: "Der Zustand der Schreibhilfe konnte nicht geladen werden.",

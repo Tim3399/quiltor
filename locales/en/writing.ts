@@ -45,6 +45,7 @@ export const writing = {
   writingDataMissing: "Language data is not installed.",
   writingDataInstall: "Install language data",
   writingInstalledByOperator: "Set up by the operator",
+  writingDataNotPublished: "The language data will follow in a later update.",
   writingDataInstalling: "Installing language data …",
   writingRequestError: "The request could not be completed.",
   writingStatusError: "The writing aid's status could not be loaded.",

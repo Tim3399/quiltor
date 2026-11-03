@@ -140,6 +140,9 @@ export function WritingLookupPanel({
               actions={
                 status?.installable === false ? (
                   <p className="writing-data-state__note">{t("writingInstalledByOperator")}</p>
+                ) : status?.data?.available === false ? (
+                  // No data release yet: an install button could only fail.
+                  <p className="writing-data-state__note">{t("writingDataNotPublished")}</p>
                 ) : (
                   <Button
                     onClick={onInstallData}

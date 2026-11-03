@@ -2,6 +2,7 @@ import type {
   GrammarStatus,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
+  WritingDataRelease,
 } from "../../application";
 import type { WritingIssue } from "../../../modules/manuscript";
 
@@ -11,6 +12,7 @@ export interface WritingAssistanceStatusWireV1 {
   coverage?: "core" | "full" | null;
   stale: boolean;
   version: string | null;
+  data?: WritingDataRelease;
   sources: Record<
     string,
     { version: string; url: string; checksum: string; license: string; attribution: string }
@@ -36,7 +38,12 @@ export interface GrammarCheckWireV1 {
 export function decodeWritingAssistanceStatusV1(
   wire: WritingAssistanceStatusWireV1,
 ): WritingAssistanceStatus {
-  return { ...wire, sources: { ...wire.sources }, grammar: wire.grammar && { ...wire.grammar } };
+  return {
+    ...wire,
+    data: wire.data && { ...wire.data },
+    sources: { ...wire.sources },
+    grammar: wire.grammar && { ...wire.grammar },
+  };
 }
 
 export function decodeWritingAssistanceLookupV1(wire: WritingAssistanceLookupWireV1) {
