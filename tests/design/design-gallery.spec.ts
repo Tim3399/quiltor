@@ -507,9 +507,7 @@ for (const theme of ["light", "dark"] as const) {
           const canvas = await openStory(page, storyId, theme);
           await expect(canvas).toBeVisible();
 
-          const results = await (
-            await storyAxeBuilder(page)
-          )
+          const results = await (await storyAxeBuilder(page))
             .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
             .analyze();
           expect(results.violations, `${storyId} (${theme})`).toEqual([]);
