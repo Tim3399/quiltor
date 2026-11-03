@@ -13,6 +13,7 @@ import copy
 import threading
 import unittest
 from typing import Any, cast
+from unittest import mock
 
 from quiltor.application.story_world.queries import StoryWorldQueries
 from quiltor.application.story_world.read_tools import (
@@ -359,6 +360,22 @@ class ReadToolBatchTest(unittest.TestCase):
             run("get_world_state", {"momentId": "start"}, figures=broken),
             error("get_world_state", "unavailable"),
         )
+
+
+class ReadToolProjectionShapeTest(unittest.TestCase):
+    def test_a_projection_holding_something_other_than_mappings_is_unavailable(self):
+        # The domain never produces this; the read tool still fails closed instead of crashing.
+        for state in (
+            {"entities": {"ada": "alive"}, "relationships": {}},
+            {"entities": {}, "relationships": {"bond": ["x"]}},
+            {"entities": ["ada"], "relationships": {}},
+        ):
+            with self.subTest(state=state):
+                with mock.patch.object(StoryWorldQueries, "get_world_state", return_value=state):
+                    self.assertEqual(
+                        run("get_world_state", {"momentId": "start"}),
+                        error("get_world_state", "unavailable"),
+                    )
 
 
 class ReadToolViewsTest(unittest.TestCase):
