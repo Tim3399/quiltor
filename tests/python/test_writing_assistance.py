@@ -382,6 +382,7 @@ def build_release_asset(directory: Path, version: str = RELEASE_VERSION) -> Data
         "sha256": hashlib.sha256(payload).hexdigest(),
         "bytes": len(payload),
         "content_sha256": content_sha256(database),
+        "license": "CC BY-SA 4.0",
     }
 
 
