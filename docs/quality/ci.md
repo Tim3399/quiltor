@@ -112,6 +112,35 @@ slots free. The waits look like runner supply on GitHub's side rather than this 
 load: a job sometimes gets its runner about 20 minutes late, whatever else is running. Between
 releases they are as rare as during them -- four in about 200 starts.
 
+### A job GitHub gives up on (T-154)
+
+Since 2026-11 a wait can end without a runner at all. In Release Build 41738619319 (dispatch,
+2026-11-03) "Core on macos-15" was created at 23:22:27 and cancelled at 23:37:28, with no runner
+name and no step. Its annotations say why:
+
+- failure: "The job was not acquired by Runner of type hosted even after multiple attempts"
+- notice, three times: "Due to capacity constraints, jobs targeting macOS arm64 runners may
+  experience longer queue times."
+
+Nothing in this repository cancelled it:
+
+- no `timeout-minutes` in `test.yml`, and a timeout counts execution, not queue time;
+- `test.yml`'s concurrency cancels only pull requests, and `release.yml` has none;
+- every matrix has `fail-fast: false`, and the browser slot that failed at 23:35:51 is in another
+  job;
+- `browser-e2e` started at 23:37:30, after the cancellation, and only reads results.
+
+The run's macOS load was four jobs, under the documented five: slots 1 and 2 started within 18
+seconds, slot 3 after five minutes, Core never. No other workflow used macOS at the time. In the
+seven full runs before it, every macOS job got its runner within 30 seconds.
+
+So this is runner supply, as above, but now GitHub cancels after about 15 minutes instead of
+starting late. No workflow setting avoids it. The verdict stays strict -- a cancelled required job
+fails `browser-e2e`, as C-18 demands -- and the recovery is **Re-run failed jobs** on the Release
+Build run: it re-runs the cancelled job, `browser-e2e` and every job after it, and
+`release-manifest` checks the head and the tag again in that attempt. Release Publish follows the
+attempt that completes with success.
+
 ## Release Build, per job
 
 | Job                             | Queue (max)      | Toolchains | npm ci | Playwright | Gate / work | Job total |
