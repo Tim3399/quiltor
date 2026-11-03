@@ -98,6 +98,18 @@ class LegacyWorldValidatorTests(unittest.TestCase):
                 name, valid_manuscript, legacy_valid_manuscript, built(manuscript, case)
             )
 
+    def test_a_node_that_is_not_an_object_is_now_rejected_instead_of_raising(self) -> None:
+        # The one deliberate difference: the old place-level check called `.get` on every
+        # node before any node was validated.
+        for node in ("ada", 5, None, ["ada"]):
+            with self.subTest(node=node):
+                document = figures()
+                document["nodes"].append(node)
+                self.assertEqual(
+                    answer(legacy_valid_figures, document), ("raised", "AttributeError")
+                )
+                self.assertEqual(answer(valid_figures, document), ("returned", False))
+
     def test_the_legacy_copy_still_refuses_every_rejection(self) -> None:
         # Guards the comparison itself: a copy that accepted everything would agree with a
         # rewrite that accepted everything.
