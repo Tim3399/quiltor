@@ -67,10 +67,6 @@ export type WritingAssistanceStatus = {
    * nothing is installed, on older servers, or when the file records none.
    */
   installedSources?: WritingInstalledSource[];
-  sources: Record<
-    string,
-    { version: string; url: string; checksum: string; license: string; attribution: string }
-  >;
   grammar?: GrammarStatus;
 };
 

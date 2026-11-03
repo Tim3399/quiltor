@@ -20,15 +20,9 @@ describe("WritingLookupPanel", () => {
             installed: true,
             stale: false,
             version: "test",
-            sources: {
-              dictionary: {
-                version: "1",
-                url: "",
-                checksum: "",
-                license: "CC",
-                attribution: "Dictionary source",
-              },
-            },
+            installedSources: [
+              { name: "Dictionary source", url: "", license: "CC", licenseUrl: "" },
+            ],
           }}
           results={[
             {
@@ -41,7 +35,6 @@ describe("WritingLookupPanel", () => {
           ]}
           phase="idle"
           replaceTarget={false}
-          lookupSources={["dictionary"]}
           onWritingQuery={vi.fn()}
           onRunLookup={vi.fn()}
           onChooseTool={onChooseTool}
@@ -63,7 +56,7 @@ describe("WritingLookupPanel", () => {
     expect(synonymTab).toHaveClass("writing-tool-tab");
     fireEvent.click(synonymTab);
     expect(onChooseTool).toHaveBeenCalledWith("synonyms");
-    expect(screen.getByText("Dictionary source · CC")).toBeVisible();
+    expect(screen.getByText("Dictionary source", { exact: false })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "laufen" }));
     expect(onApplyValue).toHaveBeenCalledWith("laufen");
   });
@@ -84,12 +77,10 @@ describe("WritingLookupPanel", () => {
             installable,
             stale: false,
             version: null,
-            sources: {},
           }}
           results={[]}
           phase="idle"
           replaceTarget={false}
-          lookupSources={["dictionary"]}
           onWritingQuery={vi.fn()}
           onRunLookup={vi.fn()}
           onChooseTool={vi.fn()}
@@ -118,12 +109,10 @@ describe("WritingLookupPanel", () => {
             stale: false,
             version: null,
             data,
-            sources: {},
           }}
           results={[]}
           phase="idle"
           replaceTarget={false}
-          lookupSources={["dictionary"]}
           onWritingQuery={vi.fn()}
           onRunLookup={vi.fn()}
           onChooseTool={vi.fn()}
@@ -184,7 +173,6 @@ describe("WritingLookupPanel", () => {
           }
           phase="idle"
           replaceTarget={false}
-          lookupSources={["dictionary"]}
           onWritingQuery={vi.fn()}
           onRunLookup={vi.fn()}
           onChooseTool={vi.fn()}
@@ -211,7 +199,6 @@ describe("WritingLookupPanel", () => {
         stale: true,
         version: "old",
         data: { available: true, reason: null, version: "new", bytes: 5_000_000 },
-        sources: {},
       },
       onInstallData,
     );
@@ -231,7 +218,6 @@ describe("WritingLookupPanel", () => {
       stale: true,
       version: "old",
       data: { available: false, reason: "not_published", version: null, bytes: null },
-      sources: {},
     });
 
     expect(screen.getByText("Die Sprachdaten folgen mit einem späteren Update.")).toBeVisible();
@@ -248,7 +234,6 @@ describe("WritingLookupPanel", () => {
         stale: true,
         version: "x",
         data: { available: true, reason: null, version: "y", bytes: 1_000_000 },
-        sources: {},
       },
       vi.fn(),
       true,
@@ -274,7 +259,6 @@ describe("WritingLookupPanel", () => {
           },
           { name: "Offline-Quelle", url: "javascript:alert(1)", license: "", licenseUrl: "" },
         ],
-        sources: {},
       },
       vi.fn(),
       true,
@@ -295,6 +279,14 @@ describe("WritingLookupPanel", () => {
     ).toBeVisible();
   });
 
+  it("names no license footer for installed data that records no sources", () => {
+    renderPanel({ ok: true, installed: true, stale: false, version: "x" }, vi.fn(), true);
+
+    expect(screen.getByRole("button", { name: "laufen" })).toBeVisible();
+    expect(screen.queryByText("Quellen und Lizenzen")).not.toBeInTheDocument();
+    expect(screen.queryByText(/GFDL|dumps\.wikimedia/)).not.toBeInTheDocument();
+  });
+
   it("shows no license footer while nothing is installed", () => {
     renderMissingData({ available: false, reason: "not_published", version: null, bytes: null });
 
@@ -308,11 +300,10 @@ describe("WritingLookupPanel", () => {
           selectionTool="lookup"
           writingLocale="de-DE"
           writingQuery="gehen"
-          status={{ ok: true, installed: true, stale: false, version: "test", sources: {} }}
+          status={{ ok: true, installed: true, stale: false, version: "test" }}
           results={[]}
           phase="loading"
           replaceTarget={false}
-          lookupSources={[]}
           onWritingQuery={vi.fn()}
           onRunLookup={vi.fn()}
           onChooseTool={vi.fn()}

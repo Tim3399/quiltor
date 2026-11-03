@@ -15,10 +15,6 @@ export interface WritingAssistanceStatusWireV1 {
   version: string | null;
   data?: WritingDataRelease;
   installed_sources?: unknown;
-  sources: Record<
-    string,
-    { version: string; url: string; checksum: string; license: string; attribution: string }
-  >;
   grammar?: GrammarStatus;
 }
 
@@ -66,7 +62,6 @@ export function decodeWritingAssistanceStatusV1(
     ...rest,
     installedSources: decodeInstalledSources(installedSources),
     data: wire.data && { ...wire.data },
-    sources: { ...wire.sources },
     grammar: wire.grammar && { ...wire.grammar },
   };
 }

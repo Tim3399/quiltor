@@ -107,7 +107,6 @@ describe("TextWorkspace writing aid", () => {
       installed: true,
       stale: false,
       version: "test",
-      sources: {},
     });
     vi.spyOn(writingAssistanceApi, "lookup").mockResolvedValue({
       ok: true,
@@ -151,7 +150,6 @@ describe("TextWorkspace writing aid", () => {
       installed: true,
       stale: false,
       version: "test",
-      sources: {},
       grammar: {
         supported: true,
         unsupportedReason: "",
@@ -194,15 +192,9 @@ describe("TextWorkspace writing aid", () => {
       installed: true,
       stale: false,
       version: "test",
-      sources: {
-        openthesaurus: {
-          version: "1",
-          url: "",
-          checksum: "",
-          license: "CC BY-SA 4.0",
-          attribution: "OpenThesaurus.de",
-        },
-      },
+      installedSources: [
+        { name: "OpenThesaurus.de", url: "", license: "CC BY-SA 4.0", licenseUrl: "" },
+      ],
     });
     vi.spyOn(writingAssistanceApi, "lookup").mockResolvedValue({
       ok: true,
@@ -269,7 +261,6 @@ describe("TextWorkspace writing aid", () => {
       installed: true,
       stale: false,
       version: "test",
-      sources: {},
       grammar: {
         supported: true,
         unsupportedReason: "",
@@ -328,7 +319,6 @@ describe("TextWorkspace writing aid", () => {
       installed: true,
       stale: false,
       version: "test",
-      sources: {},
       grammar: {
         supported: false,
         unsupportedReason: "Nicht in dieser Ausgabe enthalten.",

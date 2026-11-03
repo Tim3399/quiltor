@@ -148,6 +148,13 @@ class WritingAssistanceServiceTests(unittest.TestCase):
                 conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
         self.assertEqual(self.service.status()["installed_sources"], [])
 
+    def test_status_carries_no_static_source_registry(self):
+        status = self.service.status()
+        self.assertNotIn("sources", status)
+        self.assertNotIn("manifest", status)
+        self.assertNotIn("GFDL", json.dumps(status))
+        self.assertNotIn("dumps.wikimedia", json.dumps(status))
+
     def test_database_from_before_coverage_counts_as_core(self):
         self.service.install()
         with closing(sqlite3.connect(self.repository.path)) as conn:

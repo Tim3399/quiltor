@@ -71,7 +71,6 @@ export interface WritingLookupPanelProps {
   /** Shown while `phase` is "error"; the generic sentence when empty. */
   errorMessage?: string;
   replaceTarget: boolean;
-  lookupSources: string[];
   onWritingQuery: (value: string) => void;
   onRunLookup: () => void;
   onChooseTool: (tool: WritingTool) => void;
@@ -89,7 +88,6 @@ export function WritingLookupPanel({
   phase,
   errorMessage,
   replaceTarget,
-  lookupSources,
   onWritingQuery,
   onRunLookup,
   onChooseTool,
@@ -258,28 +256,17 @@ export function WritingLookupPanel({
                   </ChipList>
                 </article>
               ))}
-              <footer className="writing-attribution">
-                <span>{t("writingAttribution")}</span>
-                {installedSources.length > 0 ? (
-                  <>
-                    <ul>
-                      {installedSources.map((source) => (
-                        <InstalledSourceItem key={source.name} source={source} />
-                      ))}
-                    </ul>
-                    <p className="writing-attribution__edited">{t("writingEdited")}</p>
-                  </>
-                ) : (
+              {installedSources.length > 0 && (
+                <footer className="writing-attribution">
+                  <span>{t("writingAttribution")}</span>
                   <ul>
-                    {lookupSources.map((source) => (
-                      <li key={source}>
-                        {status.sources[source]?.attribution || source} ·{" "}
-                        {status.sources[source]?.license}
-                      </li>
+                    {installedSources.map((source) => (
+                      <InstalledSourceItem key={source.name} source={source} />
                     ))}
                   </ul>
-                )}
-              </footer>
+                  <p className="writing-attribution__edited">{t("writingEdited")}</p>
+                </footer>
+              )}
             </div>
           ) : writingQuery.trim() ? (
             <>

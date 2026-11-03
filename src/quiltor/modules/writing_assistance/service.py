@@ -4,7 +4,7 @@ from functools import lru_cache
 
 from .grammar import GrammarBackend
 from .ports import WritingAssistanceInstaller, WritingAssistanceRepository
-from .registry import CORE_VERSION, DATA, SOURCES, DataRelease, data_status
+from .registry import CORE_VERSION, DATA, DataRelease, data_status
 
 # The dictionary layout this service reads in full; mirrors the persistence
 # adapter's DICTIONARY_SCHEMA, which modules may not import.
@@ -39,8 +39,6 @@ class WritingAssistanceService:
             "coverage": self.repository.coverage() if installed else None,
             "stale": (installed_version is not None and not installed) or outdated_layout,
             "version": installed_version,
-            "manifest": {"version": self.expected_version, "sources": SOURCES},
-            "sources": SOURCES,
             # What the installed database itself records, for the attribution footer.
             "installed_sources": self.repository.sources() if installed else [],
             # Whether there is a dictionary to download at all: without a
