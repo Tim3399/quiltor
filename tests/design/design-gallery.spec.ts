@@ -596,6 +596,28 @@ for (const theme of ["light", "dark"] as const) {
   }
 }
 
+test("a wrapping Button label keeps a one-line action at the control height", async ({ page }) => {
+  await openStory(page, "Button/Primary");
+  const button = page.getByRole("button", { name: "Neue Szene" });
+  const heights = await button.evaluate((element) => {
+    if (!(element instanceof HTMLElement)) throw new Error("Button is not an element");
+    const root = getComputedStyle(document.documentElement);
+    const expected = Number.parseFloat(
+      root.getPropertyValue(
+        matchMedia("(pointer: coarse)").matches ? "--control-touch" : "--control-regular",
+      ),
+    );
+    element.dataset.labelOverflow = "wrap";
+    const oneLine = element.getBoundingClientRect().height;
+    element.style.width = "96px";
+    element.textContent = "Eine lange Aktion in zwei Zeilen";
+    const wrapped = element.getBoundingClientRect().height;
+    return { expected, oneLine, wrapped };
+  });
+  expect(heights.oneLine).toBe(heights.expected);
+  expect(heights.wrapped).toBeGreaterThan(heights.expected);
+});
+
 test("action and field primitives honor their computed visual contracts", async ({
   page,
 }, testInfo) => {
