@@ -447,6 +447,32 @@ describe("ManuscriptEditor selection", () => {
     expect(hint.querySelector(".completion-detail")).toHaveTextContent("Bäcker");
   });
 
+  it("drops an open completion when the editor turns read-only", async () => {
+    const props = {
+      label: "Kapiteltext",
+      placeholder: "",
+      vocabulary: [],
+      entities: [tarek],
+      editorRef:
+        createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>,
+      onChange: vi.fn(),
+      onSelection: vi.fn(),
+    };
+    const view = render(<ManuscriptEditor value="" {...props} />);
+    const editor = requireValue(
+      EditorView.findFromDOM(
+        requireValue(view.container.querySelector<HTMLElement>(".cm-editor"), "root"),
+      ),
+      "view",
+    );
+    editor.dispatch({ changes: { from: 0, insert: "Tarke" }, selection: { anchor: 5 } });
+    await waitFor(() => expect(view.container.querySelector(".word-completion")).not.toBeNull());
+
+    view.rerender(<ManuscriptEditor value="Tarke" readOnly {...props} />);
+
+    expect(view.container.querySelector(".word-completion")).toBeNull();
+  });
+
   it("replaces the typo with Tab and remembers the mention", async () => {
     const { editor, onChange } = renderEditor({ value: "", entities: [tarek] });
     editor.dispatch({ changes: { from: 0, insert: "Tarke" }, selection: { anchor: 5 } });
