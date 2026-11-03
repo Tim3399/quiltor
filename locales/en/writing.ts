@@ -50,6 +50,8 @@ export const writing = {
   writingDataUpdating: "Updating language data …",
   writingDataOutdated: "The language data is out of date.",
   writingDataSize: "Download: {size}",
+  writingDataInsufficientSpace:
+    "There is not enough free space for the language data: {needed} needed, {free} free.",
   writingEdited: "The data was selected, converted and edited for Quiltor.",
   writingDataInstalling: "Installing language data …",
   writingRequestError: "The request could not be completed.",

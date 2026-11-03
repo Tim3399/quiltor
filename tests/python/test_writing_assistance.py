@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import json
+import shutil
 import sqlite3
 import tempfile
 import threading
@@ -9,6 +10,7 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, cast
+from unittest import mock
 
 from quiltor.delivery.http.errors import from_exception
 from quiltor.infrastructure.persistence.writing_assistance import (
@@ -23,9 +25,11 @@ from quiltor.infrastructure.persistence.writing_assistance import (
     sources as stored_sources,
 )
 from quiltor.infrastructure.writing_assistance.installer import (
+    UNPACK_FACTOR_ESTIMATE,
     CoreWritingAssistanceInstaller,
     ReleaseWritingAssistanceInstaller,
     install_release_asset,
+    required_space,
     validate_checksum,
 )
 from quiltor.modules.writing_assistance import registry
@@ -34,6 +38,7 @@ from quiltor.modules.writing_assistance.errors import (
     DataNotPublished,
     DownloadFailed,
     InstallInProgress,
+    InsufficientSpace,
 )
 from quiltor.modules.writing_assistance.grammar import UnavailableGrammar
 from quiltor.modules.writing_assistance.providers import (
@@ -502,6 +507,48 @@ class ReleaseInstallerTests(unittest.TestCase):
         self.assertFalse(raised.exception.retryable)
         self.assertFalse(self.repository.path.exists())
         self.assertEqual(self.leftovers(), [])
+
+    def free_space(self, free):
+        usage = shutil.disk_usage(self.data_dir.parent)._replace(free=free)
+        return mock.patch("shutil.disk_usage", return_value=usage)
+
+    def test_too_little_space_fails_before_any_download(self):
+        data = pinned(self.data, unpacked_bytes=1000)
+        needed = data["bytes"] + 1000
+        with self.free_space(needed - 1):
+            with self.assertRaises(InsufficientSpace) as raised:
+                install_release_asset(self.repository.path, data, opener=must_not_download)
+        error = from_exception(raised.exception)
+        self.assertEqual((error.status, error.code), (409, "writing_assistance.insufficient_space"))
+        self.assertFalse(raised.exception.retryable)
+        self.assertEqual(raised.exception.params, {"needed": needed, "free": needed - 1})
+        self.assertFalse(self.repository.path.exists())
+        self.assertEqual(self.leftovers(), [])
+
+    def test_exactly_enough_space_installs(self):
+        data = pinned(self.data, unpacked_bytes=1000)
+        with self.free_space(data["bytes"] + 1000):
+            result = install_release_asset(self.repository.path, data)
+        self.assertEqual(result["version"], RELEASE_VERSION)
+        self.assertTrue(self.repository.path.exists())
+
+    def test_the_old_database_counts_towards_the_peak(self):
+        self.install_core()
+        old = self.repository.path.stat().st_size
+        data = pinned(self.data, unpacked_bytes=1000)
+        with self.free_space(data["bytes"] + 1000 + old - 1):
+            with self.assertRaises(InsufficientSpace):
+                install_release_asset(self.repository.path, data, opener=must_not_download)
+
+    def test_an_unpinned_unpacked_size_is_estimated_from_the_asset(self):
+        self.assertNotIn("unpacked_bytes", self.data)
+        need = self.data["bytes"] * (1 + UNPACK_FACTOR_ESTIMATE)
+        self.assertEqual(required_space(self.data, self.repository.path), need)
+
+    def test_unpublished_data_skips_the_space_check(self):
+        with mock.patch("shutil.disk_usage", side_effect=AssertionError("no check expected")):
+            with self.assertRaises(DataNotPublished):
+                install_release_asset(self.repository.path, None, opener=must_not_download)
 
     def test_registry_ships_without_a_published_release(self):
         # 3.25.0 (D-76): no data release exists yet, so none may be pinned.

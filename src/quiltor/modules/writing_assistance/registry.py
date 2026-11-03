@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Final, TypedDict
+from typing import Final, NotRequired, TypedDict
 
 
 class DataRelease(TypedDict):
@@ -18,6 +18,9 @@ class DataRelease(TypedDict):
     bytes: int
     content_sha256: str
     license: str
+    # Size of the unpacked database (the manifest's ``sqlite.bytes``). The space
+    # check estimates it from the asset size while a release does not pin it.
+    unpacked_bytes: NotRequired[int]
 
 
 # None while no data release is published (3.25.0, D-76). An invented entry

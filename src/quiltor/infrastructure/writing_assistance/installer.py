@@ -25,6 +25,7 @@ from quiltor.modules.writing_assistance.errors import (
     DataNotPublished,
     DownloadFailed,
     InstallInProgress,
+    InsufficientSpace,
 )
 from quiltor.modules.writing_assistance.registry import CORE_VERSION, DATA, DataRelease
 
@@ -119,6 +120,28 @@ DOWNLOAD_TIMEOUT = 60.0
 
 Opener = Callable[..., Any]
 
+# The database unpacks to about 2.6 times its gzip (60-100 MB packed, 150-260 MB
+# unpacked in the T-88 plan); 3 leaves room. Used while the registry pins no size.
+UNPACK_FACTOR_ESTIMATE = 3
+
+
+def required_space(data: DataRelease, current: Path) -> int:
+    """Peak disk use of an install: the gzip, the unpacked new database, and the
+    old one, which stays until the atomic replace."""
+    unpacked = data.get("unpacked_bytes") or data["bytes"] * UNPACK_FACTOR_ESTIMATE
+    try:
+        old = current.stat().st_size
+    except OSError:
+        old = 0
+    return data["bytes"] + unpacked + old
+
+
+def _require_space(data: DataRelease, path: Path) -> None:
+    needed = required_space(data, path)
+    free = shutil.disk_usage(path.parent).free
+    if free < needed:
+        raise InsufficientSpace(params={"needed": needed, "free": free})
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -198,6 +221,7 @@ def install_release_asset(
         raise InstallInProgress()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+        _require_space(data, path)
         own: list[Path] = []
         try:
             download = _own_file(path.parent, ".download")

@@ -69,6 +69,15 @@ class DataNotPublished(ApplicationConflict):
     retryable = False
 
 
+class InsufficientSpace(ApplicationConflict):
+    """The data directory's drive cannot hold the update. Raised before anything
+    is downloaded; ``params`` carry ``needed`` and ``free`` in bytes. Not
+    retryable: the same request needs the same space until the user frees some."""
+
+    code = "writing_assistance.insufficient_space"
+    retryable = False
+
+
 __all__ = [
     "ChecksumMismatch",
     "DataNotPublished",
@@ -76,5 +85,6 @@ __all__ = [
     "GrammarStartFailed",
     "GrammarUnavailable",
     "InstallInProgress",
+    "InsufficientSpace",
     "JavaMissing",
 ]

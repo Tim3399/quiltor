@@ -52,6 +52,8 @@ export const writing = {
   writingDataUpdating: "Sprachdaten werden aktualisiert …",
   writingDataOutdated: "Die Sprachdaten sind veraltet.",
   writingDataSize: "Download: {size}",
+  writingDataInsufficientSpace:
+    "Für die Sprachdaten fehlt freier Speicher: Benötigt werden {needed}, frei sind {free}.",
   writingEdited: "Die Daten wurden für Quiltor ausgewählt, umgerechnet und bearbeitet.",
   writingDataInstalling: "Sprachdaten werden installiert …",
   writingRequestError: "Die Anfrage konnte nicht ausgeführt werden.",
