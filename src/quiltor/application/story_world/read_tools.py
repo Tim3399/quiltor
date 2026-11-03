@@ -391,7 +391,7 @@ def _entity_view(node: Mapping[str, object]) -> tuple[JsonObject, bool]:
 
 def _relationship_view(edge: Mapping[str, object]) -> tuple[JsonObject, bool]:
     result: JsonObject = {
-        "directed": bool(edge.get("directed", edge.get("directed", False))),
+        "directed": bool(edge.get("directed", False)),
         "active": edge.get("active", True) is not False,
     }
     truncated = False
@@ -427,8 +427,8 @@ def _relationship_view(edge: Mapping[str, object]) -> tuple[JsonObject, bool]:
                     truncated = truncated or clipped
             if "active" in version:
                 view["active"] = version["active"] is True
-            if "directed" in version or "directed" in version:
-                view["directed"] = bool(version.get("directed", version.get("directed", False)))
+            if "directed" in version:
+                view["directed"] = bool(version["directed"])
             version_views.append(view)
     return result, truncated
 
