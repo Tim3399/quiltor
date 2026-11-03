@@ -2001,7 +2001,6 @@ def validate_writing_data(sources: dict[Path, str]) -> None:
             raise WorkflowContractError(f"{path.name} may not create writing-data releases")
 
 
-
 def _runs_line(job: str, evidence: str) -> bool:
     """A line of the job is the evidence, or the evidence followed by further arguments."""
 
