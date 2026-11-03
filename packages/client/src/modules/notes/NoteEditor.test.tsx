@@ -97,6 +97,30 @@ describe("NoteEditor", () => {
     expect(editor).toHaveFocus();
   });
 
+  it("reports an edit to the newest onChange, not the one from the first render", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const note = (onChange: () => void) => (
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value="Alt"
+        onChange={onChange}
+      />
+    );
+    const view = renderNote(note(first));
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {note(second)}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    replaceText(viewFor(screen.getByRole("textbox", { name: "Notiz" })), "Neu");
+    expect(second).toHaveBeenCalledWith("Neu", [], []);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it("stores bold, italic and headings as ranges beside unchanged plain text", () => {
     const onChange = vi.fn();
     renderNote(
