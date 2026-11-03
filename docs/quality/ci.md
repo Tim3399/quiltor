@@ -690,6 +690,11 @@ plain text there and never opened the card. CPU throttling did not reproduce it;
 column width per frame did. The stored layout is now read while rendering, so the first paint is
 the final one. The audit step is unchanged and has no retry.
 
+To reproduce timing flakes like this one without loading the machine, set
+`QUILTOR_AUDIT_STATE_DELAY_MS` (for example 2500) for an audit run: the mocked audit world then
+serves the story world that much later, which moved the reflow into the capture step on the base
+before T-115 (T-27). Unset, nothing is delayed.
+
 ### F2: the cause, a port range too small
 
 WSAENOBUFS on Windows is what Winsock reports when no ephemeral port is left, not only when
