@@ -1337,7 +1337,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
 
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("push:\n    branches: [main]", test_workflow)
+        # T-35: main reaches this workflow only through release.yml's call, never by push.
+        self.assertNotIn("\n  push:", test_workflow.partition("\njobs:")[0])
         self.assertIn("pull_request:", test_workflow)
         for required_job in (
             "backend:",
@@ -2669,8 +2670,8 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the gate skips with its needs",
-                "    if: always()\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Require every selected job",
-                "    runs-on: ubuntu-24.04\n    steps:\n      - name: Require every selected job",
+                "    if: always()\n    runs-on: ubuntu-24.04\n    permissions: {}\n",
+                "    runs-on: ubuntu-24.04\n    permissions: {}\n",
                 "browser-e2e is missing its gate: if: always()",
             ),
             (
@@ -2728,45 +2729,15 @@ class PathFilterContractTests(unittest.TestCase):
 
     def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
         """T-46: the browsers no longer wait for frontend; the real gate script still fails."""
-        bash = shutil.which("bash")
-        if bash is None:
-            self.skipTest("bash is not installed")
-        aggregator = workflow_contract._job_body(self.workflow, "browser-e2e")
-        script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
-        assert script is not None, "browser-e2e has no run block"
-        body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
-
-        def gate(results):
-            # On Windows, `bash` can resolve to WSL's System32\bash.exe. It does not pass
-            # the caller's environment on, and it hands a `-c` argument through another
-            # shell that expands `$1` and `$VAR` to nothing first -- every job name and
-            # result arrived empty and the green case failed. So the values go in as
-            # assignments ahead of the script, and the script goes in on stdin.
-            values = {"PLAN_RESULT": "success"}
-            for name in workflow_contract.FILTERED_JOBS:
-                job = workflow_contract._env_name(name)
-                values[f"RESULT_{job}"] = results.get(name, "success")
-                values[f"SELECTED_{job}"] = "true"
-            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in values.items())
-            # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
-            completed = subprocess.run(
-                [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
-            )
-            return subprocess.CompletedProcess(
-                completed.args,
-                completed.returncode,
-                completed.stdout.decode(errors="replace"),
-                completed.stderr.decode(errors="replace"),
-            )
-
-        green = gate({})
-        self.assertEqual(green.returncode, 0, green.stdout + green.stderr)
+        code, output, _ = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
         for result in ("failure", "cancelled", "skipped"):
             with self.subTest(frontend=result):
-                red = gate({"frontend": result})
-                self.assertEqual(red.returncode, 1, red.stdout + red.stderr)
-                self.assertIn("frontend is " + result, red.stdout)
-                self.assertIn("browser-e2e-shards: success", red.stdout)
+                values = gate_values("true", results={"frontend": result})
+                code, output, _ = run_gate_script(self.workflow, values)
+                self.assertEqual(code, 1, output)
+                self.assertIn("frontend is " + result, output)
+                self.assertIn("browser-e2e-shards: success", output)
 
     def test_the_mutated_expressions_change_the_outcome(self):
         """The two expression mutations above are not cosmetic: they change what runs."""
@@ -2934,6 +2905,400 @@ class PathFilterContractTests(unittest.TestCase):
                 self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
             ):
                 workflow_contract.validate_path_filter(sources, tracked=tracked)
+
+
+def run_gate_script(workflow, values):
+    """
+    Run browser-e2e's real gate script under bash with the given environment.
+
+    Returns (exit code, output, the GITHUB_OUTPUT file's text). On Windows, `bash` can resolve to
+    WSL's System32\\bash.exe, which passes no environment on and expands `$1` before the script
+    sees it, so the values go in as assignments ahead of the script, and the script on stdin.
+    """
+
+    bash = shutil.which("bash")
+    if bash is None:
+        raise unittest.SkipTest("bash is not installed")
+    aggregator = workflow_contract._job_body(workflow, "browser-e2e")
+    script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
+    assert script is not None, "browser-e2e has no run block"
+    body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
+    with tempfile.TemporaryDirectory() as directory:
+        output = Path(directory) / "output"
+        output.write_bytes(b"")
+        # bash on Windows reads a POSIX path; as_posix() keeps C:/... which Git Bash accepts.
+        assignments = {**values, "GITHUB_OUTPUT": output.as_posix()}
+        preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in assignments.items())
+        # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+        completed = subprocess.run(
+            [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+        )
+        written = output.read_text(encoding="utf-8")
+    return (
+        completed.returncode,
+        completed.stdout.decode(errors="replace") + completed.stderr.decode(errors="replace"),
+        written,
+    )
+
+
+def gate_values(full_matrix, selected=None, results=None):
+    """Gate inputs: every job green and selected as the given mode selects it, with overrides."""
+
+    values = {"PLAN_RESULT": "success", "FULL_MATRIX": full_matrix}
+    # Full mode selects everything but the smoke test; reduced mode swaps the full
+    # cross-platform matrix for it.
+    if full_matrix == "true":
+        off = set(workflow_contract.REDUCED_ONLY)
+    else:
+        off = {"cross-platform-browser"}
+    for name in workflow_contract.FILTERED_JOBS:
+        job = workflow_contract._env_name(name)
+        chosen = (selected or {}).get(name, "false" if name in off else "true")
+        values[f"SELECTED_{job}"] = chosen
+        values[f"RESULT_{job}"] = (results or {}).get(
+            name, "success" if chosen == "true" else "skipped"
+        )
+    return values
+
+
+class FullMatrixVerdictContractTests(unittest.TestCase):
+    """T-35 P2-a: test.yml's verdict is the release's test evidence (C-1, C-2, C-7, C-8, C-13,
+    C-18, C-20)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sources = workflow_contract._workflow_sources()
+        cls.workflow = cls.sources[TEST_WORKFLOW]
+
+    def assert_mutation_fails(self, validate, original, replacement, error, count=1):
+        self.assertEqual(self.workflow.count(original), count, original)
+        mutated = dict(self.sources)
+        mutated[TEST_WORKFLOW] = self.workflow.replace(original, replacement)
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, re.escape(error)):
+            validate(mutated)
+
+    def test_the_repository_satisfies_every_contract(self):
+        for validate in (
+            workflow_contract.validate_full_matrix_coverage,
+            workflow_contract.validate_full_matrix_verdict,
+            workflow_contract.validate_test_triggers,
+            workflow_contract.validate_test_concurrency,
+            workflow_contract.validate_full_mode_runs_everything,
+            workflow_contract.validate_required_step_conditions,
+        ):
+            with self.subTest(validate=validate.__name__):
+                validate(self.sources)
+        workflow_contract.validate_no_attempt_dependent_tests()
+
+    def test_the_constants_follow_the_existing_ones(self):
+        self.assertEqual(workflow_contract.REDUCED_ONLY, {"cross-platform-smoke"})
+        self.assertLessEqual(workflow_contract.REDUCED_ONLY, set(workflow_contract.FILTERED_JOBS))
+        self.assertEqual(
+            workflow_contract.FULL_MATRIX_EXPANSIONS,
+            {"browser-e2e-shards": 4, "cross-platform-native": 2, "cross-platform-browser": 11},
+        )
+
+    def test_c1_coverage_mutations(self):
+        validate = workflow_contract.validate_full_matrix_coverage
+        for name, original, replacement, error in (
+            (
+                "verdict from another job",
+                "value: ${{ jobs.browser-e2e.outputs.verdict }}",
+                "value: ${{ jobs.plan.outputs.verdict }}",
+                "must output verdict",
+            ),
+            (
+                "verdict output removed",
+                '    outputs:\n      verdict:\n        description: "full-success only when every '
+                'job the full matrix requires succeeded"\n        value: ${{ '
+                "jobs.browser-e2e.outputs.verdict }}\n",
+                "",
+                "must output verdict",
+            ),
+            (
+                "a Linux slot dropped",
+                "        slot: [1, 2, 3, 4]\n",
+                "        slot: [1, 2, 3]\n",
+                "browser-e2e-shards expands to 3 jobs",
+            ),
+            (
+                "an include row of the cross-platform matrix dropped",
+                "          - os: macos-15\n            system: macos\n"
+                "            label: macos-15 / slot 3 of 3\n            slot: 3\n"
+                "            slots: 3\n            diagnostics: macos-15-3-of-3\n",
+                "",
+                "cross-platform-browser expands to 10 jobs",
+            ),
+            (
+                "a matrix the contract cannot count",
+                "        slot: [1, 2, 3, 4]\n",
+                "        slot: ${{ fromJSON(needs.plan.outputs.slots) }}\n",
+                "has a matrix the contract cannot count",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+        # The native matrix: one runner fewer is one expansion fewer.
+        native = workflow_contract._job_body(self.workflow, "cross-platform-native")
+        self.assertIn("        os: [macos-15, windows-2025]\n", native)
+        mutated = dict(self.sources)
+        mutated[TEST_WORKFLOW] = self.workflow.replace(
+            native, native.replace("os: [macos-15, windows-2025]", "os: [windows-2025]")
+        )
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "cross-platform-native expands to 1 jobs"
+        ):
+            validate(mutated)
+
+    def test_c1_an_ungated_job_fails(self):
+        mutated = dict(self.sources)
+        mutated[TEST_WORKFLOW] = self.workflow.replace(
+            "\n  visual-baseline-reach:\n",
+            "\n  ghost-job:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: true\n"
+            "\n  visual-baseline-reach:\n",
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "found ghost-job"):
+            workflow_contract.validate_full_matrix_coverage(mutated)
+
+    def test_c2_verdict_mutations(self):
+        validate = workflow_contract.validate_full_matrix_verdict
+        for name, original, replacement, error in (
+            (
+                "the full-mode check removed",
+                "          full_mode cross-platform-native "
+                '"$SELECTED_CROSS_PLATFORM_NATIVE" true\n',
+                "",
+                "selected=true for cross-platform-native",
+            ),
+            (
+                "cross-platform-native treated as reduced-only",
+                'full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" true',
+                'full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" false',
+                "selected=true for cross-platform-native",
+            ),
+            (
+                "the smoke test allowed in full mode",
+                'full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" false',
+                'full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" true',
+                "selected=false for cross-platform-smoke",
+            ),
+            (
+                "full-success without the full-mode test",
+                '          if [ "$FULL_MATRIX" = "true" ]; then\n            verdict=full-success\n',
+                "          if true; then\n            verdict=full-success\n",
+                "must end with the verdict",
+            ),
+            (
+                "the verdict written before the status test",
+                '          if [ "$status" -ne 0 ]; then\n            exit 1\n          fi\n'
+                '          if [ "$FULL_MATRIX" = "true" ]; then\n',
+                '          if [ "$FULL_MATRIX" = "true" ]; then\n',
+                "must end with the verdict",
+            ),
+            (
+                "the plan's decision not read",
+                "          FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}\n",
+                "          FULL_MATRIX: 'true'\n",
+                "FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}",
+            ),
+            (
+                "permissions granted",
+                "    permissions: {}\n    # The one verdict",
+                "    permissions:\n      contents: read\n    # The one verdict",
+                "permissions: {}",
+            ),
+            (
+                "the output no longer from the gate step",
+                "      verdict: ${{ steps.gate.outputs.verdict }}\n",
+                "      verdict: full-success\n",
+                "verdict: ${{ steps.gate.outputs.verdict }}",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+
+    def test_c2_the_real_gate_script(self):
+        """Full mode with a deselected job is red; a reduced run with a chosen skip passes."""
+        code, output, written = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        self.assertEqual(written, "verdict=full-success\n")
+
+        values = gate_values("true", selected={"cross-platform-native": "false"}, results={})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertIn("cross-platform-native has selected=false in full mode", output)
+        self.assertEqual(written, "", "a red gate must leave the verdict empty")
+
+        values = gate_values("true", selected={"cross-platform-smoke": "true"})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(written, "")
+
+        values = gate_values("false", selected={"portable-core": "false"})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 0, output)
+        self.assertIn("portable-core: skipped, not selected by the plan", output)
+        self.assertEqual(written, "verdict=reduced-success\n")
+
+        values = gate_values("true", results={"frontend": "failure"})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(written, "")
+
+        # A plan that failed leaves FULL_MATRIX empty: red, and never full-success.
+        values = {**gate_values("true"), "PLAN_RESULT": "failure", "FULL_MATRIX": ""}
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(written, "")
+
+    def test_c7_no_push_trigger(self):
+        self.assert_mutation_fails(
+            workflow_contract.validate_test_triggers,
+            "on:\n  pull_request:\n",
+            "on:\n  push:\n    branches: [main]\n  pull_request:\n",
+            "must run on exactly",
+        )
+        self.assert_mutation_fails(
+            workflow_contract.validate_test_triggers,
+            "on:\n  pull_request:\n",
+            "on:\n  schedule:\n    - cron: '0 3 * * *'\n  pull_request:\n",
+            "must run on exactly",
+        )
+
+    def test_c8_concurrency_mutations(self):
+        validate = workflow_contract.validate_test_concurrency
+        for name, original, replacement in (
+            (
+                "one group per ref again",
+                "  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', "
+                "github.ref) || format('test-run-{0}', github.run_id) }}\n",
+                "  group: test-${{ github.ref }}\n",
+            ),
+            (
+                "every run cancels",
+                "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+                "  cancel-in-progress: true\n",
+            ),
+            (
+                "a second, job-level concurrency",
+                "    permissions: {}\n    # The one verdict",
+                "    permissions: {}\n    concurrency: gate\n    # The one verdict",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, "concurrency")
+
+    def test_c13_a_test_reading_the_attempt_fails(self):
+        validate = workflow_contract.validate_no_attempt_dependent_tests
+        # Split, so this file itself never reads like a test that reads the attempt.
+        name = "_".join(("GITHUB", "RUN", "ATTEMPT"))
+        for path, source in (
+            ("tests/python/test_flake.py", f'if os.environ.get("{name}") == "1":\n'),
+            ("tests/python/test_flake.py", f'attempt = os.getenv("{name}")\n'),
+            ("tests/e2e/flake.spec.ts", f"if (process.env.{name} === '1') {{}}\n"),
+            ("tests/e2e/flake.spec.ts", f'if (process.env["{name}"]) {{}}\n'),
+            ("tests/e2e/run.sh", f'[ "${name}" = 1 ] && exit 1\n'),
+            ("tests/e2e/run.ps1", f"if ($env:{name} -eq 1) {{ exit 1 }}\n"),
+            ("tests/e2e/flow.yml", "if: " + ".".join(("github", "run_attempt")) + " == 1\n"),
+        ):
+            with self.subTest(path=path, source=source):
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(path)
+                ):
+                    validate({path: source})
+        # Naming the hand-off tag in a string literal reads nothing.
+        validate({"tests/python/test_x.py": '"build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"\n'})
+
+    def test_c18_full_mode_skips_nothing(self):
+        validate = workflow_contract.validate_full_mode_runs_everything
+        for name, original, replacement, error in (
+            (
+                "native core off in full mode",
+                "    if: needs.plan.outputs.run_python == 'true' || "
+                "needs.plan.outputs.run_rust == 'true'\n",
+                "    if: (needs.plan.outputs.run_python == 'true' || "
+                "needs.plan.outputs.run_rust == 'true') && needs.plan.outputs.full_matrix != 'true'\n",
+                "cross-platform-native is skipped in full mode",
+            ),
+            (
+                "the smoke test on in full mode",
+                "    if: needs.plan.outputs.full_matrix != 'true' && "
+                "needs.plan.outputs.run_browser == 'true'\n",
+                "    if: needs.plan.outputs.run_browser == 'true'\n",
+                "cross-platform-smoke runs in full mode",
+            ),
+            (
+                "a plan output that filters in full mode",
+                "      run_rust: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || ",
+                "      run_rust: ${{ ",
+                "the plan output run_rust must be 'true' in full mode",
+            ),
+            (
+                "a form the check cannot read",
+                "    if: needs.plan.outputs.run_lint == 'true'\n",
+                "    if: contains(needs.plan.outputs.run_lint, 'true')\n",
+                "cannot read",
+            ),
+            (
+                "a name the check does not know",
+                "    if: needs.plan.outputs.run_lint == 'true'\n",
+                "    if: vars.LINT == 'true'\n",
+                "cannot read",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+
+    def test_c18_the_evaluator(self):
+        evaluate = workflow_contract.evaluate_condition
+        context = {"a": "true", "b": "false"}
+        self.assertTrue(evaluate("a == 'true' && (b == 'true' || a != 'false')", context))
+        self.assertFalse(evaluate("${{ a == 'false' || b == 'true' }}", context))
+        for broken in ("a", "a == 'true' &&", "(a == 'true'", "a == true", "!a", "c == 'x'"):
+            with self.subTest(broken=broken), self.assertRaises(ValueError):
+                evaluate(broken, context)
+
+    def test_c20_step_condition_mutations(self):
+        validate = workflow_contract.validate_required_step_conditions
+        for name, original, replacement, count in (
+            (
+                "a test step only on push",
+                "      - name: Backend suite\n        run: python -m unittest discover -s "
+                "tests/python -t tests/python -v\n",
+                "      - name: Backend suite\n        if: github.event_name == 'push'\n"
+                "        run: python -m unittest discover -s tests/python -t tests/python -v\n",
+                1,
+            ),
+            (
+                "a status function on a test step",
+                "      - name: Layout audit rule tests\n        if: matrix.slot == 4\n",
+                "      - name: Layout audit rule tests\n        if: ${{ !cancelled() }}\n",
+                1,
+            ),
+            (
+                "a client step on full_matrix",
+                "      - name: Unit tests\n        if: needs.plan.outputs.run_client == 'true'\n",
+                "      - name: Unit tests\n        if: needs.plan.outputs.full_matrix != 'true'\n",
+                1,
+            ),
+            (
+                "a multi-line condition",
+                "        if: runner.os == 'Windows'\n",
+                "        if: >-\n          runner.os == 'Windows'\n",
+                2,
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(
+                    validate, original, replacement, "step condition that could skip", count
+                )
+        # A run_<group> step condition counts only while that output is true in full mode.
+        self.assert_mutation_fails(
+            validate,
+            "      run_client: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || ",
+            "      run_client: ${{ ",
+            "if: needs.plan.outputs.run_client == 'true'",
+        )
 
 
 class ThirdPartyNoticeContractTests(unittest.TestCase):

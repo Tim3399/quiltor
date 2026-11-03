@@ -533,7 +533,7 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         "    if: always()\n",
         "RESULT_BROWSER_E2E_SHARDS: ${{ needs['browser-e2e-shards'].result }}",
         'require browser-e2e-shards "$RESULT_BROWSER_E2E_SHARDS" "$SELECTED_BROWSER_E2E_SHARDS"',
-        'exit "$status"',
+        GATE_TAIL,
     )
     for evidence in required_aggregator_evidence:
         if evidence not in aggregator:
@@ -1270,7 +1270,7 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         '            if [ "$2" = "success" ]; then\n',
         '            elif [ "$2" = "skipped" ] && [ "$3" = "false" ]; then\n',
         "              status=1\n",
-        '          exit "$status"\n',
+        GATE_TAIL,
     ):
         if evidence not in aggregator:
             raise WorkflowContractError(f"browser-e2e is missing its gate: {evidence.strip()}")
@@ -1357,6 +1357,387 @@ def validate_test_caches(sources: dict[Path, str]) -> None:
         raise WorkflowContractError(
             "test.yml caches npm only; found cache: " + ", ".join(sorted(caches - {"npm"}))
         )
+
+
+# T-35: test.yml as the release's test evidence. release.yml calls it with full_matrix: true and
+# builds artifacts only on the browser-e2e verdict full-success. The contracts below (C-1, C-2,
+# C-7 for test.yml, C-8, C-13, C-18, C-20) hold that verdict to "every required job and every
+# matrix expansion succeeded".
+
+# The one filtered job that full mode skips: the pull-request smoke test standing in for the
+# full Windows and macOS matrix. Every other filtered job must run in full mode.
+REDUCED_ONLY = frozenset({"cross-platform-smoke"})
+# Matrix expansions per job in full mode. A job not listed here has no matrix.
+FULL_MATRIX_EXPANSIONS = {
+    "browser-e2e-shards": 4,
+    "cross-platform-native": 2,
+    "cross-platform-browser": sum(count for _, _, count in CROSS_PLATFORM_SLOTS),
+}
+TEST_TRIGGERS = ("pull_request", "workflow_dispatch", "workflow_call")
+VERDICT_OUTPUT = (
+    "    outputs:\n"
+    "      verdict:\n"
+    '        description: "full-success only when every job the full matrix requires succeeded"\n'
+    "        value: ${{ jobs.browser-e2e.outputs.verdict }}\n"
+)
+TEST_CONCURRENCY = (
+    "\nconcurrency:\n"
+    "  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', github.ref) "
+    "|| format('test-run-{0}', github.run_id) }}\n"
+    "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n"
+)
+FULL_MODE_CHECK = (
+    "          full_mode() {\n"
+    '            if [ "$FULL_MATRIX" = "true" ] && [ "$2" != "$3" ]; then\n'
+    '              echo "::error::$1 has selected=$2 in full mode; the full matrix requires $3."\n'
+    "              status=1\n"
+    "            fi\n"
+    "          }\n"
+)
+# The end of the gate script: no verdict unless every check passed, full-success only in full
+# mode. A red gate leaves the output empty, and an empty verdict builds nothing.
+GATE_TAIL = (
+    '          if [ "$status" -ne 0 ]; then\n'
+    "            exit 1\n"
+    "          fi\n"
+    '          if [ "$FULL_MATRIX" = "true" ]; then\n'
+    "            verdict=full-success\n"
+    "          else\n"
+    "            verdict=reduced-success\n"
+    "          fi\n"
+    '          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"\n'
+)
+
+
+def _matrix_expansions(name: str, body: str) -> int:
+    """How many jobs a matrix expands to: a product of flow lists, or one per `include:` row."""
+
+    if "\n    strategy:\n" not in "\n" + body:
+        return 1
+    block = re.search(r"^      matrix:\n((?:        .*\n)*)", body, re.MULTILINE)
+    if block is None:
+        raise WorkflowContractError(f"test.yml:{name} has a strategy without a readable matrix")
+    lines = block.group(1)
+    if lines.startswith("        include:\n"):
+        rows = lines.removeprefix("        include:\n")
+        if re.search(r"^        \S", rows, re.MULTILINE):
+            raise WorkflowContractError(
+                f"test.yml:{name} mixes include: with other matrix keys; the contract cannot count it"
+            )
+        return len(re.findall(r"^          - ", rows, re.MULTILINE))
+    total = 1
+    for line in lines.splitlines():
+        flow = re.fullmatch(r"        [a-z_]+: \[([^\]]*)\]", line)
+        if flow is None:
+            raise WorkflowContractError(
+                f"test.yml:{name} has a matrix the contract cannot count: {line.strip()}"
+            )
+        total *= len([value for value in flow.group(1).split(",") if value.strip()])
+    return total
+
+
+def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
+    """
+    C-1: browser-e2e covers every job of test.yml, and its verdict is the workflow's output.
+
+    validate_path_filter holds browser-e2e's needs to plan plus FILTERED_JOBS. This adds the
+    other direction -- no job outside that set -- the matrix expansions full mode runs, and the
+    workflow_call output a caller reads.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    triggers = workflow.partition("\njobs:")[0]
+    call = re.search(r"^  workflow_call:\n((?:    .*\n|\n)*)", triggers + "\n", re.MULTILINE)
+    if call is None or VERDICT_OUTPUT not in call.group(1):
+        raise WorkflowContractError(
+            "test.yml workflow_call must output verdict from jobs.browser-e2e.outputs.verdict"
+        )
+    if not set(FILTERED_JOBS) >= REDUCED_ONLY:
+        raise WorkflowContractError("every reduced-only job must be a filtered job")
+    jobs = dict(_job_blocks(workflow))
+    if set(jobs) != {"plan", "browser-e2e", *FILTERED_JOBS}:
+        raise WorkflowContractError(
+            "test.yml must consist of plan, browser-e2e and the filtered jobs browser-e2e gates; "
+            "found " + ", ".join(sorted(set(jobs) ^ {"plan", "browser-e2e", *FILTERED_JOBS}))
+        )
+    for name, body in jobs.items():
+        if name in REDUCED_ONLY:
+            continue
+        count = _matrix_expansions(name, body)
+        expected = FULL_MATRIX_EXPANSIONS.get(name, 1)
+        if count != expected:
+            raise WorkflowContractError(
+                f"test.yml:{name} expands to {count} jobs in full mode; the contract expects "
+                f"{expected}"
+            )
+
+
+def validate_full_matrix_verdict(sources: dict[Path, str]) -> None:
+    """
+    C-2: browser-e2e writes full-success only in full mode, and only after every check passed.
+
+    In full mode every filtered job outside REDUCED_ONLY must be selected and the reduced-only
+    ones must not be. The verdict is the last thing the gate does; a red gate leaves it empty.
+    """
+
+    aggregator = _job_body(sources[WORKFLOW_ROOT / "test.yml"], "browser-e2e")
+    for evidence in (
+        "    permissions: {}\n",
+        "    outputs:\n      verdict: ${{ steps.gate.outputs.verdict }}\n",
+        "        id: gate\n",
+        "          FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}\n",
+        FULL_MODE_CHECK,
+    ):
+        if evidence not in aggregator:
+            raise WorkflowContractError(f"browser-e2e is missing its verdict: {evidence.strip()}")
+    if aggregator.count("permissions:") != 1:
+        raise WorkflowContractError("browser-e2e may hold no permissions: permissions: {}")
+    if len(re.findall(r"^      - (?:name|id|uses|run):", aggregator, re.MULTILINE)) != 1:
+        raise WorkflowContractError("browser-e2e must be one step, the gate")
+    for name in FILTERED_JOBS:
+        expected = "false" if name in REDUCED_ONLY else "true"
+        line = f'          full_mode {name} "$SELECTED_{_env_name(name)}" {expected}\n'
+        if aggregator.count(f"          full_mode {name} ") != 1 or line not in aggregator:
+            raise WorkflowContractError(
+                f"browser-e2e must require selected={expected} for {name} in full mode: "
+                + line.strip()
+            )
+    # A job's body runs up to the next job header and so carries that job's leading comment.
+    script_end = re.sub(r"(?:\n  #[^\n]*|\n[ \t]*)*\Z", "", aggregator)
+    if not script_end.endswith(GATE_TAIL.rstrip("\n")):
+        raise WorkflowContractError(
+            "browser-e2e must end with the verdict, written only after every check passed"
+        )
+    if aggregator.count("GITHUB_OUTPUT") != 1 or aggregator.count("full-success") != 1:
+        raise WorkflowContractError("browser-e2e may write its verdict in exactly one place")
+
+
+def validate_test_triggers(sources: dict[Path, str]) -> None:
+    """C-7, test.yml half: no push trigger. A push to main reaches the tests through release.yml."""
+
+    triggers = sources[WORKFLOW_ROOT / "test.yml"].partition("\njobs:")[0]
+    block = re.search(r"^on:\n((?:  .*\n|\n|#.*\n)*)", triggers, re.MULTILINE)
+    found = re.findall(r"^  ([a-z_]+):", block.group(1), re.MULTILINE) if block else []
+    if sorted(found) != sorted(TEST_TRIGGERS):
+        raise WorkflowContractError(
+            "test.yml must run on exactly "
+            + ", ".join(TEST_TRIGGERS)
+            + "; found "
+            + ", ".join(found)
+            + ". Pushes to main reach it through release.yml"
+        )
+
+
+def validate_test_concurrency(sources: dict[Path, str]) -> None:
+    """
+    C-8, test.yml half: only pull requests share a group and cancel superseded runs.
+
+    Every other run -- a dispatch, or release.yml's call for a push to main -- has a group of its
+    own, so a newer push can no longer cancel the tests of an older one.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    if TEST_CONCURRENCY not in workflow or workflow.count("concurrency:") != 1:
+        raise WorkflowContractError(
+            "test.yml needs exactly one concurrency, at the top: " + TEST_CONCURRENCY.strip()
+        )
+
+
+# Ways a test can read the run attempt: an environment lookup in any language, the expression
+# context, or a shell expansion outside Python and TypeScript sources (whose string literals may
+# name the variable without reading it, as the hand-off tag checks do).
+ATTEMPT_READ = re.compile(
+    r"(?:environ|getenv|process\.env|\$env:)[^\n]{0,8}GITHUB_RUN_ATTEMPT|github\.run_attempt"
+)
+ATTEMPT_EXPANSION = re.compile(r"\$\{?GITHUB_RUN_ATTEMPT")
+TEXT_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".sh", ".ps1", ".json", ".yml")
+
+
+def validate_no_attempt_dependent_tests(files: dict[str, str] | None = None) -> None:
+    """
+    C-13: no test behaves differently on a re-run.
+
+    "Re-run failed jobs" is how a red release continues. A test that reads the attempt number
+    could pass on the second attempt only, and the verdict would hide that.
+    """
+
+    if files is None:
+        files = {
+            path: (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+            for path in _ls_files(["tests"])
+            if path.endswith(TEXT_SUFFIXES)
+        }
+    for path, source in sorted(files.items()):
+        code = path.endswith((".py", ".ts", ".tsx", ".js", ".mjs", ".cjs"))
+        if ATTEMPT_READ.search(source) or (not code and ATTEMPT_EXPANSION.search(source)):
+            raise WorkflowContractError(
+                f"{path} reads the run attempt; a test may not depend on it"
+            )
+
+
+CONDITION_TOKEN = re.compile(r"\s*('[^']*'|==|!=|&&|\|\||[()]|[A-Za-z_][A-Za-z0-9_.-]*)")
+
+
+def evaluate_condition(expression: str, context: dict[str, str]) -> bool:
+    """
+    Evaluate a job condition of test.yml: ==, !=, &&, ||, brackets, string literals, context names.
+
+    Fail-closed: any other form, a name the context lacks, or a non-boolean result raises
+    ValueError instead of guessing.
+    """
+
+    text = expression.strip()
+    if text.startswith("${{") and text.endswith("}}"):
+        text = text[3:-2]
+    tokens: list[str] = []
+    position = 0
+    while text[position:].strip():
+        match = CONDITION_TOKEN.match(text, position)
+        if match is None:
+            raise ValueError(f"unknown form at: {text[position:].strip()}")
+        tokens.append(match.group(1))
+        position = match.end()
+    index = 0
+
+    def take() -> str:
+        nonlocal index
+        if index >= len(tokens):
+            raise ValueError("the condition ends early")
+        index += 1
+        return tokens[index - 1]
+
+    def primary() -> str | bool:
+        word = take()
+        if word == "(":
+            value = disjunction()
+            if take() != ")":
+                raise ValueError("unbalanced brackets")
+            return value
+        if word.startswith("'"):
+            return word[1:-1]
+        if word in ("true", "false"):
+            return word == "true"
+        if word in context:
+            return context[word]
+        raise ValueError(f"unknown name or operator: {word}")
+
+    def comparison() -> str | bool:
+        left = primary()
+        if index < len(tokens) and tokens[index] in ("==", "!="):
+            operator = take()
+            right = primary()
+            if type(left) is not type(right):
+                raise ValueError(f"compares {left!r} with {right!r}")
+            return (left == right) == (operator == "==")
+        return left
+
+    def boolean(value: str | bool) -> bool:
+        if not isinstance(value, bool):
+            raise ValueError(f"{value!r} is not a comparison")
+        return value
+
+    def conjunction() -> bool:
+        value = boolean(comparison())
+        while index < len(tokens) and tokens[index] == "&&":
+            take()
+            value = boolean(comparison()) and value
+        return value
+
+    def disjunction() -> bool:
+        value = conjunction()
+        while index < len(tokens) and tokens[index] == "||":
+            take()
+            value = conjunction() or value
+        return value
+
+    result = disjunction()
+    if index != len(tokens):
+        raise ValueError(f"unparsed tail: {' '.join(tokens[index:])}")
+    return result
+
+
+def validate_full_mode_runs_everything(sources: dict[Path, str]) -> None:
+    """
+    C-18: in full mode every filtered job runs, except REDUCED_ONLY, which is skipped.
+
+    Each job's `if:` and each gate selection is evaluated with full_matrix 'true'. Every
+    run_<group> output must have the form that is 'true' in full mode, so it is 'true' here.
+    A condition this check cannot read fails it.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    plan = _job_body(workflow, "plan")
+    context = {"needs.plan.outputs.full_matrix": "true"}
+    for output, expression in re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", plan, re.MULTILINE):
+        if expression != plan_output_expression(output.removeprefix("run_")):
+            raise WorkflowContractError(
+                f"the plan output {output} must be 'true' in full mode: "
+                + plan_output_expression(output.removeprefix("run_"))
+            )
+        context[f"needs.plan.outputs.{output}"] = "true"
+    jobs = dict(_job_blocks(workflow))
+    for name, (_, selection) in FILTERED_JOBS.items():
+        expected = name not in REDUCED_ONLY
+        conditions = re.findall(r"^    if: ([^\n]*)$", jobs.get(name, ""), re.MULTILINE)
+        if len(conditions) != 1:
+            raise WorkflowContractError(f"test.yml:{name} needs exactly one job condition")
+        for kind, expression in (("condition", conditions[0]), ("gate selection", selection)):
+            try:
+                runs = evaluate_condition(expression, context)
+            except ValueError as error:
+                raise WorkflowContractError(
+                    f"test.yml:{name} has a {kind} the full-mode check cannot read ({error}): "
+                    + expression
+                ) from error
+            if runs is not expected:
+                raise WorkflowContractError(
+                    f"test.yml:{name} {'is skipped' if expected else 'runs'} in full mode; its "
+                    f"{kind} must be {str(expected).lower()} there: {expression}"
+                )
+
+
+# Step conditions a job of test.yml may carry. Each is either fixed per matrix expansion or per
+# runner, or true in full mode; none can drop a test from the full matrix.
+STEP_CONDITIONS = (
+    re.compile(r"matrix\.[a-z_]+ == (?:\d+|'[^'\n]*')"),
+    re.compile(r"matrix\.[a-z_]+ != ''"),
+    re.compile(r"runner\.os == 'Windows'"),
+)
+# Status functions are for collecting results after a test step, so only uploads may use them.
+UPLOAD_CONDITIONS = ("failure()", "always()", "${{ !cancelled() }}")
+
+
+def validate_required_step_conditions(sources: dict[Path, str]) -> None:
+    """
+    C-20: no step condition in a gated job can skip a test in full mode.
+
+    The plan job is exempt; PATH_FILTER_CONDITION holds its three conditions.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    outputs = dict(
+        re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", _job_body(workflow, "plan"), re.MULTILINE)
+    )
+    for name, body in _job_blocks(workflow):
+        if name == "plan":
+            continue
+        for step in re.split(r"^      - ", body, flags=re.MULTILINE)[1:]:
+            for condition in re.findall(r"^(?:        )?if:[ ]*([^\n]*)$", step, re.MULTILINE):
+                if any(pattern.fullmatch(condition) for pattern in STEP_CONDITIONS):
+                    continue
+                if condition in UPLOAD_CONDITIONS and re.search(
+                    r"^        uses: actions/upload-artifact@", step, re.MULTILINE
+                ):
+                    continue
+                group = re.fullmatch(r"needs\.plan\.outputs\.(run_[a-z0-9_]+) == 'true'", condition)
+                if group and outputs.get(group.group(1)) == plan_output_expression(
+                    group.group(1).removeprefix("run_")
+                ):
+                    continue
+                raise WorkflowContractError(
+                    f"test.yml:{name} has a step condition that could skip a test in full mode: "
+                    f"if: {condition}"
+                )
 
 
 def validate_type_check_extras(sources: dict[Path, str], pyproject: Path | None = None) -> None:
@@ -1578,6 +1959,13 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_frontend_gates_once(sources)
         validate_preflight_coverage(sources)
         validate_test_caches(sources)
+        validate_full_matrix_coverage(sources)
+        validate_full_matrix_verdict(sources)
+        validate_test_triggers(sources)
+        validate_test_concurrency(sources)
+        validate_no_attempt_dependent_tests()
+        validate_full_mode_runs_everything(sources)
+        validate_required_step_conditions(sources)
         validate_type_check_extras(sources)
         validate_native_release_targets(sources)
         validate_security_events_scope(sources)
