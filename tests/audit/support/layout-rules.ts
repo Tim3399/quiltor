@@ -20,6 +20,7 @@ export async function analyzeLayout(page: Page, ctx: LayoutContext): Promise<Fin
   const domFindings = await page.evaluate(collectDomFindings, {
     touch: ctx.touch,
     popupSelector: ctx.popupSelector ?? null,
+    stackedSelectors: ctx.stackedSelectors ? [...ctx.stackedSelectors] : null,
   });
   const toolbarFindings: RawFinding[] = (await page.evaluate(toolbarRowFindings, 1.5)).map(
     (finding) => ({
@@ -88,6 +89,7 @@ async function collectContrastFindings(page: Page): Promise<RawFinding[]> {
 function collectDomFindings(options: {
   touch: boolean;
   popupSelector: string | null;
+  stackedSelectors: string[] | null;
 }): RawFinding[] {
   const findings: RawFinding[] = [];
   const seen = new Set<string>();
@@ -587,6 +589,41 @@ function collectDomFindings(options: {
       },
       [first, second].sort().join("|"),
     );
+  }
+
+  // --- overlay-stack ---------------------------------------------------------------------
+  // The overlap rule above sees only a control covered by another control. A banner or a legend
+  // is no control, so a breadcrumb trail lying under a hint banner (T-109) slips through it. A
+  // state that stacks overlays names them, and any two that share area are reported. Elements
+  // of one selector are not compared with each other.
+  const stacked = options.stackedSelectors ?? [];
+  const stackedBoxes = stacked.map((selector) =>
+    Array.from(document.querySelectorAll(selector))
+      .filter((element) => isRendered(element) && !isHiddenFromUsers(element))
+      .map((element) => ({ selector, element, box: element.getBoundingClientRect() })),
+  );
+  for (let a = 0; a < stackedBoxes.length; a += 1) {
+    for (let b = a + 1; b < stackedBoxes.length; b += 1) {
+      for (const first of stackedBoxes[a] ?? []) {
+        for (const second of stackedBoxes[b] ?? []) {
+          const width =
+            Math.min(first.box.right, second.box.right) - Math.max(first.box.left, second.box.left);
+          const height =
+            Math.min(first.box.bottom, second.box.bottom) - Math.max(first.box.top, second.box.top);
+          if (width <= 1 || height <= 1) continue;
+          push(
+            {
+              rule: "overlap",
+              severity: "high",
+              message: `Overlay ${first.selector} lies over overlay ${second.selector} (${Math.round(width)}x${Math.round(height)}px shared).`,
+              selector: selectorOf(first.element),
+              rect: roundRect(first.box),
+            },
+            `stack|${first.selector}|${second.selector}`,
+          );
+        }
+      }
+    }
   }
 
   // --- touch-target -----------------------------------------------------------------------
