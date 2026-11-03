@@ -1,4 +1,4 @@
-import { type MutableRefObject, useInsertionEffect, useRef } from "react";
+import { type RefObject, useInsertionEffect, useRef } from "react";
 
 /**
  * A ref that always holds the value of the latest committed render.
@@ -14,7 +14,7 @@ import { type MutableRefObject, useInsertionEffect, useRef } from "react";
  * so a second synchronous call before the next commit sees it; the next commit overwrites
  * it with the prop again. See design/README.md, "Latest-value refs".
  */
-export function useLatest<T>(value: T): MutableRefObject<T> {
+export function useLatest<T>(value: T): RefObject<T> {
   const ref = useRef(value);
   useInsertionEffect(() => {
     ref.current = value;

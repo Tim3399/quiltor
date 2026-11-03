@@ -1,5 +1,5 @@
 import { act, render } from "@testing-library/react";
-import { type MutableRefObject, useEffect, useLayoutEffect } from "react";
+import { type RefObject, useEffect, useLayoutEffect } from "react";
 import { describe, expect, it } from "vitest";
 import { useLatest } from "./useLatest";
 
@@ -7,7 +7,7 @@ import { useLatest } from "./useLatest";
 // written during render, and every effect of the same commit -- a child's layout effect
 // included -- already sees the new value.
 
-function LayoutReader({ valueRef, seen }: { valueRef: MutableRefObject<string>; seen: string[] }) {
+function LayoutReader({ valueRef, seen }: { valueRef: RefObject<string>; seen: string[] }) {
   useLayoutEffect(() => {
     seen.push(valueRef.current);
   });
@@ -23,7 +23,7 @@ function Holder({
   value: string;
   seen: string[];
   passive: string[];
-  expose: (ref: MutableRefObject<string>) => void;
+  expose: (ref: RefObject<string>) => void;
 }) {
   const valueRef = useLatest(value);
   useEffect(() => {
@@ -36,8 +36,8 @@ function Holder({
 function setup(initial: string) {
   const seen: string[] = [];
   const passive: string[] = [];
-  let ref: MutableRefObject<string> | null = null;
-  const expose = (next: MutableRefObject<string>) => {
+  let ref: RefObject<string> | null = null;
+  const expose = (next: RefObject<string>) => {
     ref = next;
   };
   const view = render(<Holder value={initial} seen={seen} passive={passive} expose={expose} />);
