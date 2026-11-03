@@ -3,6 +3,7 @@ import type {
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
   WritingDataRelease,
+  WritingInstalledSource,
 } from "../../application";
 import type { WritingIssue } from "../../../modules/manuscript";
 
@@ -13,10 +14,7 @@ export interface WritingAssistanceStatusWireV1 {
   stale: boolean;
   version: string | null;
   data?: WritingDataRelease;
-  sources: Record<
-    string,
-    { version: string; url: string; checksum: string; license: string; attribution: string }
-  >;
+  installed_sources?: unknown;
   grammar?: GrammarStatus;
 }
 
@@ -35,13 +33,35 @@ export interface GrammarCheckWireV1 {
   issues: WritingIssue[];
 }
 
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+/** Entries without a name are dropped; any other missing field becomes "". */
+function decodeInstalledSources(wire: unknown): WritingInstalledSource[] {
+  if (!Array.isArray(wire)) return [];
+  return wire.flatMap((entry: unknown) => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const source = entry as Record<string, unknown>;
+    const name = text(source.name).trim();
+    if (!name) return [];
+    return [
+      {
+        name,
+        url: text(source.url),
+        license: text(source.license),
+        licenseUrl: text(source.license_url),
+      },
+    ];
+  });
+}
+
 export function decodeWritingAssistanceStatusV1(
   wire: WritingAssistanceStatusWireV1,
 ): WritingAssistanceStatus {
+  const { installed_sources: installedSources, ...rest } = wire;
   return {
-    ...wire,
+    ...rest,
+    installedSources: decodeInstalledSources(installedSources),
     data: wire.data && { ...wire.data },
-    sources: { ...wire.sources },
     grammar: wire.grammar && { ...wire.grammar },
   };
 }

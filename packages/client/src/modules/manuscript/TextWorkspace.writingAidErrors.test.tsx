@@ -34,7 +34,6 @@ function status(overrides: Partial<WritingAssistanceStatus> = {}): WritingAssist
     coverage: "full",
     stale: false,
     version: "test",
-    sources: {},
     grammar,
     ...overrides,
   };
