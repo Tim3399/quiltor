@@ -507,7 +507,7 @@ class BuildKnowledgeWorldTest(unittest.TestCase):
         self.assertEqual(first.title, "Mara · Unbekannt")
         self.assertEqual(
             first.text,
-            "Mara → Unbekannt\nBeziehung: Bruder\nArt: directed\n"
+            "Mara → Unbekannt\nBeziehung: Bruder\nArt: gerichtet\n"
             "Ab Ankunft: Freund (aktiv)\nAb gone: ohne Bezeichnung (beendet)",
         )
         self.assertEqual(

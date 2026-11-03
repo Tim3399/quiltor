@@ -180,7 +180,7 @@ def build_knowledge(
             )
         )
     for edge in _objects(figures.get("edges")):
-        direction = "directed" if edge.get("directed") else "ungerichtet"
+        direction = "gerichtet" if edge.get("directed") else "ungerichtet"
         lines = [
             f"{names.get(edge.get('from'))} → {names.get(edge.get('to'))}",
             f"Beziehung: {_clean(edge.get('label'))}",

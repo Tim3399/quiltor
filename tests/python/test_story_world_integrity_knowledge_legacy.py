@@ -9,6 +9,7 @@ together with `tests/python/legacy`.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import unittest
 from collections.abc import Callable, Iterator
@@ -110,8 +111,24 @@ def answer(call: Callable[[], Any]) -> Any:
         return ("raises", type(error).__name__)
 
 
+def built(module: Any, manuscript: Any, figures: Any, chapter_ids: Any = None) -> list[Any]:
+    """The chunks of `module`, with T-133's one deliberate difference taken out of the old ones.
+
+    The old index wrote the English word "directed" into the German text of a directed
+    relationship; T-133 made it "gerichtet". Nothing else about the text changed.
+    """
+
+    result = module.build_knowledge(manuscript, figures, chapter_ids)
+    if module is not legacy_knowledge:
+        return result
+    return [
+        dataclasses.replace(chunk, text=chunk.text.replace("\nArt: directed", "\nArt: gerichtet"))
+        for chunk in result
+    ]
+
+
 def chunks(module: Any, manuscript: Any, figures: Any, chapter_ids: Any = None) -> Any:
-    return [chunk.public() for chunk in module.build_knowledge(manuscript, figures, chapter_ids)]
+    return [chunk.public() for chunk in built(module, manuscript, figures, chapter_ids)]
 
 
 class LegacyIntegrityKnowledgeTests(unittest.TestCase):
@@ -186,7 +203,7 @@ class LegacyIntegrityKnowledgeTests(unittest.TestCase):
     def test_retrieve(self):
         for world_name, figures in self.worlds():
             current = knowledge.build_knowledge(MANUSCRIPT, copy.deepcopy(figures))
-            legacy = legacy_knowledge.build_knowledge(MANUSCRIPT, copy.deepcopy(figures))
+            legacy = built(legacy_knowledge, MANUSCRIPT, copy.deepcopy(figures))
             for query in QUERIES:
                 for limit in (1, 3, 14):
                     for fallback in (True, False):
@@ -207,6 +224,16 @@ class LegacyIntegrityKnowledgeTests(unittest.TestCase):
                 lambda m=moment_id: knowledge.moment_order(TIMELINE, m),
                 lambda m=moment_id: legacy_knowledge.moment_order(TIMELINE, m),
             )
+
+    def test_the_one_deliberate_difference_is_the_direction_word(self):
+        # T-133: the old index said "directed", the new one says "gerichtet", nowhere else.
+        figures = world(edges=[{"id": "e1", "from": "mara", "to": "iven", "directed": True}])
+        old = legacy_knowledge.build_knowledge(MANUSCRIPT, copy.deepcopy(figures))
+        new = knowledge.build_knowledge(MANUSCRIPT, copy.deepcopy(figures))
+        differing = [(a.text, b.text) for a, b in zip(old, new, strict=True) if a.text != b.text]
+        self.assertEqual(len(differing), 1)
+        self.assertIn("\nArt: directed", differing[0][0])
+        self.assertEqual(differing[0][1], differing[0][0].replace("directed", "gerichtet"))
 
     def test_the_legacy_copy_still_reports_every_kind_of_finding(self):
         # Guards the comparison itself: two copies that both report nothing would agree.
