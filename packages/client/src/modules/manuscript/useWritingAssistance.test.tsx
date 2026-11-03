@@ -92,6 +92,19 @@ describe("useWritingAssistance", () => {
     expect(result.current.query).toBe("Hafen");
   });
 
+  it("aborts a running grammar check when the edited item changes", async () => {
+    assistance.checkGrammar.mockReturnValue(new Promise(() => {}));
+    const { result, rerender } = setup({ selectionKey: "a", current: chapter("Alt") });
+    await act(async () => {});
+    act(() => result.current.checkGrammar());
+    const signal = assistance.checkGrammar.mock.calls[0][2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+
+    rerender({ selectionKey: "b", current: chapter("Alt") });
+
+    expect(signal.aborted).toBe(true);
+  });
+
   it("drops a grammar result when the chapter text changed while it was checked", async () => {
     let resolveCheck: (value: { issues: never[] }) => void = () => {};
     assistance.checkGrammar.mockReturnValue(

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { useLatest } from "../../shared/hooks/useLatest";
 import { BookContent } from "./BookContent";
 import { loadBookFont } from "./bookFonts";
 import { resolveBookLayout } from "./bookLayout";
@@ -28,9 +29,8 @@ export function BookDocument({
   onError?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const callbacks = useRef({ onReady, onUpdating, onError });
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  callbacks.current = { onReady, onUpdating, onError };
+  // Read only, by the pagination effect and its async job, which outlive the render.
+  const callbacksRef = useLatest({ onReady, onUpdating, onError });
   const [status, setStatus] = useState<"updating" | "ready" | "error">("updating");
   const settings = useMemo(() => resolveBookLayout(manuscript.bookLayout), [manuscript.bookLayout]);
   const date = useMemo(() => new Date().toLocaleDateString("de-DE"), []);
@@ -50,9 +50,9 @@ export function BookDocument({
   useEffect(() => {
     let cancelled = false;
     let dispose: (() => void) | undefined;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect is the start of the debounced pagination job: it announces "updating" to the parent through onUpdating (an outward call that cannot run in render) and sets the matching status in the same step; the job later sets "ready" or "error" from its own async callbacks, so status stays tied to the job rather than derived from props
     setStatus("updating");
-    callbacks.current.onUpdating?.();
+    callbacksRef.current.onUpdating?.();
     // Debounce settings changes; zoom and scrolling never enter this effect.
     const timer = setTimeout(() => {
       paginationQueue = paginationQueue
@@ -106,13 +106,13 @@ export function BookDocument({
             stage.remove();
             dispose = cleanup;
             setStatus("ready");
-            callbacks.current.onReady?.(pages);
+            callbacksRef.current.onReady?.(pages);
           } catch (error) {
             cleanup();
             if (!cancelled) {
               console.error("Book pagination failed", error);
               setStatus("error");
-              callbacks.current.onError?.();
+              callbacksRef.current.onError?.();
             }
           }
         });

@@ -49,6 +49,7 @@ describe("useChapterHistory", () => {
     rerender();
     expect(result.current.snapshotReady).toBe(false);
     expect(result.current.selected).toBeNull();
+    expect(result.current.state).toBe("loading");
     await settle(400);
 
     // Chapter B's comparison is still pending: going back to A must not show A's old data.
@@ -57,6 +58,29 @@ describe("useChapterHistory", () => {
     expect(result.current.snapshotReady).toBe(false);
     expect(result.current.selected).toBeNull();
 
+    await settle(400);
+    expect(result.current.snapshotReady).toBe(true);
+  });
+
+  it("reloads a snapshot it has left instead of reusing the comparison it still holds", async () => {
+    history.log.mockResolvedValue({ commits: [{ hash: "h1" }, { hash: "h2" }] });
+    history.chapterComparison.mockImplementation((ref: string) =>
+      ref === "h2"
+        ? new Promise(() => {})
+        : Promise.resolve({ selected: record, previous: record }),
+    );
+    const { result } = renderHook(() => useChapterHistory(chapterA));
+    act(() => result.current.setOpen(true));
+    await settle(0);
+    await settle(400);
+    expect(result.current.snapshotReady).toBe(true);
+
+    act(() => result.current.setSelectedRef("h2"));
+    await settle(400);
+    act(() => result.current.setSelectedRef("h1"));
+
+    expect(result.current.snapshotReady).toBe(false);
+    expect(result.current.state).toBe("loading");
     await settle(400);
     expect(result.current.snapshotReady).toBe(true);
   });

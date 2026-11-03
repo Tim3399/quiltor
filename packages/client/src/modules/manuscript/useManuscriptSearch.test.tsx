@@ -71,6 +71,29 @@ describe("useManuscriptSearch results", () => {
     expect(onCurrentId).toHaveBeenCalledWith("first");
   });
 
+  it("opens the chapter again for a new text search on the same target", () => {
+    const onCurrentId = vi.fn();
+    let search = { query: "Hafen", from: 0, to: 5 };
+    const { result, rerender } = renderHook(() =>
+      useManuscriptSearch({
+        chapters: harbour,
+        current: harbour[0],
+        targetId: "first",
+        targetRequestId: 1,
+        textSearch: search,
+        editor: noEditor,
+        onCurrentId,
+      }),
+    );
+    onCurrentId.mockClear();
+
+    search = { query: "Hafen", from: 10, to: 15 };
+    rerender();
+
+    expect(result.current.activeIndex).toBe(1);
+    expect(onCurrentId).toHaveBeenCalledWith("first");
+  });
+
   it("keeps the active match inside the results when they shrink", () => {
     const stableSearch = { query: "Hafen", from: 0, to: 5 };
     let chaptersNow = harbour;
