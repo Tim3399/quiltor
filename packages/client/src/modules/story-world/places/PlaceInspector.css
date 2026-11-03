@@ -13,10 +13,6 @@
   width: 100%;
   justify-content: flex-start;
   text-align: start;
-  /* The wrapping label pads its block axis with this token; at the default a one-line action
-     would be taller than every other control. The minimum height holds one line at the
-     control height and the padding only shows on two (T-124). */
-  --spacing-compact-wide: var(--space-6);
 }
 
 .places-inspector-delete {

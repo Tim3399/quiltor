@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any
 
+from quiltor.domain.json_values import JsonObject, as_array, as_object
+
 LEGACY_PROFILE_FIELDS: tuple[tuple[str, str], ...] = (
     ("alter", "Alter"),
     ("rolle", "Rolle in der Geschichte"),
@@ -23,7 +25,19 @@ def legacy_extra_field_id(owner_id: str, position: int) -> str:
     return f"profile-field:{owner_id}:extra:{position}"
 
 
-def normalize_profile(profile: Mapping[str, Any] | None, owner_id: str) -> dict[str, Any]:
+def _extra_row(field: object) -> tuple[JsonObject, str, str] | None:
+    """One legacy ``extra`` row with its string key and value, or None if it is malformed."""
+
+    row = as_object(field)
+    if row is None:
+        return None
+    key, value = row.get("k"), row.get("v")
+    if not isinstance(key, str) or not isinstance(value, str):
+        return None
+    return row, key, value
+
+
+def normalize_profile(profile: Mapping[str, object] | None, owner_id: str) -> dict[str, Any]:
     """Return a detached notes-first profile while accepting every pre-v10 shape.
 
     A present ``fields`` collection is authoritative. Otherwise the five old
@@ -32,9 +46,9 @@ def normalize_profile(profile: Mapping[str, Any] | None, owner_id: str) -> dict[
     still reject them instead of silently repairing untrusted input.
     """
 
-    source = profile or {}
+    source: Mapping[str, object] = profile or {}
     legacy_keys = {key for key, _ in LEGACY_PROFILE_FIELDS}
-    canonical = {
+    canonical: dict[str, Any] = {
         key: deepcopy(value)
         for key, value in source.items()
         if key not in {"fields", "extra", *legacy_keys}
@@ -50,15 +64,12 @@ def normalize_profile(profile: Mapping[str, Any] | None, owner_id: str) -> dict[
             }
         )
         if "extra" in source:
-            extras = source["extra"]
-            extras_are_valid = isinstance(extras, list) and all(
-                isinstance(field, Mapping)
-                and isinstance(field.get("k"), str)
-                and isinstance(field.get("v"), str)
-                for field in extras
+            extras = as_array(source["extra"])
+            extras_are_valid = extras is not None and all(
+                _extra_row(field) is not None for field in extras
             )
             if not extras_are_valid:
-                canonical["extra"] = deepcopy(extras)
+                canonical["extra"] = deepcopy(source["extra"])
         return canonical
 
     projected: list[dict[str, Any]] = []
@@ -79,22 +90,19 @@ def normalize_profile(profile: Mapping[str, Any] | None, owner_id: str) -> dict[
             )
 
     if "extra" in source:
-        extras = source["extra"]
-        if not isinstance(extras, list):
-            canonical["extra"] = deepcopy(extras)
+        extras = as_array(source["extra"])
+        if extras is None:
+            canonical["extra"] = deepcopy(source["extra"])
         else:
             for position, field in enumerate(extras):
-                if not isinstance(field, Mapping):
+                parts = _extra_row(field)
+                if parts is None:
                     canonical["extra"] = deepcopy(extras)
                     break
-                key = field.get("k")
-                value = field.get("v")
-                if not isinstance(key, str) or not isinstance(value, str):
-                    canonical["extra"] = deepcopy(extras)
-                    break
+                row, key, value = parts
                 projected.append(
                     {
-                        **deepcopy(dict(field)),
+                        **deepcopy(row),
                         "id": legacy_extra_field_id(owner_id, position),
                         "key": key,
                         "value": value,
