@@ -469,20 +469,21 @@ describe("FigureWorkspace relationships", () => {
       <EdgeInspectorHarness
         initial={{
           ...initialState,
-          edges: [{ id: "bond", from: "a", to: "b", label: "Freunde" }],
+          edges: [{ id: "bond", from: "a", to: "b", label: "Freunde", directed: true }],
         }}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Kante bond" }));
-    const label = screen.getByRole("textbox", { name: "Beziehung benennen" });
+    const reverse = screen.getByRole("button", { name: /Richtung umkehren/ });
     const directed = screen.getByRole("checkbox", { name: "Gerichtet" });
 
+    // Plain DOM clicks: both land in one batch, with no commit in between.
     act(() => {
-      fireEvent.change(label, { target: { value: "Rivalen" } });
-      fireEvent.click(directed);
+      reverse.click();
+      directed.click();
     });
 
     const saved = JSON.parse(screen.getByLabelText("Beziehungszustand").textContent ?? "[]");
-    expect(saved[0]).toMatchObject({ label: "Rivalen", directed: true });
+    expect(saved[0]).toMatchObject({ from: "b", to: "a", directed: false });
   });
 });
