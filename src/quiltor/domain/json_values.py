@@ -11,11 +11,12 @@ are not all `str` is refused here rather than trusted. Nested values stay `objec
 narrowed in turn where they are read.
 
 Rule: no `cast` anywhere else in `quiltor.domain` or `quiltor.application`. Needing one means
-a value should go through `as_object` or `as_array` instead.
+a value should go through `as_object`, `as_mapping` or `as_array` instead.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import cast
 
 type JsonObject = dict[str, object]
@@ -32,6 +33,21 @@ def as_object(value: object) -> JsonObject | None:
     return cast("JsonObject", value)
 
 
+def as_mapping(value: object) -> Mapping[str, object] | None:
+    """The value itself as a read-only `Mapping[str, object]`, or None if it is not one.
+
+    For transport boundaries that accept any mapping rather than only a decoded `dict`. As
+    in `as_object`, a mapping with a key that is not a `str` is refused.
+    """
+
+    if not isinstance(value, Mapping):
+        return None
+    entries = cast("Mapping[object, object]", value)
+    if not all(isinstance(key, str) for key in entries):
+        return None
+    return cast("Mapping[str, object]", value)
+
+
 def as_array(value: object) -> list[object] | None:
     """The value itself as a list of unnarrowed items, or None if it is not a list."""
 
@@ -40,4 +56,4 @@ def as_array(value: object) -> list[object] | None:
     return cast("list[object]", value)
 
 
-__all__ = ["JsonObject", "as_array", "as_object"]
+__all__ = ["JsonObject", "as_array", "as_mapping", "as_object"]

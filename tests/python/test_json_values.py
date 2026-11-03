@@ -1,8 +1,9 @@
-"""as_object and as_array narrow decoded JSON and refuse everything else."""
+"""as_object, as_mapping and as_array narrow decoded JSON and refuse everything else."""
 
 import unittest
+from types import MappingProxyType
 
-from quiltor.domain.json_values import as_array, as_object
+from quiltor.domain.json_values import as_array, as_mapping, as_object
 
 
 class AsObjectTests(unittest.TestCase):
@@ -60,6 +61,23 @@ class AsArrayTests(unittest.TestCase):
         for value in (None, 0, 1.5, False, "", "text", b"x", (1,), {1}):
             with self.subTest(value=value):
                 self.assertIsNone(as_array(value))
+
+
+class AsMappingTests(unittest.TestCase):
+    def test_a_dict_and_a_read_only_mapping_are_mappings(self):
+        value = {"a": 1}
+        self.assertIs(as_mapping(value), value)
+        proxy = MappingProxyType({"a": 1})
+        self.assertIs(as_mapping(proxy), proxy)
+
+    def test_a_mapping_with_a_key_that_is_not_a_string_is_refused(self):
+        self.assertIsNone(as_mapping({1: "a"}))
+        self.assertIsNone(as_mapping(MappingProxyType({("a",): 1})))
+
+    def test_lists_scalars_and_none_are_not_mappings(self):
+        for value in (None, 0, "", "text", [("a", 1)], (("a", 1),)):
+            with self.subTest(value=value):
+                self.assertIsNone(as_mapping(value))
 
 
 if __name__ == "__main__":
