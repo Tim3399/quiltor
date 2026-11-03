@@ -2,6 +2,7 @@
 
 import contextlib
 import functools
+import inspect
 import io
 import json
 import re
@@ -3013,6 +3014,170 @@ class ThirdPartyNoticeContractTests(unittest.TestCase):
             ):
                 with self.subTest(lock=record["name"], package=name):
                     self.assertIn((name.casefold().replace("_", "-"), version), package_versions)
+
+
+class PreflightCiScopeTests(unittest.TestCase):
+    """C-15: the release workflow's preflight skips only what the full test matrix runs."""
+
+    RELEASE_ENVIRONMENT: ClassVar[dict[str, str]] = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_WORKFLOW_REF": "owner/quiltor/.github/workflows/release.yml@refs/tags/v1.0.0",
+    }
+
+    def run_scope(self, scope: str, environment: dict[str, str]) -> tuple[list[str], str]:
+        ran: list[str] = []
+        output = io.StringIO()
+        with (
+            patch.dict(release_preflight.os.environ, environment, clear=True),
+            patch.object(release_preflight, "_npm_executable", return_value="npm"),
+            patch.object(release_preflight, "_cargo_executable", return_value="cargo"),
+            patch.object(release_preflight, "_docker_executable", return_value="docker"),
+            patch.object(release_preflight, "_require_pinned_runtime_toolchains"),
+            patch.object(release_preflight, "_require_pinned_python_build_tools"),
+            patch.object(
+                release_preflight, "_run", side_effect=lambda label, *_args: ran.append(label)
+            ),
+            patch.object(
+                release_preflight,
+                "_run_portable_artifact_builds",
+                side_effect=lambda *_args, **_kwargs: ran.append("<artifact builds>"),
+            ),
+            patch.object(
+                release_preflight,
+                "_run_browser_suite",
+                side_effect=lambda *_args, **_kwargs: ran.append("Playwright browser suite"),
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            release_preflight.run_preflight(REPO_ROOT, scope=scope)
+        return ran, output.getvalue()
+
+    def test_full_scope_runs_every_step_and_skips_nothing(self):
+        ran, output = self.run_scope("full", {})
+        self.assertNotIn("Skipped", output)
+        self.assertLessEqual(release_preflight.COVERED_BY_FULL_MATRIX, set(ran))
+        self.assertIn("<artifact builds>", ran)
+
+    def test_ci_scope_skips_exactly_the_covered_steps(self):
+        full, _ = self.run_scope("full", {})
+        ci, output = self.run_scope("ci", self.RELEASE_ENVIRONMENT)
+        covered = release_preflight.COVERED_BY_FULL_MATRIX
+        self.assertEqual(ci, [label for label in full if label not in covered])
+        skipped = re.findall(
+            r"==> Skipped \(covered by the called full test matrix\): (.+)", output
+        )
+        self.assertEqual(skipped, [label for label in full if label in covered])
+        self.assertEqual(set(release_preflight.COVERAGE), covered)
+
+    def test_ci_scope_outside_release_workflow_fails_instead_of_shrinking(self):
+        other_workflow = "owner/quiltor/.github/workflows/test.yml@refs/heads/main"
+        for name, environment in (
+            ("local shell", {}),
+            (
+                "another workflow",
+                {**self.RELEASE_ENVIRONMENT, "GITHUB_WORKFLOW_REF": other_workflow},
+            ),
+            ("not in actions", {**self.RELEASE_ENVIRONMENT, "GITHUB_ACTIONS": "false"}),
+        ):
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(
+                    release_preflight.PreflightError, "reserved for release.yml"
+                ),
+            ):
+                self.run_scope("ci", environment)
+
+    def test_unknown_scope_is_refused(self):
+        with self.assertRaisesRegex(release_preflight.PreflightError, "Unknown preflight scope"):
+            release_preflight.run_preflight(REPO_ROOT, scope="fast")
+
+    def test_flag_selects_the_ci_scope_and_its_absence_the_full_one(self):
+        for argv, scope in (([], "full"), (["--ci-release-scope"], "ci")):
+            with (
+                self.subTest(argv=argv),
+                patch.object(release_preflight, "run_preflight") as run,
+            ):
+                self.assertEqual(release_preflight.main(argv), 0)
+                run.assert_called_once_with(scope=scope)
+
+    def test_the_default_scope_is_full(self):
+        signature = inspect.signature(release_preflight.run_preflight)
+        self.assertEqual(signature.parameters["scope"].default, "full")
+
+    def test_set_version_runs_the_full_preflight(self):
+        source = (TOOLING / "set_version.py").read_text(encoding="utf-8")
+        calls = re.findall(r"run_preflight\(([^)]*)\)", source)
+        self.assertEqual(calls, ["repo_root"])
+
+    def test_every_covered_step_is_run_by_the_matrix(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_preflight_coverage(sources)
+        for label, (_job, lines) in release_preflight.COVERAGE.items():
+            for line in lines:
+                with self.subTest(label=label, line=line):
+                    mutated = dict(sources)
+                    pattern = re.compile(r"^.*" + re.escape(line) + r".*\n", re.MULTILINE)
+                    self.assertRegex(mutated[TEST_WORKFLOW], pattern)
+                    mutated[TEST_WORKFLOW] = pattern.sub("", mutated[TEST_WORKFLOW])
+                    with self.assertRaisesRegex(
+                        workflow_contract.WorkflowContractError, "skipped in CI|frontend job"
+                    ):
+                        workflow_contract.validate_preflight_coverage(mutated)
+
+    def test_the_build_line_is_the_one_the_frontend_gate_contract_expects(self):
+        sources = dict(workflow_contract._workflow_sources())
+        line = "run: npx tsc -b && npx vite build\n"
+        self.assertIn(line, sources[TEST_WORKFLOW])
+        sources[TEST_WORKFLOW] = sources[TEST_WORKFLOW].replace(line, "run: npx vite build\n")
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "build script"):
+            workflow_contract.validate_preflight_coverage(sources)
+
+    def test_a_line_is_not_matched_by_a_longer_command(self):
+        sources = dict(workflow_contract._workflow_sources())
+        line = "run: npx vitest run\n"
+        self.assertIn(line, sources[TEST_WORKFLOW])
+        sources[TEST_WORKFLOW] = sources[TEST_WORKFLOW].replace(
+            line, "run: npx vitest run--passWithNoTests\n"
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "npx vitest run"):
+            workflow_contract.validate_preflight_coverage(sources)
+
+    def test_a_label_without_a_required_job_fails(self):
+        sources = workflow_contract._workflow_sources()
+        for name, coverage, error in (
+            (
+                "job outside the matrix",
+                {"Backend suite": ("ghost", ("run: echo",))},
+                "does not require",
+            ),
+            ("no covering line", {"Backend suite": ("backend", ())}, "names no covering line"),
+        ):
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
+            ):
+                workflow_contract.validate_preflight_coverage(sources, coverage)
+
+    def test_package_scripts_must_match_what_the_matrix_runs(self):
+        sources = workflow_contract._workflow_sources()
+        package = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+        for name, script, value, error in (
+            ("unit suite differs", "test", "vitest run --passWithNoTests", "vitest run"),
+            ("formatting left out of check", "check", "npm run check:contracts", "check:format"),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "tools" / "dev").mkdir(parents=True)
+                shutil.copy(REPO_ROOT / "tools/dev/run-check.mjs", root / "tools/dev")
+                scripts = {**package["scripts"], script: value}
+                (root / "package.json").write_text(
+                    json.dumps({**package, "scripts": scripts}), encoding="utf-8"
+                )
+                with (
+                    patch.object(workflow_contract, "REPO_ROOT", root),
+                    self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
+                ):
+                    workflow_contract.validate_preflight_coverage(sources)
 
 
 if __name__ == "__main__":

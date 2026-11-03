@@ -9,6 +9,7 @@ both OCI images are portable release artifacts, not post-version best efforts.
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import json
 import os
@@ -41,6 +42,61 @@ PINNED_PYTHON_BUILD_TOOLS = {
 
 class PreflightError(RuntimeError):
     """A release gate could not run or did not pass."""
+
+
+# The steps the release workflow may leave out because its called full test matrix runs them on
+# the same commit: label -> (test.yml job, lines that job must run). workflow_contract.py holds
+# test.yml to every line, so a step is only skipped where the matrix provably runs it. Anything
+# not listed here runs in every scope.
+COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
+    "Backend suite": (
+        "backend",
+        ("run: python -m unittest discover -s tests/python -t tests/python -v",),
+    ),
+    "CLI host suite with declared dependencies": (
+        "backend",
+        ('run: python -m unittest discover -s tests/python -t tests/python -p "test_cli_*.py" -v',),
+    ),
+    "Repository formatting": ("frontend", ("run: npm run check",)),
+    "Portable core formatting": ("portable-core", ("run: cargo --locked fmt --check",)),
+    "Portable core lints": (
+        "portable-core",
+        ("run: cargo --locked clippy --workspace --all-targets -- -D warnings",),
+    ),
+    "Portable core tests": (
+        "portable-core",
+        ("run: cargo --locked test --workspace --all-targets",),
+    ),
+    "Frontend unit suite": ("frontend", ("run: npx vitest run",)),
+    "Frontend gates and production build": ("frontend", ("run: npm run check",)),
+    "Committed dist matches the production build": (
+        "frontend",
+        ("if ! git diff --quiet -- dist; then",),
+    ),
+    "Playwright browser suite": (
+        "browser-e2e-shards",
+        ('node tools/dev/test-shards.mjs select --os linux --slots 4 --slot "$SLOT"',),
+    ),
+}
+COVERED_BY_FULL_MATRIX = frozenset(COVERAGE)
+SCOPES = ("full", "ci")
+CI_SCOPE_FLAG = "--ci-release-scope"
+CI_SCOPE_WORKFLOW = "/.github/workflows/release.yml@"
+
+
+def _require_release_workflow() -> None:
+    """The CI scope only holds where release.yml also calls the full test matrix."""
+
+    if os.environ.get("GITHUB_ACTIONS") != "true" or CI_SCOPE_WORKFLOW not in os.environ.get(
+        "GITHUB_WORKFLOW_REF", ""
+    ):
+        raise PreflightError(
+            f"{CI_SCOPE_FLAG} is reserved for release.yml; it relies on the called full test matrix"
+        )
+
+
+def _skip(label: str) -> None:
+    print(f"\n==> Skipped (covered by the called full test matrix): {label}", flush=True)
 
 
 def _npm_executable() -> str:
@@ -541,9 +597,18 @@ def _run_portable_artifact_builds(
         _remove_preflight_images(docker, [app_image, backup_image], repo_root)
 
 
-def run_preflight(repo_root: Path = REPO_ROOT) -> None:
-    """Run all cross-platform test suites and builds, raising on the first failure."""
+def run_preflight(repo_root: Path = REPO_ROOT, *, scope: str = "full") -> None:
+    """
+    Run all cross-platform test suites and builds, raising on the first failure.
 
+    The "ci" scope leaves out COVERED_BY_FULL_MATRIX and is only accepted inside release.yml.
+    """
+
+    if scope not in SCOPES:
+        raise PreflightError(f"Unknown preflight scope: {scope}")
+    if scope == "ci":
+        _require_release_workflow()
+    skipped = COVERED_BY_FULL_MATRIX if scope == "ci" else frozenset()
     npm = _npm_executable()
     cargo = _cargo_executable()
     docker = _docker_executable()
@@ -646,6 +711,9 @@ def run_preflight(repo_root: Path = REPO_ROOT) -> None:
         ),
     ]
     for label, command in checks:
+        if label in skipped:
+            _skip(label)
+            continue
         _run(label, command, repo_root, check_environment)
 
     _run_portable_artifact_builds(
@@ -655,14 +723,24 @@ def run_preflight(repo_root: Path = REPO_ROOT) -> None:
         environment=check_environment,
     )
 
-    _run_browser_suite(repo_root, python=python, npm=npm)
+    if "Playwright browser suite" in skipped:
+        _skip("Playwright browser suite")
+    else:
+        _run_browser_suite(repo_root, python=python, npm=npm)
 
     print("\nAll release preflight gates passed.", flush=True)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        CI_SCOPE_FLAG,
+        action="store_true",
+        help="release.yml only: skip the steps its called full test matrix runs",
+    )
+    args = parser.parse_args(argv)
     try:
-        run_preflight()
+        run_preflight(scope="ci" if args.ci_release_scope else "full")
     except PreflightError as error:
         print(f"\nerror: release preflight stopped: {error}", file=sys.stderr)
         return 1

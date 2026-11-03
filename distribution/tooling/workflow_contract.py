@@ -15,6 +15,7 @@ from typing import cast
 
 import path_filter
 from browser_payload_digest import load_contract as load_browser_payload_contract
+from release_preflight import COVERAGE as PREFLIGHT_COVERAGE
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = REPO_ROOT / ".github" / "workflows"
@@ -1500,6 +1501,56 @@ def validate_security_events_scope(sources: dict[Path, str]) -> None:
             )
 
 
+def _runs_line(job: str, evidence: str) -> bool:
+    """A line of the job is the evidence, or the evidence followed by further arguments."""
+
+    for line in job.splitlines():
+        text = line.strip().removeprefix("- ")
+        if text == evidence or text.startswith(evidence + " "):
+            return True
+    return False
+
+
+def validate_preflight_coverage(
+    sources: dict[Path, str],
+    coverage: dict[str, tuple[str, tuple[str, ...]]] | None = None,
+) -> None:
+    """
+    C-15: every preflight step the CI release scope skips runs in the full test matrix.
+
+    Each covered label names a test.yml job that the path filter aggregates (FILTERED_JOBS)
+    and lines that job runs verbatim. Where the matrix runs a different command than the
+    preflight, the link between the two is checked as well.
+    """
+
+    covered = PREFLIGHT_COVERAGE if coverage is None else coverage
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    for label, (job_name, lines) in covered.items():
+        if job_name not in FILTERED_JOBS:
+            raise WorkflowContractError(
+                f"preflight step {label!r} is covered by {job_name}, which the matrix does not "
+                "require"
+            )
+        if not lines:
+            raise WorkflowContractError(f"preflight step {label!r} names no covering line")
+        job = _job_body(workflow, job_name)
+        for evidence in lines:
+            if not _runs_line(job, evidence):
+                raise WorkflowContractError(
+                    f"preflight step {label!r} is skipped in CI, but the {job_name} job "
+                    f"does not run: {evidence}"
+                )
+    scripts = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))["scripts"]
+    if "Repository formatting" in covered and "check:format" not in _check_links(scripts["check"]):
+        raise WorkflowContractError("npm run check must run check:format")
+    if "Frontend unit suite" in covered and scripts.get("test") != "vitest run":
+        raise WorkflowContractError(
+            'package.json test must be "vitest run", the command the frontend job runs'
+        )
+    if "Frontend gates and production build" in covered:
+        validate_frontend_gates_once(sources)
+
+
 def validate_repository(repo_root: Path = REPO_ROOT) -> None:
     global REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK
     original = (REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK)
@@ -1525,6 +1576,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_full_matrix_switch(sources)
         validate_path_filter(sources)
         validate_frontend_gates_once(sources)
+        validate_preflight_coverage(sources)
         validate_test_caches(sources)
         validate_type_check_extras(sources)
         validate_native_release_targets(sources)
