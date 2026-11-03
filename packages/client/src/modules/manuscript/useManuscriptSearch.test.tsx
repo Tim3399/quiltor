@@ -1,6 +1,6 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { useRef, useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import type { Chapter } from "./model";
 import { useManuscriptSearch } from "./useManuscriptSearch";
@@ -42,5 +42,57 @@ describe("useManuscriptSearch navigation", () => {
 
     view.rerender(<SearchHarness targetRequestId={2} />);
     expect(screen.getByLabelText("Aktuelles Kapitel")).toHaveTextContent("first");
+  });
+});
+
+describe("useManuscriptSearch results", () => {
+  const harbour: Chapter[] = [
+    { id: "first", title: "Erstes Kapitel", body: "Hafen und Hafen und Hafen", note: "" },
+    { id: "second", title: "Zweites Kapitel", body: "Nichts", note: "" },
+  ];
+  const noEditor = { current: null };
+
+  it("takes a requested text search as query and active match, and opens its chapter", () => {
+    const onCurrentId = vi.fn();
+    const { result } = renderHook(() =>
+      useManuscriptSearch({
+        chapters: harbour,
+        current: harbour[1],
+        targetId: "first",
+        targetRequestId: 1,
+        textSearch: { query: " Hafen ", from: 10, to: 15 },
+        editor: noEditor,
+        onCurrentId,
+      }),
+    );
+
+    expect(result.current.query).toBe("Hafen");
+    expect(result.current.activeIndex).toBe(1);
+    expect(onCurrentId).toHaveBeenCalledWith("first");
+  });
+
+  it("keeps the active match inside the results when they shrink", () => {
+    const stableSearch = { query: "Hafen", from: 0, to: 5 };
+    let chaptersNow = harbour;
+    const { result, rerender } = renderHook(() =>
+      useManuscriptSearch({
+        chapters: chaptersNow,
+        current: chaptersNow[0],
+        editor: noEditor,
+        onCurrentId: vi.fn(),
+        targetId: "first",
+        targetRequestId: 1,
+        textSearch: stableSearch,
+      }),
+    );
+    act(() => result.current.navigate(1));
+    act(() => result.current.navigate(1));
+    expect(result.current.activeIndex).toBe(2);
+
+    chaptersNow = [{ ...harbour[0], body: "Hafen" }, harbour[1]];
+    rerender();
+
+    expect(result.current.matches).toHaveLength(1);
+    expect(result.current.activeIndex).toBe(0);
   });
 });
