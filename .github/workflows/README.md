@@ -89,6 +89,9 @@ gh api -X DELETE "/users/<owner>/packages/container/quiltor/versions/<id>"
 ```
 
 Use `/orgs/<owner>/…` for an organization, and the same for `quiltor-backup`.
+This repository's owner is a user account, so `/orgs/…` answers 404 here. The
+`/users/…` path is right, but the token needs `read:packages` to list and
+`delete:packages` to delete (`gh auth refresh -s read:packages,delete:packages`).
 Never delete a version whose tag is a release version or `latest`.
 
 ### Release gate scope

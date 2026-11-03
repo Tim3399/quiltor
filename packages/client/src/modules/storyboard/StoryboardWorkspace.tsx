@@ -15,6 +15,7 @@ import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Button, EmptyState, ScrollArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { NoteMark, NoteReference, WorldReferenceTarget } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
 import {
   cardKindColor,
   GraphViewportChrome,
@@ -113,14 +114,11 @@ function StoryboardWorkspaceInner({
   const [flowNodes, setFlowNodes] = useState<StoryboardFlowNode[]>([]);
   const flow = useRef<ReactFlowInstance<StoryboardFlowNode, Edge> | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
-  const latestState = useRef(state);
-  const latestCandidates = useRef(candidates);
-  const activeBoardIdRef = useRef(activeBoardId);
+  // Writable: changeFromLatest moves it ahead to the value it hands to onChange, so a second
+  // synchronous change before the next commit builds on the first.
+  const latestStateRef = useLatest(state);
+  const activeBoardIdRef = useLatest(activeBoardId);
   const skipNextBoardFit = useRef(false);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestState.current = state;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  activeBoardIdRef.current = activeBoardId;
 
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const currentBoardId = activeBoard?.id ?? DEFAULT_STORYBOARD_ID;
@@ -214,19 +212,19 @@ function StoryboardWorkspaceInner({
     }
     return [...byTarget.values()];
   }, [boards, candidates, t]);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestCandidates.current = allCandidates;
+  // Read only, by the drag handler.
+  const latestCandidatesRef = useLatest(allCandidates);
 
   const changeFromLatest = useCallback(
     (
       update: (current: StoryboardState) => StoryboardState,
       options?: { separateHistoryStep?: boolean },
     ) => {
-      const current = latestState.current;
+      const current = latestStateRef.current;
       const initialized = current.boards.length ? current : { ...current, boards: [fallbackBoard] };
       const next = update(initialized);
       if (next === current) return;
-      latestState.current = next;
+      latestStateRef.current = next;
       onChange(next, options);
     },
     [fallbackBoard, onChange],
@@ -257,7 +255,7 @@ function StoryboardWorkspaceInner({
 
   const openBoard = useCallback((node: StoryboardBoardNode) => {
     const targetId = node.target.id;
-    if (!latestState.current.boards.some((board) => board.id === targetId)) return;
+    if (!latestStateRef.current.boards.some((board) => board.id === targetId)) return;
     setActiveBoardId(targetId);
     setBoardTrail((trail) => [...trail, targetId]);
     setSelectedId(null);
@@ -270,7 +268,7 @@ function StoryboardWorkspaceInner({
 
   const derivedNodes = useMemo(
     () =>
-      // eslint-disable-next-line react-hooks/refs -- the ref is read inside a callback that runs after render, not during render
+      // eslint-disable-next-line react-hooks/refs -- patchNode and changeNote (through changeFromLatest) and openBoard close over latestStateRef; storyboardFlowNode only stores them in the node's data (storyboardCanvasModel.ts), where the node's event handlers call them after render. The rule sees a ref-capturing function passed to a function and cannot tell it is never called here.
       activeNodes.map((item) => ({
         ...storyboardFlowNode(
           item,
@@ -302,20 +300,28 @@ function StoryboardWorkspaceInner({
     ],
   );
 
+  // flowNodes mirrors derivedNodes but is state of its own: React Flow writes into it between
+  // two derivations (onNodesChange applies drag positions, previewGroupMove shows a group's
+  // members moving before anything is persisted), and the next derivation replaces those
+  // transient positions. Deriving it during render would need those writes to live elsewhere,
+  // so the mirror stays an effect until a drag spec holds that rewrite (T-17 P3 plan, S2).
+  // The reset keeps each node's `measured` size: without it React Flow hides every card until
+  // it measures them again, which on macOS left a selected card without its commands (T-149).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- flowNodes is React Flow's controlled node state, written by onNodesChange and previewGroupMove between derivations; the effect resets it to derivedNodes when they change, keeping the measured sizes
     setFlowNodes((current) => keepMeasuredFlowNodes(derivedNodes, current));
   }, [derivedNodes]);
 
-  useEffect(() => {
-    if (boards.some((board) => board.id === activeBoardId)) return;
+  // The default board: when the active one is gone (replaced state, deleted board), fall back
+  // to the first and start its trail over. Adjusted during render, React redoes the render at
+  // once, so no frame shows a board that no longer exists.
+  if (!boards.some((board) => board.id === activeBoardId)) {
     const next = boards[0]?.id ?? DEFAULT_STORYBOARD_ID;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
     setActiveBoardId(next);
     setBoardTrail([next]);
     setSelectedId(null);
     setSelectedEdgeId(null);
-  }, [activeBoardId, boards]);
+  }
 
   useEffect(() => {
     if (skipNextBoardFit.current) {
@@ -325,7 +331,7 @@ function StoryboardWorkspaceInner({
     const timer = window.setTimeout(() => {
       const instance = flow.current;
       if (!instance) return;
-      const hasNodes = latestState.current.nodes.some((node) => node.boardId === currentBoardId);
+      const hasNodes = latestStateRef.current.nodes.some((node) => node.boardId === currentBoardId);
       if (hasNodes) {
         void instance.fitView({ duration: 350, padding: 0.18 });
       } else {
@@ -339,7 +345,7 @@ function StoryboardWorkspaceInner({
     // A new request id intentionally replays navigation even when the stable target id is equal.
     void targetRequestId;
     if (!targetId) return;
-    const current = latestState.current;
+    const current = latestStateRef.current;
     const board = current.boards.find((candidate) => candidate.id === targetId);
     if (board) {
       setActiveBoardId(board.id);
@@ -349,7 +355,7 @@ function StoryboardWorkspaceInner({
       window.setTimeout(() => {
         const instance = flow.current;
         if (!instance) return;
-        const hasNodes = latestState.current.nodes.some((node) => node.boardId === board.id);
+        const hasNodes = latestStateRef.current.nodes.some((node) => node.boardId === board.id);
         if (hasNodes) void instance.fitView({ duration: 350, padding: 0.18 });
         else void instance.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 350 });
       }, 0);
@@ -484,7 +490,7 @@ function StoryboardWorkspaceInner({
   );
 
   const previewGroupMove = useCallback((id: string, position: { x: number; y: number }) => {
-    const currentNodes = latestState.current.nodes;
+    const currentNodes = latestStateRef.current.nodes;
     if (currentNodes.find((node) => node.id === id)?.kind !== "group") return;
     const previewNodes = moveStoryboardNodeWithGroupMembers(currentNodes, id, position);
     if (previewNodes === currentNodes) return;
@@ -671,7 +677,7 @@ function StoryboardWorkspaceInner({
         return;
       }
       const value = event.dataTransfer.getData(STORYBOARD_REFERENCE_DRAG_MIME);
-      const candidate = candidateForDragValue(latestCandidates.current, value);
+      const candidate = candidateForDragValue(latestCandidatesRef.current, value);
       if (!candidate) return;
       event.preventDefault();
       placeCandidate(candidate, position);

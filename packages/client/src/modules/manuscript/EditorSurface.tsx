@@ -13,6 +13,7 @@ import { Button, EmptyState, ScrollArea, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { SnapshotChapterRecord } from "../../platform";
 import type { Workspace } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { SnapshotInfo, VersionDiffProjection } from "../history";
 import { type FigureNode, type FigureState, kindLabel } from "../story-world";
 import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
@@ -142,10 +143,13 @@ export function EditorSurface({
   const viewSelectionRef = useRef<{ chapterId: string; selection: EditorViewSelection } | null>(
     null,
   );
-  const sessionCallbackRef = useRef(onSessionStateChange);
+  // Read only, by captureSession and the restore effect.
+  const sessionCallbackRef = useLatest(onSessionStateChange);
   const pendingRestoreCancelRef = useRef<(() => void) | null>(null);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  sessionCallbackRef.current = onSessionStateChange;
+  // The scroll position the live chapter had when a historical version opened. Declared
+  // before captureSession, which reads it: declared after, the compiler saw a plain value
+  // captured by that hook and the history effect's write to it as a mutation.
+  const historyScrollRef = useRef<{ chapterId: string; top: number; left: number } | null>(null);
   const stopScheduledRestore = useCallback(() => {
     pendingRestoreCancelRef.current?.();
     pendingRestoreCancelRef.current = null;
@@ -162,8 +166,8 @@ export function EditorSurface({
       chapterId: view.chapterId,
       selection: view.selection,
       scrollTop:
-        historyScroll.current?.chapterId === view.chapterId
-          ? historyScroll.current.top
+        historyScrollRef.current?.chapterId === view.chapterId
+          ? historyScrollRef.current.top
           : (restoreRef.current?.scrollTop ?? scroller.scrollTop),
     });
   }, [current?.id, historyOpen]);
@@ -187,16 +191,14 @@ export function EditorSurface({
   const chapterOverscrollRef = useRef(chapterOverscroll);
   const currentChapterId = current?.id;
   const chapterTitle = current?.title;
-  const currentChapterIdRef = useRef(currentChapterId);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  currentChapterIdRef.current = currentChapterId;
+  // Read only, by the title paste handler's deferred selection.
+  const currentChapterIdRef = useLatest(currentChapterId);
   const displayedChapterTitle =
     titleComposition && titleComposition.chapterId === currentChapterId
       ? titleComposition.value
       : chapterTitle;
   const chapterNavigationContext = `${currentChapterId ?? ""}:${previousChapter?.id ?? ""}:${nextChapter?.id ?? ""}`;
   const chapterNavigationContextRef = useRef(chapterNavigationContext);
-  const historyScroll = useRef<{ chapterId: string; top: number; left: number } | null>(null);
   const previousHistoryOpen = useRef(historyOpen);
 
   const resizeChapterTitle = useCallback(() => {
@@ -253,11 +255,10 @@ export function EditorSurface({
     const scroller = scrollRef.current;
     if (!scroller || previousHistoryOpen.current === historyOpen) return;
     previousHistoryOpen.current = historyOpen;
-    const saved = historyScroll.current;
+    const saved = historyScrollRef.current;
     if (historyOpen && currentChapterId) {
       abandonSessionRestore();
-      // eslint-disable-next-line react-hooks/immutability -- historyScroll is a ref written inside an effect, not a render value
-      historyScroll.current = {
+      historyScrollRef.current = {
         chapterId: currentChapterId,
         top: scroller.scrollTop,
         left: scroller.scrollLeft,
@@ -266,7 +267,7 @@ export function EditorSurface({
       const frame = requestAnimationFrame(() => {
         scroller.scrollTop = saved.top;
         scroller.scrollLeft = saved.left;
-        historyScroll.current = null;
+        historyScrollRef.current = null;
         captureSession();
       });
       return () => cancelAnimationFrame(frame);
@@ -690,8 +691,10 @@ export function EditorSurface({
                 marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
                 issues={historyOpen ? [] : grammarIssues}
                 searchMatches={historyOpen ? [] : currentSearchMatches}
-                initialSelection={
-                  // eslint-disable-next-line react-hooks/refs -- the restore target is read once as the editor's initial selection; later changes must not re-render the editor
+                // Asked when the editor creates its view, not while rendering: the restore
+                // target is one-time and is cleared once the restore has run, so a view that is
+                // created again later (new label after a language switch) must not replay it.
+                initialSelection={() =>
                   allowSessionRestore && restoreRef.current?.chapterId === current.id
                     ? restoreRef.current.selection
                     : undefined

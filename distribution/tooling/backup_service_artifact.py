@@ -14,6 +14,7 @@ EXPECTED_PAYLOAD = frozenset(
     {
         "server.py",
         "quiltor/application/backup_manifest.py",
+        "quiltor/domain/json_values.py",
         "quiltor-backup-service.json",
         "VERSION",
         "LICENSE",
@@ -25,6 +26,7 @@ EXPECTED_SOURCES = {
     "quiltor/application/backup_manifest.py": (
         REPO_ROOT / "src/quiltor/application/backup_manifest.py"
     ),
+    "quiltor/domain/json_values.py": REPO_ROOT / "src/quiltor/domain/json_values.py",
     "quiltor-backup-service.json": CONTRACT_PATH,
     "VERSION": REPO_ROOT / "VERSION",
     "LICENSE": REPO_ROOT / "LICENSE",

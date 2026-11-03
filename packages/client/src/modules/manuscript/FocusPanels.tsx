@@ -1,5 +1,5 @@
 import { PanelLeft, PanelRight, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button, ChipAction, ChipList, IconButton } from "../../design";
 import { useI18n } from "../../i18n";
 import type { FigureNode, FigureState } from "../story-world";
@@ -36,10 +36,9 @@ export function FocusPanels({
   const [helpersOpen, setHelpersOpen] = useState(false);
   const chapters = orderedChapters(manuscript);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    if (!focus) setHelpersOpen(false);
-  }, [focus]);
+  // Leaving focus mode closes the helper panel. Adjusted during render, so re-entering never
+  // paints it open for a frame.
+  if (!focus && helpersOpen) setHelpersOpen(false);
 
   if (!focus) return null;
 

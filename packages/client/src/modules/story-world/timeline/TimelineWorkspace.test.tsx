@@ -497,3 +497,58 @@ describe("TimelineWorkspace chapter story-time integrity", () => {
     expect(onOpenChapter).toHaveBeenCalledWith("range");
   });
 });
+
+describe("TimelineWorkspace derived selection and form", () => {
+  const timed: FigureState = {
+    ...state,
+    timeline: [
+      { id: "past", title: "Früher", time: -2, position: 0 },
+      { id: "m1", title: "Ankunft", time: 0, position: 1 },
+      { id: "same", title: "Gleichzeitig", time: 0, position: 2 },
+    ],
+  };
+
+  it("selects the first moment once a timeline arrives, without a choice of its own", () => {
+    const tree = (value: FigureState) => (
+      <I18nProvider>
+        <TimelineWorkspace state={value} onChange={vi.fn()} manuscript={emptyManuscript} />
+      </I18nProvider>
+    );
+    const view = render(tree({ ...state, timeline: [] }));
+    expect(screen.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+
+    view.rerender(tree(timed));
+
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Früher");
+  });
+
+  it("fills the placement fields from the neighbour of the selected moment", () => {
+    renderTimeline(vi.fn(), timed);
+
+    fireEvent.click(screen.getByRole("button", { name: /^1Früher/ }));
+    const placement = screen.getByRole("group", { name: "Zeitliche Einordnung" });
+    expect(within(placement).getByRole("combobox", { name: "Liegt" })).toHaveValue("before");
+    expect(within(placement).getByRole("spinbutton", { name: "Abstand in Tagen" })).toHaveValue(2);
+    expect(within(placement).getByRole("combobox", { name: "Bezugspunkt" })).toHaveValue("m1");
+
+    fireEvent.click(screen.getByRole("button", { name: /^3Gleichzeitig/ }));
+    expect(within(placement).getByRole("combobox", { name: "Liegt" })).toHaveValue("after");
+    expect(within(placement).getByRole("spinbutton", { name: "Abstand in Tagen" })).toHaveValue(0);
+    expect(within(placement).getByRole("combobox", { name: "Bezugspunkt" })).toHaveValue("m1");
+  });
+
+  it("closes a relationship inspector when another moment is selected", () => {
+    renderTimeline(vi.fn(), {
+      ...timed,
+      edges: [{ id: "bond", from: "ada", to: "hafen", label: "Heimat" }],
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Alle Beziehungen" }));
+    const card = () => document.querySelector(".relationship-change-card");
+    fireEvent.click(card() as HTMLElement);
+    expect(card()).toHaveClass("selected");
+
+    fireEvent.click(screen.getByRole("button", { name: /^2Ankunft/ }));
+
+    expect(card()).not.toHaveClass("selected");
+  });
+});

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import { quiltorClient } from "../../platform";
@@ -113,6 +113,38 @@ describe("HistoryDialog", () => {
     fireEvent.click(summary);
     expect(summary).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("heading", { name: "Kapitel · Anfang" })).toBeVisible();
+  });
+
+  it("drops the previous diff while the next comparison loads", async () => {
+    const { loadDiff } = renderDialog({ diff: chapterDiff });
+    await screen.findByRole("button", { name: /Anfang/ });
+
+    let finish!: (
+      value: Awaited<ReturnType<typeof quiltorClient.application.history.diff>>,
+    ) => void;
+    loadDiff.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wortweise" }));
+    await waitFor(() => expect(loadDiff).toHaveBeenLastCalledWith("WORK", false, false));
+    expect(screen.queryByRole("button", { name: /Anfang/ })).not.toBeInTheDocument();
+
+    await act(async () => finish({ ok: true, diff: chapterDiff, newFiles: [], mode: "line" }));
+    expect(await screen.findByRole("button", { name: /Anfang/ })).toBeVisible();
+  });
+
+  it("expands the segments of every newly loaded diff again", async () => {
+    renderDialog({ diff: chapterDiff });
+    const summary = await screen.findByRole("button", { name: /Anfang/ });
+    await waitFor(() => expect(summary).toHaveAttribute("aria-expanded", "true"));
+    fireEvent.click(summary);
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Wortweise" }));
+    const reloaded = await screen.findByRole("button", { name: /Anfang/ });
+    await waitFor(() => expect(reloaded).toHaveAttribute("aria-expanded", "true"));
   });
 
   it("keeps the close action accessible and delegates it to the sheet owner", () => {

@@ -1,5 +1,5 @@
 import { Focus } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { IconButton } from "../../design";
 import type { NoteMark, NoteReference } from "../../shared";
 import type { NoteFocusCopy, NoteOwner } from "./model";
@@ -54,8 +54,12 @@ export function NoteEditor({
   const [focusOpen, setFocusOpen] = useState(false);
   const focusTrigger = useRef<HTMLButtonElement>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: changing the stable owner must close an overlay that still belongs to the previous owner.
-  useEffect(() => setFocusOpen(false), [ownerKey]); // eslint-disable-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Changing the stable owner closes an overlay that still belongs to the previous owner.
+  const [focusOwnerKey, setFocusOwnerKey] = useState(ownerKey);
+  if (focusOwnerKey !== ownerKey) {
+    setFocusOwnerKey(ownerKey);
+    setFocusOpen(false);
+  }
 
   const openFocus = () => {
     onFocusRequest?.(owner);

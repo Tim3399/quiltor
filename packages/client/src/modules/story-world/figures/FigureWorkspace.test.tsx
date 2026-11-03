@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { type ButtonHTMLAttributes, type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
@@ -431,5 +431,59 @@ describe("FigureWorkspace relationships", () => {
       </I18nProvider>,
     );
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Ada");
+  });
+
+  it("stops the time-travel playback on the last moment", () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <I18nProvider>
+          <FigureWorkspace
+            state={{
+              ...initialState,
+              timeline: [
+                { id: "first", title: "Anfang" },
+                { id: "last", title: "Ende" },
+              ],
+            }}
+            onChange={vi.fn()}
+          />
+        </I18nProvider>,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Zeitreise abspielen" }));
+      expect(screen.getByRole("button", { name: "Zeitreise pausieren" })).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+
+      expect(screen.getByRole("button", { name: /Ende/ })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Zeitreise abspielen" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("builds a second relationship edit on the first when both land before the next commit", () => {
+    render(
+      <EdgeInspectorHarness
+        initial={{
+          ...initialState,
+          edges: [{ id: "bond", from: "a", to: "b", label: "Freunde", directed: true }],
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kante bond" }));
+    const reverse = screen.getByRole("button", { name: /Richtung umkehren/ });
+    const directed = screen.getByRole("checkbox", { name: "Gerichtet" });
+
+    // Plain DOM clicks: both land in one batch, with no commit in between.
+    act(() => {
+      reverse.click();
+      directed.click();
+    });
+
+    const saved = JSON.parse(screen.getByLabelText("Beziehungszustand").textContent ?? "[]");
+    expect(saved[0]).toMatchObject({ from: "b", to: "a", directed: false });
   });
 });

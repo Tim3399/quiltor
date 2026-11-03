@@ -156,6 +156,19 @@ describe("BookDocument pagination lifecycle", () => {
     );
   });
 
+  it("reports to the callbacks of the latest render, not the ones it started with", async () => {
+    const first = vi.fn();
+    const latest = vi.fn();
+    const view = render(<BookDocument manuscript={manuscript} onReady={first} />);
+    view.rerender(<BookDocument manuscript={manuscript} onReady={latest} />);
+
+    await passDebounce();
+    await flushPromises();
+
+    expect(latest).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it("does not publish stale asynchronous pagination after unmount", async () => {
     const pending = deferred();
     paged.preview.mockImplementation(async (_source, _styles, target: HTMLElement) => {
