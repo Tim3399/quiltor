@@ -149,11 +149,14 @@ describe("AppShell", () => {
       );
       const view = render(shell("dirty"));
       expect(screen.getByRole("status")).not.toHaveTextContent("vor");
+      const idleTimers = vi.getTimerCount();
 
       // Minutes pass while nothing re-renders the bar; the saved state then appears.
       act(() => vi.setSystemTime(start + 60_000));
       view.rerender(shell("saved"));
       expect(screen.getByRole("status")).toHaveTextContent("vor 5 Min.");
+      // The clock runs only while there is an age to show.
+      expect(vi.getTimerCount()).toBe(idleTimers + 1);
 
       act(() => vi.advanceTimersByTime(120_000));
       expect(screen.getByRole("status")).toHaveTextContent("vor 7 Min.");
