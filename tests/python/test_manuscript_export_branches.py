@@ -51,6 +51,8 @@ class EpubMetadataTests(unittest.TestCase):
             {"language": "deutsch"},
             {"language": "de_DE"},
             {"language": "de-" + "x" * 61},
+            # Well formed, but one character over the 64 the length check allows.
+            {"language": "de" + "-abcdefgh" * 7},
         ):
             with self.subTest(state=state), self.assertRaises(InvalidExportContent) as caught:
                 ManuscriptExportUseCases._epub_metadata(state)
