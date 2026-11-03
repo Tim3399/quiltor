@@ -1,17 +1,21 @@
+# pyright: strict
 """Pure hierarchy rules for the manuscript binder."""
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any
+
+from quiltor.domain.json_values import JsonObject, as_array, as_object
+
+type Structure = dict[str, list[JsonObject]]
 
 
 class ManuscriptTreeError(ValueError):
     """The binder structure violates a domain invariant."""
 
 
-def flat_structure(chapter_ids: Iterable[str]) -> dict[str, list[dict[str, Any]]]:
+def flat_structure(chapter_ids: Iterable[str]) -> Structure:
     """Place an existing flat manuscript at the root without changing its order."""
 
     return {
@@ -28,82 +32,114 @@ def flat_structure(chapter_ids: Iterable[str]) -> dict[str, list[dict[str, Any]]
     }
 
 
-def structure_or_flat(
-    chapter_ids: Iterable[str], structure: Any
-) -> dict[str, list[dict[str, Any]]]:
+def structure_or_flat(chapter_ids: Iterable[str], structure: object) -> Structure:
     """Return persisted structure, or the lossless projection for legacy payloads."""
 
     ids = list(chapter_ids)
-    if not isinstance(structure, dict) or not isinstance(structure.get("folders"), list):
+    raw = as_object(structure)
+    raw_folders = as_array(raw.get("folders")) if raw is not None else None
+    raw_items = as_array(raw.get("items")) if raw is not None else None
+    if raw_folders is None or raw_items is None:
         return flat_structure(ids)
-    if not isinstance(structure.get("items"), list):
-        return flat_structure(ids)
-    candidate = {
-        "folders": deepcopy(structure["folders"]),
-        "items": deepcopy(structure["items"]),
+    # validate_tree rejects anything that is not an object, so every row converts below.
+    validate_tree(ids, {"folders": deepcopy(raw_folders), "items": deepcopy(raw_items)})
+    candidate: Structure = {
+        "folders": _objects(deepcopy(raw_folders)),
+        "items": _objects(deepcopy(raw_items)),
     }
-    validate_tree(ids, candidate)
-    folder_by_id = {folder["id"]: folder for folder in candidate["folders"]}
-    ordered_folders: list[dict[str, Any]] = []
-    ordered_items: list[dict[str, Any]] = []
+    folder_by_id = {_text(folder, "id"): folder for folder in candidate["folders"]}
+    ordered_folders: list[JsonObject] = []
+    ordered_items: list[JsonObject] = []
 
     def visit(parent_folder_id: str | None) -> None:
         for item in _ordered_children(candidate["items"], parent_folder_id):
             ordered_items.append(item)
             if item["kind"] == "folder":
-                ordered_folders.append(folder_by_id[item["folderId"]])
-                visit(item["folderId"])
+                folder_id = _text(item, "folderId")
+                ordered_folders.append(folder_by_id[folder_id])
+                visit(folder_id)
 
     visit(None)
     return {"folders": ordered_folders, "items": ordered_items}
 
 
-def _parent(item: dict[str, Any]) -> str | None:
+def _objects(values: list[object]) -> list[JsonObject]:
+    rows: list[JsonObject] = []
+    for value in values:
+        row = as_object(value)
+        if row is None:
+            raise ManuscriptTreeError("tree item must be an object")
+        rows.append(row)
+    return rows
+
+
+def _text(row: JsonObject, key: str) -> str:
+    value = row.get(key)
+    return value if isinstance(value, str) else ""
+
+
+def _parent(item: JsonObject) -> str | None:
     value = item.get("parentFolderId")
     return value if isinstance(value, str) and value else None
 
 
-def _ordered_children(
-    items: list[dict[str, Any]], parent_folder_id: str | None
-) -> list[dict[str, Any]]:
+def _sort_key(item: JsonObject) -> tuple[int, str]:
+    position = item.get("position")
+    if type(position) is not int:
+        raise ManuscriptTreeError("tree item identity or position is invalid")
+    return (position, _text(item, "id"))
+
+
+def _ordered_children(items: list[JsonObject], parent_folder_id: str | None) -> list[JsonObject]:
     return sorted(
         (item for item in items if _parent(item) == parent_folder_id),
-        key=lambda item: (item["position"], item["id"]),
+        key=_sort_key,
     )
 
 
-def normalize_positions(structure: Any) -> dict[str, list[dict[str, Any]]]:
+def normalize_positions(structure: object) -> Structure:
     """Return a copy with contiguous positions at every parent."""
 
-    if not isinstance(structure, dict):
+    raw = as_object(structure)
+    if raw is None:
         raise ManuscriptTreeError("manuscript structure must be an object")
-    folders = deepcopy(structure.get("folders"))
-    items = deepcopy(structure.get("items"))
-    if not isinstance(folders, list) or not isinstance(items, list):
+    raw_folders = as_array(deepcopy(raw.get("folders")))
+    raw_items = as_array(deepcopy(raw.get("items")))
+    if raw_folders is None or raw_items is None:
         raise ManuscriptTreeError("manuscript structure needs folder and item lists")
-    parents = {_parent(item) for item in items if isinstance(item, dict)}
-    for parent in parents:
+    folders: list[JsonObject] = []
+    for value in raw_folders:
+        folder = as_object(value)
+        if folder is None:
+            raise ManuscriptTreeError("folder must be an object")
+        folders.append(folder)
+    items = _objects(raw_items)
+    for parent in {_parent(item) for item in items}:
         for position, item in enumerate(_ordered_children(items, parent)):
             item["position"] = position
     return {"folders": folders, "items": items}
 
 
-def descendants(folder_id: str, structure: Any) -> set[str]:
+def descendants(folder_id: str, structure: object) -> set[str]:
     """Return all recursively nested folder IDs."""
 
-    if not isinstance(structure, dict) or not isinstance(structure.get("items"), list):
+    raw = as_object(structure)
+    items = as_array(raw.get("items")) if raw is not None else None
+    if items is None:
         raise ManuscriptTreeError("manuscript structure needs an item list")
+    folder_parents: list[tuple[str, str | None]] = []
+    for value in items:
+        item = as_object(value)
+        if item is not None and item.get("kind") == "folder":
+            child = item.get("folderId")
+            if isinstance(child, str):
+                folder_parents.append((child, _parent(item)))
     result: set[str] = set()
     pending = [folder_id]
     while pending:
         parent = pending.pop()
-        children = [
-            item["folderId"]
-            for item in structure["items"]
-            if isinstance(item, dict) and item.get("kind") == "folder" and _parent(item) == parent
-        ]
-        for child in children:
-            if child not in result:
+        for child, child_parent in folder_parents:
+            if child_parent == parent and child not in result:
                 result.add(child)
                 pending.append(child)
     return result
@@ -111,26 +147,27 @@ def descendants(folder_id: str, structure: Any) -> set[str]:
 
 def move_item(
     chapter_ids: Iterable[str],
-    structure: Any,
+    structure: object,
     item_id: str,
     target_folder_id: str | None,
     before_item_id: str | None = None,
-) -> dict[str, list[dict[str, Any]]]:
+) -> Structure:
     """Move one chapter or complete folder subtree and normalize sibling order."""
 
     chapters = list(chapter_ids)
     candidate = structure_or_flat(chapters, structure)
-    folder_ids = {folder["id"] for folder in candidate["folders"]}
+    folder_ids = {_text(folder, "id") for folder in candidate["folders"]}
     if target_folder_id is not None and target_folder_id not in folder_ids:
         raise ManuscriptTreeError("target folder does not exist")
     item = next((entry for entry in candidate["items"] if entry["id"] == item_id), None)
     if item is None:
         raise ManuscriptTreeError("tree item does not exist")
-    if item["kind"] == "folder" and (
-        target_folder_id == item["folderId"]
-        or target_folder_id in descendants(item["folderId"], candidate)
-    ):
-        raise ManuscriptTreeError("folder cannot move below itself")
+    if item["kind"] == "folder":
+        moved_folder_id = _text(item, "folderId")
+        if target_folder_id == moved_folder_id or target_folder_id in descendants(
+            moved_folder_id, candidate
+        ):
+            raise ManuscriptTreeError("folder cannot move below itself")
     if before_item_id == item_id:
         return candidate
 
@@ -160,9 +197,7 @@ def move_item(
     return candidate
 
 
-def delete_folder(
-    chapter_ids: Iterable[str], structure: Any, folder_id: str
-) -> dict[str, list[dict[str, Any]]]:
+def delete_folder(chapter_ids: Iterable[str], structure: object, folder_id: str) -> Structure:
     """Delete organizational metadata while moving direct children to its parent."""
 
     chapters = list(chapter_ids)
@@ -184,7 +219,7 @@ def delete_folder(
         for item in _ordered_children(candidate["items"], parent)
         if item["id"] != folder_item["id"]
     ]
-    insert_at = folder_item["position"]
+    insert_at, _ = _sort_key(folder_item)
     for child in children:
         if parent is None:
             child.pop("parentFolderId", None)
@@ -193,14 +228,16 @@ def delete_folder(
     parent_siblings[insert_at:insert_at] = children
     for position, sibling in enumerate(parent_siblings):
         sibling["position"] = position
-    candidate["folders"] = [folder for folder in candidate["folders"] if folder["id"] != folder_id]
+    candidate["folders"] = [
+        folder for folder in candidate["folders"] if folder["id"] != folder_id
+    ]
     candidate["items"] = [item for item in candidate["items"] if item["id"] != folder_item["id"]]
     candidate = normalize_positions(candidate)
     validate_tree(chapters, candidate)
     return candidate
 
 
-def validate_tree(chapter_ids: Iterable[str], structure: Any) -> None:
+def validate_tree(chapter_ids: Iterable[object], structure: object) -> None:
     """Validate ownership, sibling order, references and recursive acyclicity."""
 
     chapters = list(chapter_ids)
@@ -208,16 +245,18 @@ def validate_tree(chapter_ids: Iterable[str], structure: Any) -> None:
         not isinstance(item, str) or not item for item in chapters
     ):
         raise ManuscriptTreeError("chapter IDs must be unique non-empty strings")
-    if not isinstance(structure, dict):
+    raw = as_object(structure)
+    if raw is None:
         raise ManuscriptTreeError("manuscript structure must be an object")
-    folders = structure.get("folders")
-    items = structure.get("items")
-    if not isinstance(folders, list) or not isinstance(items, list):
+    folders = as_array(raw.get("folders"))
+    items = as_array(raw.get("items"))
+    if folders is None or items is None:
         raise ManuscriptTreeError("manuscript structure needs folder and item lists")
 
     folder_ids: set[str] = set()
-    for folder in folders:
-        if not isinstance(folder, dict):
+    for raw_folder in folders:
+        folder = as_object(raw_folder)
+        if folder is None:
             raise ManuscriptTreeError("folder must be an object")
         folder_id = folder.get("id")
         title = folder.get("title")
@@ -237,8 +276,9 @@ def validate_tree(chapter_ids: Iterable[str], structure: Any) -> None:
     owned_folders: set[str] = set()
     sibling_positions: dict[str | None, set[int]] = {}
     folder_parents: dict[str, str | None] = {}
-    for item in items:
-        if not isinstance(item, dict):
+    for raw_item in items:
+        item = as_object(raw_item)
+        if item is None:
             raise ManuscriptTreeError("tree item must be an object")
         item_id = item.get("id")
         kind = item.get("kind")
@@ -253,7 +293,8 @@ def validate_tree(chapter_ids: Iterable[str], structure: Any) -> None:
             or position < 0
         ):
             raise ManuscriptTreeError("tree item identity or position is invalid")
-        if "parentFolderId" in item and item.get("parentFolderId") not in {None, parent}:
+        stored_parent = item.get("parentFolderId")
+        if stored_parent is not None and stored_parent != parent:
             raise ManuscriptTreeError("parent folder must be a non-empty string or null")
         if parent is not None and parent not in folder_ids:
             raise ManuscriptTreeError("tree item references an unknown parent folder")
@@ -307,35 +348,36 @@ def validate_tree(chapter_ids: Iterable[str], structure: Any) -> None:
             parent = folder_parents.get(parent)
 
 
-def flatten_tree(chapter_ids: Iterable[str], structure: Any) -> list[str]:
+def flatten_tree(chapter_ids: Iterable[str], structure: object) -> list[str]:
     """Depth-first chapter order shared by ordered manuscript consumers."""
 
     chapters = list(chapter_ids)
-    normalized = structure_or_flat(chapters, structure)
-    items = normalized["items"]
+    items = structure_or_flat(chapters, structure)["items"]
     result: list[str] = []
 
     def visit(parent_folder_id: str | None) -> None:
         for item in _ordered_children(items, parent_folder_id):
             if item["kind"] == "chapter":
-                result.append(item["chapterId"])
+                result.append(_text(item, "chapterId"))
             else:
-                visit(item["folderId"])
+                visit(_text(item, "folderId"))
 
     visit(None)
     return result
 
 
 def breadcrumb_for_chapter(
-    chapter_id: str, chapter_ids: Iterable[str], structure: Any
+    chapter_id: str, chapter_ids: Iterable[str], structure: object
 ) -> list[str]:
     """Return folder titles from root to the chapter's immediate parent."""
 
     chapters = list(chapter_ids)
     normalized = structure_or_flat(chapters, structure)
-    folders = {folder["id"]: folder["title"] for folder in normalized["folders"]}
+    folders = {_text(folder, "id"): _text(folder, "title") for folder in normalized["folders"]}
     folder_parents = {
-        item["folderId"]: _parent(item) for item in normalized["items"] if item["kind"] == "folder"
+        _text(item, "folderId"): _parent(item)
+        for item in normalized["items"]
+        if item["kind"] == "folder"
     }
     chapter_item = next(
         (item for item in normalized["items"] if item.get("chapterId") == chapter_id), None
