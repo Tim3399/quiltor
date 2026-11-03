@@ -469,8 +469,31 @@ describe("ManuscriptEditor selection", () => {
     await waitFor(() => expect(view.container.querySelector(".word-completion")).not.toBeNull());
 
     view.rerender(<ManuscriptEditor value="Tarke" readOnly {...props} />);
-
     expect(view.container.querySelector(".word-completion")).toBeNull();
+  });
+
+  it("maps marks and mentions through two edits that land before the next commit", () => {
+    const { editor, onChange } = renderEditor({
+      marks: [{ from: 6, to: 10, kind: "italic" }],
+      mentions: [
+        {
+          id: "m1",
+          elementId: "t",
+          from: 6,
+          to: 10,
+          surface: "Welt",
+          source: "helper",
+          confidence: 1,
+        },
+      ],
+    });
+    // No re-render between the two: onChange is a plain spy, so the props stay as they were.
+    editor.dispatch({ changes: { from: 0, insert: "Ach, " }, userEvent: "input" });
+    editor.dispatch({ changes: { from: 0, insert: "Na " }, userEvent: "input" });
+
+    const [, mentions, marks] = onChange.mock.calls.at(-1) ?? [];
+    expect(marks).toEqual([{ from: 14, to: 18, kind: "italic" }]);
+    expect(mentions).toEqual([expect.objectContaining({ from: 14, to: 18 })]);
   });
 
   it("replaces the typo with Tab and remembers the mention", async () => {
