@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.profile import normalize_profile
 
 
@@ -23,12 +25,14 @@ class KnowledgeChunk:
     kind: str
     title: str
     text: str
-    target: dict[str, str]
+    # IDs are copied from the documents as they are, so a value is whatever the document holds.
+    target: Mapping[str, object]
     context_class: KnowledgeContextClass = KnowledgeContextClass.CANON
     document_status: str | None = None
 
+    # `dict[str, Any]` because the wire and the assistant read it untyped; see validate_world.
     def public(self) -> dict[str, Any]:
-        result = {
+        result: dict[str, Any] = {
             "id": self.id,
             "kind": self.kind,
             "title": self.title,
@@ -41,11 +45,17 @@ class KnowledgeChunk:
         return result
 
 
-def _clean(value: Any) -> str:
+def _clean(value: object) -> str:
     return " ".join(str(value or "").split())
 
 
-def moment_order(timeline: list[dict[str, Any]], moment_id: Any) -> int:
+def _objects(value: object) -> list[JsonObject]:
+    """The objects of a decoded JSON list; a missing list is empty, other items are skipped."""
+
+    return [entry for item in as_array(value) or [] if (entry := as_object(item)) is not None]
+
+
+def moment_order(timeline: Sequence[Mapping[str, object]], moment_id: object) -> int:
     """Mirrors packages/client/src/modules/story-world/figures/presence.ts's momentIndex: -1 for "no moment" (base
     state, sorts first), the timeline position for a real moment, -2 for a dangling
     reference to a moment that no longer exists (sorts before everything, surfacing the
@@ -76,28 +86,28 @@ def _parts(text: str | None, limit: int = 1400) -> list[str]:
     return result
 
 
-def chapter_in_book(chapter: dict[str, Any]) -> bool:
+def chapter_in_book(chapter: Mapping[str, object]) -> bool:
     return chapter.get("inBook") is not False
 
 
 def scoped_chapters(
-    manuscript: dict[str, Any], chapter_ids: list[str] | None = None
+    manuscript: Mapping[str, object], chapter_ids: Sequence[str] | None = None
 ) -> list[dict[str, Any]]:
     selected = set(chapter_ids or [])
     return [
         chapter
-        for chapter in manuscript.get("chapters") or []
+        for chapter in _objects(manuscript.get("chapters"))
         if (chapter.get("id") in selected if selected else chapter_in_book(chapter))
     ]
 
 
 def build_knowledge(
-    manuscript: dict[str, Any],
-    figures: dict[str, Any],
-    chapter_ids: list[str] | None = None,
+    manuscript: Mapping[str, object],
+    figures: Mapping[str, object],
+    chapter_ids: Sequence[str] | None = None,
 ) -> list[KnowledgeChunk]:
     chunks: list[KnowledgeChunk] = []
-    nodes = figures.get("nodes") or []
+    nodes = _objects(figures.get("nodes"))
     names = {node.get("id"): node.get("name", "Unbekannt") for node in nodes}
     for chapter_index, chapter in enumerate(scoped_chapters(manuscript, chapter_ids)):
         title = _clean(chapter.get("title")) or f"Kapitel {chapter_index + 1}"
@@ -128,7 +138,7 @@ def build_knowledge(
                 )
             )
     for node in nodes:
-        profile = normalize_profile(node.get("profile"), str(node.get("id", "")))
+        profile = normalize_profile(as_object(node.get("profile")), str(node.get("id", "")))
         profile_lines = [
             f"Art: {node.get('type', 'person')}",
             f"Rolle/Kategorie: {_clean(node.get('label'))}",
@@ -137,7 +147,7 @@ def build_knowledge(
         ]
         profile_lines.extend(
             f"{_clean(field.get('key'))}: {_clean(field.get('value'))}"
-            for field in profile.get("fields") or []
+            for field in _objects(profile.get("fields"))
         )
         text = "\n".join(line for line in profile_lines if not line.endswith(": "))
         chunks.append(
@@ -150,7 +160,7 @@ def build_knowledge(
                 context_class=KnowledgeContextClass.CANON,
             )
         )
-    timeline = figures.get("timeline") or []
+    timeline = _objects(figures.get("timeline"))
     moments = {moment.get("id"): moment for moment in timeline}
     for moment in timeline:
         text = "\n".join(
@@ -168,14 +178,14 @@ def build_knowledge(
                 context_class=KnowledgeContextClass.CANON,
             )
         )
-    for edge in figures.get("edges") or []:
-        direction = "directed" if edge.get("directed") else "ungerichtet"
+    for edge in _objects(figures.get("edges")):
+        direction = "gerichtet" if edge.get("directed") else "ungerichtet"
         lines = [
             f"{names.get(edge.get('from'))} → {names.get(edge.get('to'))}",
             f"Beziehung: {_clean(edge.get('label'))}",
             f"Art: {direction}",
         ]
-        for version in edge.get("versions") or []:
+        for version in _objects(edge.get("versions")):
             moment = moments.get(version.get("momentId"), {})
             lines.append(
                 f"Ab {_clean(moment.get('title')) or version.get('momentId')}: {_clean(version.get('label')) or 'ohne Bezeichnung'} ({'aktiv' if version.get('active') else 'beendet'})"
@@ -195,12 +205,12 @@ def build_knowledge(
                 context_class=KnowledgeContextClass.CANON,
             )
         )
-    by_element: dict[str, list[dict[str, Any]]] = {}
-    for entry in figures.get("presence") or []:
+    by_element: dict[object, list[JsonObject]] = {}
+    for entry in _objects(figures.get("presence")):
         by_element.setdefault(entry.get("elementId"), []).append(entry)
     for element_id, entries in by_element.items():
         ordered = sorted(entries, key=lambda entry: moment_order(timeline, entry.get("momentId")))
-        lines = []
+        lines: list[str] = []
         for entry in ordered:
             place_name = names.get(entry.get("placeId"), "Unbekannter Ort")
             moment = moments.get(entry.get("momentId"))

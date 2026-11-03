@@ -69,7 +69,7 @@ class RemoteBackupGateway(Protocol):
         self,
         context: WorldBackupContext,
         entry: dict[str, Any],
-        read_blob,
+        read_blob: Callable[[str], bytes],
         authorization: BackupAuthorization,
     ) -> None: ...
     def worlds(self, endpoint: str, authorization: BackupAuthorization) -> list[dict[str, Any]]: ...

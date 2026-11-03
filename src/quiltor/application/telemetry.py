@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from quiltor.application.observability import Metrics, StructuredLogger
@@ -17,7 +17,7 @@ class UseCaseObserver:
         self._metrics = metrics
 
     @contextmanager
-    def observe(self, component: str, operation: str) -> Iterator[None]:
+    def observe(self, component: str, operation: str) -> Generator[None]:
         started = time.monotonic()
         try:
             yield
