@@ -36,7 +36,7 @@ export const figures = {
   newAnimalName: "Neues Tier",
   newOrganisationName: "Neue Organisation",
   newObjectName: "Neues Objekt",
-  important: "Wichtig",
+  important: "Favorisierte Figur",
   deceased: "Verstorben",
   connectDirectedHelp:
     "Verbinde rechts mit links für eine gerichtete Beziehung oder Mitte mit Mitte für eine ungerichtete.",
@@ -76,8 +76,8 @@ export const figures = {
   importDiagramDescription:
     "{nodes} Elemente und {edges} Beziehungen ersetzen den aktuellen Stand. Vorher wird automatisch gesichert.",
   importAction: "Importieren",
-  unmarkImportant: "Wichtig-Markierung entfernen",
-  markImportant: "Als wichtig markieren",
+  unmarkImportant: "Favorit entfernen",
+  markImportant: "Figur favorisieren",
   unpinPosition: "Position lösen",
   pinPosition: "Position fixieren",
   diesHere: "Stirbt hier",

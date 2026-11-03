@@ -63,7 +63,7 @@ export const places = {
   selectDistanceTargetHint: "Select the second place for the targeted distance.",
   distanceEdgeLabel: "{from} – {to}: {distance}",
   stopMeasuring: "Stop measuring distance",
-  favoritePlace: "Favorite place",
+  favoritePlace: "Mark as favorite",
   unfavoritePlace: "Remove favorite",
   favoritePlaceMarker: "Favorite place",
   placePositionLocked: "Position locked",
