@@ -36,7 +36,7 @@ export const figures = {
   newAnimalName: "New animal",
   newOrganisationName: "New organization",
   newObjectName: "New object",
-  important: "Important",
+  important: "Favorite figure",
   deceased: "Deceased",
   connectDirectedHelp:
     "Connect right to left for a directed relationship, or center to center for an undirected one.",
@@ -76,8 +76,8 @@ export const figures = {
   importDiagramDescription:
     "{nodes} elements and {edges} relationships will replace the current state. A backup is created automatically first.",
   importAction: "Import",
-  unmarkImportant: "Remove important marker",
-  markImportant: "Mark as important",
+  unmarkImportant: "Remove favorite",
+  markImportant: "Mark as favorite",
   unpinPosition: "Release position",
   pinPosition: "Pin position",
   diesHere: "Dies here",

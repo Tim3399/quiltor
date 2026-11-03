@@ -45,4 +45,18 @@ class GrammarStartFailed(ApplicationUnavailable):
     code = "writing_assistance.grammar_start_failed"
 
 
-__all__ = ["ChecksumMismatch", "DownloadFailed", "GrammarStartFailed", "JavaMissing"]
+class GrammarUnavailable(ApplicationUnavailable):
+    """The grammar server did not answer usefully: unreachable, a 5xx, a timeout
+    or a reply that is not LanguageTool JSON. Same code the check route already
+    used for its catch-all, so the client text stays the same."""
+
+    code = "writing_assistance.grammar_unavailable"
+
+
+__all__ = [
+    "ChecksumMismatch",
+    "DownloadFailed",
+    "GrammarStartFailed",
+    "GrammarUnavailable",
+    "JavaMissing",
+]

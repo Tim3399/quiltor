@@ -498,6 +498,18 @@ QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
 
 is set. Without that opt-in, chapter text and lookup terms used by this feature stay on the device.
 
+For servers without Java, such as the Docker image, run LanguageTool as a separate service:
+
+```bash
+QUILTOR_LANGUAGETOOL_URL=http://languagetool:8010
+QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
+```
+
+With both set, grammar checks go to that server and the writing aid shows neither the install
+button nor the Java notice. With only the URL set, it reports the service as configured but not
+enabled. If the server does not answer, the error code is `writing_assistance.grammar_unavailable`.
+Quiltor writes no chapter text to the log or to error messages.
+
 Sources, versions, checksums, licenses, and attribution are recorded in the installation manifest and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---
