@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ComponentType, ReactNode } from "react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -887,5 +887,49 @@ describe("StoryboardWorkspace interactions", () => {
       ]),
     );
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("builds a second change on the first when both land before the next commit", () => {
+    render(<Harness />);
+    const addNote = within(screen.getByRole("toolbar", { name: "Storyboard-Werkzeuge" })).getByRole(
+      "button",
+      { name: "Notiz hinzufügen" },
+    );
+    act(() => {
+      addNote.click();
+      addNote.click();
+    });
+    const saved = JSON.parse(
+      screen.getByLabelText("Storyboard-Zustand").textContent ?? "{}",
+    ) as StoryboardState;
+    expect(saved.nodes.filter((node) => node.kind === "note")).toHaveLength(2);
+  });
+
+  it("falls back to the first board when the active board disappears", () => {
+    function Replaceable() {
+      const [state, setState] = useState(createDefaultStoryboardState());
+      return (
+        <I18nProvider>
+          <button type="button" onClick={() => setState(createDefaultStoryboardState())}>
+            Test-Zustand-ersetzen
+          </button>
+          <StoryboardWorkspace
+            state={state}
+            candidates={[]}
+            onOpenReference={vi.fn()}
+            onChange={setState}
+          />
+        </I18nProvider>
+      );
+    }
+    render(<Replaceable />);
+    const boardSelect = () => screen.getByRole("combobox", { name: "Storyboard auswählen" });
+    const firstTitle = boardSelect().textContent;
+
+    fireEvent.click(moreAction("Storyboard hinzufügen"));
+    expect(boardSelect()).toHaveTextContent("Neues Storyboard 2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-Zustand-ersetzen" }));
+    expect(boardSelect().textContent).toBe(firstTitle);
   });
 });

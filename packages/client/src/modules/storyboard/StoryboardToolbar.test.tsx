@@ -146,4 +146,27 @@ describe("StoryboardToolbar layer actions", () => {
       expect(within(toolbar).getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
     }
   });
+
+  it("drops an unfinished rename when the board's title changes underneath it", () => {
+    const view = renderToolbar(props());
+    fireEvent.click(moreAction("Storyboard umbenennen"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Storyboard-Name" }), {
+      target: { value: "Halb getippt" },
+    });
+
+    view.rerender(
+      <I18nProvider>
+        <StoryboardToolbar
+          {...props({
+            boards: [{ id: "main", title: "Zweiter Akt" }],
+            currentBoardTitle: "Zweiter Akt",
+          })}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("textbox", { name: "Storyboard-Name" })).not.toBeInTheDocument();
+
+    fireEvent.click(moreAction("Storyboard umbenennen"));
+    expect(screen.getByRole("textbox", { name: "Storyboard-Name" })).toHaveValue("Zweiter Akt");
+  });
 });
