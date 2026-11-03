@@ -9,7 +9,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from quiltor.infrastructure.persistence.writing_assistance import (
+    DICTIONARY_SCHEMA,
     SQLiteWritingAssistanceRepository,
+    initialize,
+    insert,
+    insert_form,
 )
 from quiltor.infrastructure.writing_assistance.installer import (
     CoreWritingAssistanceInstaller,
@@ -21,6 +25,10 @@ from quiltor.modules.writing_assistance.providers import (
     parse_freedict,
     parse_openthesaurus,
     parse_wiktionary,
+)
+from quiltor.modules.writing_assistance.registry import MANIFEST_VERSION
+from quiltor.modules.writing_assistance.service import (
+    DICTIONARY_SCHEMA as SERVICE_DICTIONARY_SCHEMA,
 )
 from quiltor.modules.writing_assistance.service import WritingAssistanceService
 from tests.python.narrowing import present
@@ -173,6 +181,143 @@ class WritingAssistanceServiceTests(unittest.TestCase):
             )
         )
         self.assertFalse(validate_checksum(path, "sha256:" + "0" * 64))
+
+
+class DictionarySchemaTests(unittest.TestCase):
+    """Schema 2: inflected forms, license metadata, and schema-1 files that predate it."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        data = Path(self.temp.name)
+        self.repository = SQLiteWritingAssistanceRepository(data)
+        self.service = WritingAssistanceService(
+            self.repository,
+            CoreWritingAssistanceInstaller(self.repository.path),
+            UnavailableGrammar(data),
+        )
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def build(self, licenses=None):
+        conn = initialize(self.repository.path, MANIFEST_VERSION, "full", licenses)
+        with closing(conn), conn:
+            insert(
+                conn,
+                "de-DE",
+                "dictionary",
+                "gehen",
+                "gehen",
+                "Verb",
+                "sich fortbewegen",
+                [],
+                "wiktionary",
+            )
+            insert(conn, "de-DE", "synonyms", "gehen", "gehen", "", "", ["laufen"], "openthesaurus")
+            insert(
+                conn,
+                "de-DE",
+                "dictionary",
+                "Gang",
+                "Gang",
+                "Substantiv",
+                "das Gehen",
+                [],
+                "wiktionary",
+            )
+            insert_form(conn, "de-DE", "ging", "gehen")
+            insert_form(conn, "de-DE", "Gänge", "Gang")
+
+    def build_schema_1(self):
+        """The layout every database had before schema 2: metadata and entries only."""
+        with closing(sqlite3.connect(self.repository.path)) as conn, conn:
+            conn.executescript(
+                """
+                CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE entries(
+                 id INTEGER PRIMARY KEY, language TEXT NOT NULL, mode TEXT NOT NULL,
+                 query TEXT NOT NULL COLLATE NOCASE, lemma TEXT NOT NULL, part_of_speech TEXT NOT NULL DEFAULT '',
+                 meaning TEXT NOT NULL DEFAULT '', values_json TEXT NOT NULL DEFAULT '[]', source TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute("INSERT INTO metadata VALUES('version',?)", (MANIFEST_VERSION,))
+            conn.execute(
+                "INSERT INTO entries(language,mode,query,lemma,source) VALUES('de-DE','dictionary','haus','Haus','core')"
+            )
+
+    def test_service_reads_the_same_schema_as_the_adapter(self):
+        self.assertEqual(SERVICE_DICTIONARY_SCHEMA, DICTIONARY_SCHEMA)
+
+    def test_schema_2_is_written_and_read_back(self):
+        self.build()
+        self.assertEqual(self.repository.schema(), 2)
+        status = self.service.status()
+        self.assertTrue(status["installed"])
+        self.assertFalse(status["stale"])
+        self.assertEqual(status["coverage"], "full")
+
+    def test_core_install_writes_schema_2(self):
+        self.service.install()
+        self.assertEqual(self.repository.schema(), 2)
+        self.assertFalse(self.service.status()["stale"])
+
+    def test_inflected_form_finds_its_lemma(self):
+        self.build()
+        results = self.service.lookup("de-DE", "dictionary", "ging")["results"]
+        self.assertEqual([row["lemma"] for row in results], ["gehen"])
+        self.assertEqual(
+            self.service.lookup("de-DE", "synonyms", "GING")["results"][0]["values"], ["laufen"]
+        )
+        self.assertEqual(
+            self.service.lookup("de-DE", "dictionary", "gänge")["results"][0]["lemma"], "Gang"
+        )
+
+    def test_form_without_lemma_entry_and_unknown_word_find_nothing(self):
+        self.build()
+        self.assertEqual(self.service.lookup("de-DE", "dictionary", "unbekannt")["results"], [])
+        self.assertEqual(self.service.lookup("de-DE", "translation", "ging")["results"], [])
+        self.assertEqual(self.service.lookup("en-GB", "dictionary", "ging")["results"], [])
+
+    def test_word_with_its_own_entry_does_not_fall_back(self):
+        self.build()
+        with closing(sqlite3.connect(self.repository.path)) as conn, conn:
+            insert_form(conn, "de-DE", "gehen", "Gang")
+        results = self.service.lookup("de-DE", "dictionary", "gehen")["results"]
+        self.assertEqual([row["lemma"] for row in results], ["gehen"])
+
+    def test_license_fields_are_stored_in_metadata(self):
+        self.build(
+            {
+                "license": "CC BY-SA 4.0",
+                "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+                "attribution": "Wiktionary contributors; OpenThesaurus",
+            }
+        )
+        stored = self.repository.metadata()
+        self.assertEqual(stored["license"], "CC BY-SA 4.0")
+        self.assertEqual(stored["license_url"], "https://creativecommons.org/licenses/by-sa/4.0/")
+        self.assertEqual(stored["attribution"], "Wiktionary contributors; OpenThesaurus")
+        self.assertEqual(stored["schema"], "2")
+
+    def test_unknown_metadata_key_is_refused(self):
+        with self.assertRaises(ValueError):
+            self.build({"built_at": "2026-11-03"})
+
+    def test_schema_1_database_stays_readable_and_reports_stale(self):
+        self.build_schema_1()
+        self.assertEqual(self.repository.schema(), 1)
+        status = self.service.status()
+        self.assertTrue(status["installed"])
+        self.assertTrue(status["stale"])
+        self.assertEqual(
+            self.service.lookup("de-DE", "dictionary", "Haus")["results"][0]["lemma"], "Haus"
+        )
+        self.assertEqual(self.service.lookup("de-DE", "dictionary", "ging")["results"], [])
+
+    def test_no_database_has_no_schema(self):
+        self.assertIsNone(self.repository.schema())
+        self.assertEqual(self.repository.metadata(), {})
 
 
 class FreeDictParserTests(unittest.TestCase):

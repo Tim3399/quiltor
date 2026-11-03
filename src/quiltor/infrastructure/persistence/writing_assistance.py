@@ -6,6 +6,7 @@ import os
 import sqlite3
 import stat
 import threading
+from collections.abc import Mapping
 from contextlib import closing
 from pathlib import Path
 
@@ -17,7 +18,19 @@ CREATE TABLE IF NOT EXISTS entries(
  meaning TEXT NOT NULL DEFAULT '', values_json TEXT NOT NULL DEFAULT '[]', source TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS entries_lookup ON entries(language, mode, query COLLATE NOCASE);
+CREATE TABLE IF NOT EXISTS forms(
+ language TEXT NOT NULL, form TEXT NOT NULL COLLATE NOCASE, lemma TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS forms_lookup ON forms(language, form COLLATE NOCASE);
 """
+
+# Layout of the dictionary database. 2 added the ``forms`` table and the license
+# keys. The database is replaced on install, never migrated, so a file without
+# the marker is schema 1 and is read from ``entries`` alone.
+DICTIONARY_SCHEMA = 2
+
+# Keys a build may set in ``metadata`` next to version, coverage and schema.
+LICENSE_KEYS = ("license", "license_url", "attribution")
 
 
 _MIGRATION_LOCK = threading.Lock()
@@ -168,6 +181,12 @@ class SQLiteWritingAssistanceRepository:
     def coverage(self) -> str | None:
         return coverage(self.path)
 
+    def schema(self) -> int | None:
+        return schema(self.path)
+
+    def metadata(self) -> dict[str, str]:
+        return metadata(self.path)
+
     def lookup(self, language: str, mode: str, query: str) -> list[dict]:
         return lookup(self.path, language, mode, query)
 
@@ -179,11 +198,21 @@ def connect(path: Path, readonly: bool = False) -> sqlite3.Connection:
     return sqlite3.connect(path)
 
 
-def initialize(path: Path, version: str, coverage: str) -> sqlite3.Connection:
+def initialize(
+    path: Path, version: str, coverage: str, licenses: Mapping[str, str] | None = None
+) -> sqlite3.Connection:
+    unknown = set(licenses or {}) - set(LICENSE_KEYS)
+    if unknown:
+        raise ValueError(f"unknown writing-assistance metadata keys: {sorted(unknown)}")
     conn = connect(path)
     conn.executescript(SCHEMA)
-    conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('version',?)", (version,))
-    conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('coverage',?)", (coverage,))
+    values = {
+        "version": version,
+        "coverage": coverage,
+        "schema": str(DICTIONARY_SCHEMA),
+        **(licenses or {}),
+    }
+    conn.executemany("INSERT OR REPLACE INTO metadata(key,value) VALUES(?,?)", values.items())
     return conn
 
 
@@ -213,12 +242,29 @@ def insert(
     )
 
 
+def insert_form(conn: sqlite3.Connection, language: str, form: str, lemma: str) -> None:
+    conn.execute(
+        "INSERT INTO forms(language,form,lemma) VALUES(?,?,?)",
+        (language, form.casefold(), lemma),
+    )
+
+
+_ENTRIES = "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50"
+
+
 def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
+    """Entries for ``query``; an inflected form with no entry of its own falls
+    back to its lemmas, one step deep. Schema 1 has no ``forms`` table."""
     with closing(connect(path, readonly=True)) as conn, conn:
-        rows = conn.execute(
-            "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50",
-            (language, mode, query.casefold()),
-        ).fetchall()
+        rows = conn.execute(_ENTRIES, (language, mode, query.casefold())).fetchall()
+        if not rows and _schema(conn) >= 2:
+            lemmas = conn.execute(
+                "SELECT DISTINCT lemma FROM forms WHERE language=? AND form=? COLLATE NOCASE ORDER BY lemma",
+                (language, query.casefold()),
+            ).fetchall()
+            for (lemma,) in lemmas:
+                rows += conn.execute(_ENTRIES, (language, mode, lemma.casefold())).fetchall()
+            rows = rows[:50]
     return [
         {
             "lemma": row[0],
@@ -229,6 +275,32 @@ def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def _schema(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+    return int(row[0]) if row else 1
+
+
+def schema(path: Path) -> int | None:
+    """Layout of the installed database; 1 for files written before the marker."""
+    if not path.exists():
+        return None
+    try:
+        with closing(connect(path, readonly=True)) as conn, conn:
+            return _schema(conn)
+    except (sqlite3.Error, ValueError):
+        return None
+
+
+def metadata(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    try:
+        with closing(connect(path, readonly=True)) as conn, conn:
+            return dict(conn.execute("SELECT key,value FROM metadata ORDER BY key").fetchall())
+    except sqlite3.Error:
+        return {}
 
 
 def coverage(path: Path) -> str | None:

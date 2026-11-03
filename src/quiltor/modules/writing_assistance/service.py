@@ -6,6 +6,10 @@ from .grammar import GrammarBackend
 from .ports import WritingAssistanceInstaller, WritingAssistanceRepository
 from .registry import MANIFEST_VERSION, SOURCES, manifest
 
+# The dictionary layout this service reads in full; mirrors the persistence
+# adapter's DICTIONARY_SCHEMA, which modules may not import.
+DICTIONARY_SCHEMA = 2
+
 
 class WritingAssistanceService:
     def __init__(
@@ -21,12 +25,15 @@ class WritingAssistanceService:
     def status(self) -> dict:
         installed_version = self.repository.version()
         installed = installed_version == MANIFEST_VERSION
+        # A schema-1 file still answers from ``entries`` but cannot resolve
+        # inflected forms, so the UI offers to update it.
+        outdated_layout = installed and (self.repository.schema() or 1) < DICTIONARY_SCHEMA
         return {
             "installed": installed,
             # "core" while only the built-in starter set is installed, so the UI
             # can say so instead of letting every other word look unknown.
             "coverage": self.repository.coverage() if installed else None,
-            "stale": installed_version is not None and installed_version != MANIFEST_VERSION,
+            "stale": (installed_version is not None and not installed) or outdated_layout,
             "version": installed_version,
             "manifest": manifest(),
             "sources": SOURCES,

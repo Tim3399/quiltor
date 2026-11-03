@@ -14,6 +14,11 @@ class WritingAssistanceRepository(Protocol):
         when nothing is installed."""
         ...
 
+    def schema(self) -> int | None:
+        """Layout of the installed database (1 before the ``forms`` table);
+        None when nothing is installed."""
+        ...
+
     def lookup(self, language: str, mode: str, query: str) -> list[dict]: ...
 
 
