@@ -1,4 +1,3 @@
-# pyright: strict
 """Versioned, fail-closed contract for untrusted backup manifests and blobs."""
 
 from __future__ import annotations

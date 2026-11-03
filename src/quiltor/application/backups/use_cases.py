@@ -1,4 +1,3 @@
-# pyright: strict
 """Backup history, remote synchronization, restore, and login orchestration."""
 
 from __future__ import annotations

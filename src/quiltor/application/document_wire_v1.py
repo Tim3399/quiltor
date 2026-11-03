@@ -1,4 +1,3 @@
-# pyright: strict
 """Strict v1 transport envelopes for Quiltor's revisioned world documents.
 
 Persistence owns the document payload and deliberately stays unaware of this

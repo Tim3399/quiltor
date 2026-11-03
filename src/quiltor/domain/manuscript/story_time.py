@@ -1,4 +1,3 @@
-# pyright: strict
 """Story-time references attached to manuscript chapters.
 
 Chapter list order is narrative order.  These references point into the separate

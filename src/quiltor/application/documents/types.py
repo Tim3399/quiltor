@@ -1,4 +1,3 @@
-# pyright: strict
 """Values crossing the document application boundary."""
 
 from __future__ import annotations

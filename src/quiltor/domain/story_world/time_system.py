@@ -1,4 +1,3 @@
-# pyright: strict
 """Pure projections for Quiltor's canonical signed timeline."""
 
 from __future__ import annotations

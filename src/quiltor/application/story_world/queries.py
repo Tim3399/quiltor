@@ -1,4 +1,3 @@
-# pyright: strict
 """Pure structured story-world queries shared by read-tool transports."""
 
 from __future__ import annotations

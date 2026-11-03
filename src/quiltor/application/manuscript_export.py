@@ -1,4 +1,3 @@
-# pyright: strict
 """Review and export a revision-bound manuscript without mutating its source."""
 
 from __future__ import annotations
