@@ -2016,6 +2016,38 @@ class WorkflowBoundaryTests(unittest.TestCase):
         ):
             workflow_contract.validate_toolchains(mutable_runner, contract)
 
+    def test_rust_toolchain_steps_match_rust_toolchain_toml(self):
+        """The release gate once installed 1.98.0 without components and failed at random."""
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_rust_toolchain_steps(sources)
+        gate = """          toolchain: "1.98.0"
+          components: rustfmt, clippy
+      - run: npm ci
+      - name: Install the browser and declared Python dependencies"""
+        self.assertIn(gate, sources[BUILD_WORKFLOW])
+        mutations = {
+            "components removed": gate.replace("          components: rustfmt, clippy\n", ""),
+            "one component missing": gate.replace("rustfmt, clippy", "rustfmt"),
+            "other channel": gate.replace('"1.98.0"', '"1.97.0"'),
+        }
+        for label, mutated in mutations.items():
+            with self.subTest(label):
+                broken = dict(sources)
+                broken[BUILD_WORKFLOW] = sources[BUILD_WORKFLOW].replace(gate, mutated)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError,
+                    r"release\.yml: rust-toolchain step",
+                ):
+                    workflow_contract.validate_rust_toolchain_steps(broken)
+        workflow_contract.validate_rust_toolchain_steps(
+            {BUILD_WORKFLOW: sources[BUILD_WORKFLOW].replace("rustfmt, clippy", "clippy ,rustfmt")}
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "toolchain 1.99.0"):
+            workflow_contract.validate_rust_toolchain_steps(
+                sources,
+                '[toolchain]\nchannel = "1.99.0"\ncomponents = ["clippy", "rustfmt"]\n',
+            )
+
     def test_matrix_runners_are_resolved_rather_than_read_literally(self):
         """A cross-platform suite is a matrix, and the runner lock has to survive one."""
         matrix_job = (

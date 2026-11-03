@@ -149,6 +149,60 @@ def validate_actions(sources: dict[Path, str], locked: dict[str, str]) -> None:
 MATRIX_RUNNER = re.compile(r"^\$\{\{\s*matrix\.([a-z_][a-z0-9_]*)\s*\}\}$")
 
 
+RUST_TOOLCHAIN_STEP = re.compile(
+    r"^(?P<indent>[ \t]*)-[ \t]+uses:[ \t]+dtolnay/rust-toolchain@[^\n]*\n"
+    r"(?P<body>(?:(?P=indent)[ \t]+[^\n]*\n|[ \t]*\n)*)",
+    re.MULTILINE,
+)
+
+
+def _step_input(body: str, key: str) -> str | None:
+    match = re.search(
+        rf"^[ \t]+{key}:[ \t]*[\"']?([^\"'#\n]*?)[\"']?[ \t]*(?:#.*)?$", body, re.MULTILINE
+    )
+    return match.group(1).strip() if match else None
+
+
+def validate_rust_toolchain_steps(
+    sources: dict[Path, str], toolchain_file: str | None = None
+) -> None:
+    """
+    Every dtolnay/rust-toolchain step installs exactly what rust-toolchain.toml names.
+
+    rustup reads that file on every cargo call, `cargo --version` included. A component
+    the step left out is then fetched lazily, and in a release gate that failed at random.
+    """
+
+    if toolchain_file is None:
+        toolchain_file = (REPO_ROOT / "rust-toolchain.toml").read_text(encoding="utf-8")
+    pinned = tomllib.loads(toolchain_file).get("toolchain", {})
+    channel = pinned.get("channel")
+    components = pinned.get("components", [])
+    if not isinstance(channel, str) or not isinstance(components, list):
+        raise WorkflowContractError("rust-toolchain.toml must name a channel and its components")
+    expected = set(components)
+    steps = 0
+    for path, source in sources.items():
+        for match in RUST_TOOLCHAIN_STEP.finditer(source):
+            steps += 1
+            body = match.group("body")
+            where = f"{path.name}: rust-toolchain step at line {source.count(chr(10), 0, match.start()) + 1}"
+            toolchain = _step_input(body, "toolchain")
+            if toolchain != channel:
+                raise WorkflowContractError(
+                    f"{where} must request toolchain {channel} from rust-toolchain.toml; found {toolchain}"
+                )
+            requested = _step_input(body, "components")
+            found = {item.strip() for item in (requested or "").split(",") if item.strip()}
+            if found != expected:
+                raise WorkflowContractError(
+                    f"{where} must install components {sorted(expected)} from rust-toolchain.toml; "
+                    f"found {sorted(found)}"
+                )
+    if not steps:
+        raise WorkflowContractError("no dtolnay/rust-toolchain step found in the workflows")
+
+
 def _job_blocks(source: str) -> list[tuple[str, str]]:
     """Every job of a workflow as (name, body)."""
     _, _, jobs = source.partition("\njobs:")
@@ -2561,6 +2615,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         locked_actions = action_lock(ACTION_LOCK)
         validate_actions(sources, locked_actions)
         validate_toolchains(sources, toolchain_lock(TOOLCHAIN_LOCK))
+        validate_rust_toolchain_steps(sources)
         validate_job_runtime_setups(sources, locked_actions)
         validate_cargo(sources)
         validate_publication_boundary(sources)
