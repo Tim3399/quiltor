@@ -1241,7 +1241,9 @@ class WorkflowBoundaryTests(unittest.TestCase):
         self.assertIn("distribution/tooling/release_preflight.py", self.build)
         self.assertNotIn("set_version.py", self.build)
         self.assertGreaterEqual(
-            self.build.count("needs: [version-check, release-gate]"),
+            self.build.count(
+                "needs: [release-plan, release-context, version-check, release-gate, tests]"
+            ),
             5,
         )
         self.assertIn("bash tools/dev/playwright-linux.sh", self.build)
@@ -1803,13 +1805,14 @@ class WorkflowBoundaryTests(unittest.TestCase):
         self.assertLess(context, release_gate)
         self.assertLess(context, version_check)
         self.assertIn('[ "$GITHUB_REF" = "refs/heads/main" ]', self.build)
-        self.assertIn("git rev-parse refs/remotes/origin/main", self.build)
-        self.assertIn('[ "$GITHUB_SHA" = "$MAIN_SHA" ]', self.build)
+        self.assertIn('git rev-parse "refs/remotes/origin/$GITHUB_REF_NAME"', self.build)
+        self.assertIn('[ "$GITHUB_SHA" = "$HEAD_SHA" ]', self.build)
         self.assertIn(
-            "release-gate:\n    name: Portable release gate\n    needs: release-context",
+            "release-gate:\n    name: Portable release gate\n"
+            "    needs: [release-plan, release-context]",
             self.build,
         )
-        self.assertIn("version-check:\n    needs: release-context", self.build)
+        self.assertIn("version-check:\n    needs: [release-plan, release-context]", self.build)
         self.assertEqual(self.build.count("packages: write"), 2)
 
     def test_oci_handoff_uses_build_digests_not_re_resolved_version_tags(self):
@@ -1870,8 +1873,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             (
                 "unguarded macOS job",
                 BUILD_WORKFLOW,
-                "if: needs.version-check.outputs.macos_direct == 'true'",
-                "if: true",
+                "      && needs.version-check.outputs.macos_direct == 'true'\n    runs-on: macos-15",
+                "    runs-on: macos-15",
                 "macos-direct is not guarded",
             ),
             (
@@ -3299,6 +3302,509 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             "      run_client: ${{ ",
             "if: needs.plan.outputs.run_client == 'true'",
         )
+
+
+def run_step_script(workflow, job, step_name, preamble, cwd=None):
+    """
+    Run one step's real `run: |` block under bash, after a preamble of assignments and stub
+    functions. Functions shadow commands, so gh, git and python can be stubbed portably.
+    Returns (exit code, output).
+    """
+
+    bash = shutil.which("bash")
+    if bash is None:
+        raise unittest.SkipTest("bash is not installed")
+    body = workflow_contract._job_body(workflow, job)
+    start = body.index(f"      - name: {step_name}\n")
+    end = body.find("\n      - ", start + 1)
+    # Keep the newline that ends the step's last line, or the regex below drops that line.
+    step = body[start : end + 1 if end >= 0 else len(body)]
+    script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", step, re.MULTILINE)
+    assert script is not None, f"{step_name} has no run block"
+    text = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
+    text = text.replace("${{ github.repository }}", "owner/repo")
+    completed = subprocess.run(
+        [bash, "-s"], input=(preamble + text).encode(), capture_output=True, check=False, cwd=cwd
+    )
+    return (
+        completed.returncode,
+        completed.stdout.decode(errors="replace") + completed.stderr.decode(errors="replace"),
+    )
+
+
+class ReleaseSingleEntryContractTests(unittest.TestCase):
+    """T-35 P2-c: release.yml is the single entry, and builds only on full-success."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sources = workflow_contract._workflow_sources()
+
+    def assert_mutation_fails(self, validate, path, original, replacement, error):
+        source = self.sources[path]
+        self.assertIn(original, source, f"{path.name}: {original!r}")
+        mutated = dict(self.sources)
+        mutated[path] = source.replace(original, replacement)
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, re.escape(error)):
+            validate(mutated)
+
+    def test_the_repository_satisfies_every_contract(self):
+        for validate in (
+            workflow_contract.validate_release_no_continue_on_error,
+            workflow_contract.validate_release_calls_full_matrix,
+            workflow_contract.validate_tests_call_permissions,
+            workflow_contract.validate_artifact_edges,
+            workflow_contract.validate_single_entry,
+            workflow_contract.validate_release_concurrency,
+            workflow_contract.validate_dry_run_boundary,
+            workflow_contract.validate_publish_selection,
+            workflow_contract.validate_release_cache_boundary,
+            workflow_contract.validate_rerun_rechecks,
+            workflow_contract.validate_ci_release_scope,
+            workflow_contract.validate_bootstrap_never_on_main,
+            workflow_contract.validate_write_jobs_need_tests_and_gate,
+            workflow_contract.validate_dry_run_skips_secrets,
+        ):
+            with self.subTest(validate=validate.__name__):
+                validate(self.sources)
+
+    def test_the_write_class_is_detected(self):
+        build = self.sources[BUILD_WORKFLOW]
+        self.assertEqual(
+            workflow_contract.write_jobs(build),
+            {"web-image", "backup-image", "macos-direct", "windows-direct", "release-manifest"},
+        )
+
+    def test_mutations_fail_their_contract(self):
+        w = workflow_contract
+        bootstrap = TEST_WORKFLOW.parent / "visual-baselines-bootstrap.yml"
+        web_if = (
+            "    needs: [release-plan, release-context, version-check, release-gate, tests]\n"
+            "    if: >-\n      needs.release-plan.outputs.release == 'true'\n"
+            "      && needs.tests.outputs.verdict == 'full-success'\n    runs-on: ubuntu-24.04\n"
+            "    permissions:\n      contents: read\n      packages: write\n    outputs:\n"
+            "      image: ${{ steps.immutable.outputs.value }}\n    steps:\n"
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "        with:\n          persist-credentials: false\n"
+            "      - uses: actions/setup-node"
+        )
+        cases = (
+            # C-3
+            (
+                "continue-on-error in a release job",
+                w.validate_release_no_continue_on_error,
+                BUILD_WORKFLOW,
+                "    runs-on: macos-15\n",
+                "    runs-on: macos-15\n    continue-on-error: true\n",
+                "continue-on-error",
+            ),
+            # C-4
+            (
+                "a reduced matrix",
+                w.validate_release_calls_full_matrix,
+                BUILD_WORKFLOW,
+                "      full_matrix: true\n",
+                "      full_matrix: false\n",
+                "full_matrix: true",
+            ),
+            (
+                "tests hang on release-context",
+                w.validate_release_calls_full_matrix,
+                BUILD_WORKFLOW,
+                "    name: Full test matrix\n",
+                "    name: Full test matrix\n    needs: release-context\n",
+                "may depend on nothing",
+            ),
+            # C-5
+            (
+                "secrets handed to the tests",
+                w.validate_tests_call_permissions,
+                BUILD_WORKFLOW,
+                "      full_matrix: true\n    permissions:\n",
+                "      full_matrix: true\n    secrets: inherit\n    permissions:\n",
+                "no secrets",
+            ),
+            (
+                "tests with write permission",
+                w.validate_tests_call_permissions,
+                BUILD_WORKFLOW,
+                "      full_matrix: true\n    permissions:\n      contents: read\n",
+                "      full_matrix: true\n    permissions:\n      contents: write\n",
+                "exactly permissions: contents: read",
+            ),
+            # C-6
+            (
+                "python-package without tests",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                "  python-package:\n    needs: [release-plan, release-context, version-check, "
+                "release-gate, tests]\n",
+                "  python-package:\n    needs: [release-plan, release-context, version-check, "
+                "release-gate]\n",
+                "python-package must need tests",
+            ),
+            (
+                "web-image without the verdict",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                web_if,
+                web_if.replace("      && needs.tests.outputs.verdict == 'full-success'\n", ""),
+                "web-image must run only on: needs.tests.outputs.verdict",
+            ),
+            # C-7
+            (
+                "a paths filter again",
+                w.validate_single_entry,
+                BUILD_WORKFLOW,
+                "  push:\n    branches: [main]\n",
+                '  push:\n    branches: [main]\n    paths: ["VERSION"]\n',
+                "every push to main",
+            ),
+            (
+                "the null SHA is no longer a release candidate",
+                w.validate_single_entry,
+                BUILD_WORKFLOW,
+                '            || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \\\n',
+                "",
+                "release-plan is missing its decision",
+            ),
+            # C-8
+            (
+                "a shared release group again",
+                w.validate_release_concurrency,
+                BUILD_WORKFLOW,
+                "permissions:\n  contents: read\n\njobs:",
+                "concurrency:\n  group: release-build\n\npermissions:\n  contents: read\n\njobs:",
+                "no concurrency",
+            ),
+            # C-9
+            (
+                "a dry run pushes the backup image",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "          file: services/backup-server/Dockerfile\n"
+                "          push: ${{ needs.release-plan.outputs.dry_run == 'false' }}\n",
+                "          file: services/backup-server/Dockerfile\n          push: true\n",
+                "backup-image may push only outside a dry run",
+            ),
+            (
+                "a dry run logs in",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "# v4\n        if: needs.release-plan.outputs.dry_run == 'false'\n        with:\n"
+                "          registry: ghcr.io\n",
+                "# v4\n        with:\n          registry: ghcr.io\n",
+                "may log in only outside a dry run",
+            ),
+            (
+                "a dry run creates the manifest",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "        && needs.release-plan.outputs.dry_run == 'false'\n",
+                "",
+                "release-manifest must never run in a dry run",
+            ),
+            (
+                "the input read outside release-plan",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "          DRY_RUN: ${{ needs.release-plan.outputs.dry_run }}\n        run: |\n"
+                '          set -euo pipefail\n          [ "$GITHUB_REF"',
+                "          DRY_RUN: ${{ inputs.dry_run }}\n        run: |\n"
+                '          set -euo pipefail\n          [ "$GITHUB_REF"',
+                "only release-plan may read inputs.dry_run",
+            ),
+            # C-10
+            (
+                "publish from any branch",
+                w.validate_publish_selection,
+                PUBLISH_WORKFLOW,
+                " && github.event.workflow_run.head_branch == 'main')",
+                ")",
+                "select is missing",
+            ),
+            (
+                "publish without select",
+                w.validate_publish_selection,
+                PUBLISH_WORKFLOW,
+                "  publish:\n    needs: select\n",
+                "  publish:\n",
+                "must need select",
+            ),
+            (
+                "a published release overwritten",
+                w.validate_publish_selection,
+                PUBLISH_WORKFLOW,
+                '            [ "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true ]'
+                ' \\\n              || { echo "::error::v$VERSION is already published"; exit 1; }\n',
+                "",
+                "run check",
+            ),
+            # C-11
+            (
+                "npm cache back in a signing job",
+                w.validate_release_cache_boundary,
+                BUILD_WORKFLOW,
+                "          package-manager-cache: false # an artifact job restores no cache",
+                "          cache: npm",
+                "may not use a cache",
+            ),
+            (
+                "a cache in the publisher",
+                w.validate_release_cache_boundary,
+                PUBLISH_WORKFLOW,
+                '          python-version: "3.12.10"\n',
+                '          python-version: "3.12.10"\n          cache: pip\n',
+                "may not use a cache",
+            ),
+            (
+                "cache-mode write in the publisher",
+                w.validate_release_cache_boundary,
+                PUBLISH_WORKFLOW,
+                "  select:\n",
+                "  select:\n    cache-mode: write\n",
+                "may not write caches",
+            ),
+            (
+                "pull_request_target",
+                w.validate_release_cache_boundary,
+                TEST_WORKFLOW,
+                "on:\n  pull_request:\n",
+                "on:\n  pull_request_target:\n  pull_request:\n",
+                "pull_request_target",
+            ),
+            # C-12
+            (
+                "no head comparison",
+                w.validate_rerun_rechecks,
+                BUILD_WORKFLOW,
+                '          [ "$GITHUB_SHA" = "$MAIN_SHA" ] \\\n'
+                '            || { echo "::error::main moved to $MAIN_SHA; release revision '
+                '$GITHUB_SHA is stale"; exit 1; }\n',
+                "",
+                "compare the revision with main again",
+            ),
+            (
+                "the rechecks after the downloads",
+                w.validate_rerun_rechecks,
+                BUILD_WORKFLOW,
+                "      - name: Require the current main head again\n",
+                "      - name: Check the head\n",
+                "must start with",
+            ),
+            # C-15 (a, b)
+            (
+                "the reduced preflight a second time",
+                w.validate_ci_release_scope,
+                BUILD_WORKFLOW,
+                "python distribution/tooling/profile_contract.py check-release\n",
+                "python distribution/tooling/profile_contract.py check-release\n"
+                "          python distribution/tooling/release_preflight.py --ci-release-scope\n",
+                "may appear once",
+            ),
+            (
+                "the manifest builds on the gate without the tests",
+                w.validate_ci_release_scope,
+                BUILD_WORKFLOW,
+                "        release-gate,\n        tests,\n",
+                "        release-gate,\n",
+                "release-manifest builds on release-gate",
+            ),
+            # C-16
+            (
+                "the bootstrap runs on main again",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                "  push:\n    branches-ignore: [main]\n",
+                "  push:\n",
+                "ignore pushes to main",
+            ),
+            (
+                "the guard before the push removed",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                w.BOOTSTRAP_GUARD + "      - name: Check the new images in\n",
+                "      - name: Check the new images in\n",
+                "right before it pushes",
+            ),
+            (
+                "the guard compares with master",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                '[ "$TARGET_BRANCH" != main ]',
+                '[ "$TARGET_BRANCH" != master ]',
+                "first step",
+            ),
+            # C-17
+            (
+                "write permission at workflow level",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "permissions:\n  contents: read\n\njobs:",
+                "permissions:\n  contents: read\n  packages: write\n\njobs:",
+                "no write permission at workflow level",
+            ),
+            (
+                "a write job without tests",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                web_if,
+                web_if.replace("release-gate, tests]", "release-gate]"),
+                "web-image writes and must need tests and release-gate",
+            ),
+            (
+                "the manifest bypassed by an or",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "        !cancelled()\n",
+                "        github.event_name == 'workflow_dispatch' || !cancelled()\n",
+                "release-manifest writes and must run only on",
+            ),
+            (
+                "the gate with id-token",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "    name: Portable release gate\n    needs: [release-plan, release-context]\n",
+                "    name: Portable release gate\n    needs: [release-plan, release-context]\n"
+                "    permissions:\n      id-token: write\n",
+                "tests and release-gate may not write",
+            ),
+            (
+                "the manifest job renamed",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "\n  release-manifest:\n",
+                "\n  release-manifests:\n",
+                "not recognized: release-manifest",
+            ),
+            (
+                "publish without select",
+                w.validate_write_jobs_need_tests_and_gate,
+                PUBLISH_WORKFLOW,
+                "  publish:\n    needs: select\n",
+                "  publish:\n",
+                "publish writes and must run only on select",
+            ),
+            (
+                "a registry push in another workflow",
+                w.validate_write_jobs_need_tests_and_gate,
+                bootstrap,
+                '          git push origin "HEAD:$TARGET_BRANCH"\n',
+                '          git push origin "HEAD:$TARGET_BRANCH"\n          docker push ghcr.io/x\n',
+                "pushes to a registry",
+            ),
+            # C-19
+            (
+                "Windows signing in a dry run",
+                w.validate_dry_run_skips_secrets,
+                BUILD_WORKFLOW,
+                "      && needs.release-plan.outputs.dry_run == 'false'\n"
+                "      && needs.version-check.outputs.windows_direct == 'true'\n",
+                "      && needs.version-check.outputs.windows_direct == 'true'\n",
+                "windows-direct reads secrets",
+            ),
+            (
+                "the signing job renamed",
+                w.validate_dry_run_skips_secrets,
+                BUILD_WORKFLOW,
+                "\n  macos-direct:\n",
+                "\n  macos-signed:\n",
+                "signing jobs missing: macos-direct",
+            ),
+        )
+        for name, validate, path, original, replacement, error in cases:
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, path, original, replacement, error)
+
+    def test_a_new_secret_job_needs_the_dry_run_guard(self):
+        build = self.sources[BUILD_WORKFLOW]
+        mutated = dict(self.sources)
+        mutated[BUILD_WORKFLOW] = build + (
+            "\n  notify:\n    runs-on: ubuntu-24.04\n    steps:\n"
+            "      - env:\n          TOKEN: ${{ secrets.FOO }}\n        run: true\n"
+        )
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "notify reads secrets"
+        ):
+            workflow_contract.validate_dry_run_skips_secrets(mutated)
+
+    def test_release_complete_turns_an_empty_release_red(self):
+        build = self.sources[BUILD_WORKFLOW]
+
+        def complete(**values):
+            settings = {
+                "DRY_RUN": "false",
+                "VERDICT": "full-success",
+                "MANIFEST": "success",
+                "WEB": "success",
+                "BACKUP": "success",
+                "PACKAGE": "success",
+                "MACOS": "skipped",
+                "WINDOWS": "skipped",
+                **values,
+            }
+            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in settings.items())
+            return run_step_script(
+                build, "release-complete", "Require the verdict and every artifact", preamble
+            )
+
+        for name, values, expected in (
+            ("a release", {}, 0),
+            ("a dry run", {"DRY_RUN": "true", "MANIFEST": "skipped"}, 0),
+            ("a reduced verdict", {"VERDICT": "reduced-success"}, 1),
+            ("no verdict", {"VERDICT": ""}, 1),
+            ("a skipped image", {"WEB": "skipped"}, 1),
+            ("a release without manifest", {"MANIFEST": "skipped"}, 1),
+            ("a dry run with a manifest", {"DRY_RUN": "true"}, 1),
+            (
+                "a dry run that signed",
+                {"DRY_RUN": "true", "MANIFEST": "skipped", "MACOS": "success"},
+                1,
+            ),
+        ):
+            with self.subTest(name=name):
+                code, output = complete(**values)
+                self.assertEqual(code, expected, output)
+
+    def test_a_second_run_cannot_release_a_published_version_again(self):
+        """F-35-15: the draft step refuses a published release and a draft on another revision."""
+        publish = self.sources[PUBLISH_WORKFLOW]
+        build_sha = "a" * 40
+
+        def draft(view, is_draft, tag_sha):
+            stubs = (
+                f"BUILD_SHA={build_sha}\nGH_TOKEN=x\n"
+                f'python() {{ case "$*" in -c*) echo 1.2.3;; *files*) echo pkg.whl;; esac; }}\n'
+                f'gh() {{ case "$1 $2" in\n'
+                f'  "api "*) echo {build_sha};;\n'
+                f'  "release view") case "$*" in *isDraft*) echo {is_draft};; '
+                f"*) return {view};; esac;;\n"
+                f'  "release "*) echo "gh $*";;\n'
+                f"esac; }}\n"
+                f"git() {{ echo {tag_sha}; }}\n"
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                (Path(directory) / "release-assets").mkdir()
+                (Path(directory) / "release-assets" / "pkg.whl").write_bytes(b"")
+                return run_step_script(
+                    publish,
+                    "publish",
+                    "Create a draft release from the verified build",
+                    stubs,
+                    cwd=directory,
+                )
+
+        code, output = draft(view=0, is_draft="false", tag_sha=build_sha)
+        self.assertEqual(code, 1, output)
+        self.assertIn("v1.2.3 is already published", output)
+        code, output = draft(view=0, is_draft="true", tag_sha="b" * 40)
+        self.assertEqual(code, 1, output)
+        self.assertIn("existing draft points at another revision", output)
+        code, output = draft(view=0, is_draft="true", tag_sha=build_sha)
+        self.assertEqual(code, 0, output)
+        self.assertIn("gh release upload v1.2.3 --clobber", output)
+        code, output = draft(view=1, is_draft="false", tag_sha=build_sha)
+        self.assertEqual(code, 0, output)
+        self.assertIn("gh release create v1.2.3", output)
 
 
 class ThirdPartyNoticeContractTests(unittest.TestCase):
