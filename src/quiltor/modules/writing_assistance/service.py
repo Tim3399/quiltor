@@ -4,7 +4,7 @@ from functools import lru_cache
 
 from .grammar import GrammarBackend
 from .ports import WritingAssistanceInstaller, WritingAssistanceRepository
-from .registry import MANIFEST_VERSION, SOURCES, manifest
+from .registry import CORE_VERSION, DATA, SOURCES, DataRelease, data_status
 
 # The dictionary layout this service reads in full; mirrors the persistence
 # adapter's DICTIONARY_SCHEMA, which modules may not import.
@@ -17,14 +17,18 @@ class WritingAssistanceService:
         repository: WritingAssistanceRepository,
         installer: WritingAssistanceInstaller,
         grammar: GrammarBackend,
+        data: DataRelease | None = DATA,
     ) -> None:
         self.repository = repository
         self.installer = installer
         self.grammar = grammar
+        self.data = data
+        # The version an installed database must carry to count as current.
+        self.expected_version = data["version"] if data is not None else CORE_VERSION
 
     def status(self) -> dict:
         installed_version = self.repository.version()
-        installed = installed_version == MANIFEST_VERSION
+        installed = installed_version == self.expected_version
         # A schema-1 file still answers from ``entries`` but cannot resolve
         # inflected forms, so the UI offers to update it.
         outdated_layout = installed and (self.repository.schema() or 1) < DICTIONARY_SCHEMA
@@ -35,8 +39,11 @@ class WritingAssistanceService:
             "coverage": self.repository.coverage() if installed else None,
             "stale": (installed_version is not None and not installed) or outdated_layout,
             "version": installed_version,
-            "manifest": manifest(),
+            "manifest": {"version": self.expected_version, "sources": SOURCES},
             "sources": SOURCES,
+            # Whether there is a dictionary to download at all: without a
+            # published data release the client offers no install button.
+            "data": data_status(self.data),
             "grammar": self.grammar.status(),
         }
 
@@ -54,7 +61,7 @@ class WritingAssistanceService:
             or len(query) > 200
         ):
             raise ValueError("invalid language lookup")
-        if self.repository.version() != MANIFEST_VERSION:
+        if self.repository.version() != self.expected_version:
             raise FileNotFoundError("language data is not installed or outdated")
         return {
             "ok": True,

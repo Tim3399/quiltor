@@ -1,16 +1,20 @@
-import io
+import gzip
+import hashlib
 import json
 import sqlite3
 import tempfile
+import threading
 import unittest
-import xml.etree.ElementTree as ET
 from contextlib import closing
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any, cast
 
+from quiltor.delivery.http.errors import from_exception
 from quiltor.infrastructure.persistence.writing_assistance import (
     DICTIONARY_SCHEMA,
     SQLiteWritingAssistanceRepository,
+    content_sha256,
     initialize,
     insert,
     insert_form,
@@ -20,21 +24,27 @@ from quiltor.infrastructure.persistence.writing_assistance import (
 )
 from quiltor.infrastructure.writing_assistance.installer import (
     CoreWritingAssistanceInstaller,
-    install_from_sources,
+    ReleaseWritingAssistanceInstaller,
+    install_release_asset,
     validate_checksum,
+)
+from quiltor.modules.writing_assistance import registry
+from quiltor.modules.writing_assistance.errors import (
+    ChecksumMismatch,
+    DataNotPublished,
+    DownloadFailed,
+    InstallInProgress,
 )
 from quiltor.modules.writing_assistance.grammar import UnavailableGrammar
 from quiltor.modules.writing_assistance.providers import (
-    parse_freedict,
     parse_openthesaurus,
     parse_wiktionary,
 )
-from quiltor.modules.writing_assistance.registry import MANIFEST_VERSION
+from quiltor.modules.writing_assistance.registry import MANIFEST_VERSION, DataRelease
 from quiltor.modules.writing_assistance.service import (
     DICTIONARY_SCHEMA as SERVICE_DICTIONARY_SCHEMA,
 )
 from quiltor.modules.writing_assistance.service import WritingAssistanceService
-from tests.python.narrowing import present
 
 
 class WritingAssistanceServiceTests(unittest.TestCase):
@@ -109,10 +119,6 @@ class WritingAssistanceServiceTests(unittest.TestCase):
             )
         )
         self.assertEqual(wiki[0]["meaning"], "sich fortbewegen")
-        tei = io.BytesIO(
-            b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><entry><form><orth>Haus</orth></form><gramGrp><pos>n</pos></gramGrp><sense><cit><quote>house</quote></cit></sense></entry></text></TEI>'
-        )
-        self.assertEqual(next(iter(parse_freedict(tei, "de-DE", "en-GB")))["values"], ["house"])
 
     def test_status_reports_coverage_of_the_installed_vocabulary(self):
         self.assertIsNone(self.service.status()["coverage"])
@@ -132,48 +138,6 @@ class WritingAssistanceServiceTests(unittest.TestCase):
             with conn:
                 conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
         self.assertIsNone(self.service.status()["coverage"])
-
-    def test_import_from_upstream_sources_reports_full_coverage(self):
-        import gzip
-        import hashlib
-        import tarfile
-        import zipfile
-
-        base = Path(self.temp.name)
-        thesaurus = base / "thesaurus.zip"
-        with zipfile.ZipFile(thesaurus, "w") as archive:
-            archive.writestr("openthesaurus.txt", "schnell;rasch\n")
-        wiktionary = base / "wiktionary.jsonl.gz"
-        with gzip.open(wiktionary, "wt", encoding="utf-8") as handle:
-            handle.write(
-                json.dumps(
-                    {
-                        "lang_code": "de",
-                        "word": "Baum",
-                        "pos": "noun",
-                        "senses": [{"glosses": ["Pflanze"]}],
-                    }
-                )
-                + "\n"
-            )
-        tei = (
-            b'<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><entry><form><orth>Baum</orth></form>'
-            b"<sense><cit><quote>tree</quote></cit></sense></entry></text></TEI>"
-        )
-        sources = {"openthesaurus": thesaurus, "wiktionary": wiktionary}
-        for name in ("freedict-deu-eng", "freedict-eng-deu"):
-            path = base / f"{name}.tar.bz2"
-            with tarfile.open(path, "w:bz2") as archive:
-                info = tarfile.TarInfo("dict/dict.tei")
-                info.size = len(tei)
-                archive.addfile(info, io.BytesIO(tei))
-            sources[name] = path
-        manifest = {
-            name: {"checksum": "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()}
-            for name, path in sources.items()
-        }
-        install_from_sources(self.repository.path, sources, manifest)
-        self.assertEqual(self.service.status()["coverage"], "full")
 
     def test_checksum_validation_rejects_stale_data(self):
         path = Path(self.temp.name) / "source"
@@ -366,83 +330,211 @@ class DictionarySchemaTests(unittest.TestCase):
         self.assertEqual(self.repository.metadata(), {})
 
 
-class FreeDictParserTests(unittest.TestCase):
-    def test_blank_quotes_fall_back_to_ordered_unique_translations(self):
-        source = io.BytesIO(b"""
-            <TEI xmlns="http://www.tei-c.org/ns/1.0"><text><entry>
-              <form><orth/><orth> \n </orth><orth>  Haus <hi>am</hi> Meer </orth>
-                <orth>Heim</orth><orth>Haus am Meer</orth></form>
-              <gramGrp><pos/><pos> \t </pos><pos> n <hi>common</hi> noun </pos>
-                <pos>ignored</pos></gramGrp>
-              <sense><quote/><quote> \n </quote><tr> house <hi>by</hi> the sea </tr>
-                <tr/><tr>home</tr><tr>house by the sea</tr><tr> \t </tr></sense>
-            </entry><entry><orth>no translation</orth><quote/><tr/></entry>
-            <entry><orth/><quote>no head</quote></entry></text></TEI>
-        """)
-        records = list(parse_freedict(source, "de-DE", "en-GB"))
-        self.assertEqual(
-            records,
-            [
-                {
-                    "language": "de-DE",
-                    "mode": "translation",
-                    "query": head,
-                    "lemma": head,
-                    "part_of_speech": "n common noun",
-                    "meaning": "",
-                    "values": ["house by the sea", "home"],
-                    "source": "freedict-de-DE-en-GB",
-                }
-                for head in ("Haus am Meer", "Heim", "Haus am Meer")
-            ],
+RELEASE_VERSION = "2026.11.03"
+
+
+def build_release_asset(directory: Path, version: str = RELEASE_VERSION) -> DataRelease:
+    """A packed dictionary the way the data release ships it, with its pins."""
+    database = directory / f"built-{version}.sqlite3"
+    conn = initialize(database, version, "full")
+    with closing(conn), conn:
+        insert(
+            conn, "de-DE", "dictionary", "baum", "Baum", "Substantiv", "Pflanze", [], "wiktionary"
+        )
+        insert(conn, "de-DE", "translation", "baum", "Baum", "", "", ["tree"], "wiktionary")
+    asset = directory / f"writing-{version}.sqlite3.gz"
+    with gzip.GzipFile(asset, "wb", mtime=0) as packed:
+        packed.write(database.read_bytes())
+    payload = asset.read_bytes()
+    return {
+        "version": version,
+        "url": asset.as_uri(),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "bytes": len(payload),
+        "content_sha256": content_sha256(database),
+    }
+
+
+def pinned(data: DataRelease, **changes: Any) -> DataRelease:
+    """The same release entry with some pins changed, typed as the registry's."""
+    return cast(DataRelease, {**data, **changes})
+
+
+def must_not_download(*args, **kwargs):
+    raise AssertionError("no network access expected")
+
+
+class ReleaseInstallerTests(unittest.TestCase):
+    """The dictionary comes from the data release, pinned by two digests (T-88 D2)."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        base = Path(self.temp.name)
+        self.assets = base / "release"
+        self.assets.mkdir()
+        self.data_dir = base / "data"
+        self.repository = SQLiteWritingAssistanceRepository(self.data_dir)
+        self.asset = self.assets / f"writing-{RELEASE_VERSION}.sqlite3.gz"
+        self.data = build_release_asset(self.assets)
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def service(self, data, opener=None):
+        installer = ReleaseWritingAssistanceInstaller(
+            self.repository.path, data, **({"opener": opener} if opener else {})
+        )
+        return WritingAssistanceService(
+            self.repository, installer, UnavailableGrammar(self.data_dir), data
         )
 
-    def test_nonblank_quotes_suppress_fallback_translations(self):
-        source = io.BytesIO(b"""
-            <TEI><entry><orth>Haus</orth><quote/><quote> house <hi>by</hi> the sea </quote>
-              <quote>home</quote><quote>house by the sea</quote><quote> \t </quote>
-              <tr>ignored fallback</tr></entry></TEI>
-        """)
-        (record,) = parse_freedict(source, "de-DE", "en-GB")
-        self.assertEqual(record["values"], ["house by the sea", "home"])
-        self.assertEqual(record["part_of_speech"], "")
-
-    def test_each_head_has_independent_values_including_later_results(self):
-        source = io.BytesIO(b"""
-            <TEI><entry><orth>Haus</orth><orth>Heim</orth><orth>Haus</orth>
-              <quote>house</quote><quote>home</quote><quote>house</quote></entry></TEI>
-        """)
-        records = parse_freedict(source, "de-DE", "en-GB")
-        first = next(records)
-        second = next(records)
-        self.assertIsNot(first["values"], second["values"])
-        first["values"].append("changed")
-        self.assertEqual(second["values"], ["house", "home"])
-        third = next(records)
-        self.assertIsNot(third["values"], first["values"])
-        self.assertIsNot(third["values"], second["values"])
-        self.assertEqual(third["values"], ["house", "home"])
-        self.assertEqual(
-            [first["query"], second["query"], third["query"]], ["Haus", "Heim", "Haus"]
+    def leftovers(self):
+        directory = self.repository.path.parent
+        if not directory.exists():
+            return []
+        return sorted(
+            item.name for item in directory.iterdir() if item.name != self.repository.path.name
         )
-        self.assertEqual(list(records), [])
 
-    def test_pos_stops_reading_after_first_nonblank_value(self):
-        class UnreadablePos(ET.Element):
-            def itertext(self):
-                raise AssertionError("Later POS text must remain unread")
+    def install_core(self):
+        CoreWritingAssistanceInstaller(self.repository.path).install()
+        return self.repository.path.read_bytes()
 
-        root = ET.fromstring("""
-            <TEI><entry><orth>Haus</orth><pos/><pos> \t </pos>
-              <pos> n <hi>common</hi> noun </pos><quote>house</quote></entry></TEI>
-        """)
-        present(root.find("entry")).append(UnreadablePos("pos"))
-        with patch(
-            "quiltor.modules.writing_assistance.providers.freedict.ET.parse",
-            return_value=ET.ElementTree(root),
-        ):
-            (record,) = parse_freedict(io.BytesIO(), "de-DE", "en-GB")
-        self.assertEqual(record["part_of_speech"], "n common noun")
+    def test_asset_installs_with_full_coverage(self):
+        service = self.service(self.data)
+        self.assertTrue(service.status()["data"]["available"])
+        result = service.install()
+        self.assertEqual(result, {"ok": True, "version": RELEASE_VERSION, "entries": 2})
+        status = service.status()
+        self.assertTrue(status["installed"])
+        self.assertEqual(status["coverage"], "full")
+        self.assertEqual(status["data"]["bytes"], self.data["bytes"])
+        self.assertEqual(
+            service.lookup("de-DE", "translation", "Baum")["results"][0]["values"], ["tree"]
+        )
+        self.assertEqual(self.leftovers(), [])
+
+    def test_wrong_asset_digest_replaces_nothing(self):
+        before = self.install_core()
+        data = pinned(self.data, sha256="0" * 64)
+        with self.assertRaises(ChecksumMismatch) as raised:
+            install_release_asset(self.repository.path, data)
+        self.assertEqual(from_exception(raised.exception).status, 502)
+        self.assertEqual(self.repository.path.read_bytes(), before)
+        self.assertEqual(self.leftovers(), [])
+
+    def test_wrong_content_digest_replaces_nothing(self):
+        before = self.install_core()
+        data = pinned(self.data, content_sha256="0" * 64)
+        with self.assertRaises(ChecksumMismatch):
+            install_release_asset(self.repository.path, data)
+        self.assertEqual(self.repository.path.read_bytes(), before)
+        self.assertEqual(self.leftovers(), [])
+
+    def test_asset_of_another_version_is_refused(self):
+        other = build_release_asset(self.assets, "2026.12.01")
+        data = pinned(other, version=RELEASE_VERSION)
+        with self.assertRaises(ChecksumMismatch):
+            install_release_asset(self.repository.path, data)
+        self.assertFalse(self.repository.path.exists())
+
+    def test_truncated_download_fails(self):
+        data = pinned(self.data, bytes=self.data["bytes"] + 10)
+        with self.assertRaises(DownloadFailed):
+            install_release_asset(self.repository.path, data)
+        self.assertFalse(self.repository.path.exists())
+        self.assertEqual(self.leftovers(), [])
+
+    def test_oversized_download_is_cut_off(self):
+        data = pinned(self.data, bytes=self.data["bytes"] // 2)
+        with self.assertRaises(DownloadFailed):
+            install_release_asset(self.repository.path, data)
+        self.assertFalse(self.repository.path.exists())
+
+    def test_unreachable_url_fails_as_download(self):
+        data = pinned(self.data, url=(self.assets / "missing.gz").as_uri())
+        with self.assertRaises(DownloadFailed):
+            install_release_asset(self.repository.path, data)
+
+    def test_unpublished_data_fails_without_network(self):
+        service = self.service(None, opener=must_not_download)
+        status = service.status()
+        self.assertEqual(
+            status["data"],
+            {"available": False, "reason": "not_published", "version": None, "bytes": None},
+        )
+        self.assertFalse(status["installed"])
+        with self.assertRaises(DataNotPublished) as raised:
+            service.install()
+        error = from_exception(raised.exception)
+        self.assertEqual((error.status, error.code), (409, "writing_assistance.data_not_published"))
+        self.assertFalse(raised.exception.retryable)
+        self.assertFalse(self.repository.path.exists())
+        self.assertEqual(self.leftovers(), [])
+
+    def test_registry_ships_without_a_published_release(self):
+        # 3.25.0 (D-76): no data release exists yet, so none may be pinned.
+        self.assertIsNone(registry.DATA)
+        self.assertEqual(registry.MANIFEST_VERSION, registry.CORE_VERSION)
+        service = WritingAssistanceService(
+            self.repository,
+            ReleaseWritingAssistanceInstaller(self.repository.path, opener=must_not_download),
+            UnavailableGrammar(self.data_dir),
+        )
+        self.assertEqual(service.status()["data"]["reason"], "not_published")
+        with self.assertRaises(DataNotPublished):
+            service.install()
+
+    def test_second_install_while_one_runs_gets_409(self):
+        started = threading.Event()
+        release = threading.Event()
+        body = self.asset.read_bytes()
+
+        class Slow(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body[:10])
+                self.wfile.flush()
+                started.set()
+                release.wait(10)
+                self.wfile.write(body[10:])
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Slow)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        data = pinned(self.data, url=f"http://127.0.0.1:{server.server_address[1]}/asset.gz")
+        outcome = {}
+
+        def first():
+            try:
+                outcome["result"] = install_release_asset(self.repository.path, data)
+            except Exception as exc:  # reported through the assertion below
+                outcome["error"] = exc
+
+        worker = threading.Thread(target=first)
+        worker.start()
+        self.assertTrue(started.wait(10))
+        try:
+            with self.assertRaises(InstallInProgress) as raised:
+                install_release_asset(self.repository.path, data, opener=must_not_download)
+        finally:
+            release.set()
+            worker.join(10)
+        error = from_exception(raised.exception)
+        self.assertEqual(
+            (error.status, error.code), (409, "writing_assistance.install_in_progress")
+        )
+        self.assertTrue(raised.exception.retryable)
+        self.assertEqual(outcome, {"result": {"version": RELEASE_VERSION, "entries": 2}})
+        self.assertEqual(self.leftovers(), [])
+        # The lock is free again once the first install is done.
+        install_release_asset(self.repository.path, self.data)
 
 
 if __name__ == "__main__":

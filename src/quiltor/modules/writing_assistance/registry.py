@@ -1,6 +1,29 @@
 from __future__ import annotations
 
-MANIFEST_VERSION = "2026.08.09"
+from typing import Final, TypedDict
+
+
+class DataRelease(TypedDict):
+    """The prebuilt dictionary a release installs: one gzip asset of the data
+    release, pinned by its own digest and by the content digest of the SQLite
+    file inside (``tools/writing-data/build.py pack`` writes both)."""
+
+    version: str
+    url: str
+    sha256: str
+    bytes: int
+    content_sha256: str
+
+
+# None while no data release is published (3.25.0, D-76). An invented entry
+# would only lead to a 404, so the status says "not published" and install
+# refuses without touching the network.
+DATA: Final[DataRelease | None] = None
+
+# The version an installed database has to carry. Without a published release it
+# stays the built-in starter set's, so databases installed before keep working.
+CORE_VERSION: Final = "2026.08.09"
+MANIFEST_VERSION: Final = DATA["version"] if DATA is not None else CORE_VERSION
 
 SOURCES = {
     "wiktionary": {
@@ -17,22 +40,11 @@ SOURCES = {
         "license": "CC BY-SA 4.0",
         "attribution": "OpenThesaurus.de",
     },
-    "freedict-deu-eng": {
-        "version": "0.3",
-        "url": "https://download.freedict.org/dictionaries/deu-eng/0.3/freedict-deu-eng-0.3.src.tar.bz2",
-        "checksum": "sha512:4e9c1a3aac7bb34073f087fe2b7163d41ca2e31abeb7434bcdef34bbefca46d390e57e45cb730db2700a3daaf7dbba21f4f949f3ea6a74770f353ccdc5c18a85",
-        "license": "GPL (see dictionary TEI header)",
-        "attribution": "FreeDict deu-eng",
-    },
-    "freedict-eng-deu": {
-        "version": "0.3.6",
-        "url": "https://download.freedict.org/dictionaries/eng-deu/0.3.6/freedict-eng-deu-0.3.6.src.tar.bz2",
-        "checksum": "sha512:d4e7a751c00db462d964364047ff2194c3cad3a762150120f58cf3589ddf9c2df02c82f4f655d1446a4e021824b0d9f724efb666c69b19b00d05c7d4460c5a54",
-        "license": "GPL (see dictionary TEI header)",
-        "attribution": "FreeDict eng-deu",
-    },
 }
 
 
-def manifest() -> dict:
-    return {"version": MANIFEST_VERSION, "sources": SOURCES}
+def data_status(data: DataRelease | None = DATA) -> dict:
+    """Whether a dictionary can be downloaded at all, for the status route."""
+    if data is None:
+        return {"available": False, "reason": "not_published", "version": None, "bytes": None}
+    return {"available": True, "reason": None, "version": data["version"], "bytes": data["bytes"]}

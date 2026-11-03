@@ -6,7 +6,7 @@ import os
 import sqlite3
 import stat
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import closing
 from pathlib import Path
 
@@ -366,3 +366,47 @@ def version(path: Path) -> str | None:
             return row[0] if row else None
     except sqlite3.Error:
         return None
+
+
+# The dictionary tables in the order the canonical dump visits them, each with
+# the columns that make up its content. ``entries.id`` is left out: it only
+# records insertion order, which the sorted insert already fixes.
+CANONICAL_TABLES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("metadata", ("key", "value")),
+    (
+        "entries",
+        (
+            "language",
+            "mode",
+            "query",
+            "lemma",
+            "part_of_speech",
+            "meaning",
+            "values_json",
+            "source",
+        ),
+    ),
+    ("forms", ("language", "form", "lemma")),
+)
+
+
+def canonical_lines(path: Path) -> Iterator[bytes]:
+    """The database's content in a fixed text form, independent of SQLite's
+    version, page layout and header bytes: the DDL constant, then each table's
+    rows ordered by every column."""
+    yield SCHEMA.encode("utf-8")
+    with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as conn:
+        for table, columns in CANONICAL_TABLES:
+            yield f"-- {table}\n".encode()
+            listed = ",".join(columns)
+            for row in conn.execute(f"SELECT {listed} FROM {table} ORDER BY {listed}"):  # noqa: S608 - fixed table names
+                yield (
+                    json.dumps(list(row), ensure_ascii=False, separators=(",", ":")) + "\n"
+                ).encode()
+
+
+def content_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    for line in canonical_lines(path):
+        digest.update(line)
+    return digest.hexdigest()

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.infrastructure.persistence.writing_assistance import SQLiteWritingAssistanceRepository
-from quiltor.infrastructure.writing_assistance.installer import CoreWritingAssistanceInstaller
+from quiltor.infrastructure.writing_assistance.installer import ReleaseWritingAssistanceInstaller
 from quiltor.infrastructure.writing_assistance.languagetool import (
     LanguageToolManager,
     external_grammar_enabled,
@@ -19,7 +19,7 @@ def build_writing_assistance(
     data_dir: Path, capabilities: FeatureAvailability
 ) -> WritingAssistanceService:
     repository = SQLiteWritingAssistanceRepository(data_dir)
-    installer = CoreWritingAssistanceInstaller(repository.path)
+    installer = ReleaseWritingAssistanceInstaller(repository.path)
     # WRITING_ASSISTANCE_GRAMMAR is the local LanguageTool: a JAR download and
     # a Java process, which web and store builds may not have. An enabled
     # external server needs neither, only an HTTP request, so it is decided

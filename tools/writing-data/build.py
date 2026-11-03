@@ -39,7 +39,7 @@ from typing import Any, cast
 
 from quiltor.infrastructure.persistence.writing_assistance import (
     DICTIONARY_SCHEMA,
-    SCHEMA,
+    content_sha256,
     initialize,
     insert,
     insert_form,
@@ -100,27 +100,6 @@ SOURCE_LICENSES: dict[str, dict[str, str]] = {
     "dewiktionary": {"license": "CC-BY-SA-4.0", "license_url": LICENSE_URL},
     "openthesaurus": {"license": "CC-BY-SA-4.0", "license_url": LICENSE_URL},
 }
-
-# The dictionary tables in the order the canonical dump visits them, each with
-# the columns that make up its content. ``entries.id`` is left out: it only
-# records insertion order, which the sorted insert already fixes.
-CANONICAL_TABLES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("metadata", ("key", "value")),
-    (
-        "entries",
-        (
-            "language",
-            "mode",
-            "query",
-            "lemma",
-            "part_of_speech",
-            "meaning",
-            "values_json",
-            "source",
-        ),
-    ),
-    ("forms", ("language", "form", "lemma")),
-)
 
 Opener = Callable[[urllib.request.Request], Any]
 
@@ -367,31 +346,6 @@ def _write_final(
         )
         (form_count,) = conn.execute("SELECT COUNT(*) FROM forms").fetchone()
     return {"entries": modes, "forms": form_count}
-
-
-# --- canonical content hash ----------------------------------------------------
-
-
-def canonical_lines(path: Path) -> Iterator[bytes]:
-    """The database's content in a fixed text form, independent of SQLite's
-    version, page layout and header bytes: the DDL constant, then each table's
-    rows ordered by every column."""
-    yield SCHEMA.encode("utf-8")
-    with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as conn:
-        for table, columns in CANONICAL_TABLES:
-            yield f"-- {table}\n".encode()
-            listed = ",".join(columns)
-            for row in conn.execute(f"SELECT {listed} FROM {table} ORDER BY {listed}"):  # noqa: S608 - fixed table names
-                yield (
-                    json.dumps(list(row), ensure_ascii=False, separators=(",", ":")) + "\n"
-                ).encode()
-
-
-def content_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    for line in canonical_lines(path):
-        digest.update(line)
-    return digest.hexdigest()
 
 
 # --- pack --------------------------------------------------------------------

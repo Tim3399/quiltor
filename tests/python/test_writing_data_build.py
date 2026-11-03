@@ -23,6 +23,7 @@ from typing import Any, cast
 from quiltor.infrastructure.persistence.writing_assistance import (
     SCHEMA,
     SQLiteWritingAssistanceRepository,
+    canonical_lines,
     initialize,
     insert,
     insert_form,
@@ -323,7 +324,7 @@ class ReproducibilityTests(BuildCase):
         self.assertEqual(tool.content_sha256(built), tool.content_sha256(shuffled))
 
     def test_canonical_dump_starts_with_the_fixed_ddl(self) -> None:
-        self.assertEqual(next(iter(tool.canonical_lines(self.build()))), SCHEMA.encode("utf-8"))
+        self.assertEqual(next(iter(canonical_lines(self.build()))), SCHEMA.encode("utf-8"))
 
     def test_gzip_header_has_no_timestamp_and_no_file_name(self) -> None:
         database = self.build()
