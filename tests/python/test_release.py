@@ -31,6 +31,7 @@ import workflow_contract  # noqa: E402
 BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
 TEST_WORKFLOW = REPO_ROOT / ".github/workflows/test.yml"
+WRITING_DATA_WORKFLOW = REPO_ROOT / ".github/workflows/writing-data.yml"
 
 
 class VersionArithmeticTests(unittest.TestCase):
@@ -1906,6 +1907,140 @@ class WorkflowBoundaryTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "at workflow level"):
             workflow_contract.validate_security_events_scope(mutated)
+
+    def test_writing_data_publishes_only_on_its_switch(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_writing_data(sources)
+        source = sources[WRITING_DATA_WORKFLOW]
+
+        def check(mutated_source, message, path=WRITING_DATA_WORKFLOW):
+            mutated = dict(sources)
+            mutated[path] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_writing_data(mutated)
+
+        cases = (
+            ("missing", None, "is missing"),
+            (
+                "push trigger",
+                source.replace(
+                    "on:\n  workflow_dispatch:", "on:\n  push:\n  workflow_dispatch:", 1
+                ),
+                "started by hand",
+            ),
+            (
+                "schedule",
+                source.replace(
+                    "\nconcurrency:", "  schedule:\n    - cron: '0 3 1 * *'\n\nconcurrency:", 1
+                ),
+                "started by hand",
+            ),
+            (
+                "switch on by default",
+                source.replace("default: false", "default: true", 1),
+                "off by default",
+            ),
+            (
+                "switch not boolean",
+                source.replace("type: boolean", "type: string", 1),
+                "off by default",
+            ),
+            (
+                "write at workflow level",
+                source.replace(
+                    "permissions:\n  contents: read\n", "permissions:\n  contents: write\n", 1
+                ),
+                "only contents: read",
+            ),
+            (
+                "secret",
+                source.replace("${{ github.token }}", "${{ secrets.RELEASE_TOKEN }}", 1),
+                "secrets",
+            ),
+            (
+                "build job publishes",
+                source.replace(
+                    "    outputs:\n", "    permissions:\n      contents: write\n    outputs:\n", 1
+                ),
+                "build job may not publish",
+            ),
+            (
+                "publish job without write",
+                source.replace("    permissions:\n      contents: write\n", "", 1),
+                "only the writing-data publish job",
+            ),
+            (
+                "publish without switch",
+                source.replace("    if: inputs.publish\n", "", 1),
+                "publish switch",
+            ),
+            (
+                "marked latest",
+                source.replace("--latest=false", "--latest", 1),
+                "never be marked latest",
+            ),
+            (
+                "bare date tag",
+                source.replace('TAG="writing-data-$VERSION"', 'TAG="$VERSION"', 1),
+                "writing-data-<YYYY.MM.DD>",
+            ),
+            (
+                "no tag guard",
+                source.replace("^writing-data-[0-9]{4}", "^writing-data-.*", 1),
+                "writing-data-<YYYY.MM.DD>",
+            ),
+            (
+                "build job runs gh release",
+                source.replace(
+                    "          ls -l work/release\n",
+                    "          ls -l work/release\n          gh release upload x y\n",
+                    1,
+                ),
+                "build job may not publish",
+            ),
+            (
+                "third job writes",
+                source
+                + "\n  extra:\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write\n    steps:\n      - run: echo extra\n",
+                "only the writing-data publish job",
+            ),
+            (
+                "write moved out of the publish job",
+                source.replace("    permissions:\n      contents: write\n", "", 1)
+                + "\n  extra:\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write\n    steps:\n      - run: echo extra\n",
+                "only the writing-data publish job",
+            ),
+            (
+                "second release",
+                source + "      - run: gh release create extra\n",
+                "exactly one release",
+            ),
+        )
+        for name, mutated_source, message in cases:
+            with self.subTest(name=name):
+                if mutated_source is None:
+                    mutated = {
+                        path: text
+                        for path, text in sources.items()
+                        if path != WRITING_DATA_WORKFLOW
+                    }
+                    with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                        workflow_contract.validate_writing_data(mutated)
+                else:
+                    self.assertNotEqual(mutated_source, source, name)
+                    check(mutated_source, message)
+        with self.subTest(name="another workflow creates a data release"):
+            check(
+                sources[PUBLISH_WORKFLOW] + "# gh release create writing-data-2026.11.03\n",
+                "may not create writing-data releases",
+                PUBLISH_WORKFLOW,
+            )
+
+    def test_writing_data_tags_are_not_app_versions(self):
+        with self.assertRaises(previous_release.PreviousReleaseError):
+            previous_release.semantic_version("writing-data-2026.11.03")
+        with self.assertRaises(previous_release.PreviousReleaseError):
+            previous_release.semantic_version("2026.11.03.1")
 
     def test_release_packaging_toolchain_is_concretely_pinned(self):
         pins = {
