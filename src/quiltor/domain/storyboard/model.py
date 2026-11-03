@@ -1,3 +1,4 @@
+# pyright: strict
 """Pure Storyboard document values and structural validation.
 
 Storyboard is author-owned planning material.  This module deliberately knows
@@ -7,9 +8,11 @@ canvas library.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from math import isfinite
-from typing import Any, Literal, NotRequired, Required, TypedDict, TypeGuard
+from typing import Literal, NotRequired, Required, TypedDict, TypeGuard
 
+from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.notes import valid_note_marks
 
 DEFAULT_STORYBOARD_ID = "main-storyboard"
@@ -55,8 +58,8 @@ class StoryboardNode(TypedDict, total=False):
     zIndex: NotRequired[int]
     text: NotRequired[str]
     target: NotRequired[StoryboardReferenceTarget]
-    noteReferences: NotRequired[list[dict[str, Any]]]
-    noteMarks: NotRequired[list[dict[str, Any]]]
+    noteReferences: NotRequired[list[JsonObject]]
+    noteMarks: NotRequired[list[JsonObject]]
 
 
 class StoryboardEdge(TypedDict, total=False):
@@ -86,7 +89,7 @@ def default_storyboard_document() -> StoryboardDocument:
     }
 
 
-def valid_storyboard_document(value: Any) -> bool:
+def valid_storyboard_document(value: object) -> bool:
     """Validate local Storyboard invariants without consulting canonical data.
 
     External reference targets intentionally remain ID-only.  A deleted Figure,
@@ -95,30 +98,25 @@ def valid_storyboard_document(value: Any) -> bool:
     Board links and edges, in contrast, are local and must resolve here.
     """
 
-    if not _valid_json_value(value) or not isinstance(value, dict):
+    document = as_object(value)
+    if not _valid_json_value(value) or document is None:
         return False
-    boards = value.get("boards")
-    nodes = value.get("nodes")
-    edges = value.get("edges")
-    if not isinstance(boards, list) or not isinstance(nodes, list) or not isinstance(edges, list):
+    boards = as_array(document.get("boards"))
+    nodes = as_array(document.get("nodes"))
+    edges = as_array(document.get("edges"))
+    if boards is None or nodes is None or edges is None:
         return False
     if not boards or len(boards) > MAX_BOARDS or len(nodes) > MAX_NODES or len(edges) > MAX_EDGES:
         return False
 
     board_ids: set[str] = set()
     for board in boards:
-        if (
-            not isinstance(board, dict)
-            or not _non_empty_id(board.get("id"))
-            or not isinstance(board.get("title"), str)
-            or len(board["title"]) > MAX_TITLE_LENGTH
-            or board["id"] in board_ids
-        ):
+        if not _valid_board(board) or board["id"] in board_ids:
             return False
         board_ids.add(board["id"])
 
     node_ids: set[str] = set()
-    nodes_by_id: dict[str, dict[str, Any]] = {}
+    nodes_by_id: dict[str, StoryboardNode] = {}
     for node in nodes:
         if not _valid_node(node, board_ids) or node["id"] in node_ids:
             return False
@@ -133,46 +131,54 @@ def valid_storyboard_document(value: Any) -> bool:
     return True
 
 
-def _valid_node(value: Any, board_ids: set[str]) -> bool:
-    if not isinstance(value, dict):
+def _valid_board(value: object) -> TypeGuard[StoryboardBoard]:
+    board = as_object(value)
+    if board is None:
         return False
-    node_id = value.get("id")
-    board_id = value.get("boardId")
-    kind = value.get("kind")
+    title = board.get("title")
+    return (
+        _non_empty_id(board.get("id")) and isinstance(title, str) and len(title) <= MAX_TITLE_LENGTH
+    )
+
+
+def _valid_node(value: object, board_ids: set[str]) -> TypeGuard[StoryboardNode]:
+    node = as_object(value)
+    if node is None:
+        return False
+    node_id = node.get("id")
+    board_id = node.get("boardId")
+    kind = node.get("kind")
     if (
         not _non_empty_id(node_id)
         or not _non_empty_id(board_id)
         or board_id not in board_ids
         or not isinstance(kind, str)
         or kind not in _NODE_KINDS
-        or not _finite_coordinate(value.get("x"))
-        or not _finite_coordinate(value.get("y"))
+        or not _finite_coordinate(node.get("x"))
+        or not _finite_coordinate(node.get("y"))
     ):
         return False
     for dimension in ("width", "height"):
-        if dimension in value and (
-            not _finite_coordinate(value[dimension]) or value[dimension] <= 0
-        ):
+        size = node.get(dimension)
+        if dimension in node and (not _finite_coordinate(size) or size <= 0):
             return False
-    if kind == "group" and ("width" not in value or "height" not in value):
+    if kind == "group" and ("width" not in node or "height" not in node):
         return False
-    z_index = value.get("zIndex", 0)
+    z_index = node.get("zIndex", 0)
     if type(z_index) is not int or abs(z_index) > MAX_SAFE_INTEGER:
         return False
 
-    if "text" in value and (
-        not isinstance(value["text"], str) or len(value["text"]) > MAX_TEXT_LENGTH
-    ):
+    text = node.get("text")
+    if "text" in node and (not isinstance(text, str) or len(text) > MAX_TEXT_LENGTH):
         return False
-    if "label" in value and (
-        not isinstance(value["label"], str) or len(value["label"]) > MAX_TITLE_LENGTH
-    ):
+    label = node.get("label")
+    if "label" in node and (not isinstance(label, str) or len(label) > MAX_TITLE_LENGTH):
         return False
-    if kind == "note" and "text" not in value:
+    if kind == "note" and "text" not in node:
         return False
 
-    has_target = "target" in value
-    target = value.get("target")
+    has_target = "target" in node
+    target = node.get("target")
     if kind == "reference":
         if not _valid_target(target, _REFERENCE_KINDS):
             return False
@@ -182,18 +188,19 @@ def _valid_node(value: Any, board_ids: set[str]) -> bool:
     elif has_target:
         return False
 
-    return ("noteReferences" not in value or _valid_note_references(value, board_ids)) and (
-        "noteMarks" not in value or valid_note_marks(value, "text")
+    return ("noteReferences" not in node or _valid_note_references(node, board_ids)) and (
+        "noteMarks" not in node or valid_note_marks(node, "text")
     )
 
 
-def _valid_target(value: Any, allowed: set[str]) -> TypeGuard[dict[str, Any]]:
-    if not isinstance(value, dict):
+def _valid_target(value: object, allowed: set[str]) -> TypeGuard[StoryboardReferenceTarget]:
+    target = as_object(value)
+    if target is None:
         return False
-    kind = value.get("kind")
+    kind = target.get("kind")
     if not isinstance(kind, str) or kind not in allowed:
         return False
-    target_id = value.get("id")
+    target_id = target.get("id")
     if kind == "storyboard":
         return _non_empty_id(target_id)
     # Canonical source-document IDs predate Storyboard's bounded local IDs.
@@ -202,50 +209,50 @@ def _valid_target(value: Any, allowed: set[str]) -> TypeGuard[dict[str, Any]]:
 
 
 def _valid_edge(
-    value: Any,
+    value: object,
     board_ids: set[str],
-    nodes_by_id: dict[str, dict[str, Any]],
-) -> bool:
-    if not isinstance(value, dict):
+    nodes_by_id: Mapping[str, StoryboardNode],
+) -> TypeGuard[StoryboardEdge]:
+    edge = as_object(value)
+    if edge is None:
         return False
-    board_id = value.get("boardId")
-    source_id = value.get("sourceNodeId")
-    target_id = value.get("targetNodeId")
+    board_id = edge.get("boardId")
+    source_id = edge.get("sourceNodeId")
+    target_id = edge.get("targetNodeId")
     if not _non_empty_id(board_id) or not _non_empty_id(source_id) or not _non_empty_id(target_id):
         return False
     source = nodes_by_id.get(source_id)
     target = nodes_by_id.get(target_id)
+    label = edge.get("label", "")
+    color = edge.get("color", "auto")
+    line_style = edge.get("lineStyle", "solid")
     return (
-        _non_empty_id(value.get("id"))
+        _non_empty_id(edge.get("id"))
         and board_id in board_ids
         and source is not None
         and target is not None
         and source["boardId"] == board_id
         and target["boardId"] == board_id
-        and isinstance(value.get("label", ""), str)
-        and len(value.get("label", "")) <= MAX_TITLE_LENGTH
-        and ("directed" not in value or type(value["directed"]) is bool)
-        and isinstance(value.get("color", "auto"), str)
-        and value.get("color", "auto") in _EDGE_COLORS
-        and isinstance(value.get("lineStyle", "solid"), str)
-        and value.get("lineStyle", "solid") in _EDGE_LINE_STYLES
+        and isinstance(label, str)
+        and len(label) <= MAX_TITLE_LENGTH
+        and ("directed" not in edge or type(edge["directed"]) is bool)
+        and isinstance(color, str)
+        and color in _EDGE_COLORS
+        and isinstance(line_style, str)
+        and line_style in _EDGE_LINE_STYLES
     )
 
 
-def _valid_note_references(owner: dict[str, Any], board_ids: set[str]) -> bool:
+def _valid_note_references(owner: JsonObject, board_ids: set[str]) -> bool:
     text = owner.get("text", "")
-    references = owner.get("noteReferences")
-    if not isinstance(text, str) or not isinstance(references, list) or len(references) > 10_000:
+    references = as_array(owner.get("noteReferences"))
+    if not isinstance(text, str) or references is None or len(references) > 10_000:
         return False
     ids: set[str] = set()
     previous_end = -1
-    for reference in sorted(
-        references,
-        key=lambda item: (
-            item.get("from", -1) if isinstance(item, dict) and type(item.get("from")) is int else -1
-        ),
-    ):
-        if not isinstance(reference, dict):
+    for item in sorted(references, key=_reference_start):
+        reference = as_object(item)
+        if reference is None:
             return False
         start, end = reference.get("from"), reference.get("to")
         target = reference.get("target")
@@ -276,6 +283,14 @@ def _valid_note_references(owner: dict[str, Any], board_ids: set[str]) -> bool:
     return True
 
 
+def _reference_start(item: object) -> int:
+    """The sort key of a note reference: its integer start, or -1 for anything else."""
+
+    reference = as_object(item)
+    start = None if reference is None else reference.get("from", -1)
+    return start if type(start) is int else -1
+
+
 def _utf16_offsets_to_indices(text: str, offsets: tuple[int, int]) -> tuple[int, int] | None:
     wanted = set(offsets)
     found: dict[int, int] = {}
@@ -291,32 +306,32 @@ def _utf16_offsets_to_indices(text: str, offsets: tuple[int, int]) -> tuple[int,
     return found[offsets[0]], found[offsets[1]]
 
 
-def _non_empty_id(value: Any) -> TypeGuard[str]:
+def _non_empty_id(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and 1 <= len(value) <= MAX_ID_LENGTH and value == value.strip()
 
 
-def _finite_number(value: Any) -> bool:
+def _finite_number(value: object) -> TypeGuard[int | float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value)
 
 
-def _finite_coordinate(value: Any) -> bool:
+def _finite_coordinate(value: object) -> TypeGuard[int | float]:
     return _finite_number(value) and abs(value) <= MAX_SAFE_INTEGER
 
 
-def _valid_json_value(value: Any, depth: int = 0) -> bool:
+def _valid_json_value(value: object, depth: int = 0) -> bool:
     if depth > 100:
         return False
     if value is None or isinstance(value, (str, bool, int)):
         return True
     if isinstance(value, float):
         return isfinite(value)
-    if isinstance(value, list):
-        return all(_valid_json_value(item, depth + 1) for item in value)
-    if isinstance(value, dict):
-        return all(
-            isinstance(key, str) and _valid_json_value(item, depth + 1)
-            for key, item in value.items()
-        )
+    items = as_array(value)
+    if items is not None:
+        return all(_valid_json_value(item, depth + 1) for item in items)
+    # as_object refuses a dict with a key that is not a str, as JSON has none.
+    entries = as_object(value)
+    if entries is not None:
+        return all(_valid_json_value(item, depth + 1) for item in entries.values())
     return False
 
 
