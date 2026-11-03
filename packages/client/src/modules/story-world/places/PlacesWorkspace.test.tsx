@@ -422,6 +422,24 @@ describe("PlacesWorkspace map overlays", () => {
     expect(onChange.mock.calls.at(-1)?.[0].nodes).toHaveLength(state.nodes.length + 2);
   });
 
+  it("centers the view on a navigation target", async () => {
+    flowInstance.setCenter.mockClear();
+    render(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={state}
+          onChange={vi.fn()}
+          onOpen={vi.fn()}
+          targetId="b"
+          targetRequestId={1}
+        />
+      </I18nProvider>,
+    );
+    await waitFor(() =>
+      expect(flowInstance.setCenter).toHaveBeenCalledWith(300, 0, expect.anything()),
+    );
+  });
+
   it("reselects a repeated navigation target after an internal selection", () => {
     const view = render(
       <I18nProvider>
