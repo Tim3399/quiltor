@@ -1,3 +1,4 @@
+# pyright: strict
 """Authoritative, idempotent decisions made before story-world creation.
 
 The public mappings returned by the application layer are audit receipts.  They are
@@ -16,6 +17,7 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any, Literal
 
+from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name, resolve_entity
 
 ResolutionProofStatus = Literal["not_found", "resolved", "ambiguous", "invalid"]
@@ -54,8 +56,13 @@ class ResolutionProof:
     _authority: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        if self.checked is not True or self._authority is not _PROOF_AUTHORITY:
+        if self.checked is not True or not self.is_authoritative():
             raise TypeError("resolution proofs can only be created by the domain resolver")
+
+    def is_authoritative(self) -> bool:
+        """Whether the domain resolver itself created this proof."""
+
+        return self._authority is _PROOF_AUTHORITY
 
 
 @dataclass(frozen=True)
@@ -79,11 +86,12 @@ class WorldResolutionContext:
 
     def __post_init__(self) -> None:
         _require_revision(self.world_revision)
-        if not isinstance(self.story_world, dict):
+        # Callers outside strict typing may hand in anything; the check is the contract.
+        if as_object(self.story_world) is None:
             raise TypeError("story_world must be a mapping snapshot")
 
 
-def _require_revision(value: Any) -> int:
+def _require_revision(value: object) -> int:
     if type(value) is not int or value < 0 or value > MAX_SAFE_WORLD_REVISION:
         raise ValueError("world_revision must be a non-negative safe integer")
     return value
@@ -97,13 +105,20 @@ def _stable_id(value: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _unwrap_staged(value: Mapping[str, Any], nested_key: str | None) -> dict[str, Any]:
-    if nested_key and isinstance(value.get(nested_key), Mapping):
-        unwrapped = deepcopy(dict(value[nested_key]))
+def _rows(value: object) -> list[JsonObject]:
+    """The object items of a story-world collection; anything else is not an object."""
+
+    return [row for row in map(as_object, as_array(value or []) or []) if row is not None]
+
+
+def _unwrap_staged(value: JsonObject, nested_key: str | None) -> dict[str, Any]:
+    nested = as_object(value.get(nested_key)) if nested_key else None
+    if nested is not None:
+        unwrapped: dict[str, Any] = deepcopy(nested)
         if "tempId" not in unwrapped and isinstance(value.get("tempId"), str):
             unwrapped["tempId"] = value["tempId"]
         return unwrapped
-    return deepcopy(dict(value))
+    return deepcopy(value)
 
 
 def _synthetic_staged_id(collection: str, item: Mapping[str, Any]) -> str | None:
@@ -111,7 +126,7 @@ def _synthetic_staged_id(collection: str, item: Mapping[str, Any]) -> str | None
 
     if collection == "relationships":
         source, target = item.get("from"), item.get("to")
-        directed = item.get("directed", item.get("directed", False))
+        directed = item.get("directed", False)
         if not isinstance(source, str) or not isinstance(target, str) or type(directed) is not bool:
             return None
         endpoints = (source, target) if directed else tuple(sorted((source, target)))
@@ -130,14 +145,15 @@ def _synthetic_staged_id(collection: str, item: Mapping[str, Any]) -> str | None
 
 
 def _normalized_staged(
-    values: Sequence[Mapping[str, Any]],
+    values: Sequence[object],
     *,
     nested_key: str | None,
     collection: str,
 ) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
-    for value in values:
-        if not isinstance(value, Mapping):
+    for raw in values:
+        value = as_object(raw)
+        if value is None:
             raise TypeError(f"staged {collection} entries must be mappings")
         item = _unwrap_staged(value, nested_key)
         identifier = _stable_id(item) or _synthetic_staged_id(collection, item)
@@ -145,8 +161,8 @@ def _normalized_staged(
             raise ValueError(f"staged {collection} entries need a stable id or tempId")
         item["id"] = identifier
         if collection == "elements":
-            aliases = item.get("aliases")
-            if isinstance(aliases, list):
+            aliases = as_array(item.get("aliases"))
+            if aliases is not None:
                 item["aliases"] = [
                     {"alias": alias, "source": "assistant"}
                     if isinstance(alias, str)
@@ -154,29 +170,31 @@ def _normalized_staged(
                     for alias in aliases
                 ]
         if collection == "relationships" and "directed" not in item:
-            item["directed"] = item.get("directed", False)
+            item["directed"] = False
         normalized.append(item)
     return normalized
 
 
 def _merge_collection(
-    current: Any,
-    staged: Sequence[Mapping[str, Any]],
+    current: object,
+    staged: Sequence[object],
     *,
     nested_key: str | None,
     collection: str,
-) -> list[Any]:
+) -> list[object]:
+    items = as_array(current)
     if current is None:
-        existing: list[Any] = []
-    elif isinstance(current, list):
-        existing = deepcopy(current)
+        existing: list[object] = []
+    elif items is not None:
+        existing = deepcopy(items)
     else:
         raise TypeError(f"story_world {collection} must be a list")
-    positions = {
-        item["id"]: index
-        for index, item in enumerate(existing)
-        if isinstance(item, dict) and isinstance(item.get("id"), str)
-    }
+    positions: dict[str, int] = {}
+    for index, entry in enumerate(existing):
+        row = as_object(entry)
+        identifier = row.get("id") if row is not None else None
+        if isinstance(identifier, str):
+            positions[identifier] = index
     for item in _normalized_staged(
         staged,
         nested_key=nested_key,
@@ -192,20 +210,21 @@ def _merge_collection(
 
 
 def build_resolution_context(
-    story_world: Mapping[str, Any],
+    story_world: object,
     world_revision: int,
     *,
-    staged_elements: Sequence[Mapping[str, Any]] = (),
-    staged_relationships: Sequence[Mapping[str, Any]] = (),
-    staged_moments: Sequence[Mapping[str, Any]] = (),
-    staged_presence: Sequence[Mapping[str, Any]] = (),
+    staged_elements: Sequence[object] = (),
+    staged_relationships: Sequence[object] = (),
+    staged_moments: Sequence[object] = (),
+    staged_presence: Sequence[object] = (),
 ) -> WorldResolutionContext:
     """Copy a world and fold accepted earlier proposals into its resolver view."""
 
     _require_revision(world_revision)
-    if not isinstance(story_world, Mapping):
+    source = as_object(story_world)
+    if source is None:
         raise TypeError("story_world must be a mapping")
-    snapshot = deepcopy(dict(story_world))
+    snapshot: dict[str, Any] = deepcopy(source)
     snapshot["nodes"] = _merge_collection(
         snapshot.get("nodes"),
         staged_elements,
@@ -280,8 +299,9 @@ def _decision(
     )
 
 
-def _mapping(value: Any) -> dict[str, Any] | None:
-    return deepcopy(dict(value)) if isinstance(value, Mapping) else None
+def _mapping(value: object) -> dict[str, Any] | None:
+    candidate = as_object(value)
+    return deepcopy(candidate) if candidate is not None else None
 
 
 def _text(value: Any) -> str | None:
@@ -296,27 +316,31 @@ def _node(context: WorldResolutionContext, identifier: str) -> dict[str, Any] | 
     return next(
         (
             deepcopy(node)
-            for node in context.story_world.get("nodes") or []
-            if isinstance(node, dict) and node.get("id") == identifier
+            for node in _rows(context.story_world.get("nodes"))
+            if node.get("id") == identifier
         ),
         None,
     )
 
 
-def _alias_records(value: Any) -> tuple[list[str], list[dict[str, str]]] | None:
+def _alias_records(value: object) -> tuple[list[str], list[dict[str, str]]] | None:
     if value is None:
         return [], []
-    if not isinstance(value, list):
+    items = as_array(value)
+    if items is None:
         return None
     aliases: list[str] = []
     records: list[dict[str, str]] = []
-    for item in value:
+    for item in items:
+        record = as_object(item)
+        alias: object
+        source: object
         if isinstance(item, str):
             alias = item
             source = "manual"
-        elif isinstance(item, Mapping):
-            alias = item.get("alias")
-            source = item.get("source", "manual")
+        elif record is not None:
+            alias = record.get("alias")
+            source = record.get("source", "manual")
         else:
             alias = None
             source = None
@@ -450,16 +474,14 @@ def _resolved_reference(
 
 
 def _directed(value: Mapping[str, Any]) -> bool | None:
-    supplied = [value[key] for key in ("directed", "directed") if key in value]
-    if any(type(item) is not bool for item in supplied):
-        return None
-    if len(supplied) == 2 and supplied[0] != supplied[1]:
-        return None
-    return supplied[0] if supplied else False
+    # Once two spellings were compared here; since the German one was migrated away,
+    # only `directed` remains, and it has to be a bool when it is given.
+    directed = value.get("directed", False)
+    return directed if type(directed) is bool else None
 
 
 def _edge_directed(edge: Mapping[str, Any]) -> bool:
-    return bool(edge.get("directed", edge.get("directed", False)))
+    return bool(edge.get("directed", False))
 
 
 def _same_edge(edge: Mapping[str, Any], source: str, target: str, directed: bool) -> bool:
@@ -539,7 +561,7 @@ def ensure_relationship(
             status="invalid",
             candidate_ids=candidates,
         )
-    canonical = deepcopy(value)
+    canonical: dict[str, Any] = deepcopy(value)
     canonical.pop("directed", None)
     canonical.update(
         {
@@ -552,8 +574,8 @@ def ensure_relationship(
     )
     matches = [
         edge
-        for edge in context.story_world.get("edges") or []
-        if isinstance(edge, dict) and _same_edge(edge, source_id, target_id, directed)
+        for edge in _rows(context.story_world.get("edges"))
+        if _same_edge(edge, source_id, target_id, directed)
     ]
     edge_ids = [edge.get("id") for edge in matches]
     if not matches:
@@ -580,7 +602,7 @@ def ensure_relationship(
     changed = ("label" in value and value["label"] != existing.get("label", "")) or (
         "style" in value and value["style"] != existing.get("style", "solid")
     )
-    existing_canonical = {
+    existing_canonical: dict[str, Any] = {
         **existing,
         "from": source_id,
         "to": target_id,
@@ -647,7 +669,7 @@ def ensure_timeline_moment(
     mention = title or identifier or ""
     if value is None or not _valid_moment_candidate(value):
         return _decision(context, "timeline_moment", "invalid", mention, status="invalid")
-    moments = [item for item in context.story_world.get("timeline") or [] if isinstance(item, dict)]
+    moments = _rows(context.story_world.get("timeline"))
     if identifier is not None:
         exact = [item for item in moments if item.get("id") == identifier]
         if exact:
@@ -713,8 +735,7 @@ def ensure_timeline_moment(
 
 def _moment_exists(context: WorldResolutionContext, identifier: str) -> bool:
     return any(
-        isinstance(moment, dict) and moment.get("id") == identifier
-        for moment in context.story_world.get("timeline") or []
+        moment.get("id") == identifier for moment in _rows(context.story_world.get("timeline"))
     )
 
 
@@ -787,10 +808,8 @@ def ensure_presence(
         canonical["momentId"] = raw_moment
     matches = [
         item
-        for item in context.story_world.get("presence") or []
-        if isinstance(item, dict)
-        and item.get("elementId") == element_id
-        and item.get("momentId") == raw_moment
+        for item in _rows(context.story_world.get("presence"))
+        if item.get("elementId") == element_id and item.get("momentId") == raw_moment
     ]
     presence_ids = [item.get("id") for item in matches]
     if not matches:
@@ -931,10 +950,10 @@ def ensure_alias(
     )
 
 
-def require_current_world_revision(proof: ResolutionProof, current_world_revision: int) -> None:
+def require_current_world_revision(proof: object, current_world_revision: int) -> None:
     """Reject forged receipts and decisions made against a stale world snapshot."""
 
-    if not isinstance(proof, ResolutionProof) or proof._authority is not _PROOF_AUTHORITY:
+    if not isinstance(proof, ResolutionProof) or not proof.is_authoritative():
         raise TypeError("an authoritative in-process resolution proof is required")
     current = _require_revision(current_world_revision)
     if proof.world_revision != current:
