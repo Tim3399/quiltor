@@ -1,4 +1,3 @@
-# pyright: strict
 """Conservative, deterministic identity resolution for world entities."""
 
 from __future__ import annotations

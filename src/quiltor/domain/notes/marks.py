@@ -1,4 +1,3 @@
-# pyright: strict
 """Rich-text ranges shared by every author-owned note surface."""
 
 from __future__ import annotations

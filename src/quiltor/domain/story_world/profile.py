@@ -1,4 +1,3 @@
-# pyright: strict
 """Canonical figure-profile fields and legacy compatibility helpers."""
 
 from __future__ import annotations

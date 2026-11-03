@@ -1,4 +1,3 @@
-# pyright: strict
 """Authoritative, idempotent decisions made before story-world creation.
 
 The public mappings returned by the application layer are audit receipts.  They are

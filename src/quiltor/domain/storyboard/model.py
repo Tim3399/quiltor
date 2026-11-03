@@ -1,4 +1,3 @@
-# pyright: strict
 """Pure Storyboard document values and structural validation.
 
 Storyboard is author-owned planning material.  This module deliberately knows

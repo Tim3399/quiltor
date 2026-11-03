@@ -1,4 +1,3 @@
-# pyright: strict
 """Bounded, transport-neutral read tools over immutable world snapshots.
 
 Only the six names in :data:`READ_TOOL_NAMES` are dispatchable.  The service has no

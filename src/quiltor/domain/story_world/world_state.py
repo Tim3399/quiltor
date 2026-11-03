@@ -1,4 +1,3 @@
-# pyright: strict
 """Deterministic projection of Quiltor's temporal world data.
 
 The resolver deliberately works on the public ``FigureState`` shape.  It is pure

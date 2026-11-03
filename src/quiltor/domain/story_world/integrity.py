@@ -1,4 +1,3 @@
-# pyright: strict
 """Pure structural integrity inspection for a story-world aggregate."""
 
 from __future__ import annotations

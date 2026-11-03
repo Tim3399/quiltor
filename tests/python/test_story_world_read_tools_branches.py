@@ -307,6 +307,33 @@ class ReadToolCatalogMethodTest(unittest.TestCase):
         self.assertEqual(StoryWorldReadTools().catalog(), read_tool_catalog())
 
 
+class ReadToolNonJsonInputTest(unittest.TestCase):
+    """Snapshots that cannot come out of JSON are refused (T-19 P10).
+
+    A mapping with a key that is not a string is not a decoded document, so the read tools
+    treat it as an invalid snapshot rather than reading around it.
+    """
+
+    def test_a_snapshot_with_a_key_that_is_not_a_string_is_invalid(self):
+        cases = ({1: "x", **_world()}, {**_world(), 2: "y"})
+        for figures in cases:
+            with self.subTest(figures=sorted(map(str, figures))):
+                self.assertEqual(
+                    run("get_entity", {"elementId": "ada"}, figures=figures),
+                    error("get_entity", "invalid_snapshot"),
+                )
+        self.assertEqual(
+            run("get_entity", {"elementId": "ada"}, manuscript={1: "x"}),
+            error("get_entity", "invalid_snapshot"),
+        )
+
+    def test_a_profile_with_a_key_that_is_not_a_string_is_left_out_of_the_entity(self):
+        world = _world()
+        world["nodes"][0]["profile"] = {1: "x", "notes": "n"}
+        result = run("get_entity", {"elementId": "ada"}, figures=world)["result"]
+        self.assertNotIn("profile", result["entity"])
+
+
 class ReadToolBatchTest(unittest.TestCase):
     def many(
         self, calls: Any, revision: Any = REVISION, figures: Any = None, manuscript: Any = None

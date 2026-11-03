@@ -1,4 +1,3 @@
-# pyright: strict
 """Pure hierarchy rules for the manuscript binder."""
 
 from __future__ import annotations

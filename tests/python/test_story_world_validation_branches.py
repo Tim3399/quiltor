@@ -672,6 +672,38 @@ class FigureValidationBranchTests(unittest.TestCase):
                 self.assertFalse(valid_figures(payload))
 
 
+class FormerCrashTests(unittest.TestCase):
+    """Inputs that used to raise inside the validators and are refused now (T-19 P4).
+
+    The API turns a raised error into a 500 and a refusal into a 400, so these are a
+    deliberate change in behaviour, not a refactoring accident.
+    """
+
+    def test_a_node_that_is_not_an_object_is_rejected(self) -> None:
+        for node in ("ada", 5, None, ["ada"]):
+            with self.subTest(node=node):
+                document = figures()
+                document["nodes"].append(node)
+                self.assertFalse(valid_figures(document))
+
+    def test_a_place_without_an_id_but_with_a_parent_is_rejected(self) -> None:
+        document = figures()
+        document["nodes"].append(
+            {"name": "X", "x": 0, "y": 0, "type": "ort", "parentPlaceId": "harbor"}
+        )
+        self.assertFalse(valid_figures(document))
+
+    def test_an_unhashable_note_reference_target_kind_is_rejected(self) -> None:
+        document = figures()
+        document["nodes"][0]["profile"]["noteReferences"][0]["target"]["kind"] = ["entity"]
+        self.assertFalse(valid_figures(document))
+
+    def test_an_unhashable_chapter_mark_kind_is_rejected(self) -> None:
+        document = manuscript()
+        document["chapters"][0]["marks"] = [{"kind": ["bold"], "from": 0, "to": 1}]
+        self.assertFalse(valid_manuscript(document))
+
+
 class ManuscriptValidationBranchTests(unittest.TestCase):
     def test_every_manuscript_rejection_is_rejected(self) -> None:
         for name, case in MANUSCRIPT_REJECTIONS.items():

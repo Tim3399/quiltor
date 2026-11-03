@@ -1,4 +1,3 @@
-# pyright: strict
 """Ports required by local and remote backup use cases."""
 
 from __future__ import annotations

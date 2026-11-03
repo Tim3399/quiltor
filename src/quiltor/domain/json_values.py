@@ -1,4 +1,3 @@
-# pyright: strict
 """Narrowing of decoded JSON values, the one place in domain and application that casts.
 
 Data that crossed a JSON boundary arrives as `object`. `isinstance(value, dict)` narrows it

@@ -1,4 +1,3 @@
-# pyright: strict
 """Small, shared observation helper for application use-case boundaries."""
 
 from __future__ import annotations

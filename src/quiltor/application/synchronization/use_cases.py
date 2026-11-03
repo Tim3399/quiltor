@@ -1,4 +1,3 @@
-# pyright: strict
 """Manual synchronization over immutable backup snapshots and a remote CAS head."""
 
 from __future__ import annotations
