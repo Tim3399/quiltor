@@ -484,7 +484,7 @@ FIGURE_ACCEPTANCES: dict[str, Case] = {
     "without presence": _drop(("presence",)),
     "without time system": _drop(("timeSystem",)),
     "relative abstract time": _set(
-        TIME_SYSTEM, {"id": "r", "name": "Relativ", "kind": "relative", "unit": "abstract"}
+        TIME_SYSTEM, {"id": "r", "name": "Erzählzeit", "kind": "relative", "unit": "abstract"}
     ),
     "gregorian calendar": _set(
         TIME_SYSTEM,
