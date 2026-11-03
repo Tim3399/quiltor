@@ -249,6 +249,30 @@ describe("NoteEditor", () => {
     expect(onFocusRequest).toHaveBeenCalledWith({ kind: "place", id: "harbour" });
   });
 
+  it("closes the focus surface when the editor moves to another owner", () => {
+    const note = (id: string) => (
+      <NoteEditor
+        owner={{ kind: "place", id }}
+        label="Notiz"
+        value=""
+        onChange={vi.fn()}
+        focus={focus}
+      />
+    );
+    const view = renderNote(note("harbour"));
+    fireEvent.click(screen.getByRole("button", { name: "Im Fokus öffnen" }));
+    expect(screen.getByRole("dialog", { name: "Notiz · Hafen" })).toBeInTheDocument();
+
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {note("castle")}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("edits the same controlled note in a nearly full focus surface", async () => {
     function ControlledNote() {
       const [value, setValue] = useState("Alter Gedanke");
