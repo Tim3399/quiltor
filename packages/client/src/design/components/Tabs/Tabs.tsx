@@ -4,7 +4,6 @@ import {
   type HTMLAttributes,
   type ReactNode,
   useContext,
-  useEffect,
   useId,
   useState,
 } from "react";
@@ -50,9 +49,14 @@ export function Tabs({
 }: TabsProps) {
   const id = useId();
   const [focusedValue, setFocusedValue] = useState(value);
+  const [syncedValue, setSyncedValue] = useState(value);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-  useEffect(() => setFocusedValue(value), [value]);
+  // The tab stop follows a value changed by the owner. Adjusting during render lets React
+  // redo this render at once, so no frame is committed with the old tab stop.
+  if (syncedValue !== value) {
+    setSyncedValue(value);
+    setFocusedValue(value);
+  }
 
   return (
     <TabsContext.Provider
