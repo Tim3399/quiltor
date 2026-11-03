@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import re
@@ -58,6 +59,55 @@ IMAGE_SPECS = (
 
 class ManifestError(ValueError):
     pass
+
+
+SCHEMA_VERSION = 7
+WRITING_DATA_REGISTRY = REPO_ROOT / "src/quiltor/modules/writing_assistance/registry.py"
+_UNSET: Any = object()
+
+
+def pinned_writing_data(registry: Path = WRITING_DATA_REGISTRY) -> dict[str, Any] | None:
+    """Read the registry's ``DATA`` literal without importing the application."""
+
+    try:
+        tree = ast.parse(registry.read_text(encoding="utf-8"), str(registry))
+    except (OSError, SyntaxError) as error:
+        raise ManifestError(f"cannot read the writing data registry {registry}: {error}") from error
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign):
+            target, literal = node.target, node.value
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, literal = node.targets[0], node.value
+        else:
+            continue
+        if isinstance(target, ast.Name) and target.id == "DATA" and literal is not None:
+            try:
+                value = ast.literal_eval(literal)
+            except ValueError as error:
+                raise ManifestError("the writing data registry DATA must be a literal") from error
+            if value is not None and not isinstance(value, dict):
+                raise ManifestError("the writing data registry DATA must be a dict or None")
+            return value
+    raise ManifestError(f"the writing data registry has no DATA pin: {registry}")
+
+
+def data_asset_records(data: dict[str, Any] | None = _UNSET) -> list[dict[str, object]]:
+    """The data assets a release refers to; they are not attached to the app release."""
+
+    if data is _UNSET:
+        data = pinned_writing_data()
+    if data is None:
+        return []
+    url = data.get("url")
+    digest = data.get("sha256")
+    size = data.get("bytes")
+    if not isinstance(url, str) or not re.fullmatch(r"https://[^\s]+/[^/\s]+", url):
+        raise ManifestError("pinned writing data url is invalid")
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ManifestError("pinned writing data sha256 is invalid")
+    if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
+        raise ManifestError("pinned writing data bytes must be a positive integer")
+    return [{"name": url.rsplit("/", 1)[1], "url": url, "sha256": digest, "bytes": size}]
 
 
 def native_targets(repo_root: Path = REPO_ROOT) -> dict[str, bool]:
@@ -218,12 +268,14 @@ def create(
     images: Mapping[str, str],
     artifacts: list[Path],
     repo_root: Path = REPO_ROOT,
+    *,
+    data: dict[str, Any] | None = _UNSET,
 ) -> dict[str, object]:
     _validate_identity(version, source_revision)
     image_output = image_records(images)
     artifact_output = _artifact_records(version, artifacts, repo_root)
     return {
-        "schemaVersion": 6,
+        "schemaVersion": SCHEMA_VERSION,
         "version": version,
         "sourceRevision": source_revision,
         "profiles": _published_profiles(repo_root),
@@ -231,6 +283,7 @@ def create(
         "images": image_output,
         "dependencyLocks": dependency_lock_records(),
         "signatures": signature_specs(version, repo_root),
+        "dataAssets": data_asset_records(data),
     }
 
 
@@ -299,7 +352,9 @@ def _canonical_loaded_images(value: object) -> list[dict[str, object]]:
     return canonical
 
 
-def load(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, object]:
+def load(
+    path: Path, repo_root: Path = REPO_ROOT, *, data: dict[str, Any] | None = _UNSET
+) -> dict[str, object]:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -313,6 +368,7 @@ def load(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, object]:
         "images",
         "dependencyLocks",
         "signatures",
+        "dataAssets",
     }
     if not isinstance(manifest, dict) or set(manifest) != expected_keys:
         raise ManifestError("release manifest has missing or unknown fields")
@@ -323,7 +379,7 @@ def load(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, object]:
     if manifest["dependencyLocks"] != locks:
         raise ManifestError("release manifest dependency locks are not canonical")
     canonical = {
-        "schemaVersion": 6,
+        "schemaVersion": SCHEMA_VERSION,
         "version": manifest["version"],
         "sourceRevision": manifest["sourceRevision"],
         "profiles": _published_profiles(repo_root),
@@ -331,6 +387,7 @@ def load(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, object]:
         "images": images,
         "dependencyLocks": locks,
         "signatures": signature_specs(manifest["version"], repo_root),
+        "dataAssets": data_asset_records(data),
     }
     if manifest != canonical:
         raise ManifestError("release manifest does not match the canonical artifact contract")
@@ -419,9 +476,12 @@ def verify(
     artifact_dir: Path,
     expected_revision: str | None = None,
     repo_root: Path = REPO_ROOT,
+    *,
+    data: dict[str, Any] | None = _UNSET,
 ) -> dict[str, object]:
-    # load() validated the manifest's shape; the loops below index into it.
-    manifest: dict[str, Any] = load(path, repo_root)
+    # load() validated the manifest's shape, the pinned dataAssets included; the loops below
+    # index into it. dataAssets live in their own data release and are not downloaded here.
+    manifest: dict[str, Any] = load(path, repo_root, data=data)
     if expected_revision and manifest["sourceRevision"] != expected_revision:
         raise ManifestError(
             f"manifest revision {manifest['sourceRevision']} does not match {expected_revision}"
@@ -506,6 +566,8 @@ def main(argv: list[str] | None = None, *, repo_root: Path = REPO_ROOT) -> int:
                 print(artifact["name"])
             for signature in manifest["signatures"]:
                 print(signature["record"])
+            # dataAssets stay out: they belong to their own data release, and the publisher
+            # attaches every listed file from the verified build.
         else:
             targets = native_targets(repo_root)
             for specification in NATIVE_TARGET_SPECS:

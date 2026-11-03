@@ -2,6 +2,7 @@
 
 import contextlib
 import functools
+import hashlib
 import inspect
 import io
 import json
@@ -843,7 +844,8 @@ class ReleaseManifestTests(unittest.TestCase):
                 self.assertEqual(manifest["profiles"], profiles)
                 self.assertEqual([item["name"] for item in manifest["artifacts"]], names)
                 self.assertEqual({item["scheme"] for item in manifest["signatures"]}, schemes)
-                self.assertEqual(manifest["schemaVersion"], 6)
+                self.assertEqual(manifest["schemaVersion"], 7)
+                self.assertEqual(manifest["dataAssets"], release_manifest.data_asset_records())
                 self.assertEqual(manifest["sourceRevision"], "a" * 40)
                 self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["artifacts"]))
                 self.assertEqual(manifest["images"], release_manifest.image_records(self._images()))
@@ -4233,6 +4235,258 @@ class PreflightCiScopeTests(unittest.TestCase):
                     self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
                 ):
                     workflow_contract.validate_preflight_coverage(sources)
+
+
+WRITING_DATA_PIN: dict[str, Any] = {
+    "version": "2026.11.03",
+    "url": (
+        "https://github.com/Tim3399/quiltor/releases/download/"
+        "writing-data-2026.11.03/writing-2026.11.03.sqlite3.gz"
+    ),
+    "sha256": "ab" * 32,
+    "bytes": 6,
+    "content_sha256": "cd" * 32,
+    "license": "CC BY-SA 4.0",
+}
+
+
+def _own_repository() -> str:
+    match = re.search(
+        r'^Homepage = "https://github\.com/([^/"]+/[^/"]+)"$',
+        (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match is not None, "pyproject.toml names no GitHub homepage"
+    return match.group(1)
+
+
+def assert_writing_data_pin(data: dict[str, Any] | None) -> None:
+    """The offline half of the pinned-data check: a set pin is complete and points home."""
+
+    if data is None:
+        return
+    missing = {"version", "url", "sha256", "bytes", "content_sha256", "license"} - set(data)
+    assert not missing, f"writing data pin is missing {sorted(missing)}"
+    prefix = f"https://github.com/{_own_repository()}/releases/download/writing-data-"
+    assert str(data["url"]).startswith(prefix), f"writing data url must start with {prefix}"
+    for field in ("sha256", "content_sha256"):
+        assert re.fullmatch(r"[0-9a-f]{64}", str(data[field])), f"{field} is not 64 hex digits"
+    assert isinstance(data["bytes"], int) and data["bytes"] > 0, "bytes must be positive"
+    assert isinstance(data["license"], str) and data["license"].strip(), "license is not set"
+
+
+class WritingDataReleaseContractTests(unittest.TestCase):
+    """T-88 D4: the app release refers to the pinned writing data without carrying it."""
+
+    def test_registry_pin_is_none_or_complete(self):
+        assert_writing_data_pin(release_manifest.pinned_writing_data())
+
+    def test_pin_contract_refuses_incomplete_or_foreign_pins(self):
+        assert_writing_data_pin(WRITING_DATA_PIN)
+        foreign = WRITING_DATA_PIN["url"].replace("Tim3399/quiltor", "someone/else")
+        cases = {
+            "license missing": {k: v for k, v in WRITING_DATA_PIN.items() if k != "license"},
+            "license empty": {**WRITING_DATA_PIN, "license": " "},
+            "foreign repository": {**WRITING_DATA_PIN, "url": foreign},
+            "app release tag": {
+                **WRITING_DATA_PIN,
+                "url": WRITING_DATA_PIN["url"].replace("writing-data-2026.11.03", "v3.25.0"),
+            },
+            "short sha256": {**WRITING_DATA_PIN, "sha256": "a" * 63},
+        }
+        for name, data in cases.items():
+            with self.subTest(name=name), self.assertRaises(AssertionError):
+                assert_writing_data_pin(data)
+
+    def test_none_pin_gives_no_data_assets(self):
+        self.assertEqual(release_manifest.data_asset_records(None), [])
+
+    def _manifest(self, root: Path, data: dict[str, Any] | None) -> Path:
+        artifact_root = root / "artifacts"
+        manifest: dict[str, Any] = release_manifest.create(
+            "3.3.1",
+            "a" * 40,
+            ReleaseManifestTests._images(),
+            ReleaseManifestTests._artifacts(artifact_root),
+            data=data,
+        )
+        ReleaseManifestTests._attest_signatures(manifest, artifact_root)
+        path = artifact_root / "release-manifest.json"
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        return path
+
+    def test_manifest_carries_the_pin_and_verify_refuses_a_wrong_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory), WRITING_DATA_PIN)
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["schemaVersion"], 7)
+            self.assertEqual(
+                manifest["dataAssets"],
+                [
+                    {
+                        "name": "writing-2026.11.03.sqlite3.gz",
+                        "url": WRITING_DATA_PIN["url"],
+                        "sha256": WRITING_DATA_PIN["sha256"],
+                        "bytes": 6,
+                    }
+                ],
+            )
+            release_manifest.verify(path, path.parent, "a" * 40, data=WRITING_DATA_PIN)
+            manifest["dataAssets"][0]["sha256"] = "ef" * 32
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "canonical"):
+                release_manifest.verify(path, path.parent, "a" * 40, data=WRITING_DATA_PIN)
+
+    def test_verify_refuses_a_manifest_built_against_another_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory), WRITING_DATA_PIN)
+            with self.assertRaisesRegex(release_manifest.ManifestError, "canonical"):
+                release_manifest.verify(path, path.parent, "a" * 40, data=None)
+
+    def test_files_lists_no_data_asset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory), WRITING_DATA_PIN)
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            output = io.StringIO()
+            with (
+                patch.object(
+                    release_manifest, "pinned_writing_data", return_value=WRITING_DATA_PIN
+                ),
+                contextlib.redirect_stdout(output),
+            ):
+                status = release_manifest.main(["files", "--manifest", str(path)])
+            self.assertEqual(status, 0)
+            listed = output.getvalue().splitlines()
+            self.assertEqual(
+                listed,
+                [item["name"] for item in manifest["artifacts"]]
+                + [item["record"] for item in manifest["signatures"]],
+            )
+            self.assertNotIn("writing-2026.11.03.sqlite3.gz", listed)
+
+    def test_registry_pin_is_read_without_importing_the_application(self):
+        with tempfile.TemporaryDirectory() as directory:
+            registry = Path(directory) / "registry.py"
+            registry.write_text(
+                "DATA: Final[DataRelease | None] = " + repr(WRITING_DATA_PIN) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(release_manifest.pinned_writing_data(registry), WRITING_DATA_PIN)
+            registry.write_text("DATA = None\n", encoding="utf-8")
+            self.assertIsNone(release_manifest.pinned_writing_data(registry))
+            registry.write_text("OTHER = None\n", encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "no DATA pin"):
+                release_manifest.pinned_writing_data(registry)
+
+
+class _FakeResponse:
+    def __init__(self, status: int, body: bytes, length: str | None):
+        self.status = status
+        self.headers = {} if length is None else {"Content-Length": length}
+        self._body = io.BytesIO(body)
+
+    def read(self, size: int = -1) -> bytes:
+        return self._body.read(size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+class PinnedWritingDataPreflightTests(unittest.TestCase):
+    """The preflight check behind the pin: not in COVERAGE, so it runs in every scope."""
+
+    BODY = b"sqlite"
+
+    def pin(self, body: bytes = BODY) -> dict[str, Any]:
+        return {
+            **WRITING_DATA_PIN,
+            "sha256": hashlib.sha256(body).hexdigest(),
+            "bytes": len(body),
+        }
+
+    def run_check(self, data, responses) -> str:
+        output = io.StringIO()
+        with (
+            patch.object(release_preflight.urllib.request, "urlopen", side_effect=responses),
+            contextlib.redirect_stdout(output),
+        ):
+            release_preflight._check_pinned_writing_data(data)
+        return output.getvalue()
+
+    def test_no_pin_says_so_and_touches_no_network(self):
+        output = self.run_check(None, AssertionError("network used without a pin"))
+        self.assertIn("no writing data pinned", output)
+
+    def test_published_asset_with_matching_bytes_passes(self):
+        output = self.run_check(
+            self.pin(),
+            [_FakeResponse(200, b"", str(len(self.BODY))), _FakeResponse(200, self.BODY, None)],
+        )
+        self.assertIn("sha256 matches", output)
+
+    def test_wrong_length_or_digest_or_status_fails(self):
+        cases = {
+            "status": [_FakeResponse(404, b"", "6")],
+            "length": [_FakeResponse(200, b"", "7")],
+            "no length": [_FakeResponse(200, b"", None)],
+            "digest": [_FakeResponse(200, b"", "6"), _FakeResponse(200, b"SQLITE", None)],
+        }
+        for name, responses in cases.items():
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(release_preflight.PreflightError, "Pinned writing data"),
+            ):
+                self.run_check(self.pin(), responses)
+
+    def test_check_is_not_part_of_the_matrix_coverage(self):
+        self.assertNotIn(release_preflight.WRITING_DATA_LABEL, release_preflight.COVERAGE)
+        self.assertEqual(len(release_preflight.COVERAGE), 10)
+
+
+class ReleaseNotesStartTests(unittest.TestCase):
+    """F-88-5 point 5: generated app notes start at the previous app tag, never a data tag."""
+
+    @staticmethod
+    def _release(tag: str, **extra: Any) -> dict[str, Any]:
+        return {"tag_name": tag, "draft": False, "prerelease": False, **extra}
+
+    def test_previous_app_tag_skips_data_releases_and_newer_versions(self):
+        releases = [
+            self._release("v3.24.0"),
+            self._release("writing-data-2026.11.03"),
+            self._release("v3.23.1"),
+            self._release("v3.26.0", draft=True),
+        ]
+        self.assertEqual(
+            previous_release.notes_start_tag("3.25.0", releases, ["writing-data-2026.11.04"]),
+            "v3.24.0",
+        )
+        self.assertEqual(
+            previous_release.notes_start_tag("3.25.0", [self._release("v3.25.0")], ["v3.24.0"]),
+            "v3.24.0",
+        )
+        self.assertIsNone(
+            previous_release.notes_start_tag("3.25.0", [self._release("writing-data-2026.11.03")])
+        )
+
+    def test_writing_data_tags_never_enter_stable_history(self):
+        self.assertEqual(
+            previous_release.stable_history_versions(
+                [self._release("writing-data-2026.11.03")], ["writing-data-2026.11.03"]
+            ),
+            set(),
+        )
+
+    def test_publisher_passes_the_previous_app_tag_to_generated_notes(self):
+        publish = PUBLISH_WORKFLOW.read_text(encoding="utf-8")
+        self.assertEqual(publish.count("--generate-notes"), 1)
+        self.assertIn("NOTES=(--generate-notes)", publish)
+        self.assertIn('[ -z "$START" ] || NOTES+=(--notes-start-tag "$START")', publish)
+        self.assertIn('--notes-start-tag --current-version "$VERSION")"', publish)
+        self.assertIn('--title "v$VERSION" "${NOTES[@]}" --draft "${ASSETS[@]}"', publish)
 
 
 if __name__ == "__main__":
