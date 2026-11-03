@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { Sheet } from "../Sheet";
 import "./Popover.css";
 
@@ -56,9 +57,7 @@ export function Popover({
   portalContainerRef,
 }: PopoverProps) {
   const panel = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  closeRef.current = onClose;
+  const closeRef = useLatest(onClose);
   const compactViewport = useCompactLayout();
   const compact = compactMode === "sheet" && compactViewport;
   const [position, setPosition] = useState({ left: 12, top: 12 });
