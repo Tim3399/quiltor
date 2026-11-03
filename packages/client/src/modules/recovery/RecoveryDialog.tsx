@@ -1,8 +1,9 @@
 import { AlertTriangle, ClipboardCopy, Download, FileJson, GitCompareArrows } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { Alert, Button, Dialog } from "../../design";
 import { useI18n } from "../../i18n";
 import { quiltorClient } from "../../platform";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { Manuscript } from "../manuscript";
 import type { FigureState } from "../story-world";
 import type { StoryboardState } from "../storyboard";
@@ -56,15 +57,21 @@ export function RecoveryDialog({
     local: RecoveryDocuments;
     persisted: PersistedRecoveryDocuments;
   } | null>(null);
-  const currentDocuments = useRef({ manuscript, figures, storyboards });
-  const currentPersisted = useRef(persisted);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  currentDocuments.current = { manuscript, figures, storyboards };
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  currentPersisted.current = persisted;
+  const currentDocumentsRef = useLatest({ manuscript, figures, storyboards });
+  const currentPersistedRef = useLatest(persisted);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the documents are triggers: any change to them revokes an earlier authorization
-  useEffect(() => setAuthorized(null), [manuscript, figures, storyboards, persisted]); // eslint-disable-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Any change to the documents or to the reviewed persisted version revokes an earlier
+  // authorization. It is revoked while rendering, so no frame shows the old grant.
+  const [seen, setSeen] = useState({ manuscript, figures, storyboards, persisted });
+  if (
+    seen.manuscript !== manuscript ||
+    seen.figures !== figures ||
+    seen.storyboards !== storyboards ||
+    seen.persisted !== persisted
+  ) {
+    setSeen({ manuscript, figures, storyboards, persisted });
+    setAuthorized(null);
+  }
 
   const run = async (
     action: RecoveryAction,
@@ -228,12 +235,12 @@ export function RecoveryDialog({
                     )
                       .then((outcome) => {
                         if (outcome === "completed") {
-                          const current = currentDocuments.current;
+                          const current = currentDocumentsRef.current;
                           if (
                             current.manuscript === local.manuscript &&
                             current.figures === local.figures &&
                             current.storyboards === local.storyboards &&
-                            currentPersisted.current === reviewed
+                            currentPersistedRef.current === reviewed
                           ) {
                             setAuthorized({ local, persisted: reviewed });
                             setMessage({ tone: "success", text: t("recoveryBothSaved") });
