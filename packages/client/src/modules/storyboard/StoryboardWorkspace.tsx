@@ -45,6 +45,7 @@ import {
   connectedStoryboardEdge,
   groupNode,
   insertStoryboardNodeAtLayerFront,
+  keepMeasuredFlowNodes,
   moveStoryboardNodeInLayer,
   moveStoryboardNodeWithGroupMembers,
   noteNode,
@@ -304,8 +305,12 @@ function StoryboardWorkspaceInner({
   // members moving before anything is persisted), and the next derivation replaces those
   // transient positions. Deriving it during render would need those writes to live elsewhere,
   // so the mirror stays an effect until a drag spec holds that rewrite (T-17 P3 plan, S2).
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- flowNodes is React Flow's controlled node state, written by onNodesChange and previewGroupMove between derivations; the effect resets it to derivedNodes when they change
-  useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+  // The reset keeps each node's `measured` size: without it React Flow hides every card until
+  // it measures them again, which on macOS left a selected card without its commands (T-149).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- flowNodes is React Flow's controlled node state, written by onNodesChange and previewGroupMove between derivations; the effect resets it to derivedNodes when they change, keeping the measured sizes
+    setFlowNodes((current) => keepMeasuredFlowNodes(derivedNodes, current));
+  }, [derivedNodes]);
 
   // The default board: when the active one is gone (replaced state, deleted board), fall back
   // to the first and start its trail over. Adjusted during render, React redoes the render at
