@@ -2650,6 +2650,18 @@ class PathFilterContractTests(unittest.TestCase):
                 "path filter step is missing",
             ),
             (
+                "a crashed filter fails the plan",
+                ' --output "$GITHUB_OUTPUT" || {\n',
+                ' --output "$GITHUB_OUTPUT" || exit 1\n              : || {\n',
+                "path filter step is missing",
+            ),
+            (
+                "the crash fallback forgets a group",
+                "for group in checks python rust client browser lint; do",
+                "for group in checks python rust client browser; do",
+                "path filter step is missing",
+            ),
+            (
                 "the filter compares only one commit",
                 "--merge HEAD --output",
                 "--base HEAD^ --head HEAD --output",
@@ -2795,6 +2807,40 @@ class PathFilterContractTests(unittest.TestCase):
             "pull_request", "refs/pull/7/merge", None, [], workflow=to_nothing, filter_outputs={}
         )
         self.assertNotIn("browser-e2e-shards", running)
+
+    def test_a_crashed_path_filter_runs_every_group(self):
+        """T-48: a filter that dies (here after writing run_browser=false) must leave every
+        run_<group> true and the step green, instead of a red plan or fewer tests."""
+        groups = path_filter.load_config().groups
+
+        def run(workflow):
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                output.write_bytes(b"")
+                preamble = (
+                    "set -e\n"
+                    f"export RUNNER_TEMP={shlex.quote(Path(directory).as_posix())}\n"
+                    f"export GITHUB_OUTPUT={shlex.quote(output.as_posix())}\n"
+                    "git() { return 0; }\n"
+                    'python() { echo "run_browser=false" >> "$GITHUB_OUTPUT"; return 1; }\n'
+                )
+                code, log = run_step_script(
+                    workflow, "plan", "Select job groups by changed path", preamble
+                )
+                written = output.read_text(encoding="utf-8")
+            # GITHUB_OUTPUT: the last line for a name wins.
+            values = dict(line.split("=", 1) for line in written.splitlines() if "=" in line)
+            return code, log, values
+
+        code, log, values = run(self.workflow)
+        self.assertEqual(code, 0, log)
+        self.assertEqual({f"run_{group}": "true" for group in groups}, values)
+
+        # Without the fallback the same crash fails the step.
+        fallback = re.search(r" \|\| \{\n.*?\n            \}\n", self.workflow, re.DOTALL)
+        assert fallback is not None
+        code, _, _ = run(self.workflow.replace(fallback.group(0), "\n", 1))
+        self.assertNotEqual(code, 0)
 
     def test_every_lint_input_selects_lint(self):
         """F-37-1: what hadolint, shellcheck and osv-scanner read is derived, not listed."""
@@ -3363,7 +3409,9 @@ def run_step_script(workflow, job, step_name, preamble, cwd=None):
     if bash is None:
         raise unittest.SkipTest("bash is not installed")
     body = workflow_contract._job_body(workflow, job)
-    start = body.index(f"      - name: {step_name}\n")
+    start = body.find(f"      - name: {step_name}\n")
+    if start < 0:  # the name is not the step's first key (`- id: x` comes first)
+        start = body.rfind("\n      - ", 0, body.index(f"        name: {step_name}\n")) + 1
     end = body.find("\n      - ", start + 1)
     # Keep the newline that ends the step's last line, or the regex below drops that line.
     step = body[start : end + 1 if end >= 0 else len(body)]

@@ -106,7 +106,14 @@ jobs:
           mkdir -p "$base/.github" "$base/distribution/tooling"
           if git show HEAD^1:.github/test-paths.json > "$base/.github/test-paths.json" &&
             git show HEAD^1:distribution/tooling/path_filter.py > "$base/distribution/tooling/path_filter.py"; then
-            python "$base/distribution/tooling/path_filter.py" plan --repository . --merge HEAD --output "$GITHUB_OUTPUT"
+            # A crashed filter must never mean fewer tests: it runs every group. The step
+            # itself stays green; later lines of $GITHUB_OUTPUT win over earlier ones.
+            python "$base/distribution/tooling/path_filter.py" plan --repository . --merge HEAD --output "$GITHUB_OUTPUT" || {
+              echo "::warning::the path filter failed, running everything"
+              for group in checks python rust client browser lint; do
+                echo "run_$group=true" >> "$GITHUB_OUTPUT"
+              done
+            }
           else
             echo "::warning::the base has no readable path filter, running everything"
           fi

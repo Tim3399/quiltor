@@ -483,6 +483,12 @@ the filter. Without the two files in the base -- the pull request that introduce
 or when `git show` cannot read them, the step writes nothing, warns, and every `run_<group>`
 falls back to `'true'`. The base's blobs come from a lazy fetch (the sparse checkout is partial);
 the repository is public, so that needs no token, and a failed fetch lands in the same fallback.
+A filter that **crashes** (broken JSON in the base, a Python error) does not turn the plan red
+either (T-48): the step writes `run_<group>=true` for every group and stays green, without
+`continue-on-error`. Later lines of `$GITHUB_OUTPUT` win, so this also overrides what the script
+wrote before it died. A crash can therefore only cost time, never tests. `workflow_contract.py`
+checks that the fallback names exactly the groups of `test-paths.json`;
+`test_a_crashed_path_filter_runs_every_group` runs the step with a dying filter.
 `test_path_filter.py` (`BaseFilterTests`) runs the step's own script in a scratch repository
 with a base, a pull request and a merge commit.
 

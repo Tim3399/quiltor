@@ -974,8 +974,15 @@ PATH_FILTER_COMMAND = (
     '          if git show HEAD^1:.github/test-paths.json > "$base/.github/test-paths.json" &&\n'
     "            git show HEAD^1:distribution/tooling/path_filter.py"
     ' > "$base/distribution/tooling/path_filter.py"; then\n'
+    "            # A crashed filter must never mean fewer tests: it runs every group. The step\n"
+    "            # itself stays green; later lines of $GITHUB_OUTPUT win over earlier ones.\n"
     '            python "$base/distribution/tooling/path_filter.py" plan --repository .'
-    ' --merge HEAD --output "$GITHUB_OUTPUT"\n'
+    ' --merge HEAD --output "$GITHUB_OUTPUT" || {\n'
+    '              echo "::warning::the path filter failed, running everything"\n'
+    "              for group in checks python rust client browser lint; do\n"
+    '                echo "run_$group=true" >> "$GITHUB_OUTPUT"\n'
+    "              done\n"
+    "            }\n"
     "          else\n"
     '            echo "::warning::the base has no readable path filter, running everything"\n'
     "          fi\n"
@@ -1268,6 +1275,13 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     ):
         if evidence not in plan:
             raise WorkflowContractError(f"the path filter step is missing: {evidence.strip()}")
+
+    fallback = re.search(r"^ +for group in ([a-z0-9_ ]+); do$", plan, re.MULTILINE)
+    if fallback is None or sorted(fallback.group(1).split()) != sorted(config.groups):
+        raise WorkflowContractError(
+            "the path filter's crash fallback must set run_<group>=true for exactly the "
+            "test-paths groups: " + ", ".join(config.groups)
+        )
 
     groups_read = set(re.findall(r"needs\.plan\.outputs\.run_([a-z0-9_]+)", workflow))
     if groups_read - set(config.groups):
