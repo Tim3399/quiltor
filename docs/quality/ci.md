@@ -674,10 +674,26 @@ R7 37113154094, R8 37111931104, R9 34236701740, R10 34098759267.
 | F7   | Browser on macos                                        | `editor-session-state` "Returning to Text restores the edited chapter, cursor, scroll and input focus" (compact) | `scrollTop` 5863, expected 5880 (17 px short)                                                                   | 41185881579                         | `finishRestore` in `packages/client/src/modules/manuscript/EditorSurface.tsx` (lines 336-350) writes `scrollTop` exactly once; a later height correction by CodeMirror shifts the content by about 17 px and the position no longer matches   | fixed (T-75): `holdScrollUntilStable` writes the position again after every measure until one passes without moving it (at most 8 rounds); no tolerance in the test                                                                                                                                |
 | F8   | Browser on macos                                        | `visual-baseline` dark-assistant compact                                                                         | 17078 px (6 %); the assistant sheet 526 px below its place, backdrop complete                                   | 41194493626                         | `toBeVisible` holds from the first frame of the sheet's `ui-sheet-up` slide (220 ms), so the capture started mid-slide; Playwright's `finish()` did not reach the macOS capture, both attempts showed the same frame. Not product behaviour   | wait for the sheet's own animations to finish (`animation.finished`) before the capture (T-77); no tolerance, no retry                                                                                                                                                                             |
 | L5   | local Windows, full product suite under load (T-84 run) | `competition-findings` "Set-aside chapters remain editable and survive trash, reload and restore"                | `inBook` expected false, received undefined after 5 s                                                           | none in CI; locally 1 of a full run | the test waited for each save with `expect.poll` and its 5 s budget; under load a request took 2-3 s, so the last poll started before the PUT landed. The app had saved correctly (trace: PUT with `inBook: false`, 200)                      | the test waits for the PUT that the click causes and reads the stored manuscript once (`savedAfter`). A probe that holds every save 6 s fails the old test 3 of 3 and passes the new one; 30 of 30 green at 8 workers. Page loads slower than 5 s under heavier load are a separate, general limit |
+| L6   | local Windows                                           | layout audit `workspace.text/popover.entity-mention`, tablet                                                     | hover card not visible 5 s after the hover                                                                      | local (T-80, T-104)                 | the stored panel layout was loaded in an effect; the first paint showed the default panels and the text column reflowed 40-60 ms later, after the step had measured the name                                                                  | read the stored layout while rendering (`useWorkspaceLayout`), T-115; no retry                                                                                                                                                                                                                     |
 
 The macOS cases F3, F5 and F6 come from the old unsharded macOS job; whether they still occur
 after T-33 is open. None of the fixes adds a general retry: F2 is the one single-case reload,
 limited to one failure text and recorded in the report whenever it fires.
+
+### L6: the text column reflowed after the editor appeared (T-115)
+
+The capture step measured "Mara Venn" as soon as "Kapiteltext" was visible. In about one run in
+eight the first paint still showed the default panels: `useWorkspaceLayout` loaded the stored
+layout in an effect, so for 40-60 ms the text column was 154 px wide instead of 434 px and the
+name sat elsewhere. CodeMirror's hover checks the pointer 300 ms after the last move, found
+plain text there and never opened the card. CPU throttling did not reproduce it; tracing the
+column width per frame did. The stored layout is now read while rendering, so the first paint is
+the final one. The audit step is unchanged and has no retry.
+
+To reproduce timing flakes like this one without loading the machine, set
+`QUILTOR_AUDIT_STATE_DELAY_MS` (for example 2500) for an audit run: the mocked audit world then
+serves the story world that much later, which moved the reflow into the capture step on the base
+before T-115 (T-27). Unset, nothing is delayed.
 
 ### F2: the cause, a port range too small
 

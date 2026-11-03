@@ -52,10 +52,9 @@ describe("PlaceNode overview marker", () => {
 
     expect(container.querySelector(".story-node.zoom-overview")).toBeInTheDocument();
     expect(screen.getByText("Dämmerhafen")).toBeInTheDocument();
-    expect(screen.getByText("D", { selector: ".node-monogram" })).toHaveAttribute(
-      "aria-hidden",
-      "true",
-    );
+    expect(
+      screen.getByText("D", { selector: ".node-monogram-letter" }).closest(".node-monogram"),
+    ).toHaveAttribute("aria-hidden", "true");
   });
 
   it("uses the shared figure/place LOD contract instead of local place geometry", () => {
@@ -121,7 +120,7 @@ describe("PlaceNode overview marker", () => {
     );
 
     expect(container.querySelector(".story-node.zoom-overview.is-important")).toBeInTheDocument();
-    expect(screen.getByText("D", { selector: ".node-monogram" })).toBeInTheDocument();
+    expect(screen.getByText("D", { selector: ".node-monogram-letter" })).toBeInTheDocument();
     expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toBeInTheDocument();
   });
 

@@ -776,6 +776,29 @@ test("composite components keep their keyboard and disclosure contracts", async 
   await expect(page.getByText("Zusätzliche Optionen")).toBeVisible();
 });
 
+test("ListboxSelect inside a body dialog is operable on desktop", async ({ page }, testInfo) => {
+  // Compact and touch present the options as a Sheet, which owns its own layer.
+  test.skip(
+    ["design-compact-boundary", "design-touch"].includes(testInfo.project.name),
+    "options open as a Sheet on compact and touch",
+  );
+  await openStory(page, "ListboxSelect/InDialog");
+  const select = page.getByRole("combobox", { name: "Sprache" });
+  await select.click();
+  const english = page.getByRole("option", { name: "Englisch" });
+  await expect(english).toBeVisible();
+  // A mouse click lands on whatever is topmost at the point; visibility alone would pass behind
+  // the dialog backdrop, so assert the option itself is hit.
+  const hit = await english.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return top === element || element.contains(top) ? "option" : `${top?.className}`;
+  });
+  expect(hit, "the listbox option is covered by another layer").toBe("option");
+  await english.click();
+  await expect(select).toContainText("Englisch");
+});
+
 test("menu stress states stay scrollable, visible and keyboard reachable", async ({ page }) => {
   await openStory(page, "DropdownMenu/LongManyItemsOpen");
   const dropdown = page.getByRole("menu", { name: "Sehr umfangreiche Elementaktionen" });
