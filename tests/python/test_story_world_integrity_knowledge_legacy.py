@@ -68,6 +68,7 @@ def variants() -> list[dict[str, Any]]:
             "to": "iven",
             "versions": [{"momentId": "m2", "active": True}, {"momentId": "m2"}],
         },
+        {"id": "e6", "from": "mara", "to": "ghost"},
     ]
     presence = [
         stay("mara", "hafen", "m1"),
