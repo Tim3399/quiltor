@@ -11,6 +11,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { uid } from "../../../shared/id";
 import { type MeasuredSizes, NO_MEASURED_SIZES, rememberMeasured, withMeasured } from "../../graph";
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
@@ -141,9 +142,9 @@ export function usePlaceCanvas({
   const [boundToGround, setBoundToGround] = useState(true);
   const flow = useRef<ReactFlowInstance<PlaceFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
-  const latestState = useRef(state);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestState.current = state;
+  // Written by the drag commit, addPlace and duplicatePlace too: each moves it ahead to the
+  // state it passes on.
+  const latestStateRef = useLatest(state);
 
   const level = useMemo(
     () => (levelId ? state.nodes.find((node) => node.id === levelId) : undefined),
@@ -198,9 +199,7 @@ export function usePlaceCanvas({
       [levelGround.x + levelGround.width, levelGround.y + levelGround.height],
     ];
   }, [boundToGround, levelGround]);
-  const latestGround = useRef(levelGround);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestGround.current = levelGround;
+  const latestGroundRef = useLatest(levelGround);
 
   // Arriving on a level should show what is on it, at the size it deserves:
   // without this you land at whatever zoom the level above happened to be at,
@@ -209,14 +208,15 @@ export function usePlaceCanvas({
   // Armed on the change and spent once the new level's nodes have actually been
   // handed to the flow -- fitting before that would frame the level you just
   // left, which is what a plain timeout ends up doing.
-  const pendingFit = useRef(false);
-  const previousLevel = useRef(levelId);
-  // eslint-disable-next-line react-hooks/refs -- render-time change detection of levelId; only flags a pending fit consumed by a later effect
-  if (previousLevel.current !== levelId) {
-    // eslint-disable-next-line react-hooks/refs -- render-time change detection of levelId; only flags a pending fit consumed by a later effect
-    previousLevel.current = levelId;
-    // eslint-disable-next-line react-hooks/refs -- render-time change detection of levelId; only flags a pending fit consumed by a later effect
-    pendingFit.current = true;
+  //
+  // A drag on the level just left ends with it, in the same render.
+  const [fitLevel, setFitLevel] = useState(levelId);
+  const [pendingFit, setPendingFit] = useState(false);
+  if (fitLevel !== levelId) {
+    setFitLevel(levelId);
+    setPendingFit(true);
+    setDragPreview(null);
+    setLivePosition(null);
   }
 
   const derivedNodes = useMemo(
@@ -251,40 +251,35 @@ export function usePlaceCanvas({
     ],
   );
   const [nodes, setFlowNodes] = useState<PlaceFlowNode[]>(derivedNodes);
-  const latestDerivedNodes = useRef(derivedNodes);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestDerivedNodes.current = derivedNodes;
+  const latestDerivedNodesRef = useLatest(derivedNodes);
   // Read inside a change handler, where the render's own `nodes` would be the
   // list from before the gesture started.
-  const latestFlowNodes = useRef(nodes);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestFlowNodes.current = nodes;
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  const latestFlowNodesRef = useLatest(nodes);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- React Flow owns this list during a gesture (onNodesChange applies drags to it); it is replaced from derivedNodes only when those change, after the commit, so a render cannot overwrite a drag in progress
   useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+  // The drag session is a ref, so it is ended after the commit; the preview already went in render.
   useEffect(() => {
     void levelId;
     if (dragSession.current) dragSession.current.cancelled = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  }, [levelId]);
+  // A place that vanishes while it is dragged (undo, deletion elsewhere) ends the drag.
+  const dragPreviewId = dragPreview?.id;
+  if (dragPreviewId && !state.nodes.some((node) => node.id === dragPreviewId)) {
     setDragPreview(null);
     setLivePosition(null);
-  }, [levelId]);
-  const dragPreviewId = dragPreview?.id;
+    setFlowNodes(derivedNodes);
+  }
   useEffect(() => {
-    if (dragPreviewId && !state.nodes.some((node) => node.id === dragPreviewId)) {
-      if (dragSession.current) dragSession.current.cancelled = true;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-      setDragPreview(null);
-      setLivePosition(null);
-      setFlowNodes(latestDerivedNodes.current);
-    }
-  }, [dragPreviewId, state.nodes]);
+    const session = dragSession.current;
+    if (session && !state.nodes.some((node) => node.id === session.id)) session.cancelled = true;
+  }, [state.nodes]);
   useEffect(() => {
     if (!dragPreviewId) return;
     const cancel = () => {
       if (dragSession.current) dragSession.current.cancelled = true;
       setDragPreview(null);
       setLivePosition(null);
-      setFlowNodes(latestDerivedNodes.current);
+      setFlowNodes(latestDerivedNodesRef.current);
     };
     window.addEventListener("blur", cancel);
     window.addEventListener("pointercancel", cancel);
@@ -309,7 +304,7 @@ export function usePlaceCanvas({
     }
     displayModes.current = next;
     if (changed.size === 0) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a place switched between card and pin: its old measured size must go before paint, together with the re-measure scheduled below, and the switch is only known by comparing with the modes of the previous commit
     setMeasured((known) => {
       const clean = new Map(known);
       for (const id of changed) clean.delete(id);
@@ -321,35 +316,12 @@ export function usePlaceCanvas({
     const frame = window.requestAnimationFrame(() => updateNodeInternals([...changed]));
     return () => window.cancelAnimationFrame(frame);
   }, [derivedNodes, state.nodes, updateNodeInternals]);
-  // Keyed on what the flow actually renders rather than on what was derived for
-  // it: the derived list changes a commit earlier, and fitting then would frame
-  // the level just left. The short wait on top gives React Flow time to measure
-  // the new nodes, without which the fit has nothing to fit to.
-  //
-  // A timer rather than an animation frame, and no animation on the fit itself:
-  // both hang on frames a backgrounded tab never runs, and arriving somewhere
-  // should have framed it by the time it is looked at rather than travelling
-  // there once it is.
-  //
-  // The flag is spent when the fit runs, not when it is scheduled: strict mode
-  // runs an effect, cleans it up and runs it again, and spending it up front
-  // left the first attempt cancelled and the second with nothing to do.
-  useEffect(() => {
-    if (!pendingFit.current || nodes.length === 0) return;
-    const settle = window.setTimeout(() => {
-      pendingFit.current = false;
-      flow.current?.fitView(latestFitOptions.current);
-    }, 60);
-    return () => window.clearTimeout(settle);
-  }, [nodes]);
 
   // Maps are derived rather than kept in the dragging state: rebuilding them
   // from the level makes a freshly created map appear at once instead of waiting
   // for the next node change.
   const laidOutMaps = useMemo(() => places.filter(isExpandedMap), [places]);
-  const latestMaps = useRef(laidOutMaps);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestMaps.current = laidOutMaps;
+  const latestMapsRef = useLatest(laidOutMaps);
   const pins = useMemo(
     () =>
       createPinNodes({
@@ -464,12 +436,12 @@ export function usePlaceCanvas({
   const edges = useMemo(
     () =>
       measuring
-        ? // eslint-disable-next-line react-hooks/refs -- the ref is read inside a callback that runs after render, not during render
-          createPlaceMeasurementEdges({
+        ? createPlaceMeasurementEdges({
             points: measurablePoints,
             selection: measureSelection,
+            // Called while the edges are built, so it reads the nodes of this render.
             scaleFor: (from, to) => {
-              const nodes = latestState.current.nodes;
+              const nodes = state.nodes;
               const first = nodes.find((node) => node.id === from);
               const second = nodes.find((node) => node.id === to);
               // Two points on the same laid-out map are read in that map's own
@@ -479,7 +451,7 @@ export function usePlaceCanvas({
             t,
           })
         : [],
-    [measuring, measureSelection, measurablePoints, levelScale, t],
+    [measuring, measureSelection, measurablePoints, state.nodes, levelScale, t],
   );
 
   /**
@@ -505,9 +477,30 @@ export function usePlaceCanvas({
     () => ({ padding: 0.12, maxZoom: 1, ...(fitTargets.length ? { nodes: fitTargets } : {}) }),
     [fitTargets],
   );
-  const latestFitOptions = useRef(fitViewOptions);
-  // eslint-disable-next-line react-hooks/immutability, react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestFitOptions.current = fitViewOptions;
+  const latestFitOptionsRef = useLatest(fitViewOptions);
+
+  // Keyed on what the flow actually renders rather than on what was derived for
+  // it: the derived list changes a commit earlier, and fitting then would frame
+  // the level just left. The short wait on top gives React Flow time to measure
+  // the new nodes, without which the fit has nothing to fit to.
+  //
+  // A timer rather than an animation frame, and no animation on the fit itself:
+  // both hang on frames a backgrounded tab never runs, and arriving somewhere
+  // should have framed it by the time it is looked at rather than travelling
+  // there once it is.
+  //
+  // The flag is spent when the fit runs, not when it is scheduled: strict mode
+  // runs an effect, cleans it up and runs it again, and spending it up front
+  // left the first attempt cancelled and the second with nothing to do.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `pendingFit` is read, not a trigger: arming it must not fit before the new level's nodes are in the flow
+  useEffect(() => {
+    if (!pendingFit || nodes.length === 0) return;
+    const settle = window.setTimeout(() => {
+      setPendingFit(false);
+      flow.current?.fitView(latestFitOptionsRef.current);
+    }, 60);
+    return () => window.clearTimeout(settle);
+  }, [nodes]);
 
   /**
    * Where a drag came to rest decides what the place now belongs to.
@@ -528,7 +521,7 @@ export function usePlaceCanvas({
     ) => {
       const { x, y } = node.position;
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      const current = latestState.current;
+      const current = latestStateRef.current;
       const dragged = current.nodes.find((item) => item.id === node.id);
       if (!dragged) return;
       const pin = isPlaceDisplayPin(dragged);
@@ -537,8 +530,8 @@ export function usePlaceCanvas({
       // Everything else here works from the top-left corner -- a place only now being
       // dragged onto a map still comes from the level and reports the corner.
       const anchored =
-        Boolean(latestGround.current) ||
-        latestMaps.current.some((map) => map.id === dragged.parentPlaceId);
+        Boolean(latestGroundRef.current) ||
+        latestMapsRef.current.some((map) => map.id === dragged.parentPlaceId);
       const drop = placeDropFrame({
         pointer: dragged.mapExpanded && dragged.mapImageId ? undefined : pointer,
         position: { x, y },
@@ -550,9 +543,9 @@ export function usePlaceCanvas({
       const patch = placementForDrop({
         dragged,
         nodes: current.nodes,
-        maps: latestMaps.current,
+        maps: latestMapsRef.current,
         levelId,
-        levelGround: latestGround.current,
+        levelGround: latestGroundRef.current,
         position: drop.position,
         size: drop.size,
         // Only a map is held to the ruling, and only while the ruling is drawn.
@@ -567,7 +560,7 @@ export function usePlaceCanvas({
         ...current,
         nodes: current.nodes.map((item) => (item.id === node.id ? { ...item, ...patch } : item)),
       };
-      latestState.current = next;
+      latestStateRef.current = next;
       onChange(next);
       window.requestAnimationFrame(() => updateNodeInternals([node.id]));
     },
@@ -575,7 +568,7 @@ export function usePlaceCanvas({
   );
 
   const previewForDrag = useCallback((event: MouseEvent | TouchEvent, node: PlaceFlowNode) => {
-    const item = latestState.current.nodes.find((place) => place.id === node.id);
+    const item = latestStateRef.current.nodes.find((place) => place.id === node.id);
     const point = dragClientPoint(event);
     if (node.type !== "place" || !item || item.pinned || isExpandedMap(item) || !point) return;
     setDragPreview({ id: item.id, name: item.name, clientX: point.x, clientY: point.y });
@@ -585,8 +578,8 @@ export function usePlaceCanvas({
       dragSession.current = null;
       setDragPreview(null);
       setLivePosition(null);
-      setFlowNodes(latestDerivedNodes.current);
-      const item = latestState.current.nodes.find((place) => place.id === node.id);
+      setFlowNodes(latestDerivedNodesRef.current);
+      const item = latestStateRef.current.nodes.find((place) => place.id === node.id);
       if (node.type !== "place" || !item || item.pinned || isExpandedMap(item)) return;
       dragSession.current = { id: node.id, cancelled: false };
       previewForDrag(event, node);
@@ -614,7 +607,7 @@ export function usePlaceCanvas({
     zoomTier,
     dragPreview,
     addPlace: (overrides) => {
-      const current = latestState.current;
+      const current = latestStateRef.current;
       const center = flow.current?.screenToFlowPosition({
         x: window.innerWidth / 2,
         y: window.innerHeight / 2,
@@ -635,12 +628,12 @@ export function usePlaceCanvas({
         ...overrides,
       };
       const next = { ...current, nodes: [...current.nodes, place] };
-      latestState.current = next;
+      latestStateRef.current = next;
       onChange(next);
       return place;
     },
     duplicatePlace: (place) => {
-      const current = latestState.current;
+      const current = latestStateRef.current;
       const copy: FigureNode = {
         ...place,
         id: uid("n"),
@@ -653,7 +646,7 @@ export function usePlaceCanvas({
         ...(levelId ? { parentPlaceId: levelId } : { parentPlaceId: undefined }),
       };
       const next = { ...current, nodes: [...current.nodes, copy] };
-      latestState.current = next;
+      latestStateRef.current = next;
       onChange(next);
       return copy;
     },
@@ -689,7 +682,7 @@ export function usePlaceCanvas({
     minZoom,
     onSurfaceResize: setSurface,
     onNodesChange: (changes) => {
-      const current = latestFlowNodes.current;
+      const current = latestFlowNodesRef.current;
       const session = dragSession.current;
       const acceptedChanges = changes.filter(
         (change) => !(session?.cancelled && change.type === "position" && change.id === session.id),
