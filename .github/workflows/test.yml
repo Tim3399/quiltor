@@ -3,18 +3,17 @@ name: Test
 permissions:
   contents: read
 
-# Fast feedback for everything that can fail without a Mac, store account or
-# signing certificate. A Release Build repeats the complete portable gate in
-# its own workflow; this workflow's earlier result is never release evidence.
+# Fast feedback on pull requests and manual dispatches. Pushes to main reach this workflow only
+# through release.yml, which calls it with full_matrix: true and builds artifacts only after its
+# browser-e2e job reports full-success. A separate run of this workflow is never release
+# evidence.
 #
-# Pull requests run Linux completely and a smoke test on Windows and macOS; main, a manual run
-# and a caller asking for it run the full Windows and macOS matrix. The `plan` job decides that
-# in one place -- see "Matrix" in docs/quality/ci.md. On a pull request it also selects the job
-# groups the changed paths need (.github/test-paths.json); full mode always runs every group --
-# see "Path filter" there.
+# Pull requests run Linux completely and a smoke test on Windows and macOS; a manual run and a
+# caller asking for it run the full Windows and macOS matrix. The `plan` job decides that in one
+# place -- see "Matrix" in docs/quality/ci.md. On a pull request it also selects the job groups
+# the changed paths need (.github/test-paths.json); full mode always runs every group -- see
+# "Path filter" there.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -28,10 +27,17 @@ on:
         description: "Run the full matrix (release mode); reduce only on purpose"
         type: boolean
         default: true
+    outputs:
+      verdict:
+        description: "full-success only when every job the full matrix requires succeeded"
+        value: ${{ jobs.browser-e2e.outputs.verdict }}
 
+# Pull requests cancel their superseded runs. Every other run -- a dispatch, or the call from
+# release.yml for a push to main -- gets a group of its own, so no run can cancel another run's
+# tests. In a call, github.* is the caller's context, so the run_id is the caller's run.
 concurrency:
-  group: test-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', github.ref) || format('test-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Playwright workers per runner: the one place to change them, one value per system (T-39,
 # "Workers per runner" in docs/quality/ci.md). Linux sets the product and the design suite
@@ -432,9 +438,17 @@ jobs:
       - cross-platform-smoke
     if: always()
     runs-on: ubuntu-24.04
+    permissions: {}
+    # The one verdict a caller may build on. A called workflow concludes success even when every
+    # job inside it was skipped, so release.yml reads this output, not the call's conclusion. It
+    # is written only after every check below passed; a red gate leaves it empty.
+    outputs:
+      verdict: ${{ steps.gate.outputs.verdict }}
     steps:
       - name: Require every selected job
+        id: gate
         env:
+          FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}
           PLAN_RESULT: ${{ needs.plan.result }}
           RESULT_BACKEND: ${{ needs['backend'].result }}
           SELECTED_BACKEND: ${{ needs.plan.outputs.run_python != 'false' }}
@@ -476,7 +490,33 @@ jobs:
           require cross-platform-native "$RESULT_CROSS_PLATFORM_NATIVE" "$SELECTED_CROSS_PLATFORM_NATIVE"
           require cross-platform-browser "$RESULT_CROSS_PLATFORM_BROWSER" "$SELECTED_CROSS_PLATFORM_BROWSER"
           require cross-platform-smoke "$RESULT_CROSS_PLATFORM_SMOKE" "$SELECTED_CROSS_PLATFORM_SMOKE"
-          exit "$status"
+          # Full mode only: every job is selected except the reduced-only smoke test, which must
+          # not be. A selection that turns false in full mode would be a skip the release
+          # inherits; the plan already prevents it, and this keeps it from passing if it did.
+          full_mode() {
+            if [ "$FULL_MATRIX" = "true" ] && [ "$2" != "$3" ]; then
+              echo "::error::$1 has selected=$2 in full mode; the full matrix requires $3."
+              status=1
+            fi
+          }
+          full_mode backend "$SELECTED_BACKEND" true
+          full_mode portable-core "$SELECTED_PORTABLE_CORE" true
+          full_mode frontend "$SELECTED_FRONTEND" true
+          full_mode workflow-docker-shell-lint "$SELECTED_WORKFLOW_DOCKER_SHELL_LINT" true
+          full_mode browser-e2e-shards "$SELECTED_BROWSER_E2E_SHARDS" true
+          full_mode visual-baseline-reach "$SELECTED_VISUAL_BASELINE_REACH" true
+          full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" true
+          full_mode cross-platform-browser "$SELECTED_CROSS_PLATFORM_BROWSER" true
+          full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" false
+          if [ "$status" -ne 0 ]; then
+            exit 1
+          fi
+          if [ "$FULL_MATRIX" = "true" ]; then
+            verdict=full-success
+          else
+            verdict=reduced-success
+          fi
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
 
   # When a platform has no baseline set, visual-baseline.spec.ts skips itself there -- and
   # the suite reports green while comparing not a single pixel. This check names the gap
