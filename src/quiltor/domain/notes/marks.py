@@ -1,33 +1,44 @@
+# pyright: strict
 """Rich-text ranges shared by every author-owned note surface."""
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
 
+from quiltor.domain.json_values import as_array, as_object
 from quiltor.domain.text_offsets import utf16_offsets_to_indices
 
 MAX_NOTE_MARKS = 10_000
 
+_KINDS = {"bold", "italic", "heading"}
 
-def valid_note_marks(owner: dict[str, Any], note_key: str) -> bool:
+
+def valid_note_marks(owner: Mapping[str, object], note_key: str) -> bool:
     """Validate bold/italic spans and canonical single-line headings over plain note text."""
 
     text = owner.get(note_key, "")
-    marks = owner.get("noteMarks", [])
-    if not isinstance(text, str) or not isinstance(marks, list) or len(marks) > MAX_NOTE_MARKS:
+    marks = as_array(owner.get("noteMarks", []))
+    if not isinstance(text, str) or marks is None or len(marks) > MAX_NOTE_MARKS:
         return False
+    rows: list[tuple[int, int, str]] = []
     offsets: list[int] = []
-    for mark in marks:
-        if not isinstance(mark, dict) or mark.get("kind") not in {"bold", "italic", "heading"}:
+    for item in marks:
+        mark = as_object(item)
+        if mark is None:
+            return False
+        kind = mark.get("kind")
+        if not isinstance(kind, str) or kind not in _KINDS:
             return False
         start, end = mark.get("from"), mark.get("to")
         if type(start) is not int or type(end) is not int or start < 0 or end <= start:
             return False
-        if mark["kind"] == "heading":
-            if type(mark.get("level")) is not int or mark["level"] not in {1, 2, 3}:
+        if kind == "heading":
+            level = mark.get("level")
+            if type(level) is not int or level not in {1, 2, 3}:
                 return False
         elif "level" in mark:
             return False
+        rows.append((start, end, kind))
         offsets.extend((start, end))
     indices = utf16_offsets_to_indices(text, offsets)
     if indices is None:
@@ -35,8 +46,7 @@ def valid_note_marks(owner: dict[str, Any], note_key: str) -> bool:
 
     previous_inline_end: dict[str, int] = {}
     heading_starts: set[int] = set()
-    for mark in sorted(marks, key=lambda item: (item["from"], item["to"], item["kind"])):
-        start, end, kind = mark["from"], mark["to"], mark["kind"]
+    for start, end, kind in sorted(rows):
         if kind == "heading":
             python_start, python_end = indices[start], indices[end]
             if (

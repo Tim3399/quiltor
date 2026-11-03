@@ -206,6 +206,21 @@ npm run lint:pyright
 Arguments after `--` narrow the run, for example `npm run lint:pyright -- src`. It is part
 of `npm run check`.
 
+### Strict mode, file by file
+
+`src/quiltor/domain` and `application` hold untyped JSON dicts that `standard` mode accepts
+and strict mode does not, so strict is introduced one finished file at a time. A file that
+is clean under strict starts with `# pyright: strict` as its first line; pyright then holds
+that file to strict from then on, and the `strict` list in `pyproject.toml` is left alone.
+When most of a directory carries the comment, `pyproject.toml` switches to listing the
+directory and the comments go (T-19 P12).
+
+JSON values are narrowed with `as_object` and `as_array` from `quiltor.domain.json_values`,
+which turn `object` into `dict[str, object]` and `list[object]` or answer `None`. That module
+holds the only `cast` in `quiltor.domain` and `quiltor.application`; code that needs one
+elsewhere should go through those two functions instead. `Mapping[str, object]` replaces
+`dict[str, Any]` in signatures, so callers keep passing their dicts.
+
 ### Which Python it reads
 
 pyright resolves third-party imports (typer, PyJWT, markdown-it-py) through a Python
