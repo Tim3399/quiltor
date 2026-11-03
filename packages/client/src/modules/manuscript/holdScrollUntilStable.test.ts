@@ -36,6 +36,38 @@ describe("restoring the editor scroll position", () => {
     expect(onSettled).toHaveBeenCalledExactlyOnceWith(true);
   });
 
+  it("writes the position again when the first write was clamped to an estimated height", () => {
+    // The browser clamps scrollTop to the scrollable height. Right after the editor mounts,
+    // that height is CodeMirror's estimate and can be too short (T-149: 3455 instead of 3622);
+    // the real height only arrives with a later measure.
+    let maxTop = 3455;
+    let top = 0;
+    const scroller = {
+      get scrollTop() {
+        return top;
+      },
+      set scrollTop(value: number) {
+        top = Math.min(value, maxTop);
+      },
+    };
+    const queue: ((hasFocus: boolean) => void)[] = [];
+    const onSettled = vi.fn();
+    holdScrollUntilStable({
+      scroller,
+      top: 3622,
+      afterMeasure: (callback) => {
+        queue.push(callback);
+        return () => undefined;
+      },
+      onSettled,
+    });
+    queue.shift()?.(true);
+    maxTop = 6245;
+    while (queue.length) queue.shift()?.(true);
+    expect(scroller.scrollTop).toBe(3622);
+    expect(onSettled).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
   it("settles after one quiet cycle when nothing moves", () => {
     const scroller = { scrollTop: 0 };
     const cycles = measureCycles(scroller, []);

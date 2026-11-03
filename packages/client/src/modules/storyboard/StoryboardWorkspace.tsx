@@ -44,6 +44,7 @@ import {
   connectedStoryboardEdge,
   groupNode,
   insertStoryboardNodeAtLayerFront,
+  keepMeasuredFlowNodes,
   moveStoryboardNodeInLayer,
   moveStoryboardNodeWithGroupMembers,
   noteNode,
@@ -301,8 +302,10 @@ function StoryboardWorkspaceInner({
     ],
   );
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-  useEffect(() => setFlowNodes(derivedNodes), [derivedNodes]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+    setFlowNodes((current) => keepMeasuredFlowNodes(derivedNodes, current));
+  }, [derivedNodes]);
 
   useEffect(() => {
     if (boards.some((board) => board.id === activeBoardId)) return;

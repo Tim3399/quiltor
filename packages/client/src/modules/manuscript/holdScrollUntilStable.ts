@@ -29,7 +29,11 @@ export function holdScrollUntilStable({
       onSettled(false);
       return;
     }
-    if (written !== null && scroller.scrollTop === written) {
+    // Compare against the target, not against what the last write left: right after mount
+    // the browser clamps the write to CodeMirror's estimated height, and a clamped position
+    // that merely stays put is not the restored one (T-149). Within a pixel, because
+    // scrollTop is fractional on scaled displays.
+    if (written !== null && scroller.scrollTop === written && Math.abs(written - top) <= 1) {
       onSettled(true);
       return;
     }
