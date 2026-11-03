@@ -15,13 +15,15 @@ rules:
       # and the ignore has to be re-justified.
       # Re-justified for T-35: the step is unchanged; release-plan, tests, release-complete
       # and the re-checks above it moved it down by 127 lines.
-      - release.yml:621
+      # Re-justified for T-35-fix: still unchanged; the gate's rust-toolchain step grew
+      # by its components line and a comment, moving it down by 2.
       - release.yml:623
-      - release.yml:624
       - release.yml:625
       - release.yml:626
-      - release.yml:629
-      - release.yml:632
+      - release.yml:627
+      - release.yml:628
+      - release.yml:631
+      - release.yml:634
   self-repository:
     ignore:
       # Release Build calls test.yml as ./.github/workflows/test.yml (T-35). The `$/` form zizmor
