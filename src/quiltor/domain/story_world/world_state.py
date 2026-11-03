@@ -254,4 +254,3 @@ def history_for(
             )
         previous = current
     return entries
-

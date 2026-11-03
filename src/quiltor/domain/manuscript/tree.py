@@ -228,9 +228,7 @@ def delete_folder(chapter_ids: Iterable[str], structure: object, folder_id: str)
     parent_siblings[insert_at:insert_at] = children
     for position, sibling in enumerate(parent_siblings):
         sibling["position"] = position
-    candidate["folders"] = [
-        folder for folder in candidate["folders"] if folder["id"] != folder_id
-    ]
+    candidate["folders"] = [folder for folder in candidate["folders"] if folder["id"] != folder_id]
     candidate["items"] = [item for item in candidate["items"] if item["id"] != folder_item["id"]]
     candidate = normalize_positions(candidate)
     validate_tree(chapters, candidate)

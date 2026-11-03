@@ -85,12 +85,7 @@ def _ordinal(year: int, month: int, day: int, months: list[_Month]) -> int:
     if day < 1 or day > months[month - 1].day_count:
         raise ValueError("Day is outside the custom month.")
     year_length = sum(item.day_count for item in months)
-    return (
-        (year - 1) * year_length
-        + sum(item.day_count for item in months[: month - 1])
-        + day
-        - 1
-    )
+    return (year - 1) * year_length + sum(item.day_count for item in months[: month - 1]) + day - 1
 
 
 def time_to_calendar_date(time_value: int, system: Mapping[str, object]) -> CalendarDate | None:

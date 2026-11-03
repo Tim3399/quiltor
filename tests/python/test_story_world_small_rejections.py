@@ -18,6 +18,7 @@ from quiltor.domain.story_world.time_system import (
     time_to_calendar_date,
 )
 from quiltor.domain.story_world.world_state import WorldStateError, history_for, state_at
+from tests.python.narrowing import present
 
 FIXTURE = json.loads(
     (Path(__file__).parents[2] / "contracts/fixtures/story-world/world-state.v1.json").read_text(
@@ -84,7 +85,8 @@ class ProfileProjectionTests(unittest.TestCase):
     def test_legacy_values_project_with_their_labels_and_empty_ones_vanish(self) -> None:
         result = normalize_profile({"alter": "40", "rolle": ""}, "o")
         self.assertEqual(
-            result["fields"], [{"id": "profile-field:o:legacy:alter", "key": "Alter", "value": "40"}]
+            result["fields"],
+            [{"id": "profile-field:o:legacy:alter", "key": "Alter", "value": "40"}],
         )
 
     def test_present_fields_win_and_only_invalid_leftovers_survive(self) -> None:
@@ -141,7 +143,9 @@ class WorldStateRejectionTests(unittest.TestCase):
         self.figures["timeline"][0]["position"] = "first"
         with self.assertRaises(WorldStateError) as caught:
             state_at(self.figures, self.figures["timeline"][0]["id"])
-        self.assertEqual(str(caught.exception), "Invalid figure state or dangling temporal reference.")
+        self.assertEqual(
+            str(caught.exception), "Invalid figure state or dangling temporal reference."
+        )
 
 
 def _gregorian(**extra: Any) -> dict[str, Any]:
@@ -161,7 +165,9 @@ def _custom(**extra: Any) -> dict[str, Any]:
 
 
 class TimeSystemRejectionTests(unittest.TestCase):
-    def assertRaisesMessage(self, error: type[Exception], message: str, call: Any, *args: Any) -> None:
+    def assertRaisesMessage(
+        self, error: type[Exception], message: str, call: Any, *args: Any
+    ) -> None:
         with self.assertRaises(error) as caught:
             call(*args)
         self.assertEqual(str(caught.exception), message)
@@ -181,7 +187,11 @@ class TimeSystemRejectionTests(unittest.TestCase):
 
     def test_epoch_fields_must_be_safe_integers(self) -> None:
         self.assertRaisesMessage(
-            ValueError, "epochYear must be an integer.", time_to_calendar_date, 0, _gregorian(epochYear="1")
+            ValueError,
+            "epochYear must be an integer.",
+            time_to_calendar_date,
+            0,
+            _gregorian(epochYear="1"),
         )
         self.assertRaisesMessage(
             ValueError,
@@ -193,7 +203,11 @@ class TimeSystemRejectionTests(unittest.TestCase):
 
     def test_time_must_be_a_safe_integer(self) -> None:
         self.assertRaisesMessage(
-            TypeError, "Canonical time must be an integer.", time_to_calendar_date, 1.5, _gregorian()
+            TypeError,
+            "Canonical time must be an integer.",
+            time_to_calendar_date,
+            1.5,
+            _gregorian(),
         )
         self.assertRaisesMessage(
             ValueError,
@@ -225,7 +239,11 @@ class TimeSystemRejectionTests(unittest.TestCase):
 
     def test_unknown_kinds_and_units_are_refused_in_both_directions(self) -> None:
         self.assertRaisesMessage(
-            ValueError, "Unknown time system kind: lunar", time_to_calendar_date, 0, {"kind": "lunar"}
+            ValueError,
+            "Unknown time system kind: lunar",
+            time_to_calendar_date,
+            0,
+            {"kind": "lunar"},
         )
         self.assertRaisesMessage(
             ValueError,
@@ -305,20 +323,21 @@ class TimeSystemRejectionTests(unittest.TestCase):
             ({"year": 1, "month": 1, "day": 11}, "Day is outside the custom month."),
         ):
             with self.subTest(value=value):
-                self.assertRaisesMessage(ValueError, message, calendar_date_to_time, value, _custom())
+                self.assertRaisesMessage(
+                    ValueError, message, calendar_date_to_time, value, _custom()
+                )
 
     def test_custom_dates_round_trip_through_time(self) -> None:
         system = _custom()
         for time in (0, 9, 10, 29, 30, -1, -31):
             with self.subTest(time=time):
-                projected = time_to_calendar_date(time, system)
-                self.assertIsNotNone(projected)
+                projected = present(time_to_calendar_date(time, system))
                 self.assertEqual(
                     calendar_date_to_time(
                         {
-                            "year": getattr(projected, "year"),
-                            "month": getattr(projected, "month"),
-                            "day": getattr(projected, "day"),
+                            "year": projected.year,
+                            "month": projected.month,
+                            "day": projected.day,
                         },
                         system,
                     ),
@@ -334,7 +353,9 @@ class TimeSystemRejectionTests(unittest.TestCase):
         self.assertEqual(format_time(-3, {}), "t-3")
 
     def test_default_templates_depend_on_the_kind(self) -> None:
-        self.assertEqual(format_time(0, _gregorian(epochYear=2024, epochMonth=3, epochDay=9)), "2024-03-09")
+        self.assertEqual(
+            format_time(0, _gregorian(epochYear=2024, epochMonth=3, epochDay=9)), "2024-03-09"
+        )
         self.assertEqual(format_time(0, _custom()), "1 Aster, 1")
         self.assertEqual(format_time(0, _custom(eraAbbreviation="n.E.")), "1 Aster, 1 n.E.")
 

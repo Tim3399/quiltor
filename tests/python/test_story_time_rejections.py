@@ -35,7 +35,12 @@ class StoryTimeAnchorIssueTests(unittest.TestCase):
         self.assertIsNone(story_time_anchor_issue(manuscript, None))
 
     def test_a_malformed_reference_names_its_chapter(self) -> None:
-        for reference in (None, {}, {"startMomentId": ""}, {"startMomentId": "past", "endMomentId": "past"}):
+        for reference in (
+            None,
+            {},
+            {"startMomentId": ""},
+            {"startMomentId": "past", "endMomentId": "past"},
+        ):
             with self.subTest(reference=reference):
                 manuscript = _chapters({"id": "c1", "storyTime": reference})
                 self.assertEqual(
@@ -56,7 +61,9 @@ class StoryTimeAnchorIssueTests(unittest.TestCase):
             story_time_anchor_issue(start, TIMELINE),
             StoryTimeAnchorIssue("unknown_moment", "c1", "ghost"),
         )
-        end = _chapters({"id": "c1", "storyTime": {"startMomentId": "past", "endMomentId": "ghost"}})
+        end = _chapters(
+            {"id": "c1", "storyTime": {"startMomentId": "past", "endMomentId": "ghost"}}
+        )
         self.assertEqual(
             story_time_anchor_issue(end, TIMELINE),
             StoryTimeAnchorIssue("unknown_moment", "c1", "ghost"),

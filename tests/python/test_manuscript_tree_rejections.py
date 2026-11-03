@@ -177,8 +177,20 @@ class ValidateTreeRejectionTests(unittest.TestCase):
         structure = {
             "folders": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}],
             "items": [
-                {"id": "i-a", "kind": "folder", "folderId": "a", "parentFolderId": "b", "position": 0},
-                {"id": "i-b", "kind": "folder", "folderId": "b", "parentFolderId": "a", "position": 0},
+                {
+                    "id": "i-a",
+                    "kind": "folder",
+                    "folderId": "a",
+                    "parentFolderId": "b",
+                    "position": 0,
+                },
+                {
+                    "id": "i-b",
+                    "kind": "folder",
+                    "folderId": "b",
+                    "parentFolderId": "a",
+                    "position": 0,
+                },
             ],
         }
         self.assertRejected([], structure, "folder hierarchy contains a cycle")
