@@ -510,6 +510,14 @@ button nor the Java notice. With only the URL set, it reports the service as con
 enabled. If the server does not answer, the error code is `writing_assistance.grammar_unavailable`.
 Quiltor writes no chapter text to the log or to error messages.
 
+#### Language data for dictionary, synonyms, and translation
+
+The data is a prebuilt package from a separate data release. It is downloaded on demand and not shipped with Quiltor. On install, Quiltor checks size and checksum before it accepts the data. It comes from the German Wiktionary and OpenThesaurus and is licensed as a whole under CC BY-SA 4.0.
+
+Version 3.25.0 ships without a published package. The interface then shows "Die Sprachdaten folgen mit einem späteren Update." ("The language data will follow in a later update."), and `quiltor install` cannot load the data yet. Browser spellchecking remains available.
+
+If you run Quiltor as a server, you install the data yourself: run `quiltor install` once on the server as soon as a package is published. The file lives in the data directory, which for the Docker image is the `/data` volume, and survives an image update. A server never downloads anything on its own.
+
 Sources, versions, checksums, licenses, and attribution are recorded in the installation manifest and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---
