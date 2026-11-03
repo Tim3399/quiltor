@@ -975,6 +975,20 @@ class ProofTests(unittest.TestCase):
                 str(caught.exception), "an authoritative in-process resolution proof is required"
             )
 
+    def test_a_proof_built_around_the_constructor_is_still_refused(self) -> None:
+        # Defence in depth: `__post_init__` stops a forged authority, but an object can be
+        # assembled without it. The revision check must look at the authority itself.
+        forged = object.__new__(ResolutionProof)
+        genuine = decide(module, "known element by name").proof
+        for name in ("checked", "status", "mention", "candidate_ids", "world_revision"):
+            object.__setattr__(forged, name, getattr(genuine, name))
+        object.__setattr__(forged, "_authority", object())
+        with self.assertRaises(TypeError) as caught:
+            require_current_world_revision(forged, REVISION)
+        self.assertEqual(
+            str(caught.exception), "an authoritative in-process resolution proof is required"
+        )
+
     def test_a_proof_must_match_the_current_revision(self) -> None:
         proof = decide(module, "known element by name").proof
         require_current_world_revision(proof, REVISION)
