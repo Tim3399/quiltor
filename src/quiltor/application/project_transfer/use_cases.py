@@ -1,4 +1,7 @@
+# pyright: strict
 from __future__ import annotations
+
+from typing import Any
 
 from quiltor.application.project_transfer.ports import ProjectTransferRepository
 from quiltor.application.telemetry import UseCaseObserver
@@ -13,7 +16,7 @@ class ProjectTransferUseCases:
         with self._observer.observe("persistence", "export_project"):
             return self._repository.export(world_id, owner_sub)
 
-    def preview(self, archive: bytes) -> dict:
+    def preview(self, archive: bytes) -> dict[str, Any]:
         with self._observer.observe("persistence", "preview_project_import"):
             return self._repository.preview(archive).public()
 

@@ -1,3 +1,4 @@
+# pyright: strict
 """Ports required by local and remote backup use cases."""
 
 from __future__ import annotations
@@ -69,7 +70,7 @@ class RemoteBackupGateway(Protocol):
         self,
         context: WorldBackupContext,
         entry: dict[str, Any],
-        read_blob,
+        read_blob: Callable[[str], bytes],
         authorization: BackupAuthorization,
     ) -> None: ...
     def worlds(self, endpoint: str, authorization: BackupAuthorization) -> list[dict[str, Any]]: ...

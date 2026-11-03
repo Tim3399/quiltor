@@ -1,9 +1,11 @@
+# pyright: strict
 """Values crossing the document application boundary."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -16,7 +18,7 @@ class DocumentLocation:
 
 @dataclass(frozen=True)
 class VersionedDocument:
-    state: dict
+    state: dict[str, Any]
     revision: int
 
 

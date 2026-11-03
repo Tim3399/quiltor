@@ -1,3 +1,4 @@
+# pyright: strict
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -57,7 +58,7 @@ class ParsedUnitManuscript:
 
 
 class ManuscriptImportRepository(Protocol):
-    def preview(self, file_name: str, content: bytes, selection: Any = None) -> dict: ...
+    def preview(self, file_name: str, content: bytes, selection: Any = None) -> dict[str, Any]: ...
 
     def publish(
         self,
@@ -71,7 +72,9 @@ class ManuscriptImportRepository(Protocol):
         owner_sub: str,
     ) -> dict[str, str]: ...
 
-    def preview_v2(self, file_name: str, content: bytes, selection: Any = None) -> dict: ...
+    def preview_v2(
+        self, file_name: str, content: bytes, selection: Any = None
+    ) -> dict[str, Any]: ...
 
     def publish_v2(
         self,

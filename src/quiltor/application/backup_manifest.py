@@ -1,3 +1,4 @@
+# pyright: strict
 """Versioned, fail-closed contract for untrusted backup manifests and blobs."""
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+
+from quiltor.domain.json_values import JsonObject, as_object
 
 CURRENT_FORMAT_VERSION = 2
 SUPPORTED_FORMAT_VERSIONS = frozenset({1, CURRENT_FORMAT_VERSION})
@@ -108,7 +111,7 @@ def _strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def strict_json_loads(payload: bytes | str, *, maximum_bytes: int) -> Any:
+def strict_json_loads(payload: object, *, maximum_bytes: int) -> Any:
     """Parse JSON without accepting duplicate object keys or oversized input."""
 
     if isinstance(payload, bytes):
@@ -157,13 +160,20 @@ def manifest_identifier(document_without_id: dict[str, Any], format_version: int
     return hashlib.sha256(canonical_manifest_bytes(document_without_id, format_version)).hexdigest()
 
 
-def _validate_world_id(value: Any) -> str:
+def _exact_object(value: object) -> JsonObject | None:
+    """The value as an object if it is exactly a dict, as `json.loads` produces it."""
+
+    entries = as_object(value)
+    return entries if entries is not None and type(value) is dict else None
+
+
+def _validate_world_id(value: object) -> str:
     if type(value) is not str or not WORLD_ID_RE.fullmatch(value) or value in {".", ".."}:
         raise _invalid()
     return value
 
 
-def _validate_created(value: Any) -> str:
+def _validate_created(value: object) -> str:
     if type(value) is not str or not CREATED_RE.fullmatch(value):
         raise _invalid()
     try:
@@ -173,13 +183,13 @@ def _validate_created(value: Any) -> str:
     return value
 
 
-def _validate_text(value: Any, maximum: int) -> str:
+def _validate_text(value: object, maximum: int) -> str:
     if type(value) is not str or len(value) > maximum or "\x00" in value:
         raise _invalid()
     return value
 
 
-def _validate_logical_path(path: Any) -> str:
+def _validate_logical_path(path: object) -> str:
     if type(path) is not str or not path or path != unicodedata.normalize("NFC", path):
         raise _invalid()
     if path == DATABASE_NAME:
@@ -204,15 +214,16 @@ def _validate_logical_path(path: Any) -> str:
     return path
 
 
-def _descriptor(path: str, value: Any, format_version: int) -> ManifestFile:
+def _descriptor(path: str, value: object, format_version: int) -> ManifestFile:
     if format_version == 1:
         if type(value) is not str or not DIGEST_RE.fullmatch(value):
             raise _invalid()
         return ManifestFile(path, value, None)
-    if type(value) is not dict or frozenset(value) != FILE_RECORD_FIELDS:
+    fields = _exact_object(value)
+    if fields is None or frozenset(fields) != FILE_RECORD_FIELDS:
         raise _invalid()
-    digest = value.get("sha256")
-    size = value.get("size")
+    digest = fields.get("sha256")
+    size = fields.get("size")
     if type(digest) is not str or not DIGEST_RE.fullmatch(digest) or type(size) is not int:
         raise _invalid()
     record = ManifestFile(path, digest, size)
@@ -222,32 +233,33 @@ def _descriptor(path: str, value: Any, format_version: int) -> ManifestFile:
 
 
 def validate_manifest(
-    document: Any,
+    document: object,
     *,
     expected_world: str | None = None,
     expected_id: str | None = None,
 ) -> ValidatedBackupManifest:
     """Validate exact schema, identity, portable paths and declared sizes."""
 
-    if type(document) is not dict or frozenset(document) != MANIFEST_FIELDS:
+    manifest = _exact_object(document)
+    if manifest is None or frozenset(manifest) != MANIFEST_FIELDS:
         raise _invalid()
-    format_version = document.get("format")
+    format_version = manifest.get("format")
     if type(format_version) is not int or format_version not in SUPPORTED_FORMAT_VERSIONS:
         raise _unsupported()
-    if document.get("encryption") != ENCRYPTION_NONE:
+    if manifest.get("encryption") != ENCRYPTION_NONE:
         raise _unsupported()
-    world = _validate_world_id(document.get("world"))
+    world = _validate_world_id(manifest.get("world"))
     if expected_world is not None and world != _validate_world_id(expected_world):
         raise BackupContractError(
             "backup_world_mismatch", "Backup snapshot belongs to a different world."
         )
-    _validate_created(document.get("created"))
-    _validate_text(document.get("title"), MAX_TITLE_LENGTH)
-    _validate_text(document.get("message"), MAX_MESSAGE_LENGTH)
-    parent = document.get("parent")
+    _validate_created(manifest.get("created"))
+    _validate_text(manifest.get("title"), MAX_TITLE_LENGTH)
+    _validate_text(manifest.get("message"), MAX_MESSAGE_LENGTH)
+    parent = manifest.get("parent")
     if type(parent) is not str or (parent and not DIGEST_RE.fullmatch(parent)):
         raise _invalid()
-    identifier = document.get("id")
+    identifier = manifest.get("id")
     if type(identifier) is not str or not DIGEST_RE.fullmatch(identifier):
         raise _invalid()
     if expected_id is not None and identifier != expected_id:
@@ -255,8 +267,8 @@ def validate_manifest(
             "backup_id_mismatch", "Backup snapshot identifier does not match its request."
         )
 
-    raw_files = document.get("files")
-    if type(raw_files) is not dict or not raw_files or len(raw_files) > MAX_FILES:
+    raw_files = _exact_object(manifest.get("files"))
+    if raw_files is None or not raw_files or len(raw_files) > MAX_FILES:
         raise _invalid()
     records: list[ManifestFile] = []
     collision_keys: set[str] = set()
@@ -280,15 +292,15 @@ def validate_manifest(
     if DATABASE_NAME not in raw_files or declared_total > MAX_TOTAL_BYTES:
         raise _invalid()
 
-    body = {key: value for key, value in document.items() if key != "id"}
+    body = {key: value for key, value in manifest.items() if key != "id"}
     if manifest_identifier(body, format_version) != identifier:
         raise BackupContractError(
             "backup_id_mismatch", "Backup snapshot identifier failed verification."
         )
-    return ValidatedBackupManifest(document=dict(document), files=tuple(records))
+    return ValidatedBackupManifest(document=dict(manifest), files=tuple(records))
 
 
-def verify_blob(record: ManifestFile, payload: Any) -> bytes:
+def verify_blob(record: ManifestFile, payload: object) -> bytes:
     if type(payload) is not bytes or len(payload) > record.maximum_size:
         raise _integrity()
     if record.size is not None and len(payload) != record.size:
