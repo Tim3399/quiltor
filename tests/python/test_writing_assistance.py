@@ -125,6 +125,29 @@ class WritingAssistanceServiceTests(unittest.TestCase):
         self.service.install()
         self.assertEqual(self.service.status()["coverage"], "core")
 
+    def test_status_reports_the_sources_the_installed_database_records(self):
+        self.assertEqual(self.service.status()["installed_sources"], [])
+        self.service.install()
+        source = {
+            "name": "wiktionary",
+            "url": "https://example.org/dump",
+            "version": "",
+            "retrieved": "2026-11-03",
+            "license": "CC BY-SA 4.0",
+            "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        }
+        with closing(sqlite3.connect(self.repository.path)) as conn:
+            with conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO metadata(key,value) VALUES('sources',?)",
+                    (json.dumps([source]),),
+                )
+        self.assertEqual(self.service.status()["installed_sources"], [source])
+        with closing(sqlite3.connect(self.repository.path)) as conn:
+            with conn:
+                conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
+        self.assertEqual(self.service.status()["installed_sources"], [])
+
     def test_database_from_before_coverage_counts_as_core(self):
         self.service.install()
         with closing(sqlite3.connect(self.repository.path)) as conn:

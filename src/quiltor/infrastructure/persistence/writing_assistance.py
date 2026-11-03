@@ -210,6 +210,9 @@ class SQLiteWritingAssistanceRepository:
     def schema(self) -> int | None:
         return schema(self.path)
 
+    def sources(self) -> list[dict[str, str]]:
+        return sources(self.path)
+
     def metadata(self) -> dict[str, str]:
         return metadata(self.path)
 

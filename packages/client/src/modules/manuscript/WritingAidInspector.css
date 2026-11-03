@@ -286,6 +286,9 @@
 .writing-attribution li {
   overflow-wrap: anywhere;
 }
+.writing-attribution__edited {
+  margin: var(--space-3) 0 0;
+}
 .grammar-heading {
   display: flex;
   align-items: center;

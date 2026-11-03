@@ -19,12 +19,47 @@ import {
   quiltorClient,
   type WritingAssistanceLookupResult,
   type WritingAssistanceStatus,
+  type WritingInstalledSource,
 } from "../../platform";
 import type { AssistancePhase, WritingLocale } from "./WritingAidInspector.types";
 import { WritingTabScroller } from "./WritingTabScroller";
 import type { WritingTool } from "./workspaceTypes";
 
 const WRITING_TOOLS: WritingTool[] = ["lookup", "synonyms", "translate"];
+
+/** Only http(s) addresses become links; anything else a data file carries stays text. */
+const webAddress = (url: string) => (/^https?:\/\//i.test(url) ? url : null);
+
+function SourceLink({ href, children }: { href: string; children: string }) {
+  const target = webAddress(href);
+  return target ? (
+    <a href={target} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ) : (
+    <>{children}</>
+  );
+}
+
+function InstalledSourceItem({ source }: { source: WritingInstalledSource }) {
+  return (
+    <li>
+      <SourceLink href={source.url}>{source.name}</SourceLink>
+      {source.license && (
+        <>
+          {" · "}
+          <SourceLink href={source.licenseUrl}>{source.license}</SourceLink>
+        </>
+      )}
+    </li>
+  );
+}
+
+/** "12,3 MB"; the download size is shown before anything is fetched. */
+function formatMegabytes(bytes: number, locale: string) {
+  const megabytes = Math.max(bytes / 1_000_000, 0.1);
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(megabytes)} MB`;
+}
 
 export interface WritingLookupPanelProps {
   selectionTool: WritingTool;
@@ -62,7 +97,7 @@ export function WritingLookupPanel({
   onInstallData,
   onApplyValue,
 }: WritingLookupPanelProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const toolLabel = (tool: WritingTool) =>
     tool === "lookup" ? t("dictionary") : tool === "synonyms" ? t("synonyms") : t("translate");
   const resultValues = (result: WritingAssistanceLookupResult) =>
@@ -72,6 +107,31 @@ export function WritingLookupPanel({
   const coreOnly = status?.installed && status.coverage === "core" && (
     <Alert className="writing-coverage" tone="info" title={t("writingCoreOnly")}>
       {t("writingCoreOnlyHint")}
+    </Alert>
+  );
+
+  const installedSources = status?.installedSources ?? [];
+  const downloadBytes = status?.data?.available ? status.data.bytes : null;
+  const stale = status?.stale === true;
+  const installLabel = stale ? t("writingDataUpdate") : t("writingDataInstall");
+  const installingLabel = stale ? t("writingDataUpdating") : t("writingDataInstalling");
+  const downloadSize = downloadBytes ? (
+    <p className="writing-data-state__note">
+      {t("writingDataSize", { size: formatMegabytes(downloadBytes, locale) })}
+    </p>
+  ) : null;
+  // An installed dictionary of an older layout still answers; offer the update
+  // next to the results instead of hiding them behind the missing-data state.
+  const staleNote = stale && status?.installed && status.data?.available !== false && (
+    <Alert className="writing-coverage" tone="info" title={t("writingDataOutdated")}>
+      <Button
+        onClick={onInstallData}
+        loading={phase === "installing"}
+        loadingLabel={installingLabel}
+      >
+        {phase === "installing" ? installingLabel : installLabel}
+      </Button>
+      {downloadSize}
     </Alert>
   );
 
@@ -134,7 +194,7 @@ export function WritingLookupPanel({
           ) : !status?.installed ? (
             <EmptyState
               className="writing-data-state"
-              title={t("writingDataMissing")}
+              title={stale ? t("writingDataOutdated") : t("writingDataMissing")}
               headingLevel={3}
               size="compact"
               actions={
@@ -144,13 +204,16 @@ export function WritingLookupPanel({
                   // No data release yet: an install button could only fail.
                   <p className="writing-data-state__note">{t("writingDataNotPublished")}</p>
                 ) : (
-                  <Button
-                    onClick={onInstallData}
-                    loading={phase === "installing"}
-                    loadingLabel={t("writingDataInstalling")}
-                  >
-                    {phase === "installing" ? t("writingDataInstalling") : t("writingDataInstall")}
-                  </Button>
+                  <>
+                    <Button
+                      onClick={onInstallData}
+                      loading={phase === "installing"}
+                      loadingLabel={installingLabel}
+                    >
+                      {phase === "installing" ? installingLabel : installLabel}
+                    </Button>
+                    {downloadSize}
+                  </>
                 )
               }
             >
@@ -160,6 +223,7 @@ export function WritingLookupPanel({
             <ProgressBar label={t("writingSearching")} />
           ) : results.length ? (
             <div className="writing-results">
+              {staleNote}
               {coreOnly}
               <p className="writing-apply-hint" role="status">
                 {replaceTarget ? t("valueReplacesSelection") : t("valueInsertsAtCursor")}
@@ -196,14 +260,25 @@ export function WritingLookupPanel({
               ))}
               <footer className="writing-attribution">
                 <span>{t("writingAttribution")}</span>
-                <ul>
-                  {lookupSources.map((source) => (
-                    <li key={source}>
-                      {status.sources[source]?.attribution || source} ·{" "}
-                      {status.sources[source]?.license}
-                    </li>
-                  ))}
-                </ul>
+                {installedSources.length > 0 ? (
+                  <>
+                    <ul>
+                      {installedSources.map((source) => (
+                        <InstalledSourceItem key={source.name} source={source} />
+                      ))}
+                    </ul>
+                    <p className="writing-attribution__edited">{t("writingEdited")}</p>
+                  </>
+                ) : (
+                  <ul>
+                    {lookupSources.map((source) => (
+                      <li key={source}>
+                        {status.sources[source]?.attribution || source} ·{" "}
+                        {status.sources[source]?.license}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </footer>
             </div>
           ) : writingQuery.trim() ? (

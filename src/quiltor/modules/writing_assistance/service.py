@@ -41,6 +41,8 @@ class WritingAssistanceService:
             "version": installed_version,
             "manifest": {"version": self.expected_version, "sources": SOURCES},
             "sources": SOURCES,
+            # What the installed database itself records, for the attribution footer.
+            "installed_sources": self.repository.sources() if installed else [],
             # Whether there is a dictionary to download at all: without a
             # published data release the client offers no install button.
             "data": data_status(self.data),

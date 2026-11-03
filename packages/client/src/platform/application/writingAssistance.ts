@@ -33,6 +33,16 @@ export type WritingDataRelease = {
   bytes: number | null;
 };
 
+/** One upstream source the installed dictionary records about itself. */
+export type WritingInstalledSource = {
+  name: string;
+  /** Where the source lives; shown as a link only when it is http(s). */
+  url: string;
+  license: string;
+  /** The license text's address; the link target for `license`. */
+  licenseUrl: string;
+};
+
 export type WritingAssistanceStatus = {
   ok: boolean;
   installed: boolean;
@@ -52,6 +62,11 @@ export type WritingAssistanceStatus = {
    * install to offer. Missing on older servers, which means available.
    */
   data?: WritingDataRelease;
+  /**
+   * The sources the installed dictionary names in its own metadata. Empty when
+   * nothing is installed, on older servers, or when the file records none.
+   */
+  installedSources?: WritingInstalledSource[];
   sources: Record<
     string,
     { version: string; url: string; checksum: string; license: string; attribution: string }

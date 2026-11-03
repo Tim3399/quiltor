@@ -10,6 +10,60 @@ function response(body: unknown): Response {
 
 afterEach(() => vi.unstubAllGlobals());
 
+describe("writing-assistance status decoding", () => {
+  it("reads the recorded sources and drops what is not a source", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        response({
+          ok: true,
+          installed: true,
+          stale: false,
+          version: "1",
+          sources: {},
+          installed_sources: [
+            { name: "Wiktionary", url: "https://x.example/", license: "CC", license_url: 7 },
+            { url: "https://nameless.example/" },
+            "text",
+            null,
+          ],
+        }),
+      ),
+    );
+
+    const status = await createWritingAssistanceHttpGateway().status();
+
+    expect(status.installedSources).toEqual([
+      { name: "Wiktionary", url: "https://x.example/", license: "CC", licenseUrl: "" },
+    ]);
+  });
+
+  it("treats a missing or malformed list as no recorded sources", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({ ok: true, installed: false, stale: false, version: null, sources: {} }),
+        )
+        .mockResolvedValueOnce(
+          response({
+            ok: true,
+            installed: false,
+            stale: false,
+            version: null,
+            sources: {},
+            installed_sources: { name: "x" },
+          }),
+        ),
+    );
+
+    const gateway = createWritingAssistanceHttpGateway();
+    expect((await gateway.status()).installedSources).toEqual([]);
+    expect((await gateway.status()).installedSources).toEqual([]);
+  });
+});
+
 describe("writing-assistance HTTP port", () => {
   it("preserves exact POST requests, body order, locales, and signal presence", async () => {
     const controller = new AbortController();
