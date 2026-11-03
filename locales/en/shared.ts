@@ -130,8 +130,6 @@ export const shared = {
   // Raised when an export never reaches its destination -- practically never in the browser, and in
   // the desktop app whenever the native save bridge could not write the file.
   exportFailed: "The export could not be saved.",
-  saveConflict:
-    "The saved version changed in another tab. Preserve your draft and compare it with the saved version.",
   timeline: "Timeline",
   moment: "Moment",
   moments: "Moments",
@@ -184,5 +182,4 @@ export const shared = {
   nRelationships: "{n} relationships",
   nMoments: "{n} moments",
   nChanges: "{n} changes",
-  nPlaces: "{n} places",
 } as const;

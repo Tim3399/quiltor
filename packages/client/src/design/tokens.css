@@ -237,6 +237,11 @@
   --z-toast: 80;
   --z-modal: 100;
   --z-drawer-panel-mobile: 110;
+  /* The design Popover (ListboxSelect, Menu, DropdownMenu) portals into the body, so it cannot
+     inherit the stacking of the dialog it was opened from. It therefore sits above every
+     modal-level layer: --z-modal, and the mobile drawer panel. --z-popover stays the level for
+     fixed, non-portaled floating surfaces, which must remain beneath dialogs. */
+  --z-popover-portal: 115;
   /* XYFlow raises selected nodes to 1000 and its live connection line to 1001. */
   --z-graph-edge-label: 1002;
 }

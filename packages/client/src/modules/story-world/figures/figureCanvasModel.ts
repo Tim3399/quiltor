@@ -39,6 +39,15 @@ export function belongsOnFigureBoard(figure: FigureNode): boolean {
   return !figure.mapImageId;
 }
 
+/**
+ * How many elements the world shows: the one count every label must use. Counting
+ * `nodes.length` included the map sheets, so the toolbar said 7 where the list beside it,
+ * which leaves them out, said 6.
+ */
+export function countBoardElements(nodes: readonly FigureNode[]): number {
+  return nodes.filter(belongsOnFigureBoard).length;
+}
+
 export function createFigureFlowNodes(
   figures: FigureNode[],
   zoomTier: SemanticZoomTier,

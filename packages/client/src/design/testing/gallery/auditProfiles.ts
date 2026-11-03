@@ -145,7 +145,7 @@ export const designAuditProfiles = {
       disabled: ["Disabled"],
       longContent: ["LongOptions"],
       keyboard: ["Default", "LongOptions"],
-      overlay: ["Default", "LongOptions"],
+      overlay: ["Default", "InDialog", "LongOptions"],
       scrolling: ["LongOptions"],
       responsive: ["LongOptions"],
       touch: ["LongOptions"],

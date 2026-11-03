@@ -11,7 +11,7 @@ import {
   RecoveryDialog,
   type RecoveryDocuments,
 } from "../modules/recovery";
-import { type FigureState, kindLabel } from "../modules/story-world";
+import { countBoardElements, type FigureState, kindLabel } from "../modules/story-world";
 import type { StoryboardState } from "../modules/storyboard";
 import {
   buildWorldReferenceBacklinks,
@@ -84,13 +84,14 @@ export function App() {
     recoveryFamily: DocumentFamily | null;
     currentChapterId: string;
   } | null>(null);
-  // A load that rule 2 held back because the manuscript had unsaved changes.
-  const [pendingLoad, setPendingLoadState] = useState<DocumentFamily | null>(null);
+  // The families whose load rule 2 held back because they had unsaved changes, in the order
+  // the author decides them.
+  const [pendingLoads, setPendingLoadsState] = useState<readonly DocumentFamily[]>([]);
   // Read synchronously by the dialog's close, which may run in the same tick as the decision.
-  const pendingLoadRef = useRef<DocumentFamily | null>(null);
-  const setPendingLoad = useCallback((family: DocumentFamily | null) => {
-    pendingLoadRef.current = family;
-    setPendingLoadState(family);
+  const pendingLoadsRef = useRef<readonly DocumentFamily[]>([]);
+  const setPendingLoads = useCallback((families: readonly DocumentFamily[]) => {
+    pendingLoadsRef.current = families;
+    setPendingLoadsState(families);
   }, []);
 
   const loadDocuments = useCallback(
@@ -105,41 +106,52 @@ export function App() {
     ) => {
       const latest = live.current;
       const saves = latest?.saves;
-      // Rule 2: a load over unsaved manuscript changes of the same world never replaces them;
-      // the author decides in the recovery dialog. The order matters (F-69-10): compare with
-      // the old binding first, then bind the new load in both branches.
+      // Rule 2: a load over unsaved changes of the same world never replaces them, in any
+      // family; the author decides in the recovery dialog. The order matters (F-69-10): compare
+      // with the old binding first, then bind the new load in every branch.
       const sameWorld = documentsBinding.current?.worldId === binding.worldId;
-      const keepDraft = sameWorld && (saves?.manuscript.isDirty() ?? false);
+      const held = (["manuscript", "figures", "storyboards"] as const).filter(
+        (family) => sameWorld && (saves?.[family].isDirty() ?? false),
+      );
       documentsBinding.current = binding;
       // A load is not an edit; the autosave compares by identity, so hand it the same objects.
-      saves?.figures.accept(loadedFigures);
-      saves?.storyboards.accept(loadedStoryboards);
-      figureHistory.load(loadedFigures);
-      storyboardHistory.load(loadedStoryboards);
-      if (keepDraft) {
+      if (!held.includes("figures")) {
+        saves?.figures.accept(loadedFigures);
+        figureHistory.load(loadedFigures);
+      }
+      if (!held.includes("storyboards")) {
+        saves?.storyboards.accept(loadedStoryboards);
+        storyboardHistory.load(loadedStoryboards);
+      }
+      if (!held.includes("manuscript")) {
+        saves?.manuscript.accept(loadedManuscript);
+        manuscriptHistory.load(loadedManuscript);
+        setOrphanedMentions(count);
+        setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
+      }
+      setMirrorWarnings((current) => ({
+        manuscript: held.includes("manuscript") && current.manuscript,
+        figures: held.includes("figures") && current.figures,
+        storyboards: held.includes("storyboards") && current.storyboards,
+      }));
+      pendingLoadsRef.current = held;
+      setPendingLoadsState(held);
+      if (held.length > 0) {
         if (!latest?.recoveryHasConflict && !latest?.recoveryFamily) {
           console.warn("[quiltor] load over unsaved changes", {
             chapterId: latest?.currentChapterId ?? null,
             worldId: binding.worldId,
             source: binding.source,
             generation: binding.generation,
+            families: held,
             at: new Date().toISOString(),
           });
         }
         setDocumentsLoad({ ...documentsBindingLoad(binding), state: "pending" });
-        pendingLoadRef.current = "manuscript";
-        setPendingLoadState("manuscript");
-        setRecoveryFamily("manuscript");
+        setRecoveryFamily(held[0]);
         return;
       }
-      saves?.manuscript.accept(loadedManuscript);
-      manuscriptHistory.load(loadedManuscript);
       setDocumentsLoad({ ...documentsBindingLoad(binding), state: "loaded" });
-      pendingLoadRef.current = null;
-      setPendingLoadState(null);
-      setOrphanedMentions(count);
-      setCurrentChapterId(loadedManuscript.chapters[0]?.id || "");
-      setMirrorWarnings({ manuscript: false, figures: false, storyboards: false });
     },
     [figureHistory.load, manuscriptHistory.load, storyboardHistory.load],
   );
@@ -218,7 +230,7 @@ export function App() {
       }
       // Rule 2: while a newer load waits for the author's decision, only that decision may
       // save. An autosave now would write the draft over the version that just arrived.
-      if (!decision && pendingLoadRef.current === family) {
+      if (!decision && pendingLoadsRef.current.includes(family)) {
         console.warn("[quiltor] save held: a newer load awaits a decision", {
           family,
           worldId: binding.worldId,
@@ -290,7 +302,7 @@ export function App() {
     recoverySave.failure.category === "conflict";
   // A held-back load is a conflict as well: the server has another version than the draft.
   const recoveryInConflictMode =
-    recoveryHasConflict || (recoveryFamily !== null && pendingLoad === recoveryFamily);
+    recoveryHasConflict || (recoveryFamily !== null && pendingLoads.includes(recoveryFamily));
   // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the identity-stable loadDocuments
   live.current = {
     saves: { manuscript: manuscriptSave, figures: figureSave, storyboards: storyboardSave },
@@ -298,11 +310,16 @@ export function App() {
     recoveryFamily,
     currentChapterId,
   };
-  // Once the author has chosen in the dialog, the workspace shows the chosen version again.
-  const settlePendingLoad = useCallback(() => {
-    setPendingLoad(null);
-    setDocumentsLoad((load) => load && { ...load, state: "loaded" });
-  }, [setPendingLoad]);
+  // Once the author has chosen for every held-back family, the workspace shows the chosen
+  // versions again.
+  const settlePendingLoad = useCallback(
+    (family: DocumentFamily) => {
+      const rest = pendingLoadsRef.current.filter((pending) => pending !== family);
+      setPendingLoads(rest);
+      if (rest.length === 0) setDocumentsLoad((load) => load && { ...load, state: "loaded" });
+    },
+    [setPendingLoads],
+  );
   const comparePersisted = useCallback(async (): Promise<PersistedRecoveryDocuments> => {
     const [persistedManuscript, persistedFigures, persistedStoryboards] = await Promise.all([
       quiltorClient.application.manuscript.peek(),
@@ -336,11 +353,14 @@ export function App() {
         await figureSave.resolve(local.figures, async (snapshot) =>
           rememberMirrorWarning(
             "figures",
-            await bound("figures", () =>
-              quiltorClient.application.storyWorld.saveExpected(
-                snapshot,
-                persisted.figures.revision,
-              ),
+            await bound(
+              "figures",
+              () =>
+                quiltorClient.application.storyWorld.saveExpected(
+                  snapshot,
+                  persisted.figures.revision,
+                ),
+              true,
             ),
           ),
         );
@@ -348,16 +368,19 @@ export function App() {
         await storyboardSave.resolve(local.storyboards, async (snapshot) =>
           rememberMirrorWarning(
             "storyboards",
-            await bound("storyboards", () =>
-              quiltorClient.application.storyboards.saveExpected(
-                snapshot,
-                persisted.storyboards.revision,
-              ),
+            await bound(
+              "storyboards",
+              () =>
+                quiltorClient.application.storyboards.saveExpected(
+                  snapshot,
+                  persisted.storyboards.revision,
+                ),
+              true,
             ),
           ),
         );
       }
-      settlePendingLoad();
+      if (recoveryFamily) settlePendingLoad(recoveryFamily);
     },
     [
       bound,
@@ -395,7 +418,7 @@ export function App() {
         }
       }
       if (!replaced) throw new Error(t("recoveryDraftChanged"));
-      settlePendingLoad();
+      if (recoveryFamily) settlePendingLoad(recoveryFamily);
     },
     [
       settlePendingLoad,
@@ -436,7 +459,9 @@ export function App() {
     }
     return (
       <>
-        <StatusBarItem>{t("nElements", { n: figures?.nodes.length ?? 0 })}</StatusBarItem>
+        <StatusBarItem>
+          {t("nElements", { n: countBoardElements(figures?.nodes ?? []) })}
+        </StatusBarItem>
         <StatusBarItem>{t("nRelationships", { n: figures?.edges.length ?? 0 })}</StatusBarItem>
       </>
     );
@@ -462,9 +487,9 @@ export function App() {
       if (force) {
         // The server already holds other documents; unbind before anything else can run.
         documentsBinding.current = null;
-        discardManuscript();
-        discardFigures();
-        discardStoryboards();
+        discardManuscript({ onScreen: true });
+        discardFigures({ onScreen: true });
+        discardStoryboards({ onScreen: true });
         return true;
       }
       if (isManuscriptDirty() || isFiguresDirty() || isStoryboardsDirty()) {
@@ -483,7 +508,7 @@ export function App() {
       }
       documentsBinding.current = null;
       setDocumentsLoad(null);
-      setPendingLoad(null);
+      setPendingLoads([]);
       if (clear) {
         manuscriptHistory.clear();
         figureHistory.clear();
@@ -500,7 +525,7 @@ export function App() {
       isManuscriptDirty,
       isStoryboardsDirty,
       manuscriptHistory.clear,
-      setPendingLoad,
+      setPendingLoads,
       storyboardHistory.clear,
     ],
   );
@@ -662,6 +687,7 @@ export function App() {
           </AppShell>
           {recoveryFamily && (
             <RecoveryDialog
+              key={recoveryFamily}
               manuscript={manuscript}
               figures={figures}
               storyboards={storyboards}
@@ -670,9 +696,11 @@ export function App() {
               onKeepLocal={recoveryInConflictMode ? keepLocalDraft : undefined}
               onLoadPersisted={recoveryInConflictMode ? loadPersistedDraft : undefined}
               onClose={() => {
-                // A held-back load needs a decision; closing would leave the chapter locked.
-                if (pendingLoadRef.current === recoveryFamily) return;
-                setRecoveryFamily(null);
+                // A held-back load needs a decision; closing would leave the workspace locked.
+                // Once it is made, the next held-back family asks for its own.
+                const pending = pendingLoadsRef.current;
+                if (pending.includes(recoveryFamily)) return;
+                setRecoveryFamily(pending[0] ?? null);
               }}
             />
           )}

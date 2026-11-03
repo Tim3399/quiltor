@@ -98,7 +98,8 @@ export function StoryNodeIdentity({
       <span className="node-monogram" aria-hidden="true">
         {monogram}
       </span>
-      <strong>
+      {/* The name is cut with an ellipsis on a narrow card; the title keeps it readable (T-124). */}
+      <strong title={name}>
         {leading}
         {name}
         {trailing}

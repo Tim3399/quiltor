@@ -10,6 +10,7 @@ import {
   fulfillStoryWorld,
 } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -176,7 +177,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
       }),
     );
   expect(undersizedToolbarButtons).toEqual([]);
-  await expect(page.getByRole("button", { name: "Buch exportieren" })).toBeVisible();
+  await expect(manuscriptToolbar.getByRole("button", { name: "Weitere Aktionen" })).toBeVisible();
   const offCenterToolbarIcons = await manuscriptToolbar.getByRole("button").evaluateAll((buttons) =>
     buttons.flatMap((button) => {
       const label = button.querySelector(".ui-button__label");
@@ -255,7 +256,7 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
       }
       await waitForManuscriptReady(page);
 
-      await expectKeyboardMenuContract(page, "Buch exportieren", "Buchexport");
+      await expectKeyboardMenuContract(page, "Weitere Aktionen");
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
@@ -736,12 +737,10 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   expect(compactFit.scrollWidth).toBeLessThanOrEqual(compactFit.clientWidth + 1);
   expect(compactFit.overflowX).toBe("auto");
 
-  const versionsAction = manuscriptToolbar.getByRole("button", { name: "Fassungen" });
-  const sceneBreakAction = manuscriptToolbar.getByRole("button", {
-    name: "Szenenwechsel einfügen",
-  });
-  const exportAction = manuscriptToolbar.getByRole("button", { name: "Buch exportieren" });
-  for (const action of [versionsAction, sceneBreakAction, exportAction]) {
+  // Since T-104 versions, the scene break and the book export wait in the overflow menu; its
+  // trigger is the control that has to stay inside the strip.
+  const overflowAction = manuscriptToolbar.getByRole("button", { name: "Weitere Aktionen" });
+  for (const action of [overflowAction]) {
     await expect(action).toBeVisible();
     await action.focus();
     await expect(action).toBeFocused();
@@ -3000,7 +2999,7 @@ test("Chapter versions appear inline in the writing surface", async ({ page }, t
     }),
   );
   await openBlankWorld(page);
-  await page.getByRole("button", { name: "Fassungen" }).click();
+  await openToolbarOverflow(page, "Manuskript", "Fassungen");
   const history = page.getByRole("complementary", { name: "Fassungen" });
   await expect(history).toBeVisible();
   const editor = page.getByLabel("Kapiteltext");

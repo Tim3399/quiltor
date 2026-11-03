@@ -78,4 +78,17 @@ describe("StoryNodeCard", () => {
     );
     expect(screen.getByText("An der Nebelküste", { selector: "small" })).toBeInTheDocument();
   });
+
+  it("keeps the full name readable as a title when the card cuts it with an ellipsis", () => {
+    render(
+      <StoryNodeCard zoomTier="detail" viewportZoom={1}>
+        <StoryNodeIdentity kindLabel="Ort" name="Leuchtturm Süderoog" />
+      </StoryNodeCard>,
+    );
+
+    expect(screen.getByText("Leuchtturm Süderoog", { selector: "strong" })).toHaveAttribute(
+      "title",
+      "Leuchtturm Süderoog",
+    );
+  });
 });

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider, translateUiMessage } from "../../i18n";
 import { StoryboardToolbar, type StoryboardToolbarProps } from "./StoryboardToolbar";
@@ -39,6 +39,16 @@ function renderToolbar(toolbarProps: StoryboardToolbarProps) {
   );
 }
 
+/** Opens the toolbar's overflow menu and returns the named entry. */
+function moreAction(name: string) {
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  return screen.getByRole("menuitem", { name });
+}
+
+function closeMenu() {
+  fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+}
+
 describe("StoryboardToolbar layer actions", () => {
   it("provides concise German and English layer labels", () => {
     expect(translateUiMessage("de", "storyboardMoveForward")).toBe("Element nach vorne");
@@ -51,7 +61,7 @@ describe("StoryboardToolbar layer actions", () => {
     expect(translateUiMessage("en", "storyboardMoveFrameBackward")).toBe("Send frame backward");
   });
 
-  it("keeps layer actions compact at medium widths and disables them without a selection", () => {
+  it("keeps layer actions in the overflow menu and disables them without a selection", () => {
     renderToolbar(
       props({
         canMoveForward: true,
@@ -59,10 +69,10 @@ describe("StoryboardToolbar layer actions", () => {
       }),
     );
 
+    expect(screen.queryByRole("button", { name: "Element nach vorne" })).not.toBeInTheDocument();
     for (const label of ["Element nach vorne", "Element nach hinten"]) {
-      const button = screen.getByRole("button", { name: label });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("data-collapse-at", "medium");
+      expect(moreAction(label)).toBeDisabled();
+      closeMenu();
     }
   });
 
@@ -79,12 +89,10 @@ describe("StoryboardToolbar layer actions", () => {
     });
     const { rerender } = renderToolbar(initialProps);
 
-    const forward = screen.getByRole("button", { name: "Element nach vorne" });
-    const backward = screen.getByRole("button", { name: "Element nach hinten" });
+    expect(moreAction("Element nach hinten")).toBeDisabled();
+    const forward = screen.getByRole("menuitem", { name: "Element nach vorne" });
     expect(forward).toBeEnabled();
-    expect(backward).toBeDisabled();
     fireEvent.click(forward);
-    fireEvent.click(backward);
     expect(onMoveForward).toHaveBeenCalledOnce();
     expect(onMoveBackward).not.toHaveBeenCalled();
 
@@ -94,8 +102,8 @@ describe("StoryboardToolbar layer actions", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "Element nach vorne" })).toBeDisabled();
-    const enabledBackward = screen.getByRole("button", { name: "Element nach hinten" });
+    expect(moreAction("Element nach vorne")).toBeDisabled();
+    const enabledBackward = screen.getByRole("menuitem", { name: "Element nach hinten" });
     expect(enabledBackward).toBeEnabled();
     fireEvent.click(enabledBackward);
     expect(onMoveBackward).toHaveBeenCalledOnce();
@@ -110,9 +118,10 @@ describe("StoryboardToolbar layer actions", () => {
     });
     const { rerender } = renderToolbar(groupProps);
 
-    expect(screen.getByRole("button", { name: "Rahmen nach vorne" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Rahmen nach hinten" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Element nach vorne" })).not.toBeInTheDocument();
+    expect(moreAction("Rahmen nach vorne")).toBeEnabled();
+    expect(screen.getByRole("menuitem", { name: "Rahmen nach hinten" })).toBeEnabled();
+    expect(screen.queryByRole("menuitem", { name: "Element nach vorne" })).not.toBeInTheDocument();
+    closeMenu();
 
     rerender(
       <I18nProvider>
@@ -120,7 +129,21 @@ describe("StoryboardToolbar layer actions", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByRole("button", { name: "Element nach vorne" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Element nach hinten" })).toBeDisabled();
+    expect(moreAction("Element nach vorne")).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Element nach hinten" })).toBeDisabled();
+  });
+
+  it("keeps notes, the board, the library and history in the row", () => {
+    renderToolbar(props());
+    const toolbar = screen.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
+    for (const name of [
+      "Notiz hinzufügen",
+      "Elementbibliothek",
+      "Rückgängig",
+      "Wiederholen",
+      "Weitere Aktionen",
+    ]) {
+      expect(within(toolbar).getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
+    }
   });
 });
