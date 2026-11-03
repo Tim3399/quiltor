@@ -77,7 +77,7 @@ export const figures = {
     "{nodes} elements and {edges} relationships will replace the current state. A backup is created automatically first.",
   importAction: "Import",
   unmarkImportant: "Remove favorite",
-  markImportant: "Favorite figure",
+  markImportant: "Mark as favorite",
   unpinPosition: "Release position",
   pinPosition: "Pin position",
   diesHere: "Dies here",
