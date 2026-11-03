@@ -262,6 +262,47 @@ test.describe("overlap", () => {
   });
 });
 
+test.describe("overlap of stacked overlays", () => {
+  const stacked = [".trail", ".banner", ".legend"];
+
+  test("reports a hint banner that lies over a breadcrumb trail", async ({ page }) => {
+    // Neither is a control the rule above counts, so only the named stack finds it.
+    const findings = await analyze(
+      page,
+      `<nav class="trail" style="position:absolute;left:10px;top:10px;width:200px;height:30px;background:#ddd">Pfad</nav>
+       <div class="banner" style="position:absolute;left:100px;top:10px;width:250px;height:40px;background:#eef">Hinweis</div>`,
+      { stackedSelectors: stacked },
+    );
+    const hits = byRule(findings, "overlap");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].severity).toBe("high");
+    expect(hits[0].message).toContain(".trail");
+    expect(hits[0].message).toContain(".banner");
+  });
+
+  test("stays quiet for overlays that stack in one column", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div style="display:flex;flex-direction:column;gap:4px;width:300px">
+         <nav class="trail" style="height:30px">Pfad</nav>
+         <div class="banner" style="height:40px">Hinweis</div>
+         <div class="legend" style="height:50px">Maßstab</div>
+       </div>`,
+      { stackedSelectors: stacked },
+    );
+    expect(byRule(findings, "overlap")).toEqual([]);
+  });
+
+  test("does nothing for a state that names no stack", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<nav class="trail" style="position:absolute;left:10px;top:10px;width:200px;height:30px">Pfad</nav>
+       <div class="banner" style="position:absolute;left:100px;top:10px;width:250px;height:40px">Hinweis</div>`,
+    );
+    expect(byRule(findings, "overlap")).toEqual([]);
+  });
+});
+
 test.describe("broken-word", () => {
   // A box too narrow for the word, and a break rule that lets it split anyway.
   const narrow = (tag: string, text: string, extra = "") =>

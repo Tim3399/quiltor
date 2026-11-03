@@ -76,7 +76,13 @@ export type Manifest = {
   aiReview?: { status: "done" | "skipped" | "partial"; model?: string; reviewed?: number };
 };
 
-export type LayoutContext = { viewport: ViewportName; touch: boolean; popupSelector?: string };
+export type LayoutContext = {
+  viewport: ViewportName;
+  touch: boolean;
+  popupSelector?: string;
+  /** Selectors of overlays that must stack, never lie over each other (see `overlay-stack`). */
+  stackedSelectors?: readonly string[];
+};
 
 export const AUDIT_VIEWPORTS: Record<ViewportName, ViewportSpec> = {
   mobile: { width: 390, height: 844, touch: true },
