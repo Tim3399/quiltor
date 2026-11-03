@@ -888,4 +888,32 @@ describe("StoryboardWorkspace interactions", () => {
     );
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("falls back to the first board when the active board disappears", () => {
+    function Replaceable() {
+      const [state, setState] = useState(createDefaultStoryboardState());
+      return (
+        <I18nProvider>
+          <button type="button" onClick={() => setState(createDefaultStoryboardState())}>
+            Test-Zustand-ersetzen
+          </button>
+          <StoryboardWorkspace
+            state={state}
+            candidates={[]}
+            onOpenReference={vi.fn()}
+            onChange={setState}
+          />
+        </I18nProvider>
+      );
+    }
+    render(<Replaceable />);
+    const boardSelect = () => screen.getByRole("combobox", { name: "Storyboard auswählen" });
+    const firstTitle = boardSelect().textContent;
+
+    fireEvent.click(moreAction("Storyboard hinzufügen"));
+    expect(boardSelect()).toHaveTextContent("Neues Storyboard 2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-Zustand-ersetzen" }));
+    expect(boardSelect().textContent).toBe(firstTitle);
+  });
 });
