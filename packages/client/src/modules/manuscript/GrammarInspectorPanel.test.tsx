@@ -129,6 +129,37 @@ describe("GrammarInspectorPanel", () => {
     expect(screen.getByRole("button", { name: "LanguageTool lokal installieren" })).toBeVisible();
   });
 
+  it("shows the LanguageTool attribution for an enabled external server without a local install", () => {
+    render(
+      <TestProviders>
+        <GrammarInspectorPanel
+          current={current}
+          manuscript={manuscript}
+          status={{
+            ...status,
+            grammar: {
+              ...status.grammar!,
+              installed: false,
+              externalConfigured: true,
+              externalEnabled: true,
+            },
+          }}
+          issues={[]}
+          selectedIssue={null}
+          phase="idle"
+          onCheck={vi.fn()}
+          onInstall={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onApplyIssue={vi.fn()}
+          onGrammarMode={vi.fn()}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText("Quellen und Lizenzen")).toBeVisible();
+    expect(screen.getByText("LanguageTool 6.6 · LGPL")).toBeVisible();
+  });
+
   it("exposes checking as progress rather than mutable placeholder copy", () => {
     render(
       <TestProviders>

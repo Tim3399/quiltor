@@ -528,6 +528,20 @@ test.yml without an entry fails the contract, so T-35 (F-35-1) extends the same 
 Side effect: `browser-e2e` now waits for the slowest job (on main, the Windows slots) and turns
 red when any filtered job does, not only a browser slot.
 
+### The verdict, and one entry for pushes to main (T-35)
+
+`browser-e2e` also carries the workflow's verdict. In full mode it additionally requires every
+filtered job to be selected except the reduced-only smoke test (`REDUCED_ONLY`), and writes
+`verdict=full-success` only after that; `workflow_call.outputs.verdict` points at it, with
+`permissions: {}`. A push to main no longer starts this workflow: `release.yml` calls it with
+`full_matrix: true`, so the check is reported as `Full test matrix / browser-e2e` there and as
+`browser-e2e` on a pull request. Only pull requests cancel superseded runs; every other run has a
+group of its own (before, 13 of the last 60 main pushes were cancelled by a newer push). The
+release now runs the full matrix once, beside its own gate, instead of twice at the same time.
+`workflow_contract.py` holds the verdict, the expansions (4 Linux slots, 2 core runners, 11
+cross-platform browser slots), the triggers, the concurrency, the allowed step conditions and
+that a full-mode run skips nothing.
+
 ### Browser jobs start beside `frontend` (T-46)
 
 `browser-e2e-shards`, `cross-platform-browser` and `cross-platform-smoke` used to have

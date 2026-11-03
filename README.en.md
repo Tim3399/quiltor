@@ -506,8 +506,9 @@ QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
 ```
 
 With both set, grammar checks go to that server and the writing aid shows neither the install
-button nor the Java notice. With only the URL set, it reports the service as configured but not
-enabled. If the server does not answer, the error code is `writing_assistance.grammar_unavailable`.
+button nor the Java notice. With only the URL set and no local installation, it reports the service as
+configured but not enabled; with the JAR and Java installed it counts as ready, and the "not
+enabled" notice only appears as an error when a check is run. If the server does not answer, the error code is `writing_assistance.grammar_unavailable`.
 Quiltor writes no chapter text to the log or to error messages.
 
 #### Language data for dictionary, synonyms, and translation
