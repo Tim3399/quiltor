@@ -540,6 +540,38 @@ for (const workspace of workspaces) {
 }
 
 /*
+ * T-148: the timeline toolbar was one row at 768px on Windows and Linux and two on macOS,
+ * whose system font runs wider. A fix tuned to one font's widths breaks on the next, so this
+ * forces text wider than macOS's onto the toolbar and asks for one row all the same.
+ */
+test("Timeline: the toolbar stays one row with a wider font", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  // Test-only: roughly 15 percent wider text than Segoe UI, more than the macOS difference.
+  await page.addStyleTag({
+    content: ".timeline-toolbar, .timeline-toolbar * { letter-spacing: 0.08em !important; }",
+  });
+  await waitForSettledLayout(page);
+  const start = page.viewportSize() ?? { width: 1440, height: 900 };
+  const messages: string[] = [];
+  for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+    await page.setViewportSize({ width, height: start.height });
+    await waitForSettledLayout(page);
+    for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+      messages.push(`${width}px: ${finding.message}`);
+    }
+  }
+  expect(messages).toEqual([]);
+});
+
+/*
  * A menu lies on top of whatever it was opened from.
  *
  * The fault behind this could not be seen, only measured: the app bar's overflow menu sat at

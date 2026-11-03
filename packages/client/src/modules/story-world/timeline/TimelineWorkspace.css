@@ -17,15 +17,19 @@
     width: 100%;
     row-gap: var(--space-6);
   }
+  /*
+   * One row whatever the font (T-104, T-148): the time system select gives way, the buttons
+   * keep their size. Wherever the strip is narrower than its content -- not only below 640px,
+   * since macOS's wider font already overflows at 768px -- the select absorbs the difference.
+   */
+  .timeline-workspace .timeline-toolbar-actions > .timeline-time-group {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
 }
 @media (max-width: 640px) {
   .timeline-workspace {
     grid-template-rows: minmax(var(--context), auto) minmax(0, 1fr);
-  }
-  /* One row (T-104): the time system select gives way, the buttons keep their size. */
-  .timeline-workspace .timeline-toolbar-actions > .timeline-time-group {
-    min-width: 0;
-    flex: 1 1 auto;
   }
   .timeline-workspace .timeline-toolbar-actions > * {
     padding-inline: var(--spacing-compact-tight);
