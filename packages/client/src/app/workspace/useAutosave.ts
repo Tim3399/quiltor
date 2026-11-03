@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
+import { ApplicationGatewayError } from "../../platform/application/errors";
 import type { SavePhase } from "../../shared";
+
+// The request id is what an operator searches the server log for; code says what failed.
+function reportSaveFailure(reason: unknown): void {
+  const gateway = reason instanceof ApplicationGatewayError ? reason : null;
+  console.warn("save failed", {
+    code: gateway?.code ?? "unknown",
+    requestId: gateway?.requestId,
+  });
+}
+
+/** The server request id of a failed save, when the failure carries one. */
+function saveFailureRequestId(failure: unknown): string | undefined {
+  return failure instanceof ApplicationGatewayError ? failure.requestId : undefined;
+}
 
 const DEFAULT_AUTOSAVE_DELAY_MS = 800;
 
@@ -42,6 +57,7 @@ export function useAutosave<T>(
         setSavedAt(Date.now());
         setPhase("saved");
       } catch (reason) {
+        reportSaveFailure(reason);
         setError(reason instanceof Error ? reason.message : t("saveFailed"));
         setFailure(reason);
         setPhase("error");
@@ -104,6 +120,7 @@ export function useAutosave<T>(
           setSavedAt(Date.now());
           setPhase("saved");
         } catch (reason) {
+          reportSaveFailure(reason);
           setError(reason instanceof Error ? reason.message : t("saveFailed"));
           setFailure(reason);
           setPhase("error");
@@ -128,6 +145,38 @@ export function useAutosave<T>(
     setPhase("saved");
     return true;
   }, []);
+  // The next value is loaded, not edited: it must not count as a change to save.
+  const accept = useCallback((loaded: T) => {
+    acceptedReplacement.current = loaded;
+  }, []);
+  // Drop all save state when the documents leave. Refuses while a save is still out.
+  // `onScreen` keeps the current value as the baseline: the documents stay visible, so the
+  // next change is an edit that must reach `save` (and beforeunload), not a fresh load.
+  const discard = useCallback(({ onScreen = false }: { onScreen?: boolean } = {}): boolean => {
+    if (pending.current) return false;
+    clearTimeout(timer.current);
+    dirty.current = false;
+    acceptedReplacement.current = null;
+    if (!onScreen) initialized.current = false;
+    setPhase("idle");
+    setError("");
+    setFailure(null);
+    return true;
+  }, []);
   const isDirty = useCallback(() => dirty.current, []);
-  return { phase, error, failure, savedAt, flush, retry, resolve, replace, isDirty };
+  const errorId = saveFailureRequestId(failure);
+  return {
+    phase,
+    error,
+    errorId,
+    failure,
+    savedAt,
+    flush,
+    retry,
+    resolve,
+    replace,
+    accept,
+    discard,
+    isDirty,
+  };
 }

@@ -136,32 +136,25 @@ describe("Storyboard workspace review guards", () => {
     );
   });
 
-  it("keeps board context and canvas actions in deterministic responsive toolbar rows", () => {
+  it("keeps board context and canvas actions in one toolbar row", () => {
     render(<ControlledStoryboard onChange={vi.fn()} />);
 
     const toolbar = screen.getByRole("toolbar", { name: "Storyboard-Werkzeuge" });
     expect(toolbar).toHaveClass("storyboard-toolbar");
     expect(toolbar.querySelector(".storyboard-toolbar__title")).toBeInTheDocument();
-    expect(toolbar.querySelector(".storyboard-toolbar__board-actions")).toContainElement(
+    const strips = toolbar.querySelectorAll<HTMLElement>(".workspace-toolbar__actions");
+    expect(strips).toHaveLength(1);
+    expect(strips[0]).toContainElement(
       screen.getByRole("combobox", { name: "Storyboard auswählen" }),
     );
-    const toolActions = toolbar.querySelector<HTMLElement>(".storyboard-toolbar__tool-actions");
-    expect(toolActions).toBeInTheDocument();
-    expect(
-      within(toolActions as HTMLElement).getByRole("button", { name: "Notiz hinzufügen" }),
-    ).toBeInTheDocument();
+    expect(within(strips[0]).getByRole("button", { name: "Notiz hinzufügen" })).toBeInTheDocument();
 
     const css = readFileSync(
       join(process.cwd(), "packages/client/src/modules/storyboard/StoryboardToolbar.css"),
       "utf8",
     );
-    expect(css).toMatch(
-      /\.storyboard-toolbar\s*\{[^}]*display:\s*grid;[^}]*grid-template-areas:[^}]*"title boards"[^}]*"tools tools";/s,
-    );
+    expect(css).not.toMatch(/grid-template-areas/);
     expect(css).toMatch(/\.storyboard-board-name-field\s*\{[^}]*margin:\s*0;/s);
-    expect(css).toMatch(
-      /@media \(max-width: 719px\)[\s\S]*?\.storyboard-toolbar__board-group\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) repeat\(2, var\(--control-touch\)\);/s,
-    );
     expect(css).not.toMatch(
       /@media[^{]*pointer:\s*coarse[^{]*\{[\s\S]*storyboard-toolbar__board-group/,
     );

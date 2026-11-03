@@ -38,15 +38,18 @@ from quiltor.infrastructure.platform.constants import APP_NAME
 DEFAULT_PORT = 8843
 
 
-def _redirect_null_streams() -> None:
+def _redirect_null_streams() -> bool:
     """A windowed (console-less) frozen build may leave sys.stdin/stdout/stderr as
     None -- server.py prints status lines and installer.py checks sys.stdin.isatty()
     unconditionally, both of which would crash on None. Give them real, harmless
-    file objects before anything downstream touches them."""
+    file objects before anything downstream touches them. Returns whether stderr had
+    to be replaced, i.e. whether nobody can read what is written to it."""
+    had_no_stderr = getattr(sys, "stderr", None) is None
     for name in ("stdin", "stdout", "stderr"):
         if getattr(sys, name, None) is None:
             stream = open(os.devnull, "r" if name == "stdin" else "w")  # noqa: SIM115 - lives as long as the process
             setattr(sys, name, stream)
+    return had_no_stderr
 
 
 def keep_pywebview_downloads_off(webview) -> None:
@@ -105,7 +108,7 @@ def _wait_until_ready(port: int, timeout: float = 20.0) -> None:
 
 
 def main() -> None:
-    _redirect_null_streams()
+    windowed = _redirect_null_streams()
 
     bundle = _bundle_base()
     if str(bundle) not in sys.path:
@@ -120,6 +123,9 @@ def main() -> None:
     os.environ.setdefault("QUILTOR_RUNTIME_HOST", "desktop")
     os.environ.setdefault("QUILTOR_HOME", str(home))
     os.environ.setdefault("QUILTOR_DATA_DIR", str(app_dirs.data))
+    if windowed:
+        # No console: stderr goes nowhere, so the server log needs a file to be readable.
+        os.environ.setdefault("QUILTOR_LOG_FILE", str(app_dirs.logs / "quiltor-server.log"))
 
     from quiltor.hosts.web import server
     from quiltor.infrastructure.pdf import desktop_renderer

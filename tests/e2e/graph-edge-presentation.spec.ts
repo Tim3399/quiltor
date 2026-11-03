@@ -3,6 +3,7 @@ import type { FigureState } from "../../packages/client/src/modules/story-world"
 import type { StoryboardState } from "../../packages/client/src/modules/storyboard";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldV1 } from "../../packages/client/src/platform/contracts/v1/storyWorld";
+import { putVersioned as seedVersionedDocument } from "./support/seed";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const storyWorld: FigureState = {
@@ -111,22 +112,6 @@ type EdgeSample = {
   directed: string;
   undirected: string;
 };
-
-async function seedVersionedDocument(
-  page: Page,
-  endpoint: string,
-  encode: (revision: number) => object,
-) {
-  const initial = await page.request.get(endpoint);
-  expect(initial.ok()).toBeTruthy();
-  const etag = initial.headers().etag || '"0"';
-  const revision = Number(etag.replaceAll('"', ""));
-  const saved = await page.request.put(endpoint, {
-    headers: { "If-Match": etag },
-    data: encode(revision),
-  });
-  expect(saved.ok()).toBeTruthy();
-}
 
 async function resolvedTokenColor(page: Page, token: "--gold" | "--moss") {
   return page.evaluate((name) => {

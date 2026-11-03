@@ -79,6 +79,12 @@ Success means the command fails. The file is restored afterwards. This has alrea
 a geometry test that passed while the bug was back in, and an assertion whose regex could
 never match.
 
+The command after `--` runs without a shell, so its arguments arrive exactly as your own
+shell hands them over — quote `bash -c "exit 1"` as you would to run it directly. `&&`,
+pipes and redirections therefore need a shell of their own (`-- bash -c "a && b"`), and from
+PowerShell a bare `bash` is WSL's `System32\bash.exe`: name Git Bash by its path there. A
+command that cannot be started at all exits 2 instead of counting as a bite.
+
 ## Toolchains are pinned, exactly
 
 `distribution/toolchains.json` names the versions the release is built with, and
@@ -145,6 +151,18 @@ verification and remaining gaps.
 
 `npm run check` does **not** run the Python suite. Contract breaks in
 `tests/python/test_release.py` only show up when you run it or when CI does.
+
+## The design suite starts its own gallery, on a port you can pick
+
+`playwright.design.config.ts` starts the gallery's Vite server itself and never reuses one
+that is already running. A gallery on the port may belong to another worktree, and it serves
+that worktree's sources: reusing it once turned a clean change into 91 red tests. A taken
+port now stops the run with Playwright's `is already used` error before any test starts.
+
+Two worktrees running the suite at once each need their own port:
+`QUILTOR_DESIGN_PORT=4184 npx playwright test --config playwright.design.config.ts`. The
+default is 4174; `vite.design.config.ts` reads the same variable through
+`tools/dev/design-port.mjs`, so `npm run design:gallery` follows it too.
 
 ## The server on :8010 holds the code it was started with
 

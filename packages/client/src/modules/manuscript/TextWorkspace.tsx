@@ -48,6 +48,7 @@ import "./TextWorkspace.css";
 
 export function TextWorkspace({
   worldTitle,
+  documentsReady = true,
   manuscript,
   figures,
   orphanedMentions = 0,
@@ -502,6 +503,7 @@ ${markdownBody(current.body, current.marks)}
                 activeSearchIndex={search.activeIndex}
                 activeSearchMatch={search.activeMatch}
                 historyOpen={history.open}
+                documentsReady={documentsReady}
                 historyCommits={history.commits}
                 historyRef={history.selectedRef}
                 historicalChapter={history.selected}

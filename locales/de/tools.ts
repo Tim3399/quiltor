@@ -70,7 +70,6 @@ export const tools = {
   backupSignInHint:
     "Das Ziel ist eingerichtet, aber noch nicht angemeldet. Zum Hochladen ist eine Anmeldung im Browser nötig.",
   backupSignInWaiting: "Warten auf die Anmeldung im Browserfenster …",
-  backupSignInFailed: "Die Anmeldung konnte nicht begonnen werden.",
   backupSessionExpired:
     "Diese Sitzung hat kein gültiges Token für das Sicherungsziel mehr. Melde dich einmal ab und wieder an.",
   backupIssuerChecking: "Der Anmeldedienst des Ziels wird gerade geprüft …",

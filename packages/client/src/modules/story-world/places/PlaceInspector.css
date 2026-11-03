@@ -12,6 +12,11 @@
 .places-display-action {
   width: 100%;
   justify-content: flex-start;
+  text-align: start;
+  /* The wrapping label pads its block axis with this token; at the default a one-line action
+     would be taller than every other control. The minimum height holds one line at the
+     control height and the padding only shows on two (T-124). */
+  --spacing-compact-wide: var(--space-6);
 }
 
 .places-inspector-delete {
@@ -27,6 +32,9 @@
 }
 
 .places-manager-section {
+  /* A flex item in a scroll area: with overflow hidden its minimum height is 0, so without
+     flex: none it shrinks to fit instead of letting the body scroll (T-121). */
+  flex: none;
   margin-top: var(--space-16);
   overflow: hidden;
   border: 1px solid var(--line);

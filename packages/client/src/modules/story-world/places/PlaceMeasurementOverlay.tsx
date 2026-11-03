@@ -1,4 +1,5 @@
 import { Ruler } from "lucide-react";
+import type { ReactNode } from "react";
 import { TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { ModeBanner } from "../ModeBanner";
@@ -10,16 +11,20 @@ export function PlaceMeasurementOverlay({
   scale,
   onScale,
   onStop,
+  trail,
 }: {
   measureSelection: string[];
   scale?: FigureState["mapScale"];
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
   onStop: () => void;
+  /** The level trail joins the column, so trail, hint and scale never share a spot. */
+  trail?: ReactNode;
 }) {
   const { t } = useI18n();
   return (
     <div className="places-measure-overlays">
-      <ModeBanner icon={<Ruler />} dismissLabel={t("stopMeasuring")} onDismiss={onStop}>
+      {trail}
+      <ModeBanner tone="info" icon={<Ruler />} dismissLabel={t("stopMeasuring")} onDismiss={onStop}>
         <span>
           {measureSelection.length === 1
             ? t("selectDistanceTargetHint")
@@ -32,6 +37,7 @@ export function PlaceMeasurementOverlay({
             fieldClassName="places-scale-value-field"
             className="places-scale-value"
             label={t("scale")}
+            labelHidden
             type="number"
             min="0.01"
             step="0.01"

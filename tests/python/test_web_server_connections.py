@@ -25,6 +25,7 @@ from unittest.mock import MagicMock, patch
 from quiltor.bootstrap import WebApplication, build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
+from quiltor.infrastructure.observability import StdlibStructuredLogger
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity import service as identity
 
@@ -378,6 +379,16 @@ class ServerConnectionTests(unittest.TestCase):
     @staticmethod
     def _error_log(httpd: server.Server, error: Exception) -> str:
         buffer = io.StringIO()
+        # handle_error writes through the application's structured logger; point it at
+        # the same buffer stderr goes to, so "nothing written" covers both.
+        httpd.application = cast(
+            WebApplication,
+            SimpleNamespace(
+                observability=SimpleNamespace(
+                    logger=StdlibStructuredLogger("quiltor.test.connections", buffer)
+                )
+            ),
+        )
         previous, sys.stderr = sys.stderr, buffer
         try:
             raise error

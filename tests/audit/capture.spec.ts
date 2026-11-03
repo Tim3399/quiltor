@@ -63,9 +63,14 @@ class Session {
     }
   }
 
-  async view(state: string, kind: EntryKind = "view", viewportSpecific = false): Promise<void> {
+  async view(
+    state: string,
+    kind: EntryKind = "view",
+    viewportSpecific = false,
+    stackedSelectors?: readonly string[],
+  ): Promise<void> {
     await settle(this.page, 250);
-    await this.rec.capture(state, { kind, viewportSpecific });
+    await this.rec.capture(state, { kind, viewportSpecific, stackedSelectors });
   }
 
   ctx(restore: () => Promise<void>, extra: Partial<EnumerationContext> = {}): EnumerationContext {
@@ -436,14 +441,19 @@ async function textScenario(s: Session): Promise<void> {
     });
   });
 
-  // Book export dialogs behind the "Buch exportieren" menu.
+  // Book export dialogs in the toolbar's overflow menu
+  // ("Weitere Aktionen", T-104).
+  const manuscriptMore = () =>
+    page
+      .getByRole("toolbar", { name: "Manuskript", exact: true })
+      .getByRole("button", { name: "Weitere Aktionen", exact: true });
   for (const [item, state] of [
     ["DOCX fürs Lektorat", "workspace.text/dialog.manuscript-export"],
     ["EPUB für E-Reader", "workspace.text/dialog.manuscript-export-epub"],
   ] as const) {
     const toExport = async () => {
       await base();
-      await s.tap(s.button("Buch exportieren"));
+      await s.tap(manuscriptMore());
       await s.tap(page.getByRole("menuitem", { name: item }));
     };
     await base();
@@ -452,7 +462,7 @@ async function textScenario(s: Session): Promise<void> {
       "dialog",
       toExport,
       async () => {
-        await s.tap(s.button("Buch exportieren"));
+        await s.tap(manuscriptMore());
         await s.tap(page.getByRole("menuitem", { name: item }));
       },
       { enumerate: true },
@@ -844,6 +854,98 @@ async function placesScenario(s: Session): Promise<void> {
   });
 }
 
+// ---- Places: the map's own states (T-81) -------------------------------------------------------
+//
+// A scenario of its own because folding the map is saved, and the audit world keeps what is
+// saved for the rest of its page: in the places scenario every later state would have found the
+// map folded, or not, depending on whether the save had landed. Each scenario has its own page
+// and so its own world. Here the measuring tool runs first, the folded map last, and the folded
+// map's restore accepts a map that is already folded.
+
+async function placesMapScenario(s: Session): Promise<void> {
+  const page = s.page;
+  const base = async () => {
+    await s.openWorld();
+    await s.workspace("Orte");
+  };
+  const MAP = "Nordmeerküste";
+  const mapCard = page.locator('.places-flow-area .react-flow__node[data-id="weltkarte"]');
+  const chrome = page.locator(".place-map-chrome").first();
+
+  // The measuring tool: its banner, the distances and the scale legend with the scale and unit
+  // fields. The legend is where "Maßstab" once broke into "Maßs" / "tab" (T-91).
+  const measureOverlay = page.locator(".places-measure-overlays");
+  const toMeasuring = async () => {
+    await base();
+    await s.tap(
+      page.getByRole("button", { name: "Distanz messen", exact: true }).filter({ visible: true }),
+    );
+    await expect(measureOverlay.locator(".places-scale-legend")).toBeVisible();
+    await stillCanvas(page);
+  };
+  await s.step("workspace.places/measuring", async () => {
+    await toMeasuring();
+    await s.view("workspace.places/measuring");
+    await s.enumerate("workspace.places/measuring", toMeasuring, { scope: measureOverlay });
+  });
+
+  // The measuring tool inside a level (F-109-2, T-125). Below the top level the breadcrumb trail
+  // joins the banner and the scale legend at the top edge; on the top level there is no trail, so
+  // only this state can show whether the three still lie on one spot (T-109). The map's chrome
+  // carries the button that opens the level, and a phone draws the chrome only zoomed in.
+  const trail = page.locator(".place-level-trail");
+  const openLevel = chrome.getByRole("button", { name: `${MAP} öffnen`, exact: true });
+  const toLevelMeasuring = async () => {
+    await base();
+    for (let index = 0; index < 6 && !(await chrome.isVisible()); index += 1) {
+      await s.tap(page.locator(".places-flow-area .react-flow__controls-zoomin"));
+      await stillCanvas(page);
+    }
+    await s.tap(openLevel);
+    await expect(trail).toContainText(MAP);
+    await stillCanvas(page);
+    await s.tap(
+      page.getByRole("button", { name: "Distanz messen", exact: true }).filter({ visible: true }),
+    );
+    await expect(measureOverlay.locator(".places-scale-legend")).toBeVisible();
+    await expect(trail).toBeVisible();
+    await stillCanvas(page);
+  };
+  await s.step("workspace.places/level-measuring", async () => {
+    await toLevelMeasuring();
+    // The trail, the hint and the scale legend share the top edge and must stack.
+    await s.view("workspace.places/level-measuring", "view", false, [
+      ".place-level-trail",
+      ".places-measure-overlays .mode-banner",
+      ".places-measure-overlays .places-scale-legend",
+    ]);
+    await s.enumerate("workspace.places/level-measuring", toLevelMeasuring, {
+      scope: measureOverlay,
+    });
+  });
+
+  // The map folded to its card: the card carries the button that opens the map again. The
+  // collapse button sits in the unfolded map's chrome, which a phone draws only zoomed in.
+  const expandButton = mapCard.getByRole("button", { name: `${MAP} aufklappen`, exact: true });
+  const toCollapsedMap = async () => {
+    await base();
+    if (!(await appears(expandButton, 500))) {
+      for (let index = 0; index < 6 && !(await chrome.isVisible()); index += 1) {
+        await s.tap(page.locator(".places-flow-area .react-flow__controls-zoomin"));
+        await stillCanvas(page);
+      }
+      await s.tap(chrome.getByRole("button", { name: `${MAP} einklappen`, exact: true }));
+    }
+    await expect(expandButton).toBeVisible();
+    await stillCanvas(page);
+  };
+  await s.step("workspace.places/collapsed-map", async () => {
+    await toCollapsedMap();
+    await s.view("workspace.places/collapsed-map");
+    await s.enumerate("workspace.places/collapsed-map", toCollapsedMap, { scope: mapCard });
+  });
+}
+
 // ---- Storyboard --------------------------------------------------------------------------------
 
 async function storyboardScenario(s: Session): Promise<void> {
@@ -926,6 +1028,7 @@ const SCENARIOS: { name: string; world?: AuditWorldOptions; run: (s: Session) =>
     { name: "figures", run: figuresScenario },
     { name: "timeline", run: timelineScenario },
     { name: "places", run: placesScenario },
+    { name: "places-map", run: placesMapScenario },
     { name: "storyboard", run: storyboardScenario },
   ];
 

@@ -157,7 +157,7 @@ def forced_proposal(
                     "to": matches[1]["id"],
                     "label": label,
                     "directed": bool(
-                        re.search(r"\b(directed|directed|besitzt|gehört|owns?)\b", folded)
+                        re.search(r"\b(gerichtet\w*|directed|besitzt|gehört|owns?)\b", folded)
                     ),
                     "lineStyle": "solid",
                     "relationshipKind": "general",

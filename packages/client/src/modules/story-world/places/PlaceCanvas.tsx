@@ -68,6 +68,8 @@ export function PlaceCanvas({
     [onSelectPlace],
   );
 
+  const levelTrail = <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />;
+
   return (
     <PlaceMapFrameProvider>
       <StoryGraphCanvas
@@ -83,7 +85,7 @@ export function PlaceCanvas({
         onSurfaceResize={controller.onSurfaceResize}
         overlay={
           <>
-            <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />
+            {measuring ? null : levelTrail}
             {mapTools}
             {controller.dragPreview ? (
               <div
@@ -114,6 +116,7 @@ export function PlaceCanvas({
                 scale={scale}
                 onScale={onScale}
                 onStop={onStopMeasuring}
+                trail={levelTrail}
               />
             ) : null}
           </>

@@ -65,6 +65,11 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": (
         "Set to 1 to allow sending chapter text to QUILTOR_LANGUAGETOOL_URL for grammar checks."
     ),
+    "QUILTOR_LOG_LEVEL": "Server log level: DEBUG, INFO (default), WARNING or ERROR. Anything else stops the start.",
+    "QUILTOR_LOG_FILE": (
+        "Also write the server log to this file (rotates at 10 MiB, 5 backups). "
+        "Unset = stderr only; the desktop app in window mode defaults to its logs folder."
+    ),
     "QUILTOR_HOME": f"Where runtime/model/data files live. Defaults to {DEFAULT_HOME} for the CLI.",
     "QUILTOR_MODELS_DIR": (
         "Existing folder that holds the model files (gguf/*.gguf and mlx/<model>/). "

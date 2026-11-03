@@ -97,6 +97,21 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
     state: "workspace.places/expanded-map",
     evidence: { role: "img", name: /^Maßstabsleiste/ },
   },
+  // T-81: the map folded to its card, and the measuring tool with its scale legend.
+  {
+    component: "view:collapsed-map",
+    file: src("modules/story-world/places/PlaceNode.tsx"),
+    category: "view",
+    state: "workspace.places/collapsed-map",
+    evidence: { role: "button", name: "Nordmeerküste aufklappen" },
+  },
+  {
+    component: "view:measuring",
+    file: src("modules/story-world/places/PlaceMeasurementOverlay.tsx"),
+    category: "view",
+    state: "workspace.places/measuring",
+    evidence: { role: "button", name: "Distanz messen beenden" },
+  },
 
   // Overlay union (packages/client/src/app/overlays/useOverlayController.ts).
   {
@@ -294,10 +309,11 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
   component(
     "ManuscriptToolbar",
     "modules/manuscript/ManuscriptToolbar.tsx",
-    "workspace.text/menu.buch-exportieren",
+    // Since T-104 the book exports sit in the toolbar's overflow menu.
+    "workspace.text/menu.weitere-aktionen",
     {
       role: "menu",
-      name: "Buchexport",
+      name: "Weitere Aktionen",
     },
   ),
   component(

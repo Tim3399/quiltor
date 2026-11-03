@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
+import { findDeadKeys, readSearchedCode } from "./locale_dead_keys.mjs";
 import { analyzeLocaleRegistry, closeLocaleRegistryParser } from "./locale_registry.mjs";
+import { findForbiddenSpellings, stringsInSource } from "./term_spelling.mjs";
 
 const root = process.cwd();
 const sourceRoot = join(root, "packages", "client", "src");
@@ -48,20 +50,35 @@ function scanVisibleText(file, text) {
   });
 }
 
+// Spelling of German text (tools/quality/term_spelling.mjs): `strings` come from one file.
+function scanSpelling(file, strings) {
+  for (const { text, line } of strings) {
+    for (const hit of findForbiddenSpellings(text)) {
+      failures.push(`${file}:${line}: spelling "${hit.found}" -> use "${hit.use}"`);
+    }
+  }
+}
+
 function visitSource(path) {
   if (ignored.has(path.split(/[/\\]/).at(-1))) return;
   if (statSync(path).isDirectory()) {
     for (const name of readdirSync(path)) visitSource(join(path, name));
     return;
   }
-  if (
-    extname(path) !== ".tsx" ||
-    path.endsWith(".test.tsx") ||
-    path.endsWith(".story.tsx") ||
-    path.includes(join("design", "testing"))
-  )
+  const isCode = extname(path) === ".tsx" || extname(path) === ".ts";
+  if (!isCode || /\.(?:test|story)\.tsx?$/.test(path) || path.includes(join("design", "testing")))
     return;
-  scanVisibleText(relative(root, path), readFileSync(path, "utf8"));
+  const source = readFileSync(path, "utf8");
+  scanSpelling(relative(root, path), stringsInSource(source));
+  if (extname(path) === ".tsx") scanVisibleText(relative(root, path), source);
+}
+
+// Every string literal in the German catalog, not only `key: "value"` pairs.
+function scanCatalogSpelling(directory) {
+  for (const name of readdirSync(directory).filter((n) => n.endsWith(".ts") && n !== "index.ts")) {
+    const path = join(directory, name);
+    scanSpelling(relative(root, path), stringsInSource(readFileSync(path, "utf8")));
+  }
 }
 
 function catalog(directory) {
@@ -115,6 +132,7 @@ function validateManifest(locale, directory) {
 }
 
 visitSource(sourceRoot);
+scanCatalogSpelling(join(localeRoot, baseLocale));
 
 const locales = readdirSync(localeRoot)
   .filter((name) => statSync(join(localeRoot, name)).isDirectory())
@@ -145,6 +163,11 @@ for (const locale of locales) {
 
 const base = catalogs.get(baseLocale);
 if (base) {
+  const dead = findDeadKeys(base.messages.keys(), readSearchedCode(root));
+  if (dead.length)
+    failures.push(
+      `locales/${baseLocale}: unused keys ${dead.join(", ")} (delete them from every locale)`,
+    );
   for (const [locale, candidate] of catalogs) {
     if (locale === baseLocale) continue;
     const missingFiles = base.files.filter((name) => !candidate.files.includes(name));

@@ -144,4 +144,95 @@ describe("explicit autosave flush", () => {
     expect(save).not.toHaveBeenCalled();
     expect(result.current.phase).toBe("saved");
   });
+
+  it("does not save a value it was told is loaded, nor the first value after discard (b′)", async () => {
+    vi.useFakeTimers();
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(({ value }) => useAutosave(value, save, 25), {
+      initialProps: { value: { body: "first load" } },
+      wrapper,
+    });
+    const reloaded = { body: "second load" };
+    result.current.accept(reloaded);
+    rerender({ value: reloaded });
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+    expect(result.current.isDirty()).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+
+    act(() => {
+      expect(result.current.discard()).toBe(true);
+    });
+    rerender({ value: { body: "another world" } });
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+    expect(result.current.isDirty()).toBe(false);
+    expect(save).not.toHaveBeenCalled();
+
+    rerender({ value: { body: "an edit" } });
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+    expect(save).toHaveBeenCalledOnce();
+  });
+});
+
+describe("save failure reporting", () => {
+  const failure = () =>
+    new ApplicationGatewayError("Ungültige Anfrage", "document.invalid_wire", {
+      category: "invalid_request",
+      requestId: "k3f9q2m8x1c7v4za",
+    });
+
+  it("warns with code and request id and exposes the id after a failed flush", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = failure();
+    const save = vi.fn().mockRejectedValue(error);
+    const { result, rerender } = renderHook(({ value }) => useAutosave(value, save), {
+      initialProps: { value: { body: "saved" } },
+      wrapper,
+    });
+    rerender({ value: { body: "unsaved" } });
+    await act(async () => {
+      await expect(result.current.flush()).rejects.toBe(error);
+    });
+    expect(warn).toHaveBeenCalledWith("save failed", {
+      code: "document.invalid_wire",
+      requestId: "k3f9q2m8x1c7v4za",
+    });
+    expect(result.current.errorId).toBe("k3f9q2m8x1c7v4za");
+    warn.mockRestore();
+  });
+
+  it("warns when an explicit resolution fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = failure();
+    const { result, rerender } = renderHook(
+      ({ value }) => useAutosave(value, vi.fn().mockResolvedValue(undefined)),
+      { initialProps: { value: { body: "saved" } }, wrapper },
+    );
+    const reviewed = { body: "reviewed" };
+    rerender({ value: reviewed });
+    await act(async () => {
+      await expect(result.current.resolve(reviewed, vi.fn().mockRejectedValue(error))).rejects.toBe(
+        error,
+      );
+    });
+    expect(warn).toHaveBeenCalledWith("save failed", {
+      code: "document.invalid_wire",
+      requestId: "k3f9q2m8x1c7v4za",
+    });
+    expect(result.current.errorId).toBe("k3f9q2m8x1c7v4za");
+    warn.mockRestore();
+  });
+
+  it("warns without a request id for failures that are not gateway errors", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const save = vi.fn().mockRejectedValue(new TypeError("Network connection failed"));
+    const { result, rerender } = renderHook(({ value }) => useAutosave(value, save), {
+      initialProps: { value: { body: "saved" } },
+      wrapper,
+    });
+    rerender({ value: { body: "unsaved" } });
+    await act(async () => result.current.retry());
+    expect(warn).toHaveBeenCalledWith("save failed", { code: "unknown", requestId: undefined });
+    expect(result.current.errorId).toBeUndefined();
+    warn.mockRestore();
+  });
 });

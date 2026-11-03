@@ -37,6 +37,7 @@ type HistoryActions<T> = {
 export function WorkspaceSurface({
   worldId,
   worldTitle,
+  documentsReady = true,
   workspace,
   manuscript,
   figures,
@@ -60,6 +61,8 @@ export function WorkspaceSurface({
 }: {
   worldId: string;
   worldTitle: string;
+  /** False while the world's documents are still loading; the text editor waits for it. */
+  documentsReady?: boolean;
   workspace: Workspace;
   manuscript: Manuscript;
   figures: FigureState;
@@ -101,6 +104,7 @@ export function WorkspaceSurface({
       <TextWorkspace
         key={worldId}
         worldTitle={worldTitle}
+        documentsReady={documentsReady}
         manuscript={manuscript}
         figures={figures}
         orphanedMentions={orphanedMentions}

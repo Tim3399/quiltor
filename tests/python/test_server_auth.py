@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import re
 import tempfile
 import threading
 import time
@@ -62,6 +63,34 @@ def _build_test_application(selected_identity, directories: AppDirectories):
         )
 
 
+def _assert_icons_served(test: unittest.TestCase, port: int, headers: dict | None = None) -> None:
+    """The favicon and home-screen icons answer as images, with no session.
+
+    Browsers ask for /favicon.ico without any link, and iOS fetches the touch icon without the
+    session cookie, so neither may sit behind the login or fall through to the HTML shell.
+    """
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=REQUEST_TIMEOUT)
+    try:
+        conn.request("GET", "/", headers=dict(headers or {}))
+        shell = conn.getresponse()
+        html = shell.read().decode("utf-8")
+        test.assertEqual(shell.status, 200)
+        hrefs = re.findall(r'<link rel="(?:icon|apple-touch-icon)"[^>]*href="([^"]+)"', html)
+        test.assertGreaterEqual(len(hrefs), 3, "index.html must link the icons")
+        for href in hrefs:
+            test.assertTrue(href.startswith("./"), f"{href} must be relative for sub-path proxies")
+        for path in ["/favicon.ico", *(f"/{href[2:]}" for href in hrefs)]:
+            conn.request("GET", path, headers=dict(headers or {}))
+            response = conn.getresponse()
+            body = response.read()
+            test.assertEqual(response.status, 200, path)
+            content_type = response.getheader("Content-Type") or ""
+            test.assertTrue(content_type.startswith("image/"), f"{path}: {content_type}")
+            test.assertGreater(len(body), 100, path)
+    finally:
+        conn.close()
+
+
 class _LiveAuthServerTestCase(unittest.TestCase):
     """Base class only — no test_* methods here, so it contributes no tests of its
     own. Spins up a real server.Server with the OIDC identity installed and
@@ -102,7 +131,9 @@ class _LiveAuthServerTestCase(unittest.TestCase):
 
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler, self.application)
         self.port = self.httpd.server_address[1]
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self.thread.start()
 
     def tearDown(self):
@@ -189,6 +220,9 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertEqual(status, 200)
         content_type = next(v for k, v in headers.items() if k.lower() == "content-type")
         self.assertIn("text/html", content_type)
+
+    def test_unauthenticated_icons_are_served_as_images(self):
+        _assert_icons_served(self, self.port)
 
     def test_unauthenticated_api_call_gets_401_json_not_a_redirect(self):
         status, _, body, _ = self._request("GET", "/api/worlds")
@@ -485,7 +519,9 @@ class LocalIdentityServerTest(unittest.TestCase):
 
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler, self.application)
         self.port = self.httpd.server_address[1]
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self.thread.start()
 
     def tearDown(self):
@@ -513,6 +549,9 @@ class LocalIdentityServerTest(unittest.TestCase):
         status, body = self._get("/api/worlds")
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
+
+    def test_icons_are_served_as_images(self):
+        _assert_icons_served(self, self.port)
 
     def test_whoami_answers_and_says_there_is_only_one_user(self):
         status, body = self._get("/api/whoami")

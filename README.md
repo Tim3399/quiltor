@@ -689,6 +689,8 @@ zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
 
 Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
 
+Wo das Server-Log liegt, wie man eine Fehler-ID darin findet und wie man Log-Level und Logdatei setzt, steht in [`docs/operations/logging.md`](docs/operations/logging.md) (englisch).
+
 #### Fertige Container-Images
 
 Ein Versions-Bump in `VERSION` auf `main` löst die Release-Pipeline aus. Images werden unter:

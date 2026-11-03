@@ -44,6 +44,7 @@ export const writing = {
   writingAttribution: "Sources and licenses",
   writingDataMissing: "Language data is not installed.",
   writingDataInstall: "Install language data",
+  writingInstalledByOperator: "Set up by the operator",
   writingDataInstalling: "Installing language data …",
   writingRequestError: "The request could not be completed.",
   writingStatusError: "The writing aid's status could not be loaded.",

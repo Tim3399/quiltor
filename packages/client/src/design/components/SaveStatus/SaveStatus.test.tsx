@@ -33,6 +33,29 @@ describe("SaveStatus", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("shows a selectable error id only in the error phase and announces it", () => {
+    const { container, rerender } = render(
+      <SaveStatus
+        phase="error"
+        label="Nicht gespeichert"
+        error="Ungültige Anfrage"
+        errorId="k3f9q2m8x1c7v4za"
+        errorIdLabel="Fehler-ID: k3f9q2m8x1c7v4za"
+      />,
+    );
+    const value = container.querySelector(".save-status-component__error-id-value");
+    expect(value).toHaveTextContent(/^k3f9q2m8x1c7v4za$/);
+    expect(container.querySelector(".save-status-component__error-id")).toHaveTextContent(
+      "Fehler-ID: k3f9q2m8x1c7v4za",
+    );
+    expect(container.querySelector(".save-status-component__detail")).toHaveTextContent(
+      "Ungültige AnfrageFehler-ID: k3f9q2m8x1c7v4za",
+    );
+    rerender(<SaveStatus phase="saving" label="Speichert" errorId="k3f9q2m8x1c7v4za" />);
+    expect(container.querySelector(".save-status-component__error-id")).toBeNull();
+    expect(screen.getByRole("status")).not.toHaveTextContent("k3f9q2m8x1c7v4za");
+  });
+
   it("exposes the attention-only label contract for compact status bars", () => {
     render(<SaveStatus phase="saving" label="Speichert" labelVisibility="attention" />);
 

@@ -59,6 +59,15 @@
    measure; it does not on the edges, so those take --place-map-grip, which the
    node sets in flow units divided by that magnification. Both come out the same
    size under the pointer however far in or out the view is. */
+.react-flow__resize-control.place-map-node__line,
+.react-flow__resize-control.place-map-node__handle {
+  /* Above the frame, which comes later in the node and is clipped to a stacking
+     context of its own: under it, the half of a grip that lies inside the sheet
+     cannot be caught, and on an edge the map's header already covers from
+     outside -- the top one -- that leaves nothing to grab at all. */
+  z-index: var(--z-local);
+}
+
 .react-flow__resize-control.place-map-node__line {
   border-color: color-mix(in srgb, var(--accent-primary) 55%, var(--transparent));
   border-width: var(--place-map-grip, var(--space-8));
@@ -66,6 +75,13 @@
      drawn along all four edges would be a second frame competing with the one
      the map already has. */
   opacity: 0.001;
+}
+
+/* The map's footer is drawn over the sheet's bottom edge, from outside, so a grip
+   straddling it has more than its outer half under it. Moved wholly inside, onto
+   the sheet, nothing covers it. The other three edges keep straddling. */
+.react-flow__resize-control.place-map-node__line.bottom {
+  transform: translate(0, -100%);
 }
 
 .react-flow__resize-control.place-map-node__line:hover,

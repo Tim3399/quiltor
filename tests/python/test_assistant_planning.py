@@ -238,6 +238,29 @@ class AssistantPlanningTests(unittest.TestCase):
         self.assertEqual(audit["inspected"]["presenceEntries"], 2)
         self.assertEqual(len(audit["issues"]), 1)
 
+    def test_the_fallback_reads_a_german_direction_from_the_request(self):
+        # The author writes German: "gerichtet" must make the proposed relationship directed,
+        # "ungerichtet" must not (it only contains the word, it is not that word).
+        runtime = AssistantRuntime.__new__(AssistantRuntime)
+        figures = {
+            "nodes": [{"id": "tarek", "name": "Tarek Venn"}, {"id": "nima", "name": "Nima Nox"}],
+            "edges": [],
+            "timeline": [],
+        }
+        cases = {
+            "Lege eine Beziehung zwischen Tarek Venn und Nima Nox an, gerichtet.": True,
+            "Lege eine gerichtete Beziehung von Tarek Venn zu Nima Nox an.": True,
+            "Lege eine directed Beziehung zwischen Tarek Venn und Nima Nox an.": True,
+            "Lege eine Beziehung an: Tarek Venn besitzt Nima Nox.": True,
+            "Lege eine ungerichtete Beziehung zwischen Tarek Venn und Nima Nox an.": False,
+            "Lege eine Beziehung zwischen Tarek Venn und Nima Nox an.": False,
+        }
+        for question, directed in cases.items():
+            with self.subTest(question=question):
+                proposal = present(runtime._forced_proposal(question, "[]", figures))
+                self.assertEqual(proposal["kind"], "create_relationship")
+                self.assertIs(proposal["relationship"]["directed"], directed)
+
     def test_fallback_uses_the_exact_required_tool(self):
         runtime = AssistantRuntime.__new__(AssistantRuntime)
         figures = {

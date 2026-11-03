@@ -1,6 +1,7 @@
 """Versioning and the immutable build-to-publish release hand-off."""
 
 import contextlib
+import functools
 import io
 import json
 import re
@@ -1548,6 +1549,16 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
                     workflow_contract.validate_playwright_worker_settings(mutated)
 
+    def test_every_product_server_writes_the_log_the_suite_reads(self):
+        sources = {TEST_WORKFLOW: TEST_WORKFLOW.read_text(encoding="utf-8")}
+        workflow_contract.validate_product_server_log(sources)
+        for setting in workflow_contract.SERVER_LOG_SETTINGS:
+            with self.subTest(removed=setting):
+                self.assertEqual(sources[TEST_WORKFLOW].count(setting), 3)
+                mutated = {TEST_WORKFLOW: sources[TEST_WORKFLOW].replace(setting, "true", 1)}
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "log file"):
+                    workflow_contract.validate_product_server_log(mutated)
+
     def test_matrix_decision_truth_table(self):
         plan = workflow_contract._job_body(TEST_WORKFLOW.read_text(encoding="utf-8"), "plan")
         decision = re.search(r"FULL_MATRIX: \$\{\{ (.+) \}\}", plan)
@@ -2341,6 +2352,25 @@ class PathFilterContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
+        # Every validation repeats work that depends only on the repository, never on the
+        # workflow text the tests mutate: listing the tracked files and reading every client
+        # unit test (the glob compilations are cached in path_filter itself, T-96). Caching
+        # those two for this class changes no result; each cached list is handed out as a
+        # fresh copy (T-40).
+        tracked_paths = functools.cache(path_filter.tracked_paths)
+        original_client_inputs = workflow_contract.client_test_inputs
+        client_inputs = functools.cache(lambda tracked: original_client_inputs(list(tracked)))
+        for target, name, replacement in (
+            (path_filter, "tracked_paths", lambda *args: list(tracked_paths(*args))),
+            (
+                workflow_contract,
+                "client_test_inputs",
+                lambda tracked: list(client_inputs(tuple(tracked))),
+            ),
+        ):
+            patcher = patch.object(target, name, replacement)
+            patcher.start()
+            cls.addClassCleanup(patcher.stop)
 
     def simulate(self, event, ref, full_matrix_input, paths, workflow=None, **options):
         return simulate_test_workflow(

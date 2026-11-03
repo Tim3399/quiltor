@@ -54,6 +54,8 @@ export function GrammarInspectorPanel({
   const javaMissing =
     !!grammar && (grammar.javaVersion === null || grammar.javaVersion < grammar.javaRequired);
   const mode = manuscript.grammarMode || "manual";
+  // A hosted server's operator installs LanguageTool; the panel never offers it there.
+  const installable = status?.installable !== false && grammar?.installable !== false;
 
   return (
     <div className="grammar-tool">
@@ -90,7 +92,9 @@ export function GrammarInspectorPanel({
           headingLevel={3}
           size="compact"
           actions={
-            !external && !javaMissing && !grammar?.installed ? (
+            !installable ? (
+              <p className="writing-data-state__note">{t("writingInstalledByOperator")}</p>
+            ) : !external && !javaMissing && !grammar?.installed ? (
               <Button
                 onClick={onInstall}
                 loading={phase === "installing"}

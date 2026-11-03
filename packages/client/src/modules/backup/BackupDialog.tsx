@@ -32,9 +32,12 @@ function excerpt(body: string): string {
 export function BackupDialog({
   onClose,
   flush,
+  onDocumentsReplaced,
 }: {
   onClose: () => void;
   flush: () => Promise<void>;
+  /** The server now holds other documents than the open workspace; nothing may save over them. */
+  onDocumentsReplaced: () => void;
 }) {
   const { t } = useI18n();
   const [items, setItems] = useState<BackupItem[]>([]);
@@ -105,6 +108,7 @@ export function BackupDialog({
     try {
       await flush();
       const result = await quiltorClient.application.backup.restore(restoreTarget);
+      onDocumentsReplaced();
       if (result.warnings?.includes("backup.mirror_failed")) {
         setRestoreTarget(null);
         setRestoring(false);

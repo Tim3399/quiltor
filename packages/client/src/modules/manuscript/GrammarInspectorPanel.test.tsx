@@ -73,6 +73,63 @@ describe("GrammarInspectorPanel", () => {
     expect(onApplyIssue).toHaveBeenCalledWith(issue, "Hello");
   });
 
+  it.each([
+    ["the status", { installable: false }, {}],
+    ["the grammar status", {}, { installable: false }],
+  ])("offers no LanguageTool install when %s is not installable", (_, top, inner) => {
+    const missing: WritingAssistanceStatus = {
+      ...status,
+      ...top,
+      grammar: { ...status.grammar!, available: false, installed: false, ...inner },
+    };
+    render(
+      <TestProviders>
+        <GrammarInspectorPanel
+          current={current}
+          manuscript={manuscript}
+          status={missing}
+          issues={[]}
+          selectedIssue={null}
+          phase="idle"
+          onCheck={vi.fn()}
+          onInstall={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onApplyIssue={vi.fn()}
+          onGrammarMode={vi.fn()}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText("Wird vom Betreiber eingerichtet")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /installieren/i })).not.toBeInTheDocument();
+  });
+
+  it("offers the LanguageTool install when the server is installable", () => {
+    render(
+      <TestProviders>
+        <GrammarInspectorPanel
+          current={current}
+          manuscript={manuscript}
+          status={{
+            ...status,
+            grammar: { ...status.grammar!, available: false, installed: false },
+          }}
+          issues={[]}
+          selectedIssue={null}
+          phase="idle"
+          onCheck={vi.fn()}
+          onInstall={vi.fn()}
+          onSelectIssue={vi.fn()}
+          onApplyIssue={vi.fn()}
+          onGrammarMode={vi.fn()}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.queryByText("Wird vom Betreiber eingerichtet")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "LanguageTool lokal installieren" })).toBeVisible();
+  });
+
   it("exposes checking as progress rather than mutable placeholder copy", () => {
     render(
       <TestProviders>

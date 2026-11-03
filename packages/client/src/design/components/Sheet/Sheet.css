@@ -13,7 +13,9 @@
   overflow: auto;
   border-left: 1px solid var(--line-strong);
   box-shadow: var(--shadow-drawer-left);
-  animation: ui-sheet-in var(--motion-regular) var(--ease-emphasized);
+  /* `backwards`: until the animation really starts, the sheet is already at its first keyframe.
+     Without it a late start draws the sheet in place and then throws it out and back in. */
+  animation: ui-sheet-in var(--motion-regular) var(--ease-emphasized) backwards;
 }
 
 .ui-sheet--wide {

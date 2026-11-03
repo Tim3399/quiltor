@@ -2,6 +2,9 @@ import {
   BetweenHorizontalEnd,
   BookOpen,
   Download,
+  Ellipsis,
+  Redo2,
+  Undo2,
   FilePlus2,
   Focus,
   History as HistoryIcon,
@@ -12,8 +15,10 @@ import {
 import {
   DropdownMenu,
   MenuItem,
+  MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
+  useMediaMatch,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
   WorkspaceToolbarCreateButton,
@@ -77,6 +82,8 @@ export function ManuscriptToolbar({
   onInsertSceneBreak,
 }: ManuscriptToolbarProps) {
   const { t } = useI18n();
+  // Seven touch buttons fit down to 360 px; below that undo and redo move into the menu.
+  const historyInMenu = useMediaMatch("(max-width: 359px)");
 
   return (
     <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
@@ -97,15 +104,6 @@ export function ManuscriptToolbar({
         }
         view={
           <>
-            <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-              <ToolbarButton
-                label={t("printPreview")}
-                icon={<BookOpen />}
-                collapseAt="medium"
-                aria-pressed={preview}
-                onClick={() => onPreview(!preview)}
-              />
-            </WorkspaceToolbarGroup>
             {!focus && (
               <WorkspaceToolbarGroup className="manuscript-toolbar-group panel-toggles">
                 <ToolbarButton
@@ -153,7 +151,7 @@ export function ManuscriptToolbar({
           </>
         }
         history={
-          <>
+          !historyInMenu && (
             <UndoRedoControls
               className="manuscript-toolbar-group"
               label={t("manuscript")}
@@ -164,65 +162,93 @@ export function ManuscriptToolbar({
               canUndo={!preview && canUndo}
               canRedo={!preview && canRedo}
             />
-            {current && (
-              <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-                <ToolbarButton
-                  label={t("versions")}
-                  icon={<HistoryIcon />}
-                  collapseAt="medium"
-                  aria-pressed={historyOpen}
-                  disabled={preview}
-                  onClick={() => onHistoryOpen(!historyOpen)}
-                />
-              </WorkspaceToolbarGroup>
-            )}
-          </>
+          )
         }
-        actions={
-          <WorkspaceToolbarGroup className="manuscript-toolbar-group">
-            <ToolbarButton
-              label={t("insertSceneBreak")}
-              icon={<BetweenHorizontalEnd />}
-              collapseAt="medium"
-              disabled={!current || preview}
-              onClick={onInsertSceneBreak}
-            />
-            <DropdownMenu
-              label={t("exportOptions")}
-              renderTrigger={({ ref, ...triggerProps }) => (
-                <ToolbarButton
-                  {...triggerProps}
-                  ref={ref}
-                  label={t("exportManuscript")}
-                  icon={<Download />}
-                  collapseAt="medium"
+        overflow={
+          // Secondary by frequency: writing happens with chapters, panels, focus and history at
+          // hand; the print preview, stored versions, the scene break and the book export are
+          // reached for now and then, so they wait one click away instead of a second row. The
+          // exports sit flat, not in a submenu: on compact widths a submenu opens as a sheet
+          // underneath the overflow sheet and cannot be reached.
+          <DropdownMenu
+            label={t("toolbarMoreActions")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <ToolbarButton
+                {...triggerProps}
+                ref={ref}
+                className="manuscript-toolbar__more"
+                label={t("toolbarMoreActions")}
+                labelMode="hidden"
+                icon={<Ellipsis />}
+              />
+            )}
+          >
+            {historyInMenu && (
+              <>
+                <MenuItem
+                  icon={<Undo2 />}
+                  label={t("undoManuscript")}
+                  disabled={preview || !canUndo}
+                  onSelect={() => onUndo?.()}
                 />
-              )}
-            >
-              <MenuItem icon={<Download />} label={t("manuscript")} onSelect={onExport} />
+                <MenuItem
+                  icon={<Redo2 />}
+                  label={t("redoManuscript")}
+                  disabled={preview || !canRedo}
+                  onSelect={() => onRedo?.()}
+                />
+                <MenuSeparator />
+              </>
+            )}
+            <MenuItem
+              icon={<BookOpen />}
+              label={t("printPreview")}
+              selected={preview}
+              onSelect={() => onPreview(!preview)}
+            />
+            {current && (
               <MenuItem
-                icon={<Download />}
-                label={t("manuscriptExportEditorAction")}
-                onSelect={() => onExportDocx("editor")}
+                icon={<HistoryIcon />}
+                label={t("versions")}
+                selected={historyOpen}
+                disabled={preview}
+                onSelect={() => onHistoryOpen(!historyOpen)}
               />
-              <MenuItem
-                icon={<Download />}
-                label={t("manuscriptExportNormseiteAction")}
-                onSelect={() => onExportDocx("normseite")}
-              />
-              <MenuItem
-                icon={<Download />}
-                label={t("manuscriptEpubAction")}
-                onSelect={onExportEpub}
-              />
-              <MenuItem
-                icon={<Printer />}
-                label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
-                disabled={pdfState === "loading"}
-                onSelect={onPrint}
-              />
-            </DropdownMenu>
-          </WorkspaceToolbarGroup>
+            )}
+            <MenuItem
+              icon={<BetweenHorizontalEnd />}
+              label={t("insertSceneBreak")}
+              disabled={!current || preview}
+              onSelect={onInsertSceneBreak}
+            />
+            <MenuSeparator />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptMarkdownAction")}
+              onSelect={onExport}
+            />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptExportEditorAction")}
+              onSelect={() => onExportDocx("editor")}
+            />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptExportNormseiteAction")}
+              onSelect={() => onExportDocx("normseite")}
+            />
+            <MenuItem
+              icon={<Download />}
+              label={t("manuscriptEpubAction")}
+              onSelect={onExportEpub}
+            />
+            <MenuItem
+              icon={<Printer />}
+              label={pdfState === "loading" ? t("creatingPdf") : t("bookPdf")}
+              disabled={pdfState === "loading"}
+              onSelect={onPrint}
+            />
+          </DropdownMenu>
         }
       />
     </WorkspaceToolbar>

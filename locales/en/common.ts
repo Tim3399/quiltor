@@ -5,6 +5,7 @@ export const common = {
   name: "Name",
   unknown: "Unknown",
   untitled: "Untitled",
+  toolbarMoreActions: "More actions",
   loading: "Loading …",
   cut: "Cut",
   copy: "Copy",

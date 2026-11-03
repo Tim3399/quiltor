@@ -21,6 +21,7 @@ the checkout, so a pull request cannot change the rules it is judged by.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import subprocess
@@ -53,6 +54,7 @@ class Config:
     untested: tuple[Rule, ...]
 
 
+@functools.cache
 def glob_to_regex(pattern: str) -> re.Pattern[str]:
     """
     A repository glob as a regex over a slash-separated path.
@@ -60,6 +62,10 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
     `*` and `?` stay inside one path segment, `**/` matches any number of directories
     (also none), and a trailing `**` matches everything below. There is no other syntax:
     a bracket or a brace is refused rather than read some way the author did not mean.
+
+    Cached: the result is an immutable compiled pattern that depends only on the glob, and
+    every validation compiles the same few hundred globs thousands of times. A refused glob
+    raises and is therefore not cached.
     """
 
     if not pattern or pattern.startswith("/") or "\\" in pattern:

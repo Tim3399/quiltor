@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import os
 import secrets
+import sys
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import cast
+from typing import NoReturn, cast
 
 from quiltor import resources
 from quiltor.application.assistant import AssistantAuditUseCases
@@ -221,10 +223,52 @@ def build_backup_authorizer(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class LoggingConfig:
+    level: str = "INFO"
+    file: Path | None = None
+
+
+_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+
+
+def logging_config_from_env(environ: Mapping[str, str] | None = None) -> LoggingConfig:
+    """QUILTOR_LOG_LEVEL and QUILTOR_LOG_FILE; a bad level raises instead of falling back,
+    so a typo is noticed at start and not after the incident."""
+    source = os.environ if environ is None else environ
+    raw_level = source.get("QUILTOR_LOG_LEVEL", "").strip()
+    level = raw_level.upper() if raw_level else "INFO"
+    if level not in _LOG_LEVELS:
+        raise ValueError(f"QUILTOR_LOG_LEVEL={raw_level!r} is not one of {', '.join(_LOG_LEVELS)}")
+    raw_file = source.get("QUILTOR_LOG_FILE", "").strip()
+    return LoggingConfig(level=level, file=Path(raw_file) if raw_file else None)
+
+
+def _fail_start(message: str) -> NoReturn:
+    print(f"quiltor: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
 def build_observability(profile: BuildProfile | None = None) -> ObservabilityServices:
     selected = profile or current_profile()
+    try:
+        config = logging_config_from_env()
+    except ValueError as error:
+        _fail_start(str(error))
+    try:
+        if config.file is not None:
+            config.file.parent.mkdir(parents=True, exist_ok=True)
+        logger = StdlibStructuredLogger(level=config.level, file=config.file)
+    except OSError as error:
+        _fail_start(f"QUILTOR_LOG_FILE {str(config.file)!r} is not writable: {error.strerror}")
+    logger.event(
+        "info",
+        "logging.configured",
+        log_level=config.level.lower(),
+        file=str(config.file) if config.file else None,
+    )
     return ObservabilityServices(
-        logger=StdlibStructuredLogger(),
+        logger=logger,
         diagnostics=RuntimeDiagnostics(
             {
                 "buildProfile": selected.identifier,

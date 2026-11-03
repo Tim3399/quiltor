@@ -41,6 +41,15 @@ services:
       # Optional LanguageTool server (see .env.example); empty = no grammar server.
       QUILTOR_LANGUAGETOOL_URL: ${QUILTOR_LANGUAGETOOL_URL:-}
       QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN: ${QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN:-}
+      QUILTOR_LOG_LEVEL: ${QUILTOR_LOG_LEVEL:-INFO}
+      # Empty: stderr only, which `docker compose logs quiltor` shows.
+      QUILTOR_LOG_FILE: ${QUILTOR_LOG_FILE:-}
+    logging:
+      # Docker's default json-file driver never rotates; bound the container log.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     volumes:
       - quiltor-data:/data
     networks:

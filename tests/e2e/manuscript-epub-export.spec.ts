@@ -4,8 +4,9 @@ import { promisify } from "node:util";
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
-import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedManuscriptWorld } from "./support/seed";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
+import { expect, test } from "./support/world-fixture";
 
 const run = promisify(execFile);
 
@@ -116,21 +117,12 @@ async function inspectEpub(path: string): Promise<EpubInspection> {
   return JSON.parse(stdout) as EpubInspection;
 }
 
-async function seed(page: Page, model: Manuscript = manuscript) {
-  const world = await createTestWorld(page, "EPUB-Exportprüfung");
-  const current = await (await page.request.get(`/api/manuscript?world=${world.id}`)).json();
-  const saved = await page.request.put(`/api/manuscript?world=${world.id}`, {
-    headers: { "If-Match": `"${current.revision}"` },
-    data: encodeManuscriptV1(model, current.revision),
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
-  await page.goto(`/?world=${world.id}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
-  return world;
+function seed(page: Page, model: Manuscript = manuscript) {
+  return seedManuscriptWorld(page, "EPUB-Exportprüfung", model);
 }
 
 async function openEpubExport(page: Page) {
-  await page.getByRole("button", { name: "Buch exportieren", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript");
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("/api/manuscript-export/preview"),
   );
@@ -236,7 +228,11 @@ for (const theme of ["light", "dark"] as const) {
     expect(errors).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Buch exportieren", exact: true })).toBeFocused();
+    await expect(
+      page
+        .getByRole("toolbar", { name: "Manuskript", exact: true })
+        .getByRole("button", { name: "Weitere Aktionen", exact: true }),
+    ).toBeFocused();
   });
 }
 
