@@ -94,6 +94,13 @@ The Quiltor application only reads this file; it is a separate work and is not
 covered by Quiltor's own license.
 """
 
+# License of each source as it is recorded in ``metadata.sources``; a lock that
+# names a source missing here cannot be built.
+SOURCE_LICENSES: dict[str, dict[str, str]] = {
+    "dewiktionary": {"license": "CC-BY-SA-4.0", "license_url": LICENSE_URL},
+    "openthesaurus": {"license": "CC-BY-SA-4.0", "license_url": LICENSE_URL},
+}
+
 # The dictionary tables in the order the canonical dump visits them, each with
 # the columns that make up its content. ``entries.id`` is left out: it only
 # records insertion order, which the sorted insert already fixes.
@@ -281,9 +288,30 @@ def _reverse_row(english: str, lemmas: list[str]) -> dict[str, Any]:
     }
 
 
+def source_metadata(lock: Mapping[str, Any]) -> list[dict[str, str]]:
+    """``metadata.sources`` for the locked files: where each came from, which
+    upstream version and when, under which license."""
+    entries = cast(dict[str, dict[str, Any]], lock["sources"])
+    missing = sorted(set(entries) - set(SOURCE_LICENSES))
+    if missing:
+        raise ValueError(f"no license recorded for source: {missing}")
+    recorded = [
+        {
+            "name": name,
+            "url": str(entry["upstream_url"]),
+            "version": str(entry.get("etag") or "").strip('"'),
+            "retrieved": str(entry["fetched_at"]),
+            **SOURCE_LICENSES[name],
+        }
+        for name, entry in sorted(entries.items())
+    ]
+    return recorded
+
+
 def build(lock: Mapping[str, Any], sources: Path, output: Path, version: str) -> dict[str, Any]:
     """Write the dictionary for ``lock`` to ``output`` and return its row counts."""
     paths = verify_sources(lock, sources)
+    recorded = source_metadata(lock)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output.parent, prefix="writing-build.") as scratch:
         stage_path, final_path = Path(scratch) / "stage.sqlite3", Path(scratch) / "final.sqlite3"
@@ -299,19 +327,22 @@ def build(lock: Mapping[str, Any], sources: Path, output: Path, version: str) ->
                     )
             _stage_rows(stage, list(_reverse_rows(stage)))
             stage.commit()
-            counts = _write_final(stage, final_path, version)
+            counts = _write_final(stage, final_path, version, recorded)
         output.unlink(missing_ok=True)
         with closing(sqlite3.connect(final_path)) as conn:
             conn.execute("VACUUM INTO ?", (str(output),))
     return counts
 
 
-def _write_final(stage: sqlite3.Connection, path: Path, version: str) -> dict[str, Any]:
+def _write_final(
+    stage: sqlite3.Connection, path: Path, version: str, recorded: list[dict[str, str]]
+) -> dict[str, Any]:
     conn = initialize(
         path,
         version,
         "full",
         {"license": LICENSE, "license_url": LICENSE_URL, "attribution": ATTRIBUTION},
+        recorded,
     )
     with closing(conn):
         conn.execute("PRAGMA journal_mode=OFF")

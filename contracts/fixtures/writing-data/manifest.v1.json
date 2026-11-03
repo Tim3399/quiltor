@@ -1,8 +1,8 @@
 {
   "asset": {
-    "bytes": 8385,
+    "bytes": 8547,
     "name": "writing-2026.11.03.sqlite3.gz",
-    "sha256": "f8e13e7fac1957ee994ef312b313ba8184d1c0d39daaee2c630c22ab89c88523"
+    "sha256": "c511b6c4fb7af95cf1e44a64de792be278cbc1dccae100253df0f6bde4338eef"
   },
   "attribution": "Wiktionary-Autorinnen und -Autoren, de.wiktionary.org, CC BY-SA 4.0; maschinenlesbar aufbereitet durch Wiktextract/kaikki.org. OpenThesaurus.de, Daniel Naber, CC BY-SA 4.0, https://www.openthesaurus.de. Auszug, umformatiert.",
   "dataVersion": "2026.11.03",
@@ -38,17 +38,17 @@
       "etag": null,
       "fetched_at": "2026-11-03T09:00:00Z",
       "file": "openthesaurus.zip",
-      "last_modified": "Tue, 03 Nov 2026 19:41:19 GMT",
+      "last_modified": "Tue, 03 Nov 2026 19:58:03 GMT",
       "sha256": "926668187cdb705c925b42a4fb09713b9442bfacadc105bf117c924889bf6ee4",
       "upstream_url": "https://www.openthesaurus.de/export/OpenThesaurus-Textversion.zip"
     }
   },
   "sqlite": {
     "bytes": 49152,
-    "contentSha256": "f7de07cc42da408c8979e0eb12a5f33f3f576b578130dfcea7d4761f019de3fa",
-    "sha256": "060d5e8c673f9e9401b049bcf1bd1fede1d09c14353b8b29dc67c819e05e428e",
+    "contentSha256": "677aeae9cce537051835a464d3b4a8a23afe2e657ebd5f145fb8bf2d2473db9f",
+    "sha256": "8b063e3280e0d7930d77279ecf560350ef6bcf0dea5b450f56259b0684a2eb57",
     "sqliteVersion": "3.49.1",
     "zlibVersion": "1.3.1"
   },
-  "toolCommit": "759d42cc"
+  "toolCommit": "2daf1f76"
 }

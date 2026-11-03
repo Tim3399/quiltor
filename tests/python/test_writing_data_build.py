@@ -26,6 +26,7 @@ from quiltor.infrastructure.persistence.writing_assistance import (
     initialize,
     insert,
     insert_form,
+    sources,
 )
 from quiltor.infrastructure.persistence.writing_assistance import (
     lookup as lookup_rows,  # pyright: ignore[reportUnknownVariableType] - returns list[dict]
@@ -179,6 +180,29 @@ class DictionaryBuildTests(BuildCase):
         self.assertIn("de.wiktionary.org", metadata["attribution"])
         self.assertIn("openthesaurus.de", metadata["attribution"])
 
+    def test_database_records_each_source_with_url_version_date_and_license(self) -> None:
+        recorded = sources(self.database)
+        self.assertEqual([item["name"] for item in recorded], ["dewiktionary", "openthesaurus"])
+        for item in recorded:
+            locked = self.lock["sources"][item["name"]]
+            self.assertEqual(item["url"], locked["upstream_url"])
+            self.assertEqual(item["retrieved"], locked["fetched_at"])
+            self.assertEqual(item["license"], "CC-BY-SA-4.0")
+            self.assertEqual(item["license_url"], "https://creativecommons.org/licenses/by-sa/4.0/")
+
+    def test_source_version_is_the_upstream_etag(self) -> None:
+        lock = json.loads(json.dumps(self.lock))
+        lock["sources"]["dewiktionary"]["etag"] = '"6ae3112a-127c5a18"'
+        recorded = {item["name"]: item for item in tool.source_metadata(lock)}
+        self.assertEqual(recorded["dewiktionary"]["version"], "6ae3112a-127c5a18")
+        self.assertEqual(recorded["openthesaurus"]["version"], "")
+
+    def test_source_without_a_recorded_license_cannot_be_built(self) -> None:
+        lock = json.loads(json.dumps(self.lock))
+        lock["sources"]["freedict"] = lock["sources"]["openthesaurus"]
+        with self.assertRaisesRegex(ValueError, "no license recorded for source"):
+            tool.source_metadata(lock)
+
     def test_common_words_find_a_dictionary_entry(self) -> None:
         words = [
             line.strip()
@@ -289,6 +313,7 @@ class ReproducibilityTests(BuildCase):
                 "license_url": tool.LICENSE_URL,
                 "attribution": tool.ATTRIBUTION,
             },
+            tool.source_metadata(self.lock),
         )
         with closing(conn), conn:
             for language, mode, query, lemma, pos, meaning, values, source in reversed(entries):
@@ -307,6 +332,15 @@ class ReproducibilityTests(BuildCase):
         header = (self.root / "out" / "writing-v.sqlite3.gz").read_bytes()[:10]
         self.assertEqual(header[3], 0, "FLG: no FNAME, no FCOMMENT")
         self.assertEqual(header[4:8], bytes(4), "MTIME")
+
+    def test_content_hash_covers_sources(self) -> None:
+        built = self.build()
+        before = tool.content_sha256(built)
+        with closing(sqlite3.connect(built)) as conn, conn:
+            conn.execute(
+                "UPDATE metadata SET value=replace(value, 'CC-BY-SA-4.0', 'GPL-2.0') WHERE key='sources'"
+            )
+        self.assertNotEqual(tool.content_sha256(built), before)
 
     def test_content_hash_covers_forms(self) -> None:
         built = self.build()

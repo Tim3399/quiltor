@@ -15,6 +15,9 @@ from quiltor.infrastructure.persistence.writing_assistance import (
     insert,
     insert_form,
 )
+from quiltor.infrastructure.persistence.writing_assistance import (
+    sources as stored_sources,
+)
 from quiltor.infrastructure.writing_assistance.installer import (
     CoreWritingAssistanceInstaller,
     install_from_sources,
@@ -299,6 +302,49 @@ class DictionarySchemaTests(unittest.TestCase):
         self.assertEqual(stored["license_url"], "https://creativecommons.org/licenses/by-sa/4.0/")
         self.assertEqual(stored["attribution"], "Wiktionary contributors; OpenThesaurus")
         self.assertEqual(stored["schema"], "2")
+
+    def source(self, **changes):
+        return {
+            "name": "openthesaurus",
+            "url": "https://www.openthesaurus.de/export/OpenThesaurus-Textversion.zip",
+            "version": "",
+            "retrieved": "2026-11-03T09:00:00Z",
+            "license": "CC-BY-SA-4.0",
+            "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+            **changes,
+        }
+
+    def test_sources_are_stored_and_read_back(self):
+        wiktionary = self.source(name="dewiktionary", version="6ae3112a")
+        conn = initialize(
+            self.repository.path, MANIFEST_VERSION, "full", None, [self.source(), wiktionary]
+        )
+        with closing(conn), conn:
+            pass
+        self.assertEqual(stored_sources(self.repository.path), [wiktionary, self.source()])
+
+    def test_database_without_sources_reads_as_none(self):
+        self.build()
+        self.assertEqual(stored_sources(self.repository.path), [])
+
+    def test_incomplete_sources_are_refused(self):
+        without_license = self.source()
+        del without_license["license"]
+        for sources in (
+            [],
+            [without_license],
+            [self.source(license_url=" ")],
+            [self.source(url="")],
+            [self.source(retrieved="")],
+            [self.source(), self.source()],
+            [self.source(extra="x")],
+        ):
+            with self.subTest(sources=sources), self.assertRaises(ValueError):
+                initialize(self.repository.path, MANIFEST_VERSION, "full", None, sources)
+
+    def test_sources_cannot_bypass_the_check_as_a_license_key(self):
+        with self.assertRaises(ValueError):
+            self.build({"sources": "[]"})
 
     def test_unknown_metadata_key_is_refused(self):
         with self.assertRaises(ValueError):

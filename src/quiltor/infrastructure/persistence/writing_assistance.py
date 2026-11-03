@@ -6,7 +6,7 @@ import os
 import sqlite3
 import stat
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from contextlib import closing
 from pathlib import Path
 
@@ -31,6 +31,32 @@ DICTIONARY_SCHEMA = 2
 
 # Keys a build may set in ``metadata`` next to version, coverage and schema.
 LICENSE_KEYS = ("license", "license_url", "attribution")
+
+# ``metadata.sources``: one object per upstream source, so a copy of the database
+# passed on without its release manifest still names where its data came from
+# (CC BY-SA 4.0 asks for attribution on the shared work itself). ``version`` is
+# the upstream's own tag, such as an ETag, and may be empty; the rest may not.
+SOURCE_FIELDS = ("name", "url", "version", "retrieved", "license", "license_url")
+_REQUIRED_SOURCE_FIELDS = frozenset(SOURCE_FIELDS) - {"version"}
+
+
+def encode_sources(sources: Sequence[Mapping[str, str]]) -> str:
+    """The canonical JSON stored in ``metadata.sources``, after checking that
+    every source carries every field and that no name repeats."""
+    if not sources:
+        raise ValueError("writing-assistance sources must name at least one source")
+    names: set[str] = set()
+    for source in sources:
+        if set(source) != set(SOURCE_FIELDS):
+            raise ValueError(f"writing-assistance source fields must be {list(SOURCE_FIELDS)}")
+        empty = sorted(field for field in _REQUIRED_SOURCE_FIELDS if not source[field].strip())
+        if empty:
+            raise ValueError(f"writing-assistance source is missing {empty}")
+        if source["name"] in names:
+            raise ValueError(f"writing-assistance source repeated: {source['name']}")
+        names.add(source["name"])
+    ordered = sorted((dict(source) for source in sources), key=lambda source: source["name"])
+    return json.dumps(ordered, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 _MIGRATION_LOCK = threading.Lock()
@@ -199,11 +225,16 @@ def connect(path: Path, readonly: bool = False) -> sqlite3.Connection:
 
 
 def initialize(
-    path: Path, version: str, coverage: str, licenses: Mapping[str, str] | None = None
+    path: Path,
+    version: str,
+    coverage: str,
+    licenses: Mapping[str, str] | None = None,
+    sources: Sequence[Mapping[str, str]] | None = None,
 ) -> sqlite3.Connection:
     unknown = set(licenses or {}) - set(LICENSE_KEYS)
     if unknown:
         raise ValueError(f"unknown writing-assistance metadata keys: {sorted(unknown)}")
+    encoded = None if sources is None else encode_sources(sources)
     conn = connect(path)
     conn.executescript(SCHEMA)
     values = {
@@ -211,6 +242,7 @@ def initialize(
         "coverage": coverage,
         "schema": str(DICTIONARY_SCHEMA),
         **(licenses or {}),
+        **({} if encoded is None else {"sources": encoded}),
     }
     conn.executemany("INSERT OR REPLACE INTO metadata(key,value) VALUES(?,?)", values.items())
     return conn
@@ -301,6 +333,12 @@ def metadata(path: Path) -> dict[str, str]:
             return dict(conn.execute("SELECT key,value FROM metadata ORDER BY key").fetchall())
     except sqlite3.Error:
         return {}
+
+
+def sources(path: Path) -> list[dict[str, str]]:
+    """The upstream sources recorded in the database; empty when it records none."""
+    stored = metadata(path).get("sources")
+    return [] if stored is None else list(json.loads(stored))
 
 
 def coverage(path: Path) -> str | None:
