@@ -706,7 +706,18 @@ jobs:
       - run: npm ci
 
       - name: Install Chromium
+        if: runner.os != 'Windows'
         run: npx playwright install --with-deps chromium
+
+      # Windows installs the browser only: --with-deps enabled Media Foundation on every run
+      # (144-225 s per job) and the suites pass without it (T-45, docs/quality/ci.md).
+      - name: Install Chromium (Windows, browser only)
+        if: runner.os == 'Windows'
+        run: npx playwright install chromium
+
+      - name: Check that Chromium starts
+        if: runner.os == 'Windows'
+        run: node tools/dev/chromium-starts.mjs
 
       - name: Unit tests
         if: matrix.slot == 1
@@ -836,7 +847,18 @@ jobs:
       - run: npm ci
 
       - name: Install Chromium
+        if: runner.os != 'Windows'
         run: npx playwright install --with-deps chromium
+
+      # Windows installs the browser only: --with-deps enabled Media Foundation on every run
+      # (144-225 s per job) and the suites pass without it (T-45, docs/quality/ci.md).
+      - name: Install Chromium (Windows, browser only)
+        if: runner.os == 'Windows'
+        run: npx playwright install chromium
+
+      - name: Check that Chromium starts
+        if: runner.os == 'Windows'
+        run: node tools/dev/chromium-starts.mjs
 
       - name: Unit tests
         run: npx vitest run
