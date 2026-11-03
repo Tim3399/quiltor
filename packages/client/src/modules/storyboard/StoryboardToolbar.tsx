@@ -88,11 +88,14 @@ export function StoryboardToolbar({
     selectionLayer === "group" ? "storyboardMoveFrameBackward" : "storyboardMoveBackward",
   );
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // A changed board title ends an unfinished rename and refills the draft. Adjusted during
+  // render, React redoes the render at once, so the stale draft is never painted.
+  const [syncedBoardTitle, setSyncedBoardTitle] = useState(currentBoardTitle);
+  if (syncedBoardTitle !== currentBoardTitle) {
+    setSyncedBoardTitle(currentBoardTitle);
     setBoardTitleDraft(currentBoardTitle);
     setRenamingBoard(false);
-  }, [currentBoardTitle]);
+  }
 
   // Renaming starts from the overflow menu. The menu hands focus back to its trigger as it
   // closes, which is a passive-effect cleanup and so runs after autoFocus would have fired --
