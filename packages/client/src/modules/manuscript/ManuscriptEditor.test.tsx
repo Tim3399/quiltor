@@ -472,6 +472,34 @@ describe("ManuscriptEditor selection", () => {
     expect(view.container.querySelector(".word-completion")).toBeNull();
   });
 
+  // F-17-12: a view created while a version is open gets `() => undefined` as onChange; after
+  // the version closes, typing must reach the owner's current onChange.
+  it("calls the onChange of the latest render after a rerender", () => {
+    const dropped = vi.fn();
+    const live = vi.fn();
+    const props = {
+      label: "Kapiteltext",
+      placeholder: "",
+      vocabulary: [],
+      editorRef:
+        createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>,
+      onSelection: vi.fn(),
+    };
+    const view = render(<ManuscriptEditor value="Abend" readOnly onChange={dropped} {...props} />);
+    view.rerender(<ManuscriptEditor value="Abend" onChange={live} {...props} />);
+    const editor = requireValue(
+      EditorView.findFromDOM(
+        requireValue(view.container.querySelector<HTMLElement>(".cm-editor"), "root"),
+      ),
+      "view",
+    );
+
+    editor.dispatch({ changes: { from: 5, insert: "!" }, userEvent: "input" });
+
+    expect(dropped).not.toHaveBeenCalled();
+    expect(live).toHaveBeenCalledWith("Abend!", [], []);
+  });
+
   it("maps marks and mentions through two edits that land before the next commit", () => {
     const { editor, onChange } = renderEditor({
       marks: [{ from: 6, to: 10, kind: "italic" }],
