@@ -535,7 +535,9 @@ class ProfileGrammarBackendTests(unittest.TestCase):
             def send_api_error(self, status, *, error_code, retryable=None):
                 sent.append({"error": {"code": error_code}})
 
-        app = SimpleNamespace(writing_assistance=service)
+        # The routes are called directly, past the dispatch that refuses operator-only routes
+        # on a server where nothing is installable (T-101); that gate has its own tests.
+        app = SimpleNamespace(writing_assistance=service, installable=True)
         getattr(routes, name)(Handler(), Request(path=f"/api/writing-assistance/{name}"), app)
         return sent[0]
 
