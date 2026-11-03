@@ -17,7 +17,7 @@ TIMELINE = {
 }
 
 
-def _chapters(*chapters: dict[str, Any]) -> dict[str, Any]:
+def _chapters(*chapters: Any) -> dict[str, Any]:
     return {"chapters": list(chapters)}
 
 
