@@ -56,31 +56,33 @@ export function useAssistantAvailability() {
 
   // Installation continues server-side while the drawer is closed. Polling always
   // re-synchronizes from the gateway so remounting cannot reset visible progress.
-  const pollInstall = useCallback(() => {
-    quiltorClient.application.assistant
-      .installStatus()
-      .then((state) => {
-        if (!mountedRef.current) return;
-        setInstallState(state);
-        if (state.running) {
-          hadRunningRef.current = true;
-          if (!installPollRef.current)
-            // eslint-disable-next-line react-hooks/immutability -- pollInstall re-arms itself from its own async result, after the declaration has completed
-            installPollRef.current = window.setInterval(pollInstall, INSTALL_POLL_MS);
-        } else {
-          window.clearInterval(installPollRef.current);
-          installPollRef.current = undefined;
-          if (hadRunningRef.current) {
-            hadRunningRef.current = false;
-            checkStatus();
+  const pollInstall = useCallback(
+    function poll() {
+      quiltorClient.application.assistant
+        .installStatus()
+        .then((state) => {
+          if (!mountedRef.current) return;
+          setInstallState(state);
+          if (state.running) {
+            hadRunningRef.current = true;
+            if (!installPollRef.current)
+              installPollRef.current = window.setInterval(poll, INSTALL_POLL_MS);
+          } else {
+            window.clearInterval(installPollRef.current);
+            installPollRef.current = undefined;
+            if (hadRunningRef.current) {
+              hadRunningRef.current = false;
+              checkStatus();
+            }
           }
-        }
-      })
-      .catch(() => {
-        // The next regular status check remains authoritative. A transient
-        // polling failure must not invent a terminal installation state.
-      });
-  }, [checkStatus]);
+        })
+        .catch(() => {
+          // The next regular status check remains authoritative. A transient
+          // polling failure must not invent a terminal installation state.
+        });
+    },
+    [checkStatus],
+  );
 
   useEffect(() => {
     pollInstall();

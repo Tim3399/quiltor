@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n";
 import { AppShell } from "./AppShell";
@@ -118,6 +118,51 @@ describe("AppShell", () => {
 
     view.rerender(shell(now - 5 * 60_000));
     expect(screen.getByRole("status")).toHaveTextContent("Gespeichert · vor 5 Min.");
+  });
+
+  it("lets a saved state age while it is on screen, and starts from the clock when it appears", () => {
+    vi.useFakeTimers();
+    try {
+      const start = Date.UTC(2026, 8, 3, 12, 0, 0);
+      vi.setSystemTime(start);
+      const shell = (phase: "dirty" | "saved") => (
+        <I18nProvider>
+          <AppShell
+            title="Welt"
+            workspace="text"
+            onWorkspace={() => undefined}
+            phase={phase}
+            savedAt={start - 4 * 60_000}
+            retry={() => undefined}
+            theme="light"
+            onTheme={() => undefined}
+            onSearch={() => undefined}
+            onHistory={() => undefined}
+            onSnapshot={() => undefined}
+            onBackups={() => undefined}
+            onAssistant={() => undefined}
+            onExitWorld={() => undefined}
+          >
+            <div />
+          </AppShell>
+        </I18nProvider>
+      );
+      const view = render(shell("dirty"));
+      expect(screen.getByRole("status")).not.toHaveTextContent("vor");
+      const idleTimers = vi.getTimerCount();
+
+      // Minutes pass while nothing re-renders the bar; the saved state then appears.
+      act(() => vi.setSystemTime(start + 60_000));
+      view.rerender(shell("saved"));
+      expect(screen.getByRole("status")).toHaveTextContent("vor 5 Min.");
+      // The clock runs only while there is an age to show.
+      expect(vi.getTimerCount()).toBe(idleTimers + 1);
+
+      act(() => vi.advanceTimersByTime(120_000));
+      expect(screen.getByRole("status")).toHaveTextContent("vor 7 Min.");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the save state in the bar and the document facts in the status line", () => {

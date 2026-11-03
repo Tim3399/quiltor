@@ -91,13 +91,16 @@ export function AssistantDrawer({
     return () => media.removeEventListener("change", update);
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    if (!open) setChapterPickerOpen(false);
-    // Closing the assistant discards an open proposal edit, as it did before the edit
-    // moved up here.
-    if (!open) setProposalEdit(null);
-  }, [open]);
+  // Closing the assistant discards an open chapter picker and, as it did before the edit
+  // moved up here, an open proposal edit.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (!open) {
+      setChapterPickerOpen(false);
+      setProposalEdit(null);
+    }
+  }
 
   const openChapterPicker = () => {
     setChapterPickerOpen(true);

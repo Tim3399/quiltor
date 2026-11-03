@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import type { FigureKind, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import type { FigureFlowNode } from "./FigureNode";
 import {
@@ -89,9 +90,9 @@ export function useFigureCanvas({
   const [viewportZoom, setViewportZoom] = useState(1);
   const flow = useRef<ReactFlowInstance<FigureFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
-  const latestState = useRef(state);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestState.current = state;
+  // Writable: commitNodePosition and alignAllNodes move it ahead to the value they hand to
+  // onChange, so a second change before the next commit builds on the first.
+  const latestStateRef = useLatest(state);
 
   useEffect(() => {
     const setOverride = (event: KeyboardEvent) => {
@@ -116,14 +117,13 @@ export function useFigureCanvas({
     () => createFigureFlowNodes(state.nodes, zoomTier, viewportZoom),
     [state.nodes, zoomTier, viewportZoom],
   );
-  const nodeContext = useRef({ timeline, activeMomentId, guestsByPlace });
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  nodeContext.current = { timeline, activeMomentId, guestsByPlace };
+  // Read only, by the derivedNodes effect below.
+  const nodeContextRef = useLatest({ timeline, activeMomentId, guestsByPlace });
   const [nodes, setFlowNodes] = useState<FigureFlowNode[]>(() =>
     applyFigureNodeContext(derivedNodes, timeline, activeMomentId, guestsByPlace),
   );
   useEffect(() => {
-    const current = nodeContext.current;
+    const current = nodeContextRef.current;
     setFlowNodes(
       applyFigureNodeContext(
         derivedNodes,
@@ -133,8 +133,13 @@ export function useFigureCanvas({
       ),
     );
   }, [derivedNodes]);
+  // The timeline context is merged into the flow nodes React Flow already holds: onNodesChange
+  // writes positions, dimensions and selection into `nodes`, and this update maps over those
+  // current nodes. Deriving it during render would have to start from derivedNodes and lose what
+  // React Flow wrote, so the mirror stays an effect until a canvas spec holds that rewrite
+  // (T-17 P4 plan, S2).
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- `nodes` is React Flow's controlled node state, written by onNodesChange; the update must map over those current nodes to keep what React Flow wrote, which a render-time derivation from derivedNodes could not
     setFlowNodes((current) =>
       applyFigureNodeContext(current, timeline, activeMomentId, guestsByPlace),
     );
@@ -250,23 +255,23 @@ export function useFigureCanvas({
   const commitNodePosition = useCallback(
     (id: string, position: { x: number; y: number }) => {
       if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
-      const current = latestState.current;
+      const current = latestStateRef.current;
       const next = {
         ...current,
         nodes: current.nodes.map((node) =>
           node.id === id ? { ...node, x: position.x, y: position.y } : node,
         ),
       };
-      latestState.current = next;
+      latestStateRef.current = next;
       onChange(next);
       window.requestAnimationFrame(() => updateNodeInternals(current.nodes.map((node) => node.id)));
     },
     [onChange, updateNodeInternals],
   );
   const alignAllNodes = useCallback(() => {
-    const current = latestState.current;
+    const current = latestStateRef.current;
     const next = { ...current, nodes: alignNodesToGrid(current.nodes) };
-    latestState.current = next;
+    latestStateRef.current = next;
     onChange(next);
     window.requestAnimationFrame(() => {
       updateNodeInternals(next.nodes.map((node) => node.id));

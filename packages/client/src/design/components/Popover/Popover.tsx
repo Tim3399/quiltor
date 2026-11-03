@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { Sheet } from "../Sheet";
 import "./Popover.css";
 
@@ -56,9 +57,7 @@ export function Popover({
   portalContainerRef,
 }: PopoverProps) {
   const panel = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  closeRef.current = onClose;
+  const closeRef = useLatest(onClose);
   const compactViewport = useCompactLayout();
   const compact = compactMode === "sheet" && compactViewport;
   const [position, setPosition] = useState({ left: 12, top: 12 });
@@ -135,7 +134,7 @@ export function Popover({
   }, [open, compact, anchorRef, updatePosition]);
 
   if (!open) return null;
-  // eslint-disable-next-line react-hooks/refs -- the portal container is an element mounted before the popover opens; it does not change while open
+  // eslint-disable-next-line react-hooks/refs -- portalContainerRef is the caller's ref (ReferenceTextEditor's popoverPortalRef, forwarded by DropdownMenu), attached when the caller mounts, so it is already set by the time `open` turns true. Held in state it would portal into document.body for the first commit and only then move, putting the surface outside a body-level dialog's focus trap and inert region (T-29); reading it here is the one place that keeps the first paint in the right container.
   const portalContainer = portalContainerRef?.current ?? document.body;
   if (compact) {
     return createPortal(

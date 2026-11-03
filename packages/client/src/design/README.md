@@ -286,6 +286,34 @@ Kernaktion Speichern und Reload. Verschachtelte Modals prüfen zusätzlich, dass
 interaktiv und für Assistenztechnologien sichtbar ist, Escape nur diese Ebene schließt und den Fokus an
 ihren Auslöser zurückgibt.
 
+## Latest-value-Refs (`useLatest`)
+
+Ein Callback oder Effect, der den neuesten Wert lesen soll, ohne neu zu abonnieren, nimmt
+`useLatest(value)` aus `shared/hooks/useLatest.ts`. Der Hook liegt in `shared`, nicht in
+`design/internal`, weil auch Produktmodule ihn brauchen und Deep Imports in `design/internal`
+verboten sind. Er weist in `useInsertionEffect` zu, nie im Render. Insertion-Effects laufen vor allen
+Layout-Effects desselben Commits, deshalb sehen Event-Handler, passive Effects, Kind-Layout-Effects
+und Ref-Callbacks den neuen Wert.
+
+```ts
+const onCloseRef = useLatest(onClose);
+```
+
+- **Namensregel:** Das Ergebnis heißt immer `…Ref`. `react-hooks/refs` erkennt Refs am Namen und
+  meldet nur dann weiter Lesezugriffe im Render. `useLatest.lint.test.ts` prüft beides: die Regel an
+  einer Probe und den Namen an jedem Aufruf unter `packages/client/src`.
+- **Schreiben:** Außer dem Hook selbst gibt es eine zweite erlaubte Schreibstelle. Ein Handler darf
+  den Wert vorziehen, den er gerade weitergibt (`onChange(next); draftRef.current = next;`), damit ein
+  zweiter synchroner Aufruf vor dem nächsten Commit ihn sieht. Der nächste Commit überschreibt ihn
+  wieder mit der Prop. Jeder andere Schreibzweck braucht einen eigenen `useRef`.
+- **`useEffectEvent`** nur, wenn der Wert ausschließlich in Effects gelesen wird. Ein Effect-Event
+  wird nicht als Prop oder Callback weitergegeben und steht nicht in einem Dependency-Array; für
+  identitätsstabile Callbacks (Editor, React Flow, Loader) ist es deshalb kein Ersatz.
+- **Unterdrückungen:** Jede verbleibende `eslint-disable-next-line react-hooks/...` nennt ihren
+  konkreten Grund an dieser Stelle (wer liest den Wert wann, und warum genügt der Hook nicht). Ein
+  wiederholter Standardtext zählt nicht als Begründung. `reportUnusedDisableDirectives` ist ein
+  Fehler, eine überflüssig gewordene Unterdrückung macht Lint also rot.
+
 ## Umsetzungsstatus
 
 Die Architektur- und Produktmigration vom 25. August 2026 ist abgeschlossen: Alle Aufrufer

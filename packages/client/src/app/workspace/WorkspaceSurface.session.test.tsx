@@ -92,6 +92,25 @@ describe("WorkspaceSurface session ownership", () => {
     expect(view.container.querySelector(".editor-scroll")?.scrollTop).toBe(245);
   });
 
+  it("restores the latest snapshot on every return, not only the first", async () => {
+    const view = render(<Harness />);
+    const first = await editorView();
+    act(() => first.dispatch({ selection: { anchor: 10, head: 6 } }));
+    view.rerender(<Harness workspace="figures" />);
+    await screen.findByText("Figurenansicht");
+    view.rerender(<Harness />);
+    const second = await editorView();
+    expect(second.state.selection.main).toMatchObject({ anchor: 10, head: 6 });
+
+    act(() => second.dispatch({ selection: { anchor: 3, head: 5 } }));
+    view.rerender(<Harness workspace="figures" />);
+    await screen.findByText("Figurenansicht");
+    view.rerender(<Harness />);
+
+    const third = await editorView();
+    expect(third.state.selection.main).toMatchObject({ anchor: 3, head: 5 });
+  });
+
   it("does not apply a snapshot to a different world with the same chapter ids", async () => {
     const view = render(<Harness />);
     const previousEditor = await editorView();

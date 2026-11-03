@@ -112,10 +112,14 @@ export function HistoryDialog({
       }),
     (error) => setResult({ diff: "", empty: applicationErrorMessage(error) }),
   );
+  // A new comparison drops the previous diff while it loads.
+  const [comparison, setComparison] = useState({ selected, word, all });
+  if (comparison.selected !== selected || comparison.word !== word || comparison.all !== all) {
+    setComparison({ selected, word, all });
+    setResult(null);
+  }
   useEffect(() => {
     if (!ready) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setResult(null);
     void quiltorClient.application.history
       .diff(selected, word, all)
       .then((value) =>
@@ -135,10 +139,12 @@ export function HistoryDialog({
     () => (result?.diff ? parseDiff(result.diff, word) : []),
     [result, word],
   );
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Every newly parsed diff starts with its first segments expanded.
+  const [openFor, setOpenFor] = useState(segments);
+  if (openFor !== segments) {
+    setOpenFor(segments);
     setOpen(new Set(segments.length <= 2 ? segments.map((segment) => segment.path) : []));
-  }, [segments]);
+  }
   const toggle = (path: string) =>
     setOpen((previous) => {
       const next = new Set(previous);

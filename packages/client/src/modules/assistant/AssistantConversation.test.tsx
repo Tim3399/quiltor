@@ -363,6 +363,38 @@ describe("assistant conversation content", () => {
     ]);
   });
 
+  it("discards an open proposal editor when the drawer closes", async () => {
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        proposals: [{ kind: "create_element", tempId: "new:igor", element: { name: "Igor" } }],
+      }),
+    );
+    const { setOpen } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    await askQuestion("Lege Igor an.");
+
+    fireEvent.click(await screen.findByText("Bearbeiten"));
+    expect(screen.getByRole("dialog", { name: "Bearbeiten" })).toBeInTheDocument();
+
+    setOpen(false);
+    setOpen(true);
+    await screen.findByText("Lege Igor an.");
+    expect(screen.queryByRole("dialog", { name: "Bearbeiten" })).not.toBeInTheDocument();
+  });
+
+  it("closes the chapter picker when the drawer closes", async () => {
+    const { setOpen } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    const trigger = () => screen.getByRole("button", { name: /Kontext: gesamte Welt/ });
+    fireEvent.click(trigger());
+    expect(trigger()).toHaveAttribute("aria-expanded", "true");
+
+    setOpen(false);
+    setOpen(true);
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    expect(trigger()).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("keeps the proposal editor and its draft across a compact/regular layout switch", async () => {
     // A controllable "(max-width: 719px)" query: rotating a tablet flips it.
     let compact = false;

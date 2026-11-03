@@ -1,5 +1,6 @@
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { TextSearchTarget } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import type { Chapter } from "./model";
 import { manuscriptSearchMatches } from "./search";
@@ -25,14 +26,15 @@ export function useManuscriptSearch({
 }: ManuscriptSearchOptions) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const latestChapters = useRef(chapters);
-  const onCurrentIdRef = useRef(onCurrentId);
-  const latestCurrentId = useRef(current?.id);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestChapters.current = chapters;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  onCurrentIdRef.current = onCurrentId;
+  // Read only, and only by the target effects below, which must not re-run when these change.
+  const latestChaptersRef = useLatest(chapters);
+  const onCurrentIdRef = useLatest(onCurrentId);
+  const latestCurrentIdRef = useLatest(current?.id);
   const matches = useMemo(() => manuscriptSearchMatches(chapters, query), [chapters, query]);
+  // The active match stays inside the results when they shrink. Adjusted during render, so a
+  // result list is never painted with an index past its end.
+  const lastMatchIndex = Math.max(0, matches.length - 1);
+  if (query && activeIndex > lastMatchIndex) setActiveIndex(lastMatchIndex);
   const activeMatch = matches[activeIndex] ?? null;
   const currentMatches = useMemo(
     () => matches.filter((match) => match.chapterId === current?.id),
@@ -40,18 +42,16 @@ export function useManuscriptSearch({
   );
 
   const firstTargetRun = useRef(true);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref, read by the target effect below
-  latestCurrentId.current = current?.id;
   useEffect(() => {
     void targetRequestId;
     const isFirstRun = firstTargetRun.current;
     firstTargetRun.current = false;
-    if (targetId && latestChapters.current.some((chapter) => chapter.id === targetId)) {
+    if (targetId && latestChaptersRef.current.some((chapter) => chapter.id === targetId)) {
       // A target that is already set when the workspace mounts moves away from the chapter
       // that was just loaded; T-69 traces it as a candidate for an unexpected chapter switch.
-      if (isFirstRun && latestCurrentId.current && latestCurrentId.current !== targetId) {
+      if (isFirstRun && latestCurrentIdRef.current && latestCurrentIdRef.current !== targetId) {
         console.warn("[quiltor] chapter switched after load", {
-          from: latestCurrentId.current,
+          from: latestCurrentIdRef.current,
           to: targetId,
           at: new Date().toISOString(),
         });
@@ -60,31 +60,37 @@ export function useManuscriptSearch({
     }
   }, [targetId, targetRequestId]);
 
+  // A requested text search (a world backlink, a search hit) becomes the query and the active
+  // match. Handled during render, keyed on the request's values rather than on the object's
+  // identity: a parent that rebuilds the object each render would otherwise reset what the
+  // author has typed into the search field on every keystroke.
+  const requestedQuery = textSearch?.query.trim() ?? "";
+  const requestKey =
+    requestedQuery && targetId && textSearch
+      ? `${targetRequestId ?? ""}\u0000${targetId}\u0000${requestedQuery}\u0000${textSearch.from}\u0000${textSearch.to}`
+      : "";
+  const [appliedRequestKey, setAppliedRequestKey] = useState("");
+  if (requestKey !== appliedRequestKey) {
+    setAppliedRequestKey(requestKey);
+    if (requestKey && textSearch) {
+      const requested = manuscriptSearchMatches(chapters, requestedQuery).findIndex(
+        (match) =>
+          match.chapterId === targetId &&
+          match.from === textSearch.from &&
+          match.to === textSearch.to,
+      );
+      setQuery(requestedQuery);
+      setActiveIndex(requested >= 0 ? requested : 0);
+    }
+  }
+  // Opening the requested chapter reaches the owner, which a render must not do.
   useEffect(() => {
     void targetRequestId;
-    const requestedSearch = textSearch;
-    const requestedQuery = requestedSearch?.query.trim();
-    if (!requestedQuery || !targetId || !requestedSearch) return;
-    const requestedChapters = latestChapters.current;
-    const requestedMatches = manuscriptSearchMatches(requestedChapters, requestedQuery);
-    const requested = requestedMatches.findIndex(
-      (match) =>
-        match.chapterId === targetId &&
-        match.from === requestedSearch.from &&
-        match.to === requestedSearch.to,
-    );
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setQuery(requestedQuery);
-    setActiveIndex(requested >= 0 ? requested : 0);
-    if (requestedChapters.some((chapter) => chapter.id === targetId))
+    if (!requestKey || !targetId) return;
+    if (latestChaptersRef.current.some((chapter) => chapter.id === targetId)) {
       onCurrentIdRef.current(targetId);
-  }, [targetId, targetRequestId, textSearch]);
-
-  useEffect(() => {
-    if (!query) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setActiveIndex((index) => Math.min(index, Math.max(0, matches.length - 1)));
-  }, [matches.length, query]);
+    }
+  }, [requestKey, targetId, targetRequestId]);
 
   useEffect(() => {
     if (!activeMatch || activeMatch.chapterId !== current?.id) return;

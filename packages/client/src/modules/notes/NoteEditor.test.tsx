@@ -97,6 +97,30 @@ describe("NoteEditor", () => {
     expect(editor).toHaveFocus();
   });
 
+  it("reports an edit to the newest onChange, not the one from the first render", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const note = (onChange: () => void) => (
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value="Alt"
+        onChange={onChange}
+      />
+    );
+    const view = renderNote(note(first));
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {note(second)}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    replaceText(viewFor(screen.getByRole("textbox", { name: "Notiz" })), "Neu");
+    expect(second).toHaveBeenCalledWith("Neu", [], []);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it("stores bold, italic and headings as ranges beside unchanged plain text", () => {
     const onChange = vi.fn();
     renderNote(
@@ -247,6 +271,30 @@ describe("NoteEditor", () => {
     expect(trigger.querySelector(".lucide-maximize-2")).not.toBeInTheDocument();
     fireEvent.click(trigger);
     expect(onFocusRequest).toHaveBeenCalledWith({ kind: "place", id: "harbour" });
+  });
+
+  it("closes the focus surface when the editor moves to another owner", () => {
+    const note = (id: string) => (
+      <NoteEditor
+        owner={{ kind: "place", id }}
+        label="Notiz"
+        value=""
+        onChange={vi.fn()}
+        focus={focus}
+      />
+    );
+    const view = renderNote(note("harbour"));
+    fireEvent.click(screen.getByRole("button", { name: "Im Fokus öffnen" }));
+    expect(screen.getByRole("dialog", { name: "Notiz · Hafen" })).toBeInTheDocument();
+
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {note("castle")}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("edits the same controlled note in a nearly full focus surface", async () => {
