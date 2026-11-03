@@ -66,10 +66,9 @@ describe("StoryNodeCard", () => {
     );
 
     expect(screen.getByText("Ort")).toHaveClass("node-kind");
-    expect(screen.getByText("D", { selector: ".node-monogram" })).toHaveAttribute(
-      "aria-hidden",
-      "true",
-    );
+    expect(
+      screen.getByText("D", { selector: ".node-monogram-letter" }).closest(".node-monogram"),
+    ).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toContainElement(
       screen.getByTestId("leading"),
     );

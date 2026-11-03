@@ -96,7 +96,8 @@ export function StoryNodeIdentity({
     <>
       <span className="node-kind">{kindLabel}</span>
       <span className="node-monogram" aria-hidden="true">
-        {monogram}
+        {/* Its own element, so the letter is a block that can be trimmed to its ink (T-130). */}
+        <span className="node-monogram-letter">{monogram}</span>
       </span>
       {/* The name is cut with an ellipsis on a narrow card; the title keeps it readable (T-124). */}
       <strong title={name}>

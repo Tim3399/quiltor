@@ -216,6 +216,14 @@
   font: 700 var(--font-size-label-compact) var(--ui);
   line-height: 1;
 }
+/* The line box is the font's ascent plus descent, and a capital fills only the part above
+   the baseline -- centred as a box, the letter sat about 0.8px low (T-130). Trimming the box
+   to cap height and baseline makes the ink the thing that is centred, in any UI font. The
+   trim needs a block container, which the grid's own item is and the grid itself is not.
+   Where text-box is not supported the letter keeps the old, slightly low position. */
+.story-node.zoom-overview .node-monogram-letter {
+  text-box: trim-both cap alphabetic;
+}
 .story-node.zoom-overview:not(.is-important) .node-kind,
 .story-node.zoom-overview:not(.is-important) small,
 .story-node.zoom-overview:not(.is-important) strong {
