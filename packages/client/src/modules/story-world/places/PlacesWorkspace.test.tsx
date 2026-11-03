@@ -1,14 +1,19 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useState } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
-import type { FigureState } from "../model";
 import { quiltorClient } from "../../../platform";
-import { DEFAULT_MAP_WIDTH } from "./placeCanvasModel";
-import * as placeMapUpload from "./placeMapUpload";
-import { PLACE_COMPACT_MEDIA_QUERY, PlacesWorkspace } from "./PlacesWorkspace";
+import type { FigureState } from "../model";
 import { PlaceMapChrome } from "./PlaceMapChrome";
 import type { ActivePlaceMapChromeProps } from "./PlaceMapChromeOverlay";
+import { PLACE_COMPACT_MEDIA_QUERY, PlacesWorkspace } from "./PlacesWorkspace";
+import { DEFAULT_MAP_WIDTH } from "./placeCanvasModel";
+import * as placeMapUpload from "./placeMapUpload";
 
 // World/viewport projection has its own pure tests; this suite exercises the
 // workspace's selection and persistence paths with an available screen area.
@@ -30,10 +35,26 @@ vi.mock("./PlaceMapChromeOverlay", () => ({
   ),
 }));
 
+const flowInstance = vi.hoisted(() => ({
+  fitView: vi.fn(),
+  getZoom: () => 1,
+  setCenter: vi.fn(),
+  setViewport: vi.fn(),
+  screenToFlowPosition: (point: { x: number; y: number }) => point,
+}));
+
+// Like React Flow, hands the instance over once, on mount.
+function FlowInit({ onInit }: { onInit?: (instance: typeof flowInstance) => void }) {
+  const [initial] = useState(() => onInit);
+  useEffect(() => initial?.(flowInstance), [initial]);
+  return null;
+}
+
 vi.mock("@xyflow/react", () => ({
   ReactFlowProvider: ({ children }: { children: ReactNode }) => children,
   ReactFlow: ({
     edges,
+    onInit,
     minZoom,
     nodes,
     onKeyDown,
@@ -42,6 +63,7 @@ vi.mock("@xyflow/react", () => ({
     onNodeDragStop,
     onPaneClick,
   }: {
+    onInit?: (instance: typeof flowInstance) => void;
     edges: Array<{
       id: string;
       label: string;
@@ -70,6 +92,7 @@ vi.mock("@xyflow/react", () => ({
     ) => void;
   }) => (
     <div role="application" data-testid="places-flow" data-min-zoom={minZoom} onKeyDown={onKeyDown}>
+      <FlowInit onInit={onInit} />
       {nodes
         .filter((node) => node.data.place)
         .map((node) => (
@@ -382,6 +405,21 @@ describe("PlacesWorkspace map overlays", () => {
       important: true,
       pinned: true,
     });
+  });
+
+  it("adds two places before the next render without losing the first", () => {
+    const onChange = vi.fn();
+    render(
+      <I18nProvider>
+        <PlacesWorkspace state={state} onChange={onChange} onOpen={vi.fn()} />
+      </I18nProvider>,
+    );
+    const add = screen.getByRole("button", { name: "Neuer Ort" });
+    act(() => {
+      add.click();
+      add.click();
+    });
+    expect(onChange.mock.calls.at(-1)?.[0].nodes).toHaveLength(state.nodes.length + 2);
   });
 
   it("reselects a repeated navigation target after an internal selection", () => {
@@ -808,6 +846,113 @@ describe("active expanded map chrome", () => {
     expect(view.container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
     view.rerender(content([map, second, child]));
     expect(view.container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
+  });
+
+  it("applies two map changes made before the next render to the same map", () => {
+    const onChange = vi.fn();
+    render(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={{ nodes: [map, child], edges: [] }}
+          onChange={onChange}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    const pin = screen.getByRole("button", { name: "Weltkarte feststellen" });
+    const collapse = screen.getByRole("button", { name: "Weltkarte einklappen" });
+    act(() => {
+      pin.click();
+      collapse.click();
+    });
+    expect(onChange.mock.calls.at(-1)?.[0].nodes[0]).toMatchObject({
+      id: map.id,
+      pinned: true,
+      mapExpanded: false,
+    });
+  });
+
+  it("fits the view once the level it enters has been handed to the flow", async () => {
+    flowInstance.fitView.mockClear();
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte öffnen" }));
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+    expect(flowInstance.fitView.mock.calls[0][0]).toMatchObject({ padding: 0.12, maxZoom: 1 });
+
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the root when the open level disappears", () => {
+    const content = (nodes: FigureState["nodes"]) => (
+      <I18nProvider>
+        <PlacesWorkspace state={{ nodes, edges: [] }} onChange={vi.fn()} onOpen={vi.fn()} />
+      </I18nProvider>
+    );
+    const view = render(content([map, child]));
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte öffnen" }));
+    expect(screen.getByRole("navigation", { name: "Pfad durch die Orte" })).toBeInTheDocument();
+
+    view.rerender(content([child]));
+    expect(
+      screen.queryByRole("navigation", { name: "Pfad durch die Orte" }),
+    ).not.toBeInTheDocument();
+    view.rerender(content([map, child]));
+    expect(
+      screen.queryByRole("navigation", { name: "Pfad durch die Orte" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ends cropping when another map becomes the active surface", () => {
+    render(
+      <ControlledPlaces
+        initialState={{ nodes: [map, second, child], edges: [] }}
+        onChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    fireEvent.click(screen.getByRole("button", { name: "Bild in Weltkarte anpassen" }));
+    fireEvent.click(screen.getByTestId("place-node-seekarte"));
+    expect(screen.getByRole("button", { name: "Bild in Seekarte anpassen" })).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    expect(screen.getByRole("button", { name: "Bild in Weltkarte anpassen" })).toBeInTheDocument();
+  });
+
+  it("measures two places on a map in that map's scale, also after the scale changes", () => {
+    const north = { ...child, id: "nord", name: "Nord", mapU: 0.25, mapV: 0.5 };
+    const south = { ...child, id: "sued", name: "Süd", mapU: 0.75, mapV: 0.5 };
+    const content = (scale: number) => (
+      <I18nProvider>
+        <PlacesWorkspace
+          state={{
+            nodes: [{ ...map, mapScale: { unitsPer100px: scale, unitLabel: "km" } }, north, south],
+            edges: [],
+            mapScale: { unitsPer100px: 1, unitLabel: "m" },
+          }}
+          onChange={vi.fn()}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>
+    );
+    const view = render(content(25));
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    const label = () =>
+      screen.getByRole("img", { name: /Nord – Süd/ }).getAttribute("aria-label") ?? "";
+    const before = label();
+    expect(before).toMatch(/km/);
+
+    view.rerender(content(50));
+    const after = label();
+    expect(after).toMatch(/km/);
+    expect(Number.parseFloat(after.replace(/[^0-9,.]/g, "").replace(",", "."))).toBeCloseTo(
+      2 * Number.parseFloat(before.replace(/[^0-9,.]/g, "").replace(",", ".")),
+    );
   });
 
   it("removes the previous level's chrome when entering its map", () => {
