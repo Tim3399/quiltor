@@ -3715,6 +3715,23 @@ class ReleaseSingleEntryContractTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assert_mutation_fails(validate, path, original, replacement, error)
 
+    def test_c14_the_documentation_names_the_flow(self):
+        workflow_contract.validate_release_docs()
+        for name, anchors in workflow_contract.DOC_ANCHORS.items():
+            original = (REPO_ROOT / name).read_text(encoding="utf-8")
+            for anchor in anchors:
+                with self.subTest(doc=name, anchor=anchor):
+                    flat = " ".join(original.split())
+                    self.assertIn(anchor, flat)
+                    # The anchor may wrap across lines in the source, so drop it from the
+                    # whitespace-normalised text, which is what the contract reads.
+                    with self.assertRaisesRegex(
+                        workflow_contract.WorkflowContractError, re.escape(anchor)
+                    ):
+                        workflow_contract.validate_release_docs(
+                            docs={name: flat.replace(anchor, "x")}
+                        )
+
     def test_a_new_secret_job_needs_the_dry_run_guard(self):
         build = self.sources[BUILD_WORKFLOW]
         mutated = dict(self.sources)

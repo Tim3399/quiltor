@@ -2360,6 +2360,44 @@ def validate_ci_release_scope(sources: dict[Path, str]) -> None:
             )
 
 
+DOC_ANCHORS = {
+    ".github/workflows/README.md": (
+        "single entry point for every push to `main`",
+        "called full test matrix",
+        "never treated as release evidence",
+        "`full-success`",
+        "never runs on `main` by itself",
+        "Full test matrix / browser-e2e",
+        "`dry_run: true`",
+        "The bootstrap never runs on `main`",
+        "Re-running a red release",
+        "privileges of the actor who",
+        "Orphaned hand-off images",
+        "--ci-release-scope",
+    ),
+    "distribution/README.md": ("single entry point for pushes to `main`", "called full"),
+    "docs/quality/ci.md": ("Full test matrix / browser-e2e", "verdict=full-success"),
+}
+
+
+def validate_release_docs(
+    repo_root: Path | None = None, docs: dict[str, str] | None = None
+) -> None:
+    """C-14: the documentation names the single-entry flow the workflows implement."""
+
+    root = REPO_ROOT if repo_root is None else repo_root
+    for name, anchors in DOC_ANCHORS.items():
+        text = (
+            docs[name]
+            if docs is not None and name in docs
+            else (root / name).read_text(encoding="utf-8")
+        )
+        flat = " ".join(text.split())
+        for anchor in anchors:
+            if anchor not in flat:
+                raise WorkflowContractError(f"{name} must state: {anchor}")
+
+
 def validate_bootstrap_never_on_main(sources: dict[Path, str]) -> None:
     """C-16: the baseline bootstrap never pushes to main, whether by push or by dispatch."""
 
@@ -2557,6 +2595,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_rerun_rechecks(sources)
         validate_ci_release_scope(sources)
         validate_bootstrap_never_on_main(sources)
+        validate_release_docs(repo_root)
         validate_write_jobs_need_tests_and_gate(sources)
         validate_dry_run_skips_secrets(sources)
         validate_type_check_extras(sources)
