@@ -75,21 +75,21 @@ test("priority and timeline controls keep visible states and usable targets", as
 
     await page.getByRole("button", { name: "Figuren", exact: true }).click();
     await page.locator(".story-node", { hasText: "Mara Venn" }).dispatchEvent("click");
-    const priority = page.getByRole("button", { name: "Als wichtig markieren" });
+    const priority = page.getByRole("button", { name: "Figur favorisieren" });
     await expect(priority).toHaveAttribute("aria-pressed", "false");
     await priority.evaluate(async (button) => {
       await Promise.all(button.getAnimations().map((animation) => animation.finished));
     });
-    const inactive = await visualState(page, "Als wichtig markieren");
+    const inactive = await visualState(page, "Figur favorisieren");
     await priority.focus();
     await page.keyboard.press("Space");
-    const active = page.getByRole("button", { name: "Wichtig-Markierung entfernen" });
+    const active = page.getByRole("button", { name: "Favorit entfernen" });
     await expect(active).toHaveAttribute("aria-pressed", "true");
     await active.evaluate((button) => button.blur());
     await active.evaluate(async (button) => {
       await Promise.all(button.getAnimations().map((animation) => animation.finished));
     });
-    expect(await visualState(page, "Wichtig-Markierung entfernen")).not.toEqual(inactive);
+    expect(await visualState(page, "Favorit entfernen")).not.toEqual(inactive);
 
     await page.getByRole("button", { name: "Timeline", exact: true }).click();
     const addEnd = page.getByRole("button", { name: "Ende hinzufügen" });
