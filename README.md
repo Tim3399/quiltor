@@ -510,8 +510,9 @@ QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
 ```
 
 Mit beiden Werten läuft die Grammatikprüfung über diesen Server. Die Schreibhilfe zeigt dann
-weder den Installieren-Knopf noch den Java-Hinweis. Ist nur die URL gesetzt, meldet sie, dass der
-Dienst eingetragen, aber nicht freigegeben ist. Antwortet der Server nicht, erscheint
+weder den Installieren-Knopf noch den Java-Hinweis. Ist nur die URL gesetzt, meldet sie ohne lokale
+Installation, dass der Dienst eingetragen, aber nicht freigegeben ist; mit installiertem JAR und Java
+gilt sie als bereit, und der Hinweis „nicht freigegeben“ erscheint erst als Fehler beim Prüfen. Antwortet der Server nicht, erscheint
 „Die Grammatikprüfung antwortet gerade nicht.“ (Fehlercode `writing_assistance.grammar_unavailable`).
 Quiltor schreibt dabei keinen Kapiteltext ins Log oder in Fehlermeldungen.
 
