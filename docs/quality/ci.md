@@ -72,13 +72,13 @@ job. The expensive part is the system half: on Windows, `--with-deps` enables a 
 on every run, which no cache can carry across runners -- 3 to 4 minutes in each of the ten Windows
 browser jobs.
 
-**The system half cannot be skipped on either system; the runner images lack what it installs.**
+**The runner images lack what the system half installs; Windows skips it anyway, Linux cannot.**
 
 - **windows-2025:** in all 9 sampled jobs `Install-WindowsFeature` reported
   `Success True, Exit Code Success, Feature Result {Media Foundation}`. A feature that is already
-  present reports `NoChangeNeeded` and an empty result; this one is installed fresh every time. A
-  fail-closed check for Media Foundation in front of a plain `playwright install chromium` would
-  therefore fail every Windows job.
+  present reports `NoChangeNeeded` and an empty result; this one is installed fresh every time.
+  The suites do not need it, though (T-45): a full-matrix run with a plain
+  `playwright install chromium` on Windows was green, see "Windows without `--with-deps`".
 - **ubuntu-24.04:** in all 5 sampled jobs apt installed 9–10 new packages, the same set each time:
   `fonts-freefont-ttf fonts-ipafont-gothic fonts-tlwg-loma-otf fonts-unifont fonts-wqy-zenhei
 xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-utils`. These are fonts. Without them
@@ -155,11 +155,26 @@ caches still mean less to keep that way. `workflow_contract.py` fails if test.ym
 `actions/cache` or any `cache:` other than npm; adding one means measuring it first and changing
 that rule with it.
 
-**Windows keeps `--with-deps`.** The windows-2025 image does not contain Media Foundation (9 of 9
-job logs install it fresh, see "Playwright install, split"), so a plain `playwright install
-chromium` behind a fail-closed check would fail every job. Whether the suites need Media
-Foundation at all is a separate question for T-45. Linux keeps `--with-deps` for the fonts it
-installs.
+### Windows without `--with-deps`
+
+The Windows browser jobs install only the browser: `npx playwright install chromium`. The system
+half enabled Media Foundation on every run, and nothing in the product or design suite needs it.
+
+- **Probe:** run 41736724041 (`ci/t45-probe`, `full_matrix=true`). The whole run was green; all 8
+  Windows browser slots, product and design, passed without `--with-deps`, with no codec or media
+  errors.
+- **Install Chromium per Windows job:** probe 15, 16, 17, 17, 17, 18, 18, 20 s (median 17 s);
+  with `--with-deps` in run 41725174932: 144, 200, 202, 207, 211, 212, 214, 225 s (median 207 s).
+  About 190 s saved per Windows job.
+- **Fail-closed check:** with no system half installed, a browser that cannot start would only
+  show up as timeouts inside the tests. The next step, `node tools/dev/chromium-starts.mjs`,
+  launches Chromium, renders a page and fails the job before any test when that does not work.
+  It has no `continue-on-error`.
+- **Contract:** `workflow_contract.py` fails when a Windows browser job of test.yml installs with
+  `--with-deps`, loses the check or lets it pass on failure, or when macOS loses `--with-deps`.
+
+macOS keeps `--with-deps` (1–4 s). Linux keeps it, through `tools/dev/playwright-linux.sh`, for the
+fonts it installs.
 
 ## Matrix
 

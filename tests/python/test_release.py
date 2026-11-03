@@ -1306,6 +1306,73 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
 
+    def test_windows_browser_jobs_install_chromium_without_system_dependencies(self):
+        sources = workflow_contract._workflow_sources()
+        script = (REPO_ROOT / workflow_contract.CHROMIUM_STARTS).read_text("utf-8")
+        workflow_contract.validate_windows_playwright_install(sources, script)
+        source = sources[TEST_WORKFLOW]
+        check_step = (
+            "      - name: Check that Chromium starts\n"
+            "        if: runner.os == 'Windows'\n"
+            "        run: node tools/dev/chromium-starts.mjs\n"
+        )
+        mutations = (
+            (
+                "Windows installs the system half",
+                "run: npx playwright install chromium\n",
+                "run: npx playwright install --with-deps chromium\n",
+                "only the browser on Windows",
+            ),
+            (
+                "macOS loses --with-deps",
+                "if: runner.os != 'Windows'\n        run: npx playwright install --with-deps",
+                "if: runner.os != 'Windows'\n        run: npx playwright install",
+                "keep --with-deps for macOS",
+            ),
+            (
+                "one install for every system",
+                "        if: runner.os != 'Windows'\n        run: npx playwright install",
+                "        run: npx playwright install",
+                "one step for Windows",
+            ),
+            ("check removed", check_step, "", "check that Chromium starts"),
+            (
+                "check runs on every system",
+                check_step,
+                check_step.replace("        if: runner.os == 'Windows'\n", ""),
+                "check that Chromium starts",
+            ),
+            (
+                "check swallows a failure",
+                check_step,
+                check_step.replace(".mjs\n", ".mjs || true\n"),
+                "check that Chromium starts",
+            ),
+            (
+                "check may fail",
+                check_step,
+                check_step + "        continue-on-error: true\n",
+                "check that Chromium starts",
+            ),
+        )
+        for name, original, replacement, message in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, source)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = source.replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                    workflow_contract.validate_windows_playwright_install(mutated, script)
+
+        for evidence in workflow_contract.CHROMIUM_STARTS_EVIDENCE:
+            with self.subTest(script=evidence):
+                self.assertIn(evidence, script)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "chromium-starts.mjs"
+                ):
+                    workflow_contract.validate_windows_playwright_install(
+                        sources, script.replace(evidence, "", 1)
+                    )
+
     def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_windows_port_range(sources)
@@ -3382,7 +3449,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
                 "a multi-line condition",
                 "        if: runner.os == 'Windows'\n",
                 "        if: >-\n          runner.os == 'Windows'\n",
-                2,
+                6,
             ),
         ):
             with self.subTest(name=name):

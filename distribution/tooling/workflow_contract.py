@@ -858,6 +858,75 @@ def validate_windows_port_range(sources: dict[Path, str]) -> None:
                 )
 
 
+CHROMIUM_STARTS = "tools/dev/chromium-starts.mjs"
+WINDOWS_ONLY = "if: runner.os == 'Windows'"
+NOT_WINDOWS = "if: runner.os != 'Windows'"
+WINDOWS_CHROMIUM_INSTALL = "run: npx playwright install chromium\n"
+CHROMIUM_STARTS_STEP = f"run: node {CHROMIUM_STARTS}\n"
+CHROMIUM_STARTS_EVIDENCE = ("chromium.launch(", "await page.setContent(", "process.exitCode = 1;")
+
+
+def validate_windows_playwright_install(
+    sources: dict[Path, str], script: str | None = None
+) -> None:
+    """
+    test.yml's Windows browser jobs install Chromium without `--with-deps` and check it starts.
+
+    The system half enabled Media Foundation on every Windows run (144-225 s per job); the full
+    matrix passed without it (T-45). macOS keeps `--with-deps`. Since nothing installs the system
+    half any more, tools/dev/chromium-starts.mjs launches the browser right after the download
+    and fails the job before any test when it cannot start.
+    """
+
+    for path, source in sources.items():
+        if path.name != "test.yml":
+            continue
+        for name, job in _job_blocks(source):
+            if "playwright install" not in job or not _may_run_on_windows(job):
+                continue
+            steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+            installs = [i for i, step in enumerate(steps) if "playwright install" in step]
+            windows = [i for i in installs if WINDOWS_ONLY in steps[i]]
+            others = [i for i in installs if NOT_WINDOWS in steps[i]]
+            if len(windows) != 1 or len(others) != 1 or len(installs) != 2:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must install Chromium in one step for Windows "
+                    f"({WINDOWS_ONLY}) and one for the other systems ({NOT_WINDOWS})"
+                )
+            if (
+                WINDOWS_CHROMIUM_INSTALL not in steps[windows[0]]
+                or "--with-deps" in steps[windows[0]]
+            ):
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must install only the browser on Windows: "
+                    + WINDOWS_CHROMIUM_INSTALL.strip()
+                )
+            if "playwright install --with-deps chromium" not in steps[others[0]]:
+                raise WorkflowContractError(f"{path.name}:{name} must keep --with-deps for macOS")
+            checks = [i for i, step in enumerate(steps) if CHROMIUM_STARTS_STEP in step]
+            first_test = next(
+                (i for i, step in enumerate(steps) if "playwright test" in step), len(steps)
+            )
+            if (
+                len(checks) != 1
+                or not windows[0] < checks[0] < first_test
+                or WINDOWS_ONLY not in steps[checks[0]]
+                or "continue-on-error" in steps[checks[0]]
+                or re.search(r"\|\|\s*(true|:)\b", steps[checks[0]])
+            ):
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must check that Chromium starts on Windows, after the "
+                    f"install and before the tests, and fail when it does not: node {CHROMIUM_STARTS}"
+                )
+    text = script if script is not None else (REPO_ROOT / CHROMIUM_STARTS).read_text("utf-8")
+    for evidence in CHROMIUM_STARTS_EVIDENCE:
+        if evidence not in text:
+            raise WorkflowContractError(
+                f"{CHROMIUM_STARTS} must launch Chromium, render a page and fail otherwise: "
+                + evidence
+            )
+
+
 # Every browser slot, Linux and the full matrix alike: tools/dev/test-shards.mjs selects the
 # slot's tests and has Playwright confirm the lists; a failed selection runs nothing and fails
 # the slot, each suite's status counts, and the JSON reports with the durations are kept.
@@ -1770,7 +1839,7 @@ def validate_full_mode_runs_everything(sources: dict[Path, str]) -> None:
 STEP_CONDITIONS = (
     re.compile(r"matrix\.[a-z_]+ == (?:\d+|'[^'\n]*')"),
     re.compile(r"matrix\.[a-z_]+ != ''"),
-    re.compile(r"runner\.os == 'Windows'"),
+    re.compile(r"runner\.os [!=]= 'Windows'"),
 )
 # Status functions are for collecting results after a test step, so only uploads may use them.
 UPLOAD_CONDITIONS = ("failure()", "always()", "${{ !cancelled() }}")
@@ -2640,6 +2709,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_product_server_log(sources)
         validate_linux_playwright_install(sources)
         validate_windows_port_range(sources)
+        validate_windows_playwright_install(sources)
         validate_full_matrix_switch(sources)
         validate_path_filter(sources)
         validate_frontend_gates_once(sources)
