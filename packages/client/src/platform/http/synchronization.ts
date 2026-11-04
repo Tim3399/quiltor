@@ -126,13 +126,9 @@ export function createSynchronizationHttpGateway(
     target: async () =>
       decodeSyncTarget(await requestJson(withWorldQuery(state, "/api/sync/target"))),
     setTarget: async (backupUrl) =>
-      decodeSyncTarget(
-        await postJson(withWorldQuery(state, "/api/sync/target"), { backupUrl }),
-      ),
+      decodeSyncTarget(await postJson(withWorldQuery(state, "/api/sync/target"), { backupUrl })),
     synchronize: async (request) => {
-      const wire = record(
-        await postJson("/api/sync", withWorldBody(state, request)),
-      );
+      const wire = record(await postJson("/api/sync", withWorldBody(state, request)));
       if (
         wire.ok !== true ||
         typeof wire.reloadRequired !== "boolean" ||
