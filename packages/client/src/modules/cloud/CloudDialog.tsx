@@ -1,7 +1,7 @@
 import { Cloud, LogIn, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Alert, Button, ConfirmDialog, Dialog, Disclosure } from "../../design";
+import { Alert, Button, ConfirmDialog, Dialog, Disclosure, TextField } from "../../design";
 import { type MessageKey, useI18n } from "../../i18n";
 import {
   applicationErrorMessage,
@@ -12,6 +12,7 @@ import {
   type CloudSyncState,
   type CloudSyncStatus,
   quiltorClient,
+  type SyncTarget,
 } from "../../platform";
 import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
 import type { Manuscript } from "../manuscript";
@@ -54,11 +55,17 @@ export function CloudDialog({
   const [recoveryRequired, setRecoveryRequired] = useState(false);
   const [stateWarning, setStateWarning] = useState(false);
   const [confirmation, setConfirmation] = useState<Exclude<CloudSyncAction, "sync"> | null>(null);
+  const [target, setTarget] = useState<SyncTarget | null>(null);
+  const [address, setAddress] = useState("");
+  const [targetSaved, setTargetSaved] = useState(false);
   const operation = useRef(false);
 
   const load = async () => {
     setError("");
     setPreview(null);
+    const where = await quiltorClient.application.synchronization.target();
+    setTarget(where);
+    setAddress(where.worldUrl);
     const auth = await quiltorClient.application.backup.loginStatus();
     setLogin(auth);
     if (!auth.configured || auth.signedIn)
@@ -119,6 +126,44 @@ export function CloudDialog({
       setReloadRequired(result.reloadRequired);
       setStateWarning(result.warnings?.includes("sync.state_not_saved") === true);
     });
+  // Setting the address needs no save first: it changes where the project syncs, not the project.
+  const saveTarget = (value: string) =>
+    run(async () => {
+      setTargetSaved(false);
+      await quiltorClient.application.synchronization.setTarget(value);
+      await load();
+      setTargetSaved(true);
+    }, false);
+  const targetForm = (submitLabel: MessageKey) => (
+    <form
+      className="cloud-sync__target"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (address.trim()) void saveTarget(address.trim());
+      }}
+    >
+      <TextField
+        id="sync-target-address"
+        label={t("syncTargetAddress")}
+        inputMode="url"
+        autoComplete="url"
+        value={address}
+        placeholder={t("syncTargetExample")}
+        hint={t("syncTargetHint")}
+        onChange={(event) => setAddress(event.target.value)}
+      />
+      <div className="cloud-sync__actions">
+        <Button type="submit" appearance="primary" disabled={busy || !address.trim()}>
+          {t(submitLabel)}
+        </Button>
+        {target?.source === "world" && (
+          <Button appearance="secondary" disabled={busy} onClick={() => void saveTarget("")}>
+            {t(target.operatorUrl ? "syncTargetUseOperator" : "syncTargetRemove")}
+          </Button>
+        )}
+      </div>
+    </form>
+  );
   const readOnly = status?.account?.access === "read-only";
   const requiresChoice = status?.state === "conflict" || status?.state === "unlinked";
   const canResolve =
@@ -199,24 +244,34 @@ export function CloudDialog({
         <Alert tone="success">{t("cloudReloadRequired")}</Alert>
       )}
       {stateWarning && <Alert tone="warning">{t("cloudStateNotSaved")}</Alert>}
+      {targetSaved && !error && (
+        <Alert tone="success">
+          {t(target?.source === "none" ? "syncTargetRemoved" : "syncTargetSaved")}
+        </Alert>
+      )}
+      {target?.source === "none" && !reloadRequired && (
+        <section aria-label={t("syncTargetSetUp")}>
+          <p>{t("syncTargetNone")}</p>
+          {targetForm("syncTargetSetUp")}
+          <p className="cloud-sync__note">{t("syncTargetWithout")}</p>
+        </section>
+      )}
       {login?.configured && !login.signedIn && (
         <Alert tone="info">
-          <p>{t(login.hosted ? "backupSessionExpired" : "backupSignInHint")}</p>
-          {!login.hosted && (
-            <Button
-              appearance="secondary"
-              icon={<LogIn />}
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const result = await quiltorClient.application.backup.beginLogin();
-                  quiltorClient.platform.externalNavigation.open(result.authorizeUrl);
-                })
-              }
-            >
-              {t("backupSignIn")}
-            </Button>
-          )}
+          <p>{t("backupSignInHint")}</p>
+          <Button
+            appearance="secondary"
+            icon={<LogIn />}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const result = await quiltorClient.application.backup.beginLogin();
+                quiltorClient.platform.externalNavigation.open(result.authorizeUrl);
+              })
+            }
+          >
+            {t("backupSignIn")}
+          </Button>
         </Alert>
       )}
       {status && (
@@ -226,10 +281,15 @@ export function CloudDialog({
               {t(stateLabels[status.state])}
             </p>
           )}
-          {!status.configured && <p>{t("cloudSetupHint")}</p>}
           <dl className="cloud-sync__facts">
             <dt>{t("target")}</dt>
             <dd>{status.endpoint || t("notConfigured")}</dd>
+            {target?.source === "operator" && (
+              <>
+                <dt>{t("syncTargetOrigin")}</dt>
+                <dd>{t("syncTargetOperator")}</dd>
+              </>
+            )}
             <dt>{t("cloudLastSync")}</dt>
             <dd>{status.lastSyncedAt ? date(status.lastSyncedAt) : t("noConfirmedTransfer")}</dd>
             {status.account && (
@@ -244,6 +304,9 @@ export function CloudDialog({
               </>
             )}
           </dl>
+          {target && target.source !== "none" && !reloadRequired && (
+            <Disclosure summary={t("syncTargetChange")}>{targetForm("syncTargetSave")}</Disclosure>
+          )}
           {readOnly && <Alert tone="warning">{t("cloudReadOnly")}</Alert>}
           {status.account?.deleteAfter && (
             <Alert tone="warning">

@@ -624,6 +624,7 @@ export function App() {
       onRestore={session.restore}
       onPurge={session.purge}
       onProjectImported={session.projectImported}
+      syncAvailable={shell.syncAvailable === true}
     >
       {session.world && manuscript && figures && storyboards && (
         <Suspense
@@ -746,6 +747,7 @@ export function App() {
             onCommand={executeCommand}
             flushAll={flushAll}
             onDocumentsReplaced={releaseReplacedDocuments}
+            syncAvailable={shell.syncAvailable === true}
             pendingRename={pendingRename}
             onManuscriptChange={manuscriptHistory.change}
             onCloseRename={() => setPendingRename(null)}

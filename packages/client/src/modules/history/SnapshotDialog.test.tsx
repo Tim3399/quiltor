@@ -26,7 +26,6 @@ function loginStatus(overrides: Partial<BackupLoginStatus> = {}): BackupLoginSta
   return {
     ok: true,
     configured: true,
-    hosted: false,
     endpoint: "https://backup.example",
     signedIn: false,
     issuerReachable: true,

@@ -75,6 +75,7 @@ export type {
   CloudSyncState,
   CloudSyncStatus,
   SynchronizationGateway,
+  SyncTarget,
 } from "./synchronization";
 export type { VersionedDocument, VersionedDocumentGateway } from "./versionedDocument";
 export type { WorldsGateway } from "./worlds";

@@ -29,5 +29,7 @@ export const common = {
     "Die Sicherung konnte nicht für die Vorschau geöffnet werden. Sie wurde möglicherweise beschädigt.",
   errorSyncForbiddenHosted:
     "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten. Deine Versionen liegen bereits auf dem Server.",
+  errorSyncTargetInvalid:
+    "Diese Adresse passt nicht. Gib eine Adresse mit https:// ein, zum Beispiel https://abgleich.example.org.",
   errorUnknown: "Die Aktion konnte nicht abgeschlossen werden.",
 } as const;

@@ -23,8 +23,22 @@ export const tools = {
     "Der Cloud-Stand wurde übernommen. Dein vorheriger lokaler Stand ist im Versionsverlauf gesichert. Lade Quiltor neu, bevor du weiterarbeitest.",
   cloudRecoveryRequired:
     "Die Übernahme wurde unterbrochen; der aktive Projektstand konnte nicht sicher bestätigt werden. Eine lokale Sicherheitskopie wurde vorher angelegt. Lade Quiltor neu und prüfe den Projektstand und den Versionsverlauf, bevor du weiterschreibst.",
-  cloudSetupHint:
-    "Für diese Funktion muss ein Cloud-Ziel eingerichtet sein. Du kannst Projekte jederzeit kostenlos über Export und Import übertragen.",
+  syncTargetNone: "Noch kein Abgleich eingerichtet.",
+  syncTargetAddress: "Adresse des Servers",
+  syncTargetExample: "https://abgleich.example.org",
+  syncTargetHint: "Eine Adresse mit https://. Sie gilt nur für dieses Projekt.",
+  syncTargetSetUp: "Abgleich einrichten",
+  syncTargetSave: "Ziel speichern",
+  syncTargetRemove: "Ziel entfernen",
+  syncTargetUseOperator: "Vorgabe des Betreibers verwenden",
+  syncTargetChange: "Ziel ändern",
+  syncTargetOrigin: "Herkunft",
+  syncTargetOperator:
+    "Vom Betreiber vorgegeben. Eine eigene Adresse für dieses Projekt hat Vorrang.",
+  syncTargetSaved: "Ziel gespeichert. Verlangt der Server eine Anmeldung, melde dich hier an.",
+  syncTargetRemoved: "Ziel entfernt. Dieses Projekt wird nicht mehr abgeglichen.",
+  syncTargetWithout:
+    "Ohne Abgleich bleibt alles nutzbar; Projekte lassen sich auch per Export übertragen.",
   cloudLastSync: "Letzter bestätigter Abgleich",
   cloudStorage: "Cloud-Speicher",
   cloudUsedBytes: "{used} Bytes belegt",
@@ -70,8 +84,6 @@ export const tools = {
   backupSignInHint:
     "Das Ziel ist eingerichtet, aber noch nicht angemeldet. Zum Hochladen ist eine Anmeldung im Browser nötig.",
   backupSignInWaiting: "Warten auf die Anmeldung im Browserfenster …",
-  backupSessionExpired:
-    "Diese Sitzung hat kein gültiges Token für das Sicherungsziel mehr. Melde dich einmal ab und wieder an.",
   backupIssuerChecking: "Der Anmeldedienst des Ziels wird gerade geprüft …",
   backupIssuerUnreachable:
     "Der Anmeldedienst des Ziels antwortet gerade nicht. Eine Anmeldung ist erst wieder möglich, wenn er erreichbar ist.",

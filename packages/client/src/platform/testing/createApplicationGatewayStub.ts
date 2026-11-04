@@ -158,6 +158,8 @@ export function createApplicationGatewayStub(
     synchronization: {
       status: () => notStubbed("synchronization.status"),
       preview: () => notStubbed("synchronization.preview"),
+      target: () => notStubbed("synchronization.target"),
+      setTarget: () => notStubbed("synchronization.setTarget"),
       synchronize: () => notStubbed("synchronization.synchronize"),
       ...overrides.synchronization,
     },

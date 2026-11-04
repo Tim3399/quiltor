@@ -9,6 +9,7 @@ export const shell = {
   openVersions: "Versionen öffnen",
   openVersionSave: "Version festhalten",
   openAutoBackups: "Automatische Sicherungen öffnen",
+  openSync: "Mit anderen Geräten abgleichen",
   versionsAndBackups: "Versionen & Sicherungen",
   versionsTabsLabel: "Bereiche von Versionen & Sicherungen",
   versionsTabVersions: "Versionen",

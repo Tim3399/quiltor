@@ -2,6 +2,7 @@ import {
   ApplicationGatewayError,
   type CloudSyncStatus,
   type SynchronizationGateway,
+  type SyncTarget,
 } from "../application";
 import { decodeManuscriptV1 } from "../contracts/v1/manuscript";
 import { decodeStoryWorldV1 } from "../contracts/v1/storyWorld";
@@ -63,6 +64,28 @@ function decodeCloudSyncStatus(value: unknown): CloudSyncStatus {
   return wire as CloudSyncStatus;
 }
 
+function decodeSyncTarget(value: unknown): SyncTarget {
+  const wire = record(value);
+  const text = (field: unknown) => typeof field === "string" && field.length <= 2048;
+  if (
+    wire.ok !== true ||
+    !["world", "operator", "none"].includes(String(wire.source)) ||
+    !text(wire.backupUrl) ||
+    !text(wire.worldUrl) ||
+    !text(wire.operatorUrl) ||
+    wire.backupUrl !== (wire.worldUrl || wire.operatorUrl) ||
+    wire.source !== (wire.worldUrl ? "world" : wire.operatorUrl ? "operator" : "none")
+  )
+    invalid();
+  return {
+    ok: true,
+    backupUrl: wire.backupUrl as string,
+    source: wire.source as SyncTarget["source"],
+    worldUrl: wire.worldUrl as string,
+    operatorUrl: wire.operatorUrl as string,
+  };
+}
+
 export function createSynchronizationHttpGateway(
   state: HttpApplicationState,
 ): SynchronizationGateway {
@@ -94,6 +117,15 @@ export function createSynchronizationHttpGateway(
         return invalid();
       }
     },
+    target: async () =>
+      decodeSyncTarget(await requestJson(withWorldQuery(state, "/api/sync/target"))),
+    setTarget: async (backupUrl) =>
+      decodeSyncTarget(
+        await requestJson(withWorldQuery(state, "/api/sync/target"), {
+          method: "POST",
+          body: JSON.stringify({ backupUrl }),
+        }),
+      ),
     synchronize: async (request) => {
       const wire = record(
         await requestJson("/api/sync", {

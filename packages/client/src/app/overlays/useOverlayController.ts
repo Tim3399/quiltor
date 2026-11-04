@@ -16,6 +16,8 @@ export function versionsOptionsForCommand(command: string): VersionsOpenOptions 
       return { tab: "versions", focusNote: true };
     case "backups":
       return { tab: "backups" };
+    case "sync":
+      return { tab: "sync" };
     default:
       return undefined;
   }

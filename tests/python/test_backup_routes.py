@@ -174,7 +174,7 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         answer = self.json_of("GET", "/api/backup/login")
         self.assertTrue(answer["ok"])
         self.assertTrue(answer["configured"])
-        self.assertFalse(answer["hosted"])
+        self.assertNotIn("hosted", answer)
         self.assertFalse(answer["signedIn"])
         self.assertEqual(answer["endpoint"], self.base)
         self.assertTrue(

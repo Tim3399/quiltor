@@ -7,7 +7,6 @@ import type {
 export type BackupLoginStatus = {
   ok: true;
   configured: boolean;
-  hosted: boolean;
   endpoint: string;
   signedIn: boolean;
   account?: string;

@@ -78,6 +78,26 @@ describe("WorldGate", () => {
     expect(onCreate).toHaveBeenCalledWith("Testwelt", "");
   });
 
+  it("offers the sync address only where the server syncs with other devices", () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    renderGate([], { onCreate, syncAvailable: true });
+    fireEvent.click(screen.getByRole("button", { name: "Neue Welt" }));
+    fireEvent.change(screen.getByPlaceholderText("Der letzte Garten"), {
+      target: { value: "Testwelt" },
+    });
+    fireEvent.change(screen.getByLabelText("Cloud-Backup (optional)"), {
+      target: { value: " https://sync.example.org " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Welt erstellen" }));
+    expect(onCreate).toHaveBeenCalledWith("Testwelt", "https://sync.example.org");
+    cleanup();
+
+    renderGate([], { syncAvailable: false });
+    fireEvent.click(screen.getByRole("button", { name: "Neue Welt" }));
+    expect(screen.getByLabelText("Titel der Welt oder des Buches")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Cloud-Backup (optional)")).not.toBeInTheDocument();
+  });
+
   it("offers an explicit close action in the creation sheet", () => {
     renderGate([]);
     fireEvent.click(screen.getByRole("button", { name: "Neue Welt" }));

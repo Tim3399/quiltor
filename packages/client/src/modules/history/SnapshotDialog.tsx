@@ -56,21 +56,14 @@ export function SnapshotDialog({
   // Four states, four answers: no endpoint (nothing to sign in to), an endpoint
   // whose sign-in service has not answered yet (say so, decide nothing), one
   // that answered and is up (offer the login -- uploading now would be a 401),
-  // and a login (upload). A hosted instance is signed in by its own session and
-  // has no browser flow of its own -- see src/quiltor/delivery/http/routes/backup.py.
+  // and a login (upload).
   // issuerReachable is three-valued: null means the backend's lookup is still
   // out. Reading that as "unreachable" would hide the sign-in button over a
   // question nobody has answered yet, so it gets its own state and a retry.
   const needsSignIn = !!login?.configured && !login.signedIn,
     canUpload = !!status?.endpoint && !!login?.signedIn;
-  // A hosted instance has no browser flow of its own: its session is the
-  // credential. So a hosted "not signed in" is not something to offer a login
-  // for -- the session's token lapsed and could not be renewed, and the only
-  // remedy is signing out of Quiltor itself and back in.
-  const staleSession = needsSignIn && !!login.hosted;
-  const checking =
-    needsSignIn && !staleSession && login.issuerReachable == null && rechecks < RECHECK_TRIES;
-  const canSignIn = needsSignIn && !staleSession && login.issuerReachable === true;
+  const checking = needsSignIn && login.issuerReachable == null && rechecks < RECHECK_TRIES;
+  const canSignIn = needsSignIn && login.issuerReachable === true;
   useFlushedEffect(
     flush,
     () => {
@@ -212,9 +205,7 @@ export function SnapshotDialog({
             <p>{t("remoteTransferExplanation")}</p>
           </section>
           {needsSignIn &&
-            (staleSession ? (
-              <Alert tone="danger">{t("backupSessionExpired")}</Alert>
-            ) : checking ? (
+            (checking ? (
               <p className="muted" role="status">
                 {t("backupIssuerChecking")}
               </p>
@@ -262,7 +253,7 @@ export function SnapshotDialog({
                 </dd>
               </div>
             </dl>
-            {login?.signedIn && !login.hosted && (
+            {login?.signedIn && (
               <Button disabled={busy} icon={<LogOut />} onClick={() => void signOut()}>
                 {t("logout")}
               </Button>

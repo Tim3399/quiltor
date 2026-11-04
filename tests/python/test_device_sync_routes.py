@@ -15,12 +15,13 @@ from quiltor.delivery.http import routes as api_routes
 from quiltor.hosts.web import server
 from tests.python.test_server_logging import _LiveServer
 
-# Every device-sync route as (table, path). T-87 part C adds GET and SAVE
-# "/api/sync/target" here together with their registration.
+# Every device-sync route as (table, path).
 SYNC_ENDPOINTS = {
     ("GET", "/api/sync"),
     ("GET", "/api/sync/preview"),
     ("SAVE", "/api/sync"),
+    ("GET", "/api/sync/target"),
+    ("SAVE", "/api/sync/target"),
     ("GET", "/api/backup/remote"),
     ("SAVE", "/api/backup/restore"),
     ("GET", "/api/backup/login"),
@@ -99,7 +100,9 @@ class _SyncServer(_LiveServer):
     def call(self, table: str, path: str):
         method = "GET" if table == "GET" else "POST"
         separator = "&" if "?" in path else "?"
-        url = f"{path}{separator}world={self.world_id}" if method == "GET" else path
+        # The world goes in the query for both: a `world=True` SAVE route reads it there,
+        # and a body-world route ignores it.
+        url = f"{path}{separator}world={self.world_id}"
         body = None if method == "GET" else {"worldId": self.world_id}
         return self.request(method, url, body)
 

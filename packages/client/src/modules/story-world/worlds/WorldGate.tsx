@@ -35,6 +35,7 @@ export function WorldGate({
   theme,
   onTheme,
   error,
+  syncAvailable = false,
 }: {
   compact?: boolean;
   worlds: WorldInfo[];
@@ -50,6 +51,8 @@ export function WorldGate({
   theme: ThemePreference;
   onTheme: (theme: ThemePreference) => void;
   error?: string;
+  /** Offers the sync address field; a hosted server has no device sync (D-61). */
+  syncAvailable?: boolean;
 }) {
   const [title, setTitle] = useState(""),
     [backupUrl, setBackupUrl] = useState(""),
@@ -246,7 +249,7 @@ export function WorldGate({
               event.preventDefault();
               if (title.trim())
                 void run(async () => {
-                  await onCreate(title.trim(), backupUrl.trim());
+                  await onCreate(title.trim(), syncAvailable ? backupUrl.trim() : "");
                   setCreateOpen(false);
                 });
             }}
@@ -270,14 +273,16 @@ export function WorldGate({
               onChange={(event) => setTitle(event.target.value)}
               placeholder={t("worldExample")}
             />
-            <TextField
-              id="world-backup-endpoint"
-              label={t("backupEndpoint")}
-              value={backupUrl}
-              onChange={(event) => setBackupUrl(event.target.value)}
-              placeholder={t("backupExample")}
-              hint={t("backupRecommended")}
-            />
+            {syncAvailable && (
+              <TextField
+                id="world-backup-endpoint"
+                label={t("backupEndpoint")}
+                value={backupUrl}
+                onChange={(event) => setBackupUrl(event.target.value)}
+                placeholder={t("backupExample")}
+                hint={t("backupRecommended")}
+              />
+            )}
             <div className="world-create-actions">
               <Button
                 type="submit"

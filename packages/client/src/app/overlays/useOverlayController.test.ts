@@ -38,6 +38,7 @@ describe("versionsOptionsForCommand", () => {
     expect(versionsOptionsForCommand("history")).toEqual({ tab: "versions" });
     expect(versionsOptionsForCommand("snapshot")).toEqual({ tab: "versions", focusNote: true });
     expect(versionsOptionsForCommand("backups")).toEqual({ tab: "backups" });
+    expect(versionsOptionsForCommand("sync")).toEqual({ tab: "sync" });
   });
 
   it("leaves every other command alone", () => {

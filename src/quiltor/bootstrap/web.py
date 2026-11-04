@@ -113,6 +113,8 @@ class SynchronizationRouteServices:
     synchronization: Any
     lock: threading.Lock
     backup_authorization: Callable[[str, SessionData | None], BackupAuthorization]
+    worlds: Any = None
+    default_endpoint: Callable[[], str] = lambda: ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,6 +293,8 @@ class WebApplication:
                 self.application.synchronization,
                 self.lock,
                 self.backup_authorization,
+                self.application.worlds,
+                self.application.backups.default_endpoint,
             )
         if path.startswith("/api/backup") or path == "/backup/callback":
             return BackupRouteServices(

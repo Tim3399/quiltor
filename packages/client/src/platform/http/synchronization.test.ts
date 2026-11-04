@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import manuscriptWire from "../../../../../contracts/fixtures/application-api/manuscript/wire.v1.json";
 import storyWorldWire from "../../../../../contracts/fixtures/application-api/story-world/wire.v1.json";
 import storyboardsWire from "../../../../../contracts/fixtures/application-api/storyboards/wire.v1.json";
+import operatorTarget from "../../../../../contracts/fixtures/application-api/sync-target/operator.v1.json";
+import worldTarget from "../../../../../contracts/fixtures/application-api/sync-target/world.v1.json";
 import { createHttpApplicationState } from "./request";
 import { createSynchronizationHttpGateway } from "./synchronization";
 
@@ -232,6 +234,56 @@ describe("synchronization HTTP gateway", () => {
       message:
         "Der Cloud-Speicher ist voll. Dein lokaler Stand bleibt erhalten. Gib Cloud-Speicher frei oder lass das Kontingent erhöhen, bevor du erneut überträgst.",
       params: { limitBytes: 4096 },
+    });
+  });
+});
+
+describe("sync target", () => {
+  it("reads and sets the world's target with the contract fixtures", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response(operatorTarget))
+      .mockResolvedValueOnce(response(worldTarget));
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createHttpApplicationState();
+    state.activeWorldId = WORLD_ID;
+    const gateway = createSynchronizationHttpGateway(state);
+
+    await expect(gateway.target()).resolves.toEqual(operatorTarget);
+    await expect(gateway.setTarget("https://sync.example")).resolves.toEqual(worldTarget);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`/api/sync/target?world=${WORLD_ID}`);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/sync/target?world=${WORLD_ID}`);
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ backupUrl: "https://sync.example" }),
+    });
+  });
+
+  it("rejects an answer whose source does not follow the precedence rule", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response({ ...worldTarget, source: "operator" })),
+    );
+    await expect(
+      createSynchronizationHttpGateway(createHttpApplicationState()).target(),
+    ).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("shows a German message for an unusable address", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          response({ ok: false, error: { code: "sync.target_invalid", retryable: false } }, 400),
+        ),
+    );
+    await expect(
+      createSynchronizationHttpGateway(createHttpApplicationState()).setTarget("http://x.example"),
+    ).rejects.toMatchObject({
+      code: "sync.target_invalid",
+      message:
+        "Diese Adresse passt nicht. Gib eine Adresse mit https:// ein, zum Beispiel https://abgleich.example.org.",
     });
   });
 });

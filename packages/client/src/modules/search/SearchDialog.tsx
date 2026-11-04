@@ -24,6 +24,7 @@ export function SearchDialog({
   onCommand,
   onShowSetAside,
   onOpenChapterTrash,
+  syncAvailable = false,
 }: {
   manuscript: Manuscript;
   figures: FigureState;
@@ -34,6 +35,8 @@ export function SearchDialog({
   onCommand: (command: string) => void;
   onShowSetAside: () => void;
   onOpenChapterTrash: () => void;
+  /** Offers the sync command; a hosted server has no device sync (D-61). */
+  syncAvailable?: boolean;
 }) {
   const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
@@ -42,7 +45,8 @@ export function SearchDialog({
     // answer nine times over is no answer. It now names the keyboard shortcut where there is
     // one, and otherwise at least says whether the entry changes the view or does something.
     // Only "Version festhalten" has one today; none is invented here. The three entries that
-    // open the versions dialog keep their ids and each starts on its own tab.
+    // open the versions dialog keep their ids and each starts on its own tab; "sync" is
+    // there only where the server syncs with other devices.
     const commands: CommandPaletteItem[] = (
       [
         ["text", t("switchToManuscript"), "view"],
@@ -54,6 +58,7 @@ export function SearchDialog({
         ["history", t("openVersions"), "action"],
         ["snapshot", t("openVersionSave"), "action", shortcut("S", locale, { shift: true })],
         ["backups", t("openAutoBackups"), "action"],
+        ...(syncAvailable ? ([["sync", t("openSync"), "action"]] as const) : []),
       ] as const
     ).map(([id, label, kind, shortcutLabel]) => ({
       id: `command-${id}`,
@@ -113,7 +118,18 @@ export function SearchDialog({
       },
     );
     return [...commands, ...references];
-  }, [manuscript, figures, storyboards.boards, onCommand, onWorkspace, onSelect, query, t, locale]);
+  }, [
+    manuscript,
+    figures,
+    storyboards.boards,
+    onCommand,
+    onWorkspace,
+    onSelect,
+    query,
+    t,
+    locale,
+    syncAvailable,
+  ]);
   return (
     <CommandPalette
       open

@@ -23,8 +23,20 @@ export const tools = {
     "The cloud version was applied. Your previous local version is saved in version history. Reload Quiltor before continuing.",
   cloudRecoveryRequired:
     "Applying the version was interrupted; the active project state could not be safely confirmed. A local safety copy was created beforehand. Reload Quiltor and review the project and version history before continuing to write.",
-  cloudSetupHint:
-    "This feature requires a configured cloud endpoint. You can always transfer projects for free using export and import.",
+  syncTargetNone: "No sync is set up yet.",
+  syncTargetAddress: "Server address",
+  syncTargetExample: "https://sync.example.org",
+  syncTargetHint: "An address starting with https://. It applies to this project only.",
+  syncTargetSetUp: "Set up sync",
+  syncTargetSave: "Save target",
+  syncTargetRemove: "Remove target",
+  syncTargetUseOperator: "Use the operator's default",
+  syncTargetChange: "Change target",
+  syncTargetOrigin: "Origin",
+  syncTargetOperator: "Set by the operator. An address of this project's own takes precedence.",
+  syncTargetSaved: "Target saved. If the server asks you to sign in, do so here.",
+  syncTargetRemoved: "Target removed. This project is no longer synced.",
+  syncTargetWithout: "Everything keeps working without sync; projects can also be moved by export.",
   cloudLastSync: "Last confirmed synchronization",
   cloudStorage: "Cloud storage",
   cloudUsedBytes: "{used} bytes used",
@@ -70,8 +82,6 @@ export const tools = {
   backupSignInHint:
     "The target is configured, but not signed in yet. Uploading needs a sign-in in the browser.",
   backupSignInWaiting: "Waiting for the sign-in in the browser window …",
-  backupSessionExpired:
-    "This session no longer holds a valid token for the backup target. Sign out and back in to get one.",
   backupIssuerChecking: "Checking the sign-in service for this target …",
   backupIssuerUnreachable:
     "The sign-in service for this target is not answering right now. Signing in is only possible once it can be reached again.",

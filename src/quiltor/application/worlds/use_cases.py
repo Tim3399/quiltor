@@ -39,6 +39,11 @@ class WorldUseCases:
         with self._observer.observe("persistence", "create_world"):
             return self._worlds.create(title, backup_url, owner_sub).public()
 
+    def set_backup_url(self, world_id: str, backup_url: str) -> str:
+        """Store the world's own sync target; empty removes it. Returns the stored value."""
+        with self._observer.observe("persistence", "set_backup_url"):
+            return self._worlds.set_backup_url(world_id, backup_url)
+
     def open(self, world_id: str, owner_sub: str | None = None) -> OpenedWorld:
         with self._observer.observe("persistence", "open_world"):
             return self._worlds.open(world_id, owner_sub)

@@ -18,6 +18,7 @@ export type {
   ProjectTransferPreview,
   SnapshotChapterRecord,
   StoredMapImage,
+  SyncTarget,
   VersionedDocument,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,

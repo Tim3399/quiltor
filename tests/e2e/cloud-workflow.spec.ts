@@ -68,7 +68,6 @@ for (const theme of ["light", "dark"] as const) {
         json: {
           ok: true,
           configured: true,
-          hosted: false,
           endpoint: status.endpoint,
           signedIn: true,
         },

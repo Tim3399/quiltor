@@ -6,8 +6,13 @@ import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { App } from "../Application";
 import type { useHistoryState } from "./useHistoryState";
 
+const shell = vi.hoisted(() => ({ syncAvailable: true as boolean | null }));
 vi.mock("../shell/useShellStatus", () => ({
-  useShellStatus: () => ({ account: { email: "author@example.org" }, logout: vi.fn() }),
+  useShellStatus: () => ({
+    account: { email: "author@example.org" },
+    syncAvailable: shell.syncAvailable,
+    logout: vi.fn(),
+  }),
 }));
 vi.mock("../shell/useTheme", () => ({
   useTheme: () => ({
@@ -281,7 +286,6 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
     vi.spyOn(quiltorClient.application.backup, "loginStatus").mockResolvedValue({
       ok: true,
       configured: true,
-      hosted: false,
       endpoint: "https://cloud.example.test",
       signedIn: true,
     });
@@ -304,6 +308,13 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
       },
     };
     vi.spyOn(quiltorClient.application.synchronization, "status").mockResolvedValue(status);
+    vi.spyOn(quiltorClient.application.synchronization, "target").mockResolvedValue({
+      ok: true,
+      backupUrl: status.endpoint,
+      source: "world",
+      worldUrl: status.endpoint,
+      operatorUrl: "",
+    });
     vi.spyOn(quiltorClient.application.synchronization, "synchronize").mockResolvedValue({
       ok: true,
       status: { ...status, state: "synced", baseGeneration: 2 },
@@ -319,6 +330,48 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
     await undoAndSaveBehind(reload);
     expect(saves).toHaveLength(1);
     expect(refusedSave(warn)).toBe(true);
+  });
+});
+
+describe("a server without device sync (D-61)", () => {
+  afterEach(() => {
+    shell.syncAvailable = true;
+  });
+
+  for (const [label, value] of [
+    ["says so", false],
+    ["has not answered yet", null],
+  ] as const) {
+    it(`offers no sync tab, command or address field while it ${label}`, async () => {
+      shell.syncAvailable = value;
+      render(
+        <I18nProvider>
+          <App />
+        </I18nProvider>,
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Neue Welt" }));
+      expect(await screen.findByLabelText("Titel der Welt oder des Buches")).toBeVisible();
+      expect(screen.queryByLabelText("Cloud-Backup (optional)")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+
+      fireEvent.click(await screen.findByRole("button", { name: "Welt A – Welt öffnen" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Mehr" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Versionen & Sicherungen" }));
+      expect(await screen.findByRole("tab", { name: "Automatische Sicherungen" })).toBeVisible();
+      expect(
+        screen.queryByRole("tab", { name: "Mit anderen Geräten abgleichen" }),
+      ).not.toBeInTheDocument();
+    });
+  }
+
+  it("offers the address field when it syncs", async () => {
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Neue Welt" }));
+    expect(await screen.findByLabelText("Cloud-Backup (optional)")).toBeVisible();
   });
 });
 

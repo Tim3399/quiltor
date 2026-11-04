@@ -27,5 +27,7 @@ export const common = {
   errorBackupPreviewFailed: "The backup could not be opened for preview. It may be damaged.",
   errorSyncForbiddenHosted:
     "This server does not sync with other devices. Your versions are already stored on the server.",
+  errorSyncTargetInvalid:
+    "This address does not work. Enter an address starting with https://, for example https://sync.example.org.",
   errorUnknown: "The action could not be completed.",
 } as const;

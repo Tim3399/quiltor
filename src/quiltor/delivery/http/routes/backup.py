@@ -285,8 +285,7 @@ def login_status(handler, request: Request, app) -> None:
 
     Only reachable outside the `hosted` profile (`device_sync`), so the answer
     comes from the stored login, where `issuerReachable` separates "you are not
-    signed in" from "nobody could sign in right now". `hosted` stays in the
-    answer as `false` until the client stops reading it (T-87 part C).
+    signed in" from "nobody could sign in right now".
     """
     endpoint = _endpoint_for(request, app)
     if not endpoint:
@@ -296,7 +295,6 @@ def login_status(handler, request: Request, app) -> None:
             {
                 "ok": True,
                 "configured": False,
-                "hosted": False,
                 "endpoint": "",
                 "signedIn": False,
             }
@@ -305,7 +303,6 @@ def login_status(handler, request: Request, app) -> None:
         {
             "ok": True,
             "configured": True,
-            "hosted": False,
             **app.backups.login_status(endpoint),
         }
     )
