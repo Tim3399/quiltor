@@ -111,6 +111,7 @@ export function createApplicationGatewayStub(
       diff: () => notStubbed("history.diff"),
       textVersion: () => notStubbed("history.textVersion"),
       chapterComparison: () => notStubbed("history.chapterComparison"),
+      restore: () => notStubbed("history.restore"),
       ...overrides.history,
     },
     assistant: {
@@ -158,6 +159,8 @@ export function createApplicationGatewayStub(
     synchronization: {
       status: () => notStubbed("synchronization.status"),
       preview: () => notStubbed("synchronization.preview"),
+      target: () => notStubbed("synchronization.target"),
+      setTarget: () => notStubbed("synchronization.setTarget"),
       synchronize: () => notStubbed("synchronization.synchronize"),
       ...overrides.synchronization,
     },

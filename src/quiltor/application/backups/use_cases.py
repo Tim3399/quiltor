@@ -53,6 +53,8 @@ class BackupUseCases:
             "lastSuccessfulBackup": backups[0]["created"] if backups else None,
             "scope": "application-host",
             "canOpenFolder": False,
+            "intervalSeconds": self._local.interval_seconds,
+            "keep": self._local.keep,
         }
 
     def restore_local(self, name: str, location: DocumentLocation) -> dict[str, Any]:
@@ -144,7 +146,9 @@ class BackupUseCases:
         )
         previous_revisions = self._documents.revision_checkpoint(location.database)
         if self._documents.exists(location.database):
-            self._history.commit(context, "Before restore", push=False, authorization=None)
+            self._history.commit(
+                context, "Before restore", push=False, authorization=None, kind="before-restore"
+            )
         available = self._remote.snapshots(context, authorization)
         if not available:
             raise BackupSnapshotNotFound(params={"operation": "restore"})
@@ -174,6 +178,52 @@ class BackupUseCases:
             "title": entry.get("title", ""),
             "created": entry.get("created", ""),
         }
+
+    def restore_version(
+        self,
+        context: WorldBackupContext,
+        location: DocumentLocation,
+        world_id: str,
+        owner_sub: str,
+        revision_id: str,
+    ) -> dict[str, Any]:
+        """Put a version from the world's own local history back in place.
+
+        Shaped like _restore_remote without the endpoint: the current state is kept
+        as "Before restore" first, so the author can go back, and every blob comes
+        from the local store (`fetch=None`). A missing blob fails before the swap.
+        """
+        with self._observer.observe("backup", "restore_version"):
+            entry = next(
+                (
+                    candidate
+                    for candidate in reversed(self._history.entries(context))
+                    if revision_id and candidate["id"] == revision_id
+                ),
+                None,
+            )
+            if entry is None:
+                raise BackupSnapshotNotFound(params={"operation": "restore_version"})
+            previous_revisions = self._documents.revision_checkpoint(location.database)
+            if self._documents.exists(location.database):
+                self._history.commit(
+                    context, "Before restore", push=False, authorization=None, kind="before-restore"
+                )
+            result = self._history.restore(context, entry, fetch=None)
+            self._worlds.finalize_restore(world_id, owner_sub, previous_revisions)
+            answer = {
+                "ok": True,
+                "restored": result.get("restored", entry["id"]),
+                "files": result.get("files", 0),
+            }
+            try:
+                manuscript = self._documents.load("manuscript", location.database)
+                story_world = self._documents.load("figures", location.database)
+                self._local.mirror_manuscript(manuscript["chapters"], location.manuscript_mirrors)
+                self._local.mirror_story_world(story_world, location.story_world_mirrors)
+            except Exception:  # noqa: BLE001 - the authoritative restore already committed
+                return {**answer, "warnings": ["backup.mirror_failed"]}
+            return answer
 
     def login_status(self, endpoint: str) -> dict[str, Any]:
         return self._login.status(endpoint)

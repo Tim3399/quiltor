@@ -13,7 +13,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.addInitScript((value) => localStorage.setItem("quiltor-theme", value), theme);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Manuskript", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
     const previewResponse = page.waitForResponse((response) =>
       response.url().endsWith(previewPath),
@@ -152,7 +153,8 @@ test("TXT import rejects undecodable input and preserves UTF-16 paragraphs after
     "Encoding behavior is covered once at desktop width.",
   );
   await page.goto("/");
-  await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Manuskript", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
   let publicationRequests = 0;
   page.on("request", (request) => {
@@ -215,7 +217,8 @@ test("Markdown folder conflicts keep the chapter plan editable before publicatio
     "Folder conflict recovery is covered once at desktop width.",
   );
   await page.goto("/");
-  await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Manuskript", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
   await dialog.locator('input[type="file"]').setInputFiles({
     name: "Hafenroman.md",
@@ -251,7 +254,8 @@ test("Import controls reflow at 320 pixels with doubled text size", async ({ pag
   await page.setViewportSize({ width: 320, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Manuskript", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
   await dialog.locator('input[type="file"]').setInputFiles({
     name: "Hafenroman.md",

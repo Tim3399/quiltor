@@ -154,6 +154,35 @@ def create_world(
     }
 
 
+def set_backup_url(
+    world_id: str,
+    backup_url: str,
+    *,
+    paths: config.SQLitePaths,
+) -> str:
+    """Store a world's own sync target; an empty value removes it.
+
+    Returns the stored, normalized value. The caller has already resolved the
+    world for its owner, so no ownership check happens here.
+    """
+
+    if not WORLD_ID_RE.fullmatch(world_id):
+        raise ValueError("Invalid world identifier.")
+    path = world_db_path(world_id, paths=paths)
+    if not path.exists():
+        raise FileNotFoundError("This world does not exist.")
+    repository = normalize_backup_url(backup_url)
+    with connection(path) as database:
+        if repository:
+            database.execute(
+                "INSERT OR REPLACE INTO meta(key,value) VALUES('backup_endpoint',?)",
+                (repository,),
+            )
+        else:
+            database.execute("DELETE FROM meta WHERE key='backup_endpoint'")
+    return repository
+
+
 def delete_world(
     world_id: str,
     owner_sub: str | None = None,
@@ -266,5 +295,6 @@ __all__ = [
     "normalize_backup_url",
     "purge_world",
     "restore_world",
+    "set_backup_url",
     "world_db_path",
 ]

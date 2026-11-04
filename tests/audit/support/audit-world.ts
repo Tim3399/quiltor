@@ -340,7 +340,7 @@ const MAP_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="
   <path d="M225 0Q160 120 315 220T380 415Q420 495 695 500" fill="none" stroke="#a9c7cf" stroke-width="13"/>
 </svg>`;
 
-/** git word-diff output, the format HistoryDialog parses. */
+/** git word-diff output, the format VersionsPanel parses. */
 const HISTORY_DIFF = [
   "diff --git a/kapitel/03-sturmflutwarnungsbekanntmachungsnacht.md b/kapitel/03-sturmflutwarnungsbekanntmachungsnacht.md",
   "index 1111111..2222222 100644",

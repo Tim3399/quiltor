@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createHttpApplicationState, selectWorld } from "./request";
 import { createPlaceMapsHttpGateway } from "./placeMaps";
+import { createHttpApplicationState, selectWorld } from "./request";
 
 afterEach(() => vi.unstubAllGlobals());
 

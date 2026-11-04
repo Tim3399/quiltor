@@ -25,7 +25,7 @@ import {
 import { ApplicationGatewayError, quiltorClient } from "../platform";
 import { AppShell } from "./AppShell";
 import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
-import { useOverlayController } from "./overlays/useOverlayController";
+import { useOverlayController, versionsOptionsForCommand } from "./overlays/useOverlayController";
 import { useShellStatus } from "./shell/useShellStatus";
 import { useTheme } from "./shell/useTheme";
 import { useApplicationShortcuts } from "./shortcuts/useApplicationShortcuts";
@@ -584,8 +584,9 @@ export function App() {
     (command: string) => {
       overlays.close();
       if (workspace.execute(command)) return;
-      if (command === "history" || command === "snapshot" || command === "backups")
-        overlays.open(command);
+      // The palette ids stay what they were; each now names a way into the versions dialog.
+      const versions = versionsOptionsForCommand(command);
+      if (versions) overlays.open("versions", versions);
     },
     [overlays.close, overlays.open, workspace.execute],
   );
@@ -623,6 +624,7 @@ export function App() {
       onRestore={session.restore}
       onPurge={session.purge}
       onProjectImported={session.projectImported}
+      syncAvailable={shell.syncAvailable === true}
     >
       {session.world && manuscript && figures && storyboards && (
         <Suspense
@@ -646,10 +648,7 @@ export function App() {
             theme={theme}
             onTheme={toggleTheme}
             onSearch={() => overlays.open("palette")}
-            onHistory={() => overlays.open("history")}
-            onSnapshot={() => overlays.open("snapshot")}
-            onBackups={() => overlays.open("backups")}
-            onCloud={() => overlays.open("cloud")}
+            onVersions={() => overlays.open("versions", { tab: "versions" })}
             onExportProject={() => setProjectExportOpen(true)}
             onGettingStarted={() => setGettingStartedOpen(true)}
             onAssistant={overlays.toggleAssistant}
@@ -730,6 +729,7 @@ export function App() {
           )}
           <OverlayHost
             overlay={overlays.overlay}
+            versions={overlays.versions}
             onCloseOverlay={overlays.close}
             assistantOpen={overlays.assistantOpen}
             assistantEverOpened={overlays.assistantEverOpened}
@@ -747,6 +747,7 @@ export function App() {
             onCommand={executeCommand}
             flushAll={flushAll}
             onDocumentsReplaced={releaseReplacedDocuments}
+            syncAvailable={shell.syncAvailable === true}
             pendingRename={pendingRename}
             onManuscriptChange={manuscriptHistory.change}
             onCloseRename={() => setPendingRename(null)}

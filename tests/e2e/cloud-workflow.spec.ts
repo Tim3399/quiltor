@@ -9,14 +9,15 @@ test("Unconfigured cloud leaves the actual local writing workflow available", as
   await page.goto(`/?world=${world.id}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Cloud-Synchronisation", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Cloud-Synchronisation", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+  await dialog.getByRole("tab", { name: "Mit anderen Geräten abgleichen", exact: true }).click();
   await expect(dialog).toContainText("Keine Cloud eingerichtet");
   await expect(dialog).toContainText("ohne Cloud nutzbar");
   await expect(
     dialog.getByRole("button", { name: "Jetzt synchronisieren", exact: true }),
   ).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Schließen", exact: true }).click();
+  await dialog.getByRole("button", { name: "Dialog schließen", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
 });
@@ -67,7 +68,6 @@ for (const theme of ["light", "dark"] as const) {
         json: {
           ok: true,
           configured: true,
-          hosted: false,
           endpoint: status.endpoint,
           signedIn: true,
         },
@@ -137,8 +137,9 @@ for (const theme of ["light", "dark"] as const) {
     }
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Cloud-Synchronisation", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Cloud-Synchronisation", exact: true });
+    await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+    await dialog.getByRole("tab", { name: "Mit anderen Geräten abgleichen", exact: true }).click();
     const choose = dialog.getByRole("button", { name: "Lokale Fassung übernehmen", exact: true });
     await expect(choose).toBeDisabled();
     await dialog
@@ -147,13 +148,20 @@ for (const theme of ["light", "dark"] as const) {
     await expect(choose).toBeEnabled();
     await dialog.getByText("Anfang · Im Papierkorb", { exact: true }).click();
     await expect(dialog).toContainText("Die andere Fassung liegt im Papierkorb.");
-    await dialog.evaluate(async (element) => {
-      await Promise.all(
-        element
-          .getAnimations({ subtree: true })
-          .map((animation) => animation.finished.catch(() => undefined)),
-      );
-    });
+    // Wait for what is on screen to settle, not for `finished` promises: loading the cloud
+    // version toggles `disabled` on the sign-out button inside the collapsed "Technische
+    // Details", and Chromium never resolves `finished` for a transition in a closed <details>
+    // even though its playState reads "finished".
+    await expect
+      .poll(() =>
+        dialog.evaluate(
+          (element) =>
+            element
+              .getAnimations({ subtree: true })
+              .filter((animation) => animation.pending || animation.playState === "running").length,
+        ),
+      )
+      .toBe(0);
     const axe = await new AxeBuilder({ page })
       .include('[role="dialog"]')
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -179,7 +187,59 @@ for (const theme of ["light", "dark"] as const) {
       baseline,
     );
     await expect(choose).toBeDisabled();
-    await dialog.getByRole("button", { name: "Schließen", exact: true }).click();
+    await dialog.getByRole("button", { name: "Dialog schließen", exact: true }).click();
     await expect(page.getByLabel("Kapiteltext")).toContainText(local.chapters[0].body);
   });
 }
+
+test("Signing out of the sync endpoint works from the technical details and asks for the sign-in again", async ({
+  page,
+}) => {
+  const world = await createTestWorld(page, `Abmelden ${crypto.randomUUID()}`);
+  let signedIn = true;
+  let logouts = 0;
+  const endpoint = "https://cloud.example.test";
+  await page.route("**/api/backup/login?*", (route) =>
+    route.fulfill({ json: { ok: true, configured: true, endpoint, signedIn } }),
+  );
+  await page.route("**/api/backup/logout?*", (route) => {
+    logouts += 1;
+    signedIn = false;
+    return route.fulfill({ json: { ok: true, signedIn: false } });
+  });
+  await page.route("**/api/sync?*", (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        configured: true,
+        endpoint,
+        mode: "manual",
+        state: "synced",
+        localFingerprint: "a".repeat(64),
+        baseGeneration: 1,
+        remote: { generation: 1, snapshotId: "b".repeat(64) },
+        lastSyncedAt: "2026-09-19T09:00:00Z",
+        account: {
+          accountId: "konto",
+          access: "read-write",
+          usedBytes: 1048576,
+          limitBytes: 2097152,
+          deleteAfter: null,
+        },
+      },
+    }),
+  );
+  await page.goto(`/?world=${world.id}`);
+  await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Mehr", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+  await dialog.getByRole("tab", { name: "Mit anderen Geräten abgleichen", exact: true }).click();
+  await dialog.getByText("Technische Details", { exact: true }).click();
+  await dialog.getByRole("button", { name: "Abmelden", exact: true }).click();
+  await expect(
+    dialog.getByRole("button", { name: "Bei der Sicherung anmelden", exact: true }),
+  ).toBeVisible();
+  expect(logouts).toBe(1);
+  await expect(dialog.getByRole("button", { name: "Abmelden", exact: true })).toHaveCount(0);
+});

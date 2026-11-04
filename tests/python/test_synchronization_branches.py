@@ -257,7 +257,11 @@ class ClassificationTests(unittest.TestCase):
         result = harness.status()
         self.assertEqual(result["state"], "conflict")
         harness.history.commit.assert_called_with(
-            harness.context, "Cloud sync conflict (local)", push=False, authorization=None
+            harness.context,
+            "Cloud sync conflict (local)",
+            push=False,
+            authorization=None,
+            kind="cloud-sync-conflict",
         )
 
     def test_a_baseline_without_an_integer_generation_counts_as_unlinked(self) -> None:

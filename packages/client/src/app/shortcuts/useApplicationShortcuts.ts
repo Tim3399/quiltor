@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { VersionsOpenOptions } from "../../modules/history";
 import type { Workspace } from "../../shared";
 
 export function useApplicationShortcuts({
@@ -16,7 +17,7 @@ export function useApplicationShortcuts({
 }: {
   focus: boolean;
   setFocus: (focus: boolean) => void;
-  openOverlay: (overlay: "palette" | "snapshot") => void;
+  openOverlay: (overlay: "palette" | "versions", options?: VersionsOpenOptions) => void;
   flushAll: () => Promise<void>;
   workspace: Workspace;
   undoManuscript: () => void;
@@ -36,7 +37,7 @@ export function useApplicationShortcuts({
       }
       if (modifier && event.shiftKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        openOverlay("snapshot");
+        openOverlay("versions", { tab: "versions", focusNote: true });
         return;
       }
       if (modifier && event.key.toLowerCase() === "s") {

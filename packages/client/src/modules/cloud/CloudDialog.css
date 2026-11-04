@@ -52,3 +52,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.cloud-sync__target {
+  display: grid;
+  gap: var(--spacing-regular-wide);
+}
+.cloud-sync__note {
+  color: var(--muted);
+}

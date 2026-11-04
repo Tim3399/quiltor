@@ -376,7 +376,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             raise RequestBodyRejected("invalid_length")
         if length > MAX_BODY:
             raise RequestBodyRejected("too_large")
-        body = self.rfile.read(length)
+        body = self.read_request_body(length)
         media_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
         if media_type != "application/json":
             # Drain the already bounded request body before sending the error response.
@@ -426,11 +426,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return True
         return False
 
+    def read_request_body(self, length: int) -> bytes:
+        """Read the request body. Every route that reads it goes through here, so
+        the dispatcher knows afterwards whether a refusal left it unread."""
+        self._request_body_read = True
+        return self.rfile.read(length)
+
     def _discard_unread_body(self) -> None:
-        """Read and drop a small body that no route will read, so the close does not
+        """Read and drop a small body that no route has read, so the close does not
         reset the connection; see REFUSED_BODY_DISCARD_LIMIT. Anything unbounded,
-        invalid or slow is left unread. Call it only on answers given before a route
-        handler ran -- a handler may already have read the body."""
+        invalid or slow is left unread. Called for refusals before a route runs, and
+        after a route that answered or raised without reading the body -- only when
+        `_request_body_read` is still false, since a read body is gone from the socket
+        and waiting for it again would stall until the deadline."""
         if self.headers.get("Transfer-Encoding"):
             return
         try:
@@ -699,6 +707,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self._response_status = 0
         self._error_code = None
         self._bytes_out = 0
+        self._request_body_read = False
         requested_path = self.path.split("?", 1)[0]
         # From the registry or a fixed bucket, never from the path itself: a path is
         # whatever the client sent.
@@ -720,6 +729,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try:
                 self._dispatch_request(table, on_miss=on_miss)
             except Exception as exc:
+                if not self._request_body_read:
+                    # A handler that raises before reading (an invalid upload type, a
+                    # conflict, a crash) leaves the body in the socket like a plain
+                    # refusal does; drained before the 4xx or 500 below goes out.
+                    self._discard_unread_body()
                 self.application.observability.metrics.increment(
                     "http_requests_total",
                     method=self.command,
@@ -876,6 +890,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.log_rejection("install.forbidden_hosted", route=path)
             return self.send_api_error(403, error_code="install.forbidden_hosted", retryable=False)
 
+        if registration.device_sync and not self.application.syncable:
+            # A hosted server is the shared storage for everyone on it, so syncing
+            # with another device has no place there (D-61). Same form as above.
+            self._discard_unread_body()
+            self.log_rejection("sync.forbidden_hosted", route=path)
+            return self.send_api_error(403, error_code="sync.forbidden_hosted", retryable=False)
+
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:
             # Resolved before the route runs, so a refusal here leaves the body unread.
@@ -886,6 +907,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self._discard_unread_body()
                 return
         registration.handler(self, request, self.application.route_services(path))
+        if not self._request_body_read:
+            # A route may refuse without reading the body (POST /api/backup/login in
+            # multi-user mode answers 409 straight away). The connection closes after
+            # every request with a body, so the same reset as above applies.
+            self._discard_unread_body()
 
     def do_GET(self):
         def on_miss() -> None:

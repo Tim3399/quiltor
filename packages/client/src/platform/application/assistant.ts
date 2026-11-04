@@ -1,10 +1,10 @@
+import type { MessageKey } from "../../i18n";
 import type {
   AssistantHistoryMessage,
   AssistantJobState,
   AssistantMode,
   AssistantReply,
 } from "../../modules/assistant";
-import type { MessageKey } from "../../i18n";
 
 export type AssistantBatchRequest = {
   runBatches: boolean;

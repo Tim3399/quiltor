@@ -93,6 +93,7 @@ class RouteTableTests(unittest.TestCase):
             "/api/backup",
             "/api/sync",
             "/api/sync/preview",
+            "/api/sync/target",
             "/api/history",
             "/api/backups",
             "/api/backups/location",

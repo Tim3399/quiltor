@@ -1,3 +1,4 @@
+import type { WritingIssue } from "../../../modules/manuscript";
 import type {
   GrammarStatus,
   WritingAssistanceLookupResult,
@@ -5,7 +6,6 @@ import type {
   WritingDataRelease,
   WritingInstalledSource,
 } from "../../application";
-import type { WritingIssue } from "../../../modules/manuscript";
 
 export interface WritingAssistanceStatusWireV1 {
   ok: boolean;

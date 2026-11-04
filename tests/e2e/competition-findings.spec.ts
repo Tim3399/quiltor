@@ -53,10 +53,14 @@ test("Backup preview exposes storage and restore preserves the newer saved conte
   await page.goto(`/?world=${world.id}`);
   await expect(page.getByLabel("Kapiteltext")).toContainText("Erste Fassung.");
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Sicherungen", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "Sicherungen", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+  await sheet.getByRole("tab", { name: "Automatische Sicherungen", exact: true }).click();
   await expect(sheet).toContainText("Datenbankdatei");
   await expect(sheet).toContainText("Letzte erfolgreiche Sicherung");
+  await expect(sheet).toContainText(
+    "höchstens alle 5 Minuten. Die letzten 40 Sicherungen bleiben erhalten.",
+  );
   await expect(
     sheet.getByRole("button", { name: "Sicherung wiederherstellen", exact: true }),
   ).toHaveCount(0);
@@ -338,7 +342,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(exportDialog).toHaveCount(0);
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
     await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
-    await page.getByRole("button", { name: "Projekt importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Projekt", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Quiltor-Projekt importieren", exact: true });
     const confirm = dialog.getByRole("button", {
       name: "Als neues Projekt importieren",

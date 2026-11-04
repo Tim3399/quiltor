@@ -45,7 +45,8 @@ describe("WorldGate", () => {
       onProjectImported: vi.fn().mockResolvedValue(undefined),
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Manuskript importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manuskript" }));
 
     expect(screen.getByRole("dialog", { name: "Manuskript importieren" })).toBeInTheDocument();
     expect(screen.getByText(/neues Projekt erstellt/i)).toBeInTheDocument();
@@ -58,9 +59,22 @@ describe("WorldGate", () => {
       onOpen,
       onProjectImported: vi.fn().mockResolvedValue(undefined),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Projekt importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Importieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Projekt" }));
     expect(screen.getByRole("dialog", { name: "Quiltor-Projekt importieren" })).toBeInTheDocument();
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("offers a single import button that explains both choices", () => {
+    renderGate([world("paper")], { onProjectImported: vi.fn().mockResolvedValue(undefined) });
+
+    expect(screen.queryByRole("button", { name: "Manuskript importieren" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Projekt importieren" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Importieren" }));
+
+    const choice = screen.getByRole("dialog", { name: "Was möchtest du importieren?" });
+    expect(choice).toHaveTextContent("Word, Markdown");
+    expect(choice).toHaveTextContent("Quiltor-Export mit allem");
   });
 
   it("opens creation as a separate sheet and creates only after submission", () => {
@@ -76,6 +90,26 @@ describe("WorldGate", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Welt erstellen" }));
     expect(onCreate).toHaveBeenCalledWith("Testwelt", "");
+  });
+
+  it("offers the sync address only where the server syncs with other devices", () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    renderGate([], { onCreate, syncAvailable: true });
+    fireEvent.click(screen.getByRole("button", { name: "Neue Welt" }));
+    fireEvent.change(screen.getByPlaceholderText("Der letzte Garten"), {
+      target: { value: "Testwelt" },
+    });
+    fireEvent.change(screen.getByLabelText("Cloud-Backup (optional)"), {
+      target: { value: " https://sync.example.org " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Welt erstellen" }));
+    expect(onCreate).toHaveBeenCalledWith("Testwelt", "https://sync.example.org");
+    cleanup();
+
+    renderGate([], { syncAvailable: false });
+    fireEvent.click(screen.getByRole("button", { name: "Neue Welt" }));
+    expect(screen.getByLabelText("Titel der Welt oder des Buches")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Cloud-Backup (optional)")).not.toBeInTheDocument();
   });
 
   it("offers an explicit close action in the creation sheet", () => {

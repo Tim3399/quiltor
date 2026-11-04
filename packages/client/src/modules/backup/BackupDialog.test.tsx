@@ -92,6 +92,7 @@ describe("BackupDialog", () => {
     vi.spyOn(quiltorClient.application.backup, "list").mockResolvedValue({ ok: true, backups: [] });
     renderDialog();
 
+    fireEvent.click(await screen.findByText("Speicherort der Sicherungen"));
     expect(await screen.findByText("C:\\Quiltor\\world.sqlite3")).toBeVisible();
     expect(screen.getByText("C:\\Quiltor\\backups")).toBeVisible();
     expect(screen.getByText(/bei Webhosting auf dem Server/)).toBeVisible();
@@ -102,6 +103,45 @@ describe("BackupDialog", () => {
       ),
     );
     expect(screen.queryByRole("button", { name: /Ordner.*öffnen/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps the storage location closed until asked for", async () => {
+    vi.spyOn(quiltorClient.application.backup, "list").mockResolvedValue({ ok: true, backups: [] });
+    renderDialog();
+
+    await screen.findByText("Speicherort der Sicherungen");
+    expect(screen.getByText("C:\\Quiltor\\backups")).not.toBeVisible();
+  });
+
+  it("explains the automatic backups with the interval and count the server reports", async () => {
+    vi.spyOn(quiltorClient.application.backup, "list").mockResolvedValue({ ok: true, backups: [] });
+    vi.spyOn(quiltorClient.application.backup, "location").mockResolvedValue({
+      ok: true,
+      storage: {
+        databasePath: "C:\\Quiltor\\world.sqlite3",
+        backupDirectory: "C:\\Quiltor\\backups",
+        lastSuccessfulBackup: null,
+        scope: "application-host",
+        canOpenFolder: false,
+        intervalSeconds: 300,
+        keep: 40,
+      },
+    });
+    renderDialog();
+
+    expect(
+      await screen.findByText(
+        "Quiltor sichert dein Projekt beim Speichern automatisch, höchstens alle 5 Minuten. Die letzten 40 Sicherungen bleiben erhalten.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("leaves the count sentence out when the server sends no interval or count", async () => {
+    vi.spyOn(quiltorClient.application.backup, "list").mockResolvedValue({ ok: true, backups: [] });
+    renderDialog();
+
+    await screen.findByText("Speicherort der Sicherungen");
+    expect(screen.queryByText(/Quiltor sichert dein Projekt/)).not.toBeInTheDocument();
   });
 
   it("flushes before preview and enables restore only after validated content loads", async () => {

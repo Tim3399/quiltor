@@ -21,8 +21,8 @@ test("A sheet stays out of sight until its entry animation runs, then settles in
   await page.addStyleTag({ content: ".ui-sheet { animation-delay: 2s !important; }" });
 
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Verlauf", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Verlauf", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog).toBeVisible();
 
   // Still waiting for its animation: not a pixel of it may be drawn inside the viewport.

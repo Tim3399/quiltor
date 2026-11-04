@@ -28,6 +28,18 @@ export type CloudSyncStatus = {
 };
 
 export type CloudSyncAction = "sync" | "keep-local" | "use-remote";
+
+/**
+ * Where a world syncs to (`application.sync-target` v1). The world's own address
+ * wins; the operator's QUILTOR_BACKUP_URL is only the fallback (`source: "operator"`).
+ */
+export type SyncTarget = {
+  ok: true;
+  backupUrl: string;
+  source: "world" | "operator" | "none";
+  worldUrl: string;
+  operatorUrl: string;
+};
 export type CloudSyncPreview = {
   ok: true;
   generation: number;
@@ -38,6 +50,9 @@ export type CloudSyncPreview = {
 export interface SynchronizationGateway {
   status(): Promise<CloudSyncStatus>;
   preview(): Promise<CloudSyncPreview>;
+  target(): Promise<SyncTarget>;
+  /** Sets the world's own address; an empty string removes it. */
+  setTarget(backupUrl: string): Promise<SyncTarget>;
   synchronize(request: {
     action: CloudSyncAction;
     expectedGeneration?: number;

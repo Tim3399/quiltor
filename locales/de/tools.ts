@@ -1,9 +1,11 @@
 export const tools = {
   cloudTitle: "Cloud-Synchronisation",
   cloudManualExplanation:
-    "Gleiche dieses Projekt bei Bedarf mit deinen anderen Geräten ab. Übertragungen beginnen erst mit „Jetzt synchronisieren“. Gesicherte Versionen bleiben unabhängig davon erhalten.",
+    "Der Abgleich überträgt deine Versionen zu einem Server, damit du auf anderen Geräten weiterschreiben kannst. Er startet nur, wenn du ihn auslöst.",
   cloudLocalIndependence:
     "Schreiben, Papierkorb, Wiederherstellung und Projektexport bleiben ohne Cloud nutzbar.",
+  versionsIntro:
+    "Eine Version hältst du selbst fest, mit einer kurzen Notiz. Du kannst sie jederzeit vergleichen oder wiederherstellen.",
   cloudUnconfigured: "Keine Cloud eingerichtet",
   cloudUnlinked: "Dieses Gerät wurde noch nicht abgeglichen",
   cloudUnlinkedHelp:
@@ -23,8 +25,22 @@ export const tools = {
     "Der Cloud-Stand wurde übernommen. Dein vorheriger lokaler Stand ist im Versionsverlauf gesichert. Lade Quiltor neu, bevor du weiterarbeitest.",
   cloudRecoveryRequired:
     "Die Übernahme wurde unterbrochen; der aktive Projektstand konnte nicht sicher bestätigt werden. Eine lokale Sicherheitskopie wurde vorher angelegt. Lade Quiltor neu und prüfe den Projektstand und den Versionsverlauf, bevor du weiterschreibst.",
-  cloudSetupHint:
-    "Für diese Funktion muss ein Cloud-Ziel eingerichtet sein. Du kannst Projekte jederzeit kostenlos über Export und Import übertragen.",
+  syncTargetNone: "Noch kein Abgleich eingerichtet.",
+  syncTargetAddress: "Adresse des Servers",
+  syncTargetExample: "https://abgleich.example.org",
+  syncTargetHint: "Eine Adresse mit https://. Sie gilt nur für dieses Projekt.",
+  syncTargetSetUp: "Abgleich einrichten",
+  syncTargetSave: "Ziel speichern",
+  syncTargetRemove: "Ziel entfernen",
+  syncTargetUseOperator: "Vorgabe des Betreibers verwenden",
+  syncTargetChange: "Ziel ändern",
+  syncTargetOrigin: "Herkunft",
+  syncTargetOperator:
+    "Vom Betreiber vorgegeben. Eine eigene Adresse für dieses Projekt hat Vorrang.",
+  syncTargetSaved: "Ziel gespeichert. Verlangt der Server eine Anmeldung, melde dich hier an.",
+  syncTargetRemoved: "Ziel entfernt. Dieses Projekt wird nicht mehr abgeglichen.",
+  syncTargetWithout:
+    "Ohne Abgleich bleibt alles nutzbar; Projekte lassen sich auch per Export übertragen.",
   cloudLastSync: "Letzter bestätigter Abgleich",
   cloudStorage: "Cloud-Speicher",
   cloudUsedBytes: "{used} Bytes belegt",
@@ -55,43 +71,37 @@ export const tools = {
   searchPlaceholder: "Kapitel, Text, Figuren, Orte, Storyboards …",
   commandView: "Ansicht",
   commandAction: "Aktion",
-  snapshotSave: "Arbeitsstand sichern",
   target: "Ziel",
   changed: "Geändert",
   files: "Dateien",
   notConfigured: "Nicht eingerichtet",
   snapshotMessage: "Was hat sich geändert?",
-  saveOnly: "Nur lokal sichern",
-  saveAndUpload: "Sichern & hochladen",
   technicalDetails: "Technische Details",
   loadingBackupStatus: "Status wird geladen …",
   done: "Fertig.",
   backupSignIn: "Bei der Sicherung anmelden",
   backupSignInHint:
     "Das Ziel ist eingerichtet, aber noch nicht angemeldet. Zum Hochladen ist eine Anmeldung im Browser nötig.",
-  backupSignInWaiting: "Warten auf die Anmeldung im Browserfenster …",
-  backupSessionExpired:
-    "Diese Sitzung hat kein gültiges Token für das Sicherungsziel mehr. Melde dich einmal ab und wieder an.",
-  backupIssuerChecking: "Der Anmeldedienst des Ziels wird gerade geprüft …",
-  backupIssuerUnreachable:
-    "Der Anmeldedienst des Ziels antwortet gerade nicht. Eine Anmeldung ist erst wieder möglich, wenn er erreichbar ist.",
-  backupAccount: "Konto",
-  backupSignedIn: "Angemeldet",
-  lastConfirmedTransfer: "Letzte bestätigte Übertragung",
   noConfirmedTransfer: "Noch keine bestätigte Übertragung",
-  remoteTransferExplanation:
-    "Nur ein erfolgreich bestätigter Upload aktualisiert diesen Zeitpunkt. Lokales Sichern überträgt nichts automatisch.",
-  transferredSnapshot: "Bestätigter Sicherungsstand",
-  backupTransferStatusWarning:
-    "Der Upload wurde bestätigt, aber die Bestätigungszeit konnte lokal nicht gespeichert werden. Angezeigt bleibt die zuvor gespeicherte Übertragung.",
   comparison: "Vergleich",
   byWord: "Wortweise",
   byLine: "Zeilenweise",
   allFiles: "Alle Dateien",
   textOnly: "Nur Text",
   states: "Stände",
-  sinceCommit: "Seit letzter Sicherung",
-  workingState: "Arbeitsstand",
+  currentState: "Aktueller Stand",
+  changesSinceLastVersion: "Änderungen seit der letzten Version",
+  versionNotePlaceholder: "Leer lassen, dann beschreibt Quiltor die Änderung selbst.",
+  holdVersion: "Version festhalten",
+  versionHeld: "Version festgehalten.",
+  versionUnchanged: "Seit der letzten Version hat sich nichts geändert.",
+  restoreVersion: "Diese Version wiederherstellen",
+  restoreVersionTitle: "Version wiederherstellen",
+  restoreVersionDescription:
+    "Version „{name}“ wiederherstellen? Dein aktueller Stand wird vorher als Version festgehalten, du kannst also zurück.",
+  restoreVersionConfirm: "Wiederherstellen",
+  versionRestored:
+    "Version wiederhergestellt. Dein vorheriger Stand ist als „Vor Wiederherstellung“ festgehalten.",
   noChanges: "Keine Änderungen",
   newFiles: "Neue Dateien",
   database: "Datenbank",
@@ -101,7 +111,8 @@ export const tools = {
   restore: "Wiederherstellen",
   restoreBackup: "Sicherung wiederherstellen",
   noBackup: "Noch keine Sicherung vorhanden.",
-  backupAutoNote: "SQLite-Sicherungen entstehen automatisch, höchstens alle fünf Minuten.",
+  backupAutoSentence:
+    "Quiltor sichert dein Projekt beim Speichern automatisch, höchstens alle {minutes} Minuten. Die letzten {keep} Sicherungen bleiben erhalten.",
   restoreConfirmDescription:
     "Der aktuelle Stand wird zunächst gesichert und anschließend vollständig durch diese Sicherung ersetzt.",
   backupPreviewDescription: "Lokale SQLite-Sicherung · {size}",

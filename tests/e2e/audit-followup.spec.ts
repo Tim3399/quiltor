@@ -232,7 +232,8 @@ async function exerciseTwoHundredPercentText(page: Page, dialog: Locator) {
 }
 
 async function openImportPreview(page: Page) {
-  await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Manuskript", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
   const response = page.waitForResponse((candidate) =>
     candidate.url().endsWith("/api/manuscript-import/v2/preview"),
@@ -273,8 +274,8 @@ async function openEpubPreview(page: Page) {
 
 async function openHistory(page: Page) {
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Verlauf", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Verlauf", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog.locator("ins").first()).toBeVisible();
   return dialog;
 }
@@ -334,7 +335,8 @@ for (const theme of ["light", "dark"] as const) {
       await page.route("**/api/manuscript-import/v2/preview", (route) => route.abort("failed"), {
         times: 1,
       });
-      await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+      await page.getByRole("button", { name: "Importieren", exact: true }).click();
+      await page.getByRole("button", { name: "Manuskript", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
       await dialog.locator('input[type="file"]').setInputFiles({
         name: "Hafenroman.docx",

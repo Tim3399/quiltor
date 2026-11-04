@@ -231,6 +231,38 @@ class RefusedRequestBodyTests(_LiveLocalServerTestCase):
                 self.assertEqual(answer.status, 404, answer.body[:200])
                 self.assertEqual(answer.json()["error"]["code"], "route_not_found")
 
+    def test_a_refusal_raised_by_the_route_gets_its_whole_answer(self):
+        """The import route raises InvalidProjectArchive for a text/plain upload before
+        it reads the body; the answer must still arrive whole."""
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/project-transfer/import",
+                    headers={"Content-Type": "text/plain"},
+                    body=b"not a zip!",
+                )
+                self.assertTrue(400 <= answer.status < 500, answer.body[:200])
+                self.assertFalse(answer.json()["ok"])
+
+    def test_a_route_that_crashes_before_reading_gets_its_whole_500(self):
+        with patch(
+            "quiltor.delivery.http.routes.project_transfer._read_archive",
+            side_effect=RuntimeError("boom"),
+        ):
+            for attempt in range(30):
+                with self.subTest(attempt=attempt):
+                    answer = late_body.send(
+                        self.port,
+                        "POST",
+                        "/api/project-transfer/import",
+                        headers={"Content-Type": "application/zip"},
+                        body=b"PK zip",
+                    )
+                    self.assertEqual(answer.status, 500, answer.body[:200])
+                    self.assertFalse(answer.json()["ok"])
+
     def test_a_refusal_without_a_content_length_does_not_wait(self):
         answer = late_body.send(
             self.port,

@@ -22,8 +22,8 @@ async function openHistory(page: Page, world: string) {
   await page.goto(`/?world=${world}`);
   await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Verlauf", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Verlauf", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog).toBeVisible();
   return dialog;
 }

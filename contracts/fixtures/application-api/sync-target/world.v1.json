@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "backupUrl": "https://sync.example",
+  "source": "world",
+  "worldUrl": "https://sync.example",
+  "operatorUrl": "https://operator.example"
+}

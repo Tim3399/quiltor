@@ -50,3 +50,16 @@ the synchronized manuscript. Local removal of a project does not purge remote ba
 Reference server operating constraints and account maintenance are documented in
 [the service guide](../../services/backup-server/README.md). Commercial launch decisions
 are separate from this wire contract.
+
+## Sync target (`application.sync-target` v1)
+
+`GET /api/sync/target?world=ID` answers which endpoint a world syncs with, and
+`POST /api/sync/target?world=ID` with `{ "backupUrl": "…" }` sets the world's own address;
+an empty string removes it. Both answer with the same object (`backupUrl`, `source`,
+`worldUrl`, `operatorUrl`). An address that is neither HTTPS nor loopback HTTP is refused
+with `sync.target_invalid`; a hosted server refuses both routes with `sync.forbidden_hosted`.
+
+Precedence: the world's own address wins. The operator's `QUILTOR_BACKUP_URL` is only the
+fallback for a world without one (`source: "operator"`), exactly as the backup context
+resolves it. The operator's value cannot be changed through the API; a world can only stop
+overriding it.
