@@ -7,6 +7,9 @@ swap. A hosted server restores its own history like a local one (D-61).
 """
 
 import json
+import re
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 from quiltor.infrastructure.backup.snapshots import _manifest_digests
@@ -19,6 +22,71 @@ SCHEMA = json.loads(
     (CONTRACT / "application-api/history/v1.schema.json").read_text(encoding="utf-8")
 )
 DOCUMENTS = ("/api/manuscript", "/api/state", "/api/storyboards")
+_JSON_TYPES = {
+    "object": dict,
+    "array": list,
+    "string": str,
+    "integer": int,
+    "boolean": bool,
+}
+
+
+def schema_errors(instance, schema, at="$", root=None):
+    """The JSON-Schema keywords contracts/application-api/history/v1 uses, and only
+    those: the suite has no JSON-Schema library. An unknown keyword is an error, so
+    a later schema cannot outgrow this check unnoticed."""
+    root = root if root is not None else schema
+    known = {
+        "$schema", "$id", "$defs", "$ref", "title", "description", "oneOf", "type",
+        "properties", "required", "additionalProperties", "items", "enum", "const",
+        "pattern", "minLength", "maxLength", "minimum",
+    }  # fmt: skip
+    unknown = set(schema) - known
+    if unknown:
+        return [f"{at}: unsupported keywords {sorted(unknown)}"]
+    if "$ref" in schema:
+        target = root
+        for part in schema["$ref"].removeprefix("#/").split("/"):
+            target = target[part]
+        return schema_errors(instance, target, at, root)
+    if "oneOf" in schema:
+        matches = [sub for sub in schema["oneOf"] if not schema_errors(instance, sub, at, root)]
+        return [] if len(matches) == 1 else [f"{at}: matches {len(matches)} of oneOf"]
+    errors: list[str] = []
+    expected = schema.get("type")
+    if expected is not None:
+        python_type = _JSON_TYPES[expected]
+        if not isinstance(instance, python_type) or (
+            expected == "integer" and isinstance(instance, bool)
+        ):
+            return [f"{at}: expected {expected}"]
+    if "const" in schema and instance != schema["const"]:
+        errors.append(f"{at}: expected {schema['const']!r}")
+    if "enum" in schema and instance not in schema["enum"]:
+        errors.append(f"{at}: {instance!r} not in {schema['enum']}")
+    if isinstance(instance, str):
+        if "pattern" in schema and not re.search(schema["pattern"], instance):
+            errors.append(f"{at}: does not match {schema['pattern']}")
+        if len(instance) < schema.get("minLength", 0):
+            errors.append(f"{at}: too short")
+        if "maxLength" in schema and len(instance) > schema["maxLength"]:
+            errors.append(f"{at}: too long")
+    if isinstance(instance, int) and "minimum" in schema and instance < schema["minimum"]:
+        errors.append(f"{at}: below {schema['minimum']}")
+    if isinstance(instance, dict):
+        properties = schema.get("properties", {})
+        for key in schema.get("required", []):
+            if key not in instance:
+                errors.append(f"{at}: missing {key}")
+        for key, value in instance.items():
+            if key in properties:
+                errors.extend(schema_errors(value, properties[key], f"{at}.{key}", root))
+            elif schema.get("additionalProperties") is False:
+                errors.append(f"{at}: unexpected {key}")
+    if isinstance(instance, list) and "items" in schema:
+        for index, item in enumerate(instance):
+            errors.extend(schema_errors(item, schema["items"], f"{at}[{index}]", root))
+    return errors
 
 
 class _HistoryServer(_LiveServer):
@@ -140,6 +208,41 @@ class HistoryRestoreTest(_HistoryServer):
             if line.strip()
         ]
         self.assertIn({"id": newest["hash"], "kind": "before-restore"}, labels)
+
+    def test_a_history_with_every_kind_answers_as_the_contract_says(self):
+        """A real /api/history answer: one "changes" entry naming a chapter and a
+        profile, and one entry of every other kind, validated against the schema."""
+        owner = SessionData(
+            sub=config.LOCAL_OWNER, email="", name="", created_at=0.0, expires_at=0.0
+        )
+        context = self.application.resolve_world(owner, self.world_id).backup
+        history = self.application.application.backups._history
+
+        target_id, _ = self.prepare_two_versions()  # manual
+        (context.profiles / "01 - Mara Venn.md").write_text("Profil.\n", encoding="utf-8")
+        self.keep_version("")  # changes: the chapter and the profile
+        with closing(sqlite3.connect(context.database)) as database, database:
+            database.execute("CREATE TABLE IF NOT EXISTS t85_probe(value TEXT)")
+        self.keep_version("")  # automatic: only the database changed
+        for position, (message, kind) in enumerate(
+            (
+                ("Cloud sync", "cloud-sync"),
+                ("Before cloud sync", "before-cloud-sync"),
+                ("Cloud sync conflict (local)", "cloud-sync-conflict"),
+            )
+        ):
+            self.write_chapter(f"Stand {position}.")
+            history.commit(context, message, push=False, authorization=None, kind=kind)
+        self.write_chapter("Vor dem Zurückholen.")
+        self.assertEqual(self.restore(target_id)[0], 200)  # before-restore
+
+        answer = self.json_of("GET", f"/api/history?world={self.world_id}")
+        self.assertEqual(schema_errors(answer, SCHEMA), [])
+        by_kind = {commit["kind"]: commit for commit in answer["commits"]}
+        self.assertEqual(set(by_kind), set(SCHEMA["$defs"]["commit"]["properties"]["kind"]["enum"]))
+        self.assertEqual(
+            by_kind["changes"]["changes"], {"chapters": ["Am Hafen"], "profiles": ["Mara Venn"]}
+        )
 
     def test_every_reported_kind_is_one_the_contract_knows(self):
         self.write_chapter("Der Morgen lag still über dem Hafen.")

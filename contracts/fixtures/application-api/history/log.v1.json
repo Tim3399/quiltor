@@ -15,9 +15,7 @@
       "subject": "Chapter \"Der Hafen\" edited",
       "kind": "changes",
       "changes": {
-        "chapters": [
-          "Der Hafen"
-        ],
+        "chapters": ["Der Hafen"],
         "profiles": []
       }
     },
