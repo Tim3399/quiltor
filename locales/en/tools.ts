@@ -1,9 +1,11 @@
 export const tools = {
   cloudTitle: "Cloud synchronization",
   cloudManualExplanation:
-    "Synchronize this project with your other devices when needed. Transfers start only when you choose Sync now. Saved versions remain independent of synchronization.",
+    "Syncing transfers your versions to a server so you can keep writing on other devices. It starts only when you trigger it.",
   cloudLocalIndependence:
     "Writing, trash, restoration and project export remain available without cloud access.",
+  versionsIntro:
+    "You keep a version yourself, with a short note. You can compare or restore it at any time.",
   cloudUnconfigured: "No cloud configured",
   cloudUnlinked: "This device has not been synchronized",
   cloudUnlinkedHelp:

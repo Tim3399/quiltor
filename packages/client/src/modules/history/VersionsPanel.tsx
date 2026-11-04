@@ -249,6 +249,7 @@ export function VersionsPanel({
 
   return (
     <div className="versions-tab">
+      <p className="muted">{t("versionsIntro")}</p>
       <section className="versions-tab__hold" aria-label={t("holdVersion")}>
         <TextArea
           label={t("snapshotMessage")}
@@ -336,7 +337,9 @@ export function VersionsPanel({
               onClick={() => setSelected(commit.hash)}
             >
               <span className="history-state-copy">
-                <strong>{snapshotName(commit, t, locale)}</strong>
+                <strong className="history-state-name" title={snapshotName(commit, t, locale)}>
+                  {snapshotName(commit, t, locale)}
+                </strong>
                 <small>{commit.shortHash}</small>
               </span>
             </Button>

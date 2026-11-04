@@ -23,6 +23,7 @@
 .history-layout .history-state-button {
   width: 100%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-content: flex-start;
   padding-block: var(--space-10);
   border-width: 0 0 1px;
@@ -32,6 +33,7 @@
 }
 .history-state-copy {
   width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -42,6 +44,12 @@
 }
 .history-layout nav strong {
   font: 600 var(--font-size-section-title-compact) var(--prose);
+}
+.history-layout nav .history-state-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .history-layout nav small {
   color: var(--muted);

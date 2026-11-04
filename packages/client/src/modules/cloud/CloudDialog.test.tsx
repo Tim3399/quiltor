@@ -209,6 +209,16 @@ describe("CloudDialog", () => {
     expect(quiltorClient.application.synchronization.synchronize).not.toHaveBeenCalled();
   });
 
+  it("explains in a muted sentence what syncing does and that the author starts it", async () => {
+    unconfigured();
+    renderDialog();
+    const intro = await screen.findByText(
+      "Der Abgleich überträgt deine Versionen zu einem Server, damit du auf anderen Geräten weiterschreiben kannst. Er startet nur, wenn du ihn auslöst.",
+    );
+    expect(intro).toBeVisible();
+    expect(intro).toHaveClass("muted");
+  });
+
   it("explains unconfigured cloud without weakening local independence", async () => {
     unconfigured();
     renderDialog();

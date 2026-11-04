@@ -231,8 +231,8 @@ export function CloudDialog({
   );
   const body = (
     <div className="cloud-sync" aria-busy={busy}>
-      <p>{t("cloudManualExplanation")}</p>
-      <p>{t("cloudLocalIndependence")}</p>
+      <p className="muted">{t("cloudManualExplanation")}</p>
+      <p className="muted">{t("cloudLocalIndependence")}</p>
       {error && (
         <Alert tone="danger">
           {error}

@@ -1,9 +1,11 @@
 export const tools = {
   cloudTitle: "Cloud-Synchronisation",
   cloudManualExplanation:
-    "Gleiche dieses Projekt bei Bedarf mit deinen anderen Geräten ab. Übertragungen beginnen erst mit „Jetzt synchronisieren“. Gesicherte Versionen bleiben unabhängig davon erhalten.",
+    "Der Abgleich überträgt deine Versionen zu einem Server, damit du auf anderen Geräten weiterschreiben kannst. Er startet nur, wenn du ihn auslöst.",
   cloudLocalIndependence:
     "Schreiben, Papierkorb, Wiederherstellung und Projektexport bleiben ohne Cloud nutzbar.",
+  versionsIntro:
+    "Eine Version hältst du selbst fest, mit einer kurzen Notiz. Du kannst sie jederzeit vergleichen oder wiederherstellen.",
   cloudUnconfigured: "Keine Cloud eingerichtet",
   cloudUnlinked: "Dieses Gerät wurde noch nicht abgeglichen",
   cloudUnlinkedHelp:

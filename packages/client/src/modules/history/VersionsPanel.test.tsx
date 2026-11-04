@@ -21,9 +21,11 @@ afterEach(() => {
 
 function renderDialog({
   diff = "",
+  subject = "Kapitel überarbeitet",
   flush = () => Promise.resolve(),
 }: {
   diff?: string;
+  subject?: string;
   flush?: () => Promise<void>;
 } = {}) {
   const log = vi.spyOn(quiltorClient.application.history, "log").mockResolvedValue({
@@ -33,7 +35,7 @@ function renderDialog({
         hash: "commit-1",
         shortHash: "abc1234",
         date: "2026-08-23T10:00:00",
-        subject: "Kapitel überarbeitet",
+        subject,
       },
     ],
   });
@@ -56,6 +58,23 @@ function renderDialog({
 }
 
 describe("VersionsPanel", () => {
+  it("explains at the top what a version is", () => {
+    renderDialog();
+    const intro = screen.getByText(
+      "Eine Version hältst du selbst fest, mit einer kurzen Notiz. Du kannst sie jederzeit vergleichen oder wiederherstellen.",
+    );
+    expect(intro).toBeVisible();
+    expect(intro).toHaveClass("muted");
+  });
+  it("shortens a long version name with an ellipsis, keeps the full name as title and in the text", async () => {
+    const subject = "Sehr lange Notiz ".repeat(12).trim();
+    renderDialog({ subject });
+    const states = screen.getByRole("navigation", { name: "Stände" });
+    const name = await within(states).findByText(new RegExp(`${subject}$`));
+    expect(name).toHaveClass("history-state-name");
+    expect(name).toHaveAttribute("title", name.textContent ?? "");
+    expect(name.textContent).toContain(subject);
+  });
   it("shows a failed flush without reading an outdated history or diff", async () => {
     const { log, loadDiff } = renderDialog({
       flush: vi.fn().mockRejectedValue(new Error("Draft could not be saved")),
