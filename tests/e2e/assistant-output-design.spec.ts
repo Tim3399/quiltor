@@ -175,25 +175,14 @@ for (const theme of ["light", "dark"] as const) {
       await drawer.getByRole("button", { name: "Assistent schließen" }).click();
       await expect(drawer).toBeHidden();
 
+      // Saving a version reports in one sentence; the git log it used to print is gone (T-87).
       const snapshot = await openSnapshot(page);
-      const technicalSummary = snapshot.locator(".utility-disclosure > summary");
-      await technicalSummary.click();
-      await expect(technicalSummary).toBeFocused();
-      await expect(technicalSummary).toHaveCSS("font-size", "12px");
-      const changedFile = snapshot.locator(".changed-files code");
-      await expect(changedFile).toHaveCSS("font-size", "12px");
-      await expect(changedFile).toHaveCSS("font-family", /monospace/);
-      await expectNoHorizontalOverflow(snapshot.locator(".changed-files"));
-
-      await snapshot.getByRole("button", { name: "Nur lokal sichern" }).click();
-      const output = snapshot.locator(".snapshot-output");
+      await snapshot.getByLabel("Was hat sich geändert?").fill("Zwischenstand");
+      await snapshot.getByRole("button", { name: "Version festhalten" }).click();
+      const output = snapshot.getByRole("status").filter({ hasText: "Version festgehalten." });
       await expect(output).toBeVisible();
-      await expect(output).toHaveCSS("font-size", "12px");
-      await expect(output).toHaveCSS("font-family", /monospace/);
-      await output.evaluate((element) => {
-        element.style.fontSize = "24px";
-      });
       await expectNoHorizontalOverflow(output);
+      await expectNoHorizontalOverflow(snapshot.getByRole("navigation", { name: "Stände" }));
       const dialogGeometry = await snapshot.evaluate((element) => ({
         right: element.getBoundingClientRect().right,
         viewport: window.innerWidth,

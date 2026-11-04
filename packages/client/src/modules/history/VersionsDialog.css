@@ -23,7 +23,6 @@
   padding: var(--spacing-regular-wide);
 }
 
-.snapshot-embedded__actions,
 .cloud-sync__footer {
   display: flex;
   flex-wrap: wrap;

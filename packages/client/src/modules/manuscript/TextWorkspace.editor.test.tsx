@@ -202,7 +202,7 @@ describe("TextWorkspace editor, search and versions", () => {
     const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
     const openVersions = () => {
       fireEvent.click(context.getByRole("button", { name: "Weitere Aktionen" }));
-      return screen.getByRole("menuitem", { name: "Fassungen" });
+      return screen.getByRole("menuitem", { name: "Versionen" });
     };
     const editor = codeMirrorView(view.container);
     const editorScroll = requireValue(
@@ -222,7 +222,7 @@ describe("TextWorkspace editor, search and versions", () => {
     fireEvent.click(versions);
     expect(openVersions()).toHaveAttribute("aria-current", "true");
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
-    expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
+    expect(within(view.container).getByRole("complementary", { name: "Versionen" })).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();
     expect(editor.contentDOM).toHaveAttribute("aria-readonly", "true");
     expect(editor.state.doc.toString()).toBe("Hallo Welt");
@@ -239,7 +239,7 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(view.container.querySelector(".text-bold")).toHaveTextContent("Weg");
     expect(view.container.querySelector(".version-diff-format-added")).toHaveTextContent("Weg");
     expect(view.container.querySelector(".version-diff-format-removed")).toHaveTextContent("Weg");
-    const historyPanel = within(view.container).getByRole("complementary", { name: "Fassungen" });
+    const historyPanel = within(view.container).getByRole("complementary", { name: "Versionen" });
     expect(within(historyPanel).queryByText("Der neue Weg.")).not.toBeInTheDocument();
     editor.dispatch({ selection: EditorSelection.range(0, 4) });
     editorScroll.scrollTop = 456;
@@ -253,7 +253,7 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(escapedUndo).not.toHaveBeenCalled();
 
     fireEvent.click(
-      within(view.container).getByRole("button", { name: "Kapitelfassungen schließen" }),
+      within(view.container).getByRole("button", { name: "Kapitelversionen schließen" }),
     );
     await waitFor(() => expect(editor.state.doc.toString()).toBe("Hallo Welt"));
     expect(editor.contentDOM).not.toHaveAttribute("aria-readonly", "true");
@@ -301,11 +301,11 @@ describe("TextWorkspace editor, search and versions", () => {
       onFocus: vi.fn(),
     });
     fireEvent.click(within(view.container).getByRole("button", { name: "Weitere Aktionen" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fassungen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Versionen" }));
     const editor = codeMirrorView(view.container);
     await waitFor(() => expect(editor.state.doc.toString()).toBe("Neue Fassung"));
 
-    fireEvent.change(within(view.container).getByRole("combobox", { name: "Fassung" }), {
+    fireEvent.change(within(view.container).getByRole("combobox", { name: "Version" }), {
       target: { value: "old" },
     });
     await waitFor(() => expect(comparison).toHaveBeenCalledWith("old", "c1"));

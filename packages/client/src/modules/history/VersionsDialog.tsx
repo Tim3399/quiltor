@@ -4,9 +4,8 @@ import { useI18n } from "../../i18n";
 import { BackupDialog } from "../backup";
 import { CloudDialog } from "../cloud";
 import type { Manuscript } from "../manuscript";
-import { HistoryDialog } from "./HistoryDialog";
-import { SnapshotDialog } from "./SnapshotDialog";
 import "./VersionsDialog.css";
+import { VersionsPanel } from "./VersionsPanel";
 
 export type VersionsTab = "versions" | "backups" | "sync";
 
@@ -52,14 +51,12 @@ export function VersionsDialog({
   const [active, setActive] = useState<VersionsTab>(() => startingVersionsTab(tab, syncAvailable));
   const [backupsBusy, setBackupsBusy] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
-  // Counts the saved versions, so the list beside the note field reloads after each one.
-  const [savedVersions, setSavedVersions] = useState(0);
-  const busy = backupsBusy || syncBusy;
+  const [versionsBusy, setVersionsBusy] = useState(false);
+  const busy = backupsBusy || syncBusy || versionsBusy;
   // A restore or a sync in flight must not be walked away from, and neither closed over.
   const guardedClose = useCallback(() => {
     if (!busy) onClose();
   }, [busy, onClose]);
-  const onSaved = useCallback(() => setSavedVersions((count) => count + 1), []);
   return (
     <Sheet open label={t("versionsAndBackups")} onClose={guardedClose} wide>
       <div className="versions-dialog">
@@ -89,18 +86,12 @@ export function VersionsDialog({
           </TabList>
           <TabPanel value="versions" className="versions-dialog__panel">
             {active === "versions" && (
-              <>
-                <div className="versions-dialog__pane">
-                  <SnapshotDialog
-                    embedded
-                    autoFocusMessage={focusNote}
-                    onClose={onClose}
-                    flush={flush}
-                    onSaved={onSaved}
-                  />
-                </div>
-                <HistoryDialog embedded key={savedVersions} onClose={onClose} flush={flush} />
-              </>
+              <VersionsPanel
+                autoFocusNote={focusNote}
+                flush={flush}
+                onDocumentsReplaced={onDocumentsReplaced}
+                onBusyChange={setVersionsBusy}
+              />
             )}
           </TabPanel>
           <TabPanel value="backups" className="versions-dialog__panel">

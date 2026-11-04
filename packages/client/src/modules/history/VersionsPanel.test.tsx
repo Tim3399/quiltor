@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import { quiltorClient } from "../../platform";
-import { HistoryDialog } from "./HistoryDialog";
+import { VersionsPanel } from "./VersionsPanel";
 
 const chapterDiff = [
   "diff --git a/manuscripts/01 - Anfang.md b/manuscripts/01 - Anfang.md",
@@ -21,11 +21,9 @@ afterEach(() => {
 
 function renderDialog({
   diff = "",
-  onClose = vi.fn(),
   flush = () => Promise.resolve(),
 }: {
   diff?: string;
-  onClose?: () => void;
   flush?: () => Promise<void>;
 } = {}) {
   const log = vi.spyOn(quiltorClient.application.history, "log").mockResolvedValue({
@@ -34,7 +32,7 @@ function renderDialog({
       {
         hash: "commit-1",
         shortHash: "abc1234",
-        date: "2026-08-23",
+        date: "2026-08-23T10:00:00",
         subject: "Kapitel überarbeitet",
       },
     ],
@@ -49,16 +47,15 @@ function renderDialog({
   return {
     loadDiff,
     log,
-    onClose,
     ...render(
       <I18nProvider>
-        <HistoryDialog flush={flush} onClose={onClose} />
+        <VersionsPanel flush={flush} onDocumentsReplaced={vi.fn()} />
       </I18nProvider>,
     ),
   };
 }
 
-describe("HistoryDialog", () => {
+describe("VersionsPanel", () => {
   it("shows a failed flush without reading an outdated history or diff", async () => {
     const { log, loadDiff } = renderDialog({
       flush: vi.fn().mockRejectedValue(new Error("Draft could not be saved")),
@@ -71,10 +68,10 @@ describe("HistoryDialog", () => {
     const { loadDiff } = renderDialog();
     const states = screen.getByRole("navigation", { name: "Stände" });
     const workingState = within(states).getByRole("button", {
-      name: /Seit letzter Sicherung.*Arbeitsstand/,
+      name: /Aktueller Stand.*Änderungen seit der letzten Version/,
     });
     const commit = await within(states).findByRole("button", {
-      name: /Kapitel überarbeitet.*abc1234.*2026-08-23/,
+      name: /23\.08\.2026, 10:00 · Kapitel überarbeitet.*abc1234/,
     });
 
     expect(workingState).toHaveAttribute("aria-pressed", "true");
@@ -145,12 +142,5 @@ describe("HistoryDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wortweise" }));
     const reloaded = await screen.findByRole("button", { name: /Anfang/ });
     await waitFor(() => expect(reloaded).toHaveAttribute("aria-expanded", "true"));
-  });
-
-  it("keeps the close action accessible and delegates it to the sheet owner", () => {
-    const { onClose } = renderDialog();
-
-    fireEvent.click(screen.getByRole("button", { name: "Dialog schließen" }));
-    expect(onClose).toHaveBeenCalledOnce();
   });
 });

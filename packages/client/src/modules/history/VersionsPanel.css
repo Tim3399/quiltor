@@ -168,3 +168,16 @@
     border-bottom: 1px solid var(--line);
   }
 }
+
+.versions-tab {
+  display: grid;
+  gap: var(--spacing-regular-wide);
+  padding: var(--spacing-regular-wide);
+}
+.versions-tab__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-compact-tight);
+  justify-content: flex-end;
+  margin-top: var(--spacing-compact-tight);
+}

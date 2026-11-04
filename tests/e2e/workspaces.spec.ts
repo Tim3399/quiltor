@@ -1824,13 +1824,8 @@ test("Shortcuts tell saving and backing up apart", async ({ page }, testInfo) =>
     testInfo.project.name !== "wide",
     "Two keyboard shortcuts and whether a dialog opens: nothing here depends on the width.",
   );
-  // The test checks the two keyboard shortcuts, not the upload. It used to claim as well
-  // that a configured endpoint makes "Sichern & hochladen" active -- that no longer holds:
-  // the endpoint demands a sign-in, and without one the upload would run into a 401. The
-  // dialog then offers the sign-in instead of a button that would fail. That the upload
-  // really does fire once signed in is a unit test in
-  // packages/client/src/modules/history/SnapshotDialog.test.tsx, where the signed-in state
-  // can be produced without a real Keycloak.
+  // The test checks the two keyboard shortcuts. Saving a version never uploads (D-57 F5), so a
+  // configured endpoint changes nothing here; uploading lives in the sync tab.
   await openBlankWorld(page, "Testwelt", "https://backup.example.com/shortcut-test");
   await page.keyboard.press("Control+Shift+S");
   const dialog = page.getByRole("dialog", { name: /Versionen & Sicherungen/ });
@@ -1838,9 +1833,9 @@ test("Shortcuts tell saving and backing up apart", async ({ page }, testInfo) =>
   // The shortcut lands in the note field, ready to type.
   await expect(dialog.getByLabel("Was hat sich geändert?")).toBeFocused();
   await dialog.getByLabel("Was hat sich geändert?").fill("Zwischenstand aus dem Test");
-  // Saving locally needs neither an endpoint nor a sign-in -- it is the path that is always
+  // Saving a version needs neither an endpoint nor a sign-in -- it is the path that is always
   // open, and therefore the dependable evidence that the dialog is alive.
-  await expect(dialog.getByRole("button", { name: "Nur lokal sichern" })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "Version festhalten" })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+S");
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -3010,8 +3005,8 @@ test("Chapter versions appear inline in the writing surface", async ({ page }, t
     }),
   );
   await openBlankWorld(page);
-  await openToolbarOverflow(page, "Manuskript", "Fassungen");
-  const history = page.getByRole("complementary", { name: "Fassungen" });
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
+  const history = page.getByRole("complementary", { name: "Versionen" });
   await expect(history).toBeVisible();
   const editor = page.getByLabel("Kapiteltext");
   await expect(editor).toContainText("Historischer");

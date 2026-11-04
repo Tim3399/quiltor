@@ -1,45 +1,18 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { quiltorClient } from "../../platform";
 import type { Manuscript } from "../manuscript";
+import type { SnapshotInfo } from "./model";
 import { startingVersionsTab, VersionsDialog } from "./VersionsDialog";
 
-// The bodies are tested with their own dialogs. Here they are stand-ins that show what the
-// shell handed them, so this file is about the shell: tabs, start tab, locks, hand-over.
+// The backup and sync bodies are tested with their own dialogs; here they are stand-ins that
+// show what the shell handed them. The versions tab is the real one, over a mocked gateway.
 const hosted = vi.hoisted(() => ({
   backups: { onBusyChange: undefined as ((busy: boolean) => void) | undefined },
   sync: { onBusyChange: undefined as ((busy: boolean) => void) | undefined },
-  snapshot: { onSaved: undefined as (() => void) | undefined },
-  historyMounts: 0,
 }));
 
-vi.mock("./SnapshotDialog", () => ({
-  SnapshotDialog: (props: {
-    embedded?: boolean;
-    autoFocusMessage?: boolean;
-    onSaved?: () => void;
-  }) => {
-    hosted.snapshot.onSaved = props.onSaved;
-    return (
-      <div
-        data-testid="snapshot"
-        data-embedded={String(props.embedded)}
-        data-focus-note={String(props.autoFocusMessage)}
-      />
-    );
-  },
-}));
-vi.mock("./HistoryDialog", async () => {
-  const { useEffect } = await import("react");
-  return {
-    HistoryDialog: (props: { embedded?: boolean }) => {
-      useEffect(() => {
-        hosted.historyMounts += 1;
-      }, []);
-      return <div data-testid="history" data-embedded={String(props.embedded)} />;
-    },
-  };
-});
 vi.mock("../backup/BackupDialog", () => ({
   BackupDialog: (props: { embedded?: boolean; onBusyChange?: (busy: boolean) => void }) => {
     hosted.backups.onBusyChange = props.onBusyChange;
@@ -53,9 +26,48 @@ vi.mock("../cloud/CloudDialog", () => ({
   },
 }));
 
+const manual: SnapshotInfo = {
+  hash: "commit-manual",
+  shortHash: "abc1234",
+  date: "2026-10-28T12:20:00",
+  subject: "Vor dem Umbau",
+  kind: "manual",
+};
+// Typed loosely: the model lists "before-restore" once part B is in (T-87).
+const beforeRestore = {
+  hash: "commit-before",
+  shortHash: "def5678",
+  date: "2026-10-29T09:05:00",
+  subject: "Before restore",
+  kind: "before-restore",
+} as unknown as SnapshotInfo;
+
+type HistoryWithRestore = typeof quiltorClient.application.history & {
+  restore: (id: string) => Promise<void>;
+};
+const history = quiltorClient.application.history as HistoryWithRestore;
+
+let commits: SnapshotInfo[];
+let calls: string[];
+let restore: ReturnType<typeof vi.fn<(id: string) => Promise<void>>>;
+
+beforeEach(() => {
+  commits = [manual];
+  calls = [];
+  vi.spyOn(history, "log").mockImplementation(async () => ({ ok: true, commits }));
+  vi.spyOn(history, "diff").mockResolvedValue({ ok: true, diff: "", newFiles: [], mode: "word" });
+  vi.spyOn(quiltorClient.application.backup, "status").mockResolvedValue({
+    suggestedMessage: 'Chapter "Anfang" edited',
+  } as Awaited<ReturnType<typeof quiltorClient.application.backup.status>>);
+  restore = vi.fn(async (id: string) => {
+    calls.push(`restore:${id}`);
+  });
+  history.restore = restore;
+});
+
 afterEach(() => {
   cleanup();
-  hosted.historyMounts = 0;
+  vi.restoreAllMocks();
 });
 
 const manuscript = { chapters: [], trash: [] } as unknown as Manuscript;
@@ -64,24 +76,34 @@ function renderDialog(
   props: Partial<React.ComponentProps<typeof VersionsDialog>> = {},
   onClose = vi.fn(),
 ) {
+  const onDocumentsReplaced = vi.fn(() => calls.push("replaced"));
+  const flush = vi.fn(async () => {
+    calls.push("flush");
+  });
   render(
     <I18nProvider>
       <VersionsDialog
         onClose={onClose}
-        flush={() => Promise.resolve()}
+        flush={flush}
         manuscript={manuscript}
-        onDocumentsReplaced={vi.fn()}
+        onDocumentsReplaced={onDocumentsReplaced}
         {...props}
       />
     </I18nProvider>,
   );
-  return { onClose };
+  return { onClose, onDocumentsReplaced, flush };
 }
 
 const tab = (name: string) => screen.getByRole("tab", { name });
+const states = () => screen.getByRole("navigation", { name: "Stände" });
+const noteField = () => screen.getByRole("textbox", { name: "Was hat sich geändert?" });
+
+async function chooseManualVersion() {
+  fireEvent.click(await within(states()).findByRole("button", { name: /Vor dem Umbau/ }));
+}
 
 describe("VersionsDialog", () => {
-  it("names itself and offers the three tabs, hosting the old dialogs without their frames", () => {
+  it("names itself and offers the three tabs, starting on versions", async () => {
     renderDialog();
     expect(screen.getByRole("dialog", { name: "Versionen & Sicherungen" })).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
@@ -89,9 +111,8 @@ describe("VersionsDialog", () => {
       "Automatische Sicherungen",
       "Mit anderen Geräten abgleichen",
     ]);
-    // Versions: the note field and the list beside it, both as bodies.
-    expect(screen.getByTestId("snapshot")).toHaveAttribute("data-embedded", "true");
-    expect(screen.getByTestId("history")).toHaveAttribute("data-embedded", "true");
+    expect(tab("Versionen")).toHaveAttribute("aria-selected", "true");
+    expect(await within(states()).findByRole("button", { name: /Vor dem Umbau/ })).toBeVisible();
     expect(screen.queryByTestId("backups")).toBeNull();
     expect(screen.queryByTestId("sync")).toBeNull();
   });
@@ -99,28 +120,27 @@ describe("VersionsDialog", () => {
   it.each([
     ["backups", "Automatische Sicherungen"],
     ["sync", "Mit anderen Geräten abgleichen"],
-    ["versions", "Versionen"],
   ] as const)("starts on the %s tab it was asked for", (start, name) => {
     renderDialog({ tab: start });
     expect(tab(name)).toHaveAttribute("aria-selected", "true");
     expect(screen.getAllByRole("tab", { selected: true })).toHaveLength(1);
-    expect(screen.getByTestId(start === "versions" ? "history" : start)).toBeInTheDocument();
+    expect(screen.getByTestId(start)).toHaveAttribute("data-embedded", "true");
   });
 
   it("shows only the body of the selected tab and switches on activation", () => {
     renderDialog({ tab: "backups" });
-    expect(screen.queryByTestId("history")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Stände" })).toBeNull();
     fireEvent.click(tab("Mit anderen Geräten abgleichen"));
     expect(screen.getByTestId("sync")).toBeInTheDocument();
     expect(screen.queryByTestId("backups")).toBeNull();
   });
 
-  it("hands the note focus to the versions tab only when asked", () => {
+  it("puts the cursor into the note field only when asked", async () => {
     renderDialog({ focusNote: true });
-    expect(screen.getByTestId("snapshot")).toHaveAttribute("data-focus-note", "true");
+    await waitFor(() => expect(noteField()).toHaveFocus());
     cleanup();
     renderDialog();
-    expect(screen.getByTestId("snapshot")).toHaveAttribute("data-focus-note", "false");
+    expect(noteField()).not.toHaveFocus();
   });
 
   it("has no sync tab where syncing is not available, and a sync start falls back", () => {
@@ -133,13 +153,6 @@ describe("VersionsDialog", () => {
   it("keeps the sync tab when the installation does not say (an older server)", () => {
     renderDialog({ tab: "sync", syncAvailable: undefined });
     expect(tab("Mit anderen Geräten abgleichen")).toHaveAttribute("aria-selected", "true");
-  });
-
-  it("reloads the version list after a version was saved", () => {
-    renderDialog();
-    expect(hosted.historyMounts).toBe(1);
-    act(() => hosted.snapshot.onSaved?.());
-    expect(hosted.historyMounts).toBe(2);
   });
 
   it("neither switches tabs nor closes while a restore is running", () => {
@@ -160,6 +173,117 @@ describe("VersionsDialog", () => {
     renderDialog({ tab: "sync" });
     act(() => hosted.sync.onBusyChange?.(true));
     expect(tab("Automatische Sicherungen")).toBeDisabled();
+  });
+});
+
+describe("VersionsDialog, holding on to a version", () => {
+  it("saves locally only, without an upload choice, and selects the new version", async () => {
+    const save = vi
+      .spyOn(quiltorClient.application.backup, "saveSnapshot")
+      .mockImplementation(async () => {
+        calls.push("save");
+        commits = [{ ...manual, hash: "commit-new", shortHash: "new0001", subject: "Neu" }, manual];
+        return {} as Awaited<ReturnType<typeof quiltorClient.application.backup.saveSnapshot>>;
+      });
+    renderDialog();
+    // The server's English summary arrives in the author's language.
+    await waitFor(() => expect(noteField()).toHaveValue("Kapitel „Anfang“ bearbeitet"));
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /hochladen|anmelden/i })).toBeNull();
+
+    calls = [];
+    fireEvent.click(screen.getByRole("button", { name: "Version festhalten" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("Kapitel „Anfang“ bearbeitet", false));
+    expect(calls.slice(0, 2)).toEqual(["flush", "save"]);
+    const created = await within(states()).findByRole("button", { name: /Neu/ });
+    await waitFor(() => expect(created).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.getByRole("status")).toHaveTextContent("Version festgehalten.");
+  });
+});
+
+describe("VersionsDialog, restoring a version", () => {
+  it("offers no restore for the current state", async () => {
+    renderDialog();
+    await within(states()).findByRole("button", { name: /Vor dem Umbau/ });
+    expect(within(states()).getByRole("button", { name: /Aktueller Stand/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByRole("button", { name: "Diese Version wiederherstellen" })).toBeNull();
+    await chooseManualVersion();
+    expect(screen.getByRole("button", { name: "Diese Version wiederherstellen" })).toBeVisible();
+  });
+
+  it("asks first, then saves, restores and hands the documents over, in that order", async () => {
+    const { onDocumentsReplaced, onClose } = renderDialog();
+    await chooseManualVersion();
+    fireEvent.click(screen.getByRole("button", { name: "Diese Version wiederherstellen" }));
+    const confirm = screen.getByRole("alertdialog");
+    expect(confirm).toHaveTextContent(
+      "Version „28.10.2026, 12:20 · Vor dem Umbau“ wiederherstellen? Dein aktueller Stand wird vorher als Version festgehalten, du kannst also zurück.",
+    );
+    expect(restore).not.toHaveBeenCalled();
+
+    calls = [];
+    commits = [beforeRestore, manual];
+    fireEvent.click(within(confirm).getByRole("button", { name: "Wiederherstellen" }));
+    await waitFor(() => expect(onDocumentsReplaced).toHaveBeenCalledOnce());
+    expect(calls).toEqual(["flush", "restore:commit-manual", "replaced"]);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Version wiederhergestellt. Dein vorheriger Stand ist als „Vor Wiederherstellung“ festgehalten.",
+    );
+    // The list is read again and shows the state the server held on to first.
+    expect(
+      await within(states()).findByRole("button", { name: /Vor Wiederherstellung, 29\.10\.2026/ }),
+    ).toBeVisible();
+    // The workspace is stale now: the dialog stays until the author reloads.
+    fireEvent.click(screen.getByRole("button", { name: "Dialog schließen" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Quiltor neu laden" })).toBeVisible();
+  });
+
+  it("sends nothing to the server when the open work could not be saved", async () => {
+    const { onDocumentsReplaced, flush } = renderDialog();
+    await chooseManualVersion();
+    flush.mockRejectedValueOnce(new Error("Draft could not be saved"));
+    fireEvent.click(screen.getByRole("button", { name: "Diese Version wiederherstellen" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Wiederherstellen" }),
+    );
+    expect(await screen.findByText("Draft could not be saved")).toBeVisible();
+    expect(restore).not.toHaveBeenCalled();
+    expect(onDocumentsReplaced).not.toHaveBeenCalled();
+  });
+
+  it("restores once, however often the confirmation is pressed", async () => {
+    let finish!: () => void;
+    restore.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { onClose } = renderDialog();
+    await chooseManualVersion();
+    fireEvent.click(screen.getByRole("button", { name: "Diese Version wiederherstellen" }));
+    const confirmButton = within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Wiederherstellen",
+    });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+    await waitFor(() => expect(restore).toHaveBeenCalledOnce());
+    // While it runs, the dialog can be neither left nor switched away from. The confirmation
+    // stays on top, so the sheet behind it is read as hidden.
+    expect(
+      screen.getByRole("tab", { name: "Automatische Sicherungen", hidden: true }),
+    ).toBeDisabled();
+    const sheetClose = screen
+      .getAllByRole("button", { name: "Dialog schließen", hidden: true })
+      .find((button) => !screen.getByRole("alertdialog").contains(button));
+    fireEvent.click(sheetClose as HTMLElement);
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => finish());
+    expect(restore).toHaveBeenCalledOnce();
   });
 });
 

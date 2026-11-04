@@ -31,7 +31,7 @@ describe("ChapterHistoryPanel", () => {
     );
 
     expect(screen.queryByText("Früherer Text")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Fassung" }), {
+    fireEvent.change(screen.getByRole("combobox", { name: "Version" }), {
       target: { value: "abc" },
     });
     expect(onRefChange).toHaveBeenCalledWith("abc");
@@ -54,7 +54,7 @@ describe("ChapterHistoryPanel", () => {
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(
-      screen.queryByText("Noch keine gespeicherte Fassung vorhanden."),
+      screen.queryByText("Noch keine gespeicherte Version vorhanden."),
     ).not.toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe("ChapterHistoryPanel", () => {
       </I18nProvider>,
     );
 
-    const legend = screen.getByLabelText("Legende der Fassungsänderungen");
+    const legend = screen.getByLabelText("Legende der Versionsänderungen");
     expect(legend).toHaveTextContent("Hinzugefügt");
     expect(legend).toHaveTextContent("Entfernt");
     expect(legend).toHaveTextContent("Formatierung hinzugefügt");
@@ -129,7 +129,7 @@ describe("ChapterHistoryPanel", () => {
       </I18nProvider>,
     );
     expect(
-      within(existing.container).getByText("Das Kapitel ist in dieser Fassung leer."),
+      within(existing.container).getByText("Das Kapitel ist in dieser Version leer."),
     ).toBeVisible();
     existing.unmount();
 
@@ -140,7 +140,7 @@ describe("ChapterHistoryPanel", () => {
     );
     expect(
       within(missing.container).getByText(
-        "Dieses Kapitel existierte in dieser Fassung noch nicht.",
+        "Dieses Kapitel existierte in dieser Version noch nicht.",
       ),
     ).toBeVisible();
   });
@@ -166,14 +166,14 @@ describe("ChapterHistoryPanel", () => {
       { hash: "own", shortHash: "own", date: "2026-10-28T12:20:28", subject: "Vor dem Umbau" },
     ]);
     const header = container.querySelector(".side-panel__header");
-    expect(header?.querySelector("strong")).toHaveTextContent(/^Frühere Fassung$/);
-    expect(screen.getByRole("button", { name: "Kapitelfassungen schließen" })).toHaveAttribute(
+    expect(header?.querySelector("strong")).toHaveTextContent(/^Frühere Version$/);
+    expect(screen.getByRole("button", { name: "Kapitelversionen schließen" })).toHaveAttribute(
       "title",
-      "Kapitelfassungen schließen",
+      "Kapitelversionen schließen",
     );
     const body = container.querySelector(".side-panel__body");
-    expect(body).toContainElement(screen.getByRole("combobox", { name: "Fassung" }));
-    expect(body).toHaveTextContent("Änderungen zur direkt vorherigen Fassung");
+    expect(body).toContainElement(screen.getByRole("combobox", { name: "Version" }));
+    expect(body).toHaveTextContent("Änderungen zur direkt vorherigen Version");
     const unchangedNote = screen.getByRole("status");
     expect(unchangedNote).toHaveClass("empty-state-component");
     expect(unchangedNote).toHaveTextContent("Keine Änderungen");
@@ -212,7 +212,7 @@ describe("ChapterHistoryPanel", () => {
         subject: "Der lange Abend, an dem die Fähre nicht kam",
       },
     ]);
-    const field = screen.getByRole("combobox", { name: "Fassung" });
+    const field = screen.getByRole("combobox", { name: "Version" });
     expect(field).toHaveAttribute(
       "title",
       "28.10.2026, 12:20 · Der lange Abend, an dem die Fähre nicht kam",
