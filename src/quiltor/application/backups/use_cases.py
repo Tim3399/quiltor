@@ -53,6 +53,8 @@ class BackupUseCases:
             "lastSuccessfulBackup": backups[0]["created"] if backups else None,
             "scope": "application-host",
             "canOpenFolder": False,
+            "intervalSeconds": self._local.interval_seconds,
+            "keep": self._local.keep,
         }
 
     def restore_local(self, name: str, location: DocumentLocation) -> dict[str, Any]:

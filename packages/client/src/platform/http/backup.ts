@@ -53,6 +53,10 @@ function snapshotResult(value: unknown) {
   };
 }
 
+function positiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
 function storageLocation(value: unknown) {
   const wire = value as { ok?: unknown; storage?: Record<string, unknown> };
   const storage = wire?.storage;
@@ -75,6 +79,10 @@ function storageLocation(value: unknown) {
       lastSuccessfulBackup: storage.lastSuccessfulBackup as string | null,
       scope: "application-host" as const,
       canOpenFolder: false as const,
+      ...(positiveInteger(storage.intervalSeconds)
+        ? { intervalSeconds: storage.intervalSeconds }
+        : {}),
+      ...(positiveInteger(storage.keep) ? { keep: storage.keep } : {}),
     },
   };
 }

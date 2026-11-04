@@ -101,7 +101,8 @@ export const tools = {
   restore: "Restore",
   restoreBackup: "Restore backup",
   noBackup: "No backup available yet.",
-  backupAutoNote: "SQLite backups are created automatically, at most every five minutes.",
+  backupAutoSentence:
+    "Quiltor backs up your project automatically when you save, at most every {minutes} minutes. The latest {keep} backups are kept.",
   restoreConfirmDescription:
     "The current state is backed up first, then completely replaced by this backup.",
   backupPreviewDescription: "Local SQLite backup · {size}",

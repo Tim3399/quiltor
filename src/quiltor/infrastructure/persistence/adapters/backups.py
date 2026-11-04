@@ -10,6 +10,14 @@ from quiltor.infrastructure.persistence.sqlite import restore
 
 
 class SQLiteBackupRepository:
+    @property
+    def interval_seconds(self) -> int:
+        return restore.BACKUP_INTERVAL
+
+    @property
+    def keep(self) -> int:
+        return restore.MAX_BACKUPS
+
     def backup_if_due(self, database: Path, backups: Path) -> None:
         restore.backup_if_due(db_path=database, backups_dir=backups)
 

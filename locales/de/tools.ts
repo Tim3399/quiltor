@@ -101,7 +101,8 @@ export const tools = {
   restore: "Wiederherstellen",
   restoreBackup: "Sicherung wiederherstellen",
   noBackup: "Noch keine Sicherung vorhanden.",
-  backupAutoNote: "SQLite-Sicherungen entstehen automatisch, höchstens alle fünf Minuten.",
+  backupAutoSentence:
+    "Quiltor sichert dein Projekt beim Speichern automatisch, höchstens alle {minutes} Minuten. Die letzten {keep} Sicherungen bleiben erhalten.",
   restoreConfirmDescription:
     "Der aktuelle Stand wird zunächst gesichert und anschließend vollständig durch diese Sicherung ersetzt.",
   backupPreviewDescription: "Lokale SQLite-Sicherung · {size}",

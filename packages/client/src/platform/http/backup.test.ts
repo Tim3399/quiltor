@@ -254,6 +254,33 @@ describe("backup HTTP port", () => {
     ]);
   });
 
+  it("passes the backup interval and count through and drops malformed ones", async () => {
+    const base = {
+      databasePath: "/quiltor/world.sqlite3",
+      backupDirectory: "/quiltor/backups",
+      lastSuccessfulBackup: null,
+      scope: "application-host",
+      canOpenFolder: false,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ ok: true, storage: { ...base, intervalSeconds: 300, keep: 40 } }),
+      )
+      .mockResolvedValueOnce(
+        response({ ok: true, storage: { ...base, intervalSeconds: "300", keep: 0 } }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const backup = createBackupHttpGateway(createHttpApplicationState());
+
+    await expect(backup.location()).resolves.toMatchObject({
+      storage: { intervalSeconds: 300, keep: 40 },
+    });
+    const dropped = await backup.location();
+    expect(dropped.storage).not.toHaveProperty("intervalSeconds");
+    expect(dropped.storage).not.toHaveProperty("keep");
+  });
+
   it("rejects malformed storage and preview success payloads", async () => {
     const fetchMock = vi
       .fn()

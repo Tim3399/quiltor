@@ -5,6 +5,7 @@ import {
   Alert,
   Button,
   ConfirmDialog,
+  Disclosure,
   EmptyState,
   IRREVERSIBLE_HOLD_MS,
   Sheet,
@@ -158,7 +159,14 @@ export function BackupDialog({
         />
       )}
       <SheetBody className="utility-sheet-content">
-        <p className="muted">{t("backupAutoNote")}</p>
+        {storage?.intervalSeconds !== undefined && storage.keep !== undefined && (
+          <p className="muted">
+            {t("backupAutoSentence", {
+              minutes: Math.max(1, Math.round(storage.intervalSeconds / 60)),
+              keep: storage.keep,
+            })}
+          </p>
+        )}
         {error && <Alert tone="danger">{error}</Alert>}
         {restoreWarning && (
           <Alert tone="warning">
@@ -169,8 +177,7 @@ export function BackupDialog({
           </Alert>
         )}
         {storage && (
-          <section className="backup-storage" aria-labelledby="backup-storage-title">
-            <h3 id="backup-storage-title">{t("backupStorageTitle")}</h3>
+          <Disclosure className="backup-storage" summary={t("backupStorageTitle")}>
             <p>{t("backupStorageScope")}</p>
             <dl>
               <div>
@@ -202,7 +209,7 @@ export function BackupDialog({
             >
               {copiedPath === storage.backupDirectory ? t("backupPathCopied") : t("backupCopyPath")}
             </Button>
-          </section>
+          </Disclosure>
         )}
         <div className="utility-split backup-browser">
           <nav className="backup-list" aria-label={t("backups")}>
