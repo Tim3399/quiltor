@@ -13,10 +13,12 @@ import { Button, EmptyState, ScrollArea, TextArea } from "../../design";
 import { useI18n } from "../../i18n";
 import type { SnapshotChapterRecord } from "../../platform";
 import type { Workspace } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { SnapshotInfo, VersionDiffProjection } from "../history";
 import { type FigureNode, type FigureState, kindLabel } from "../story-world";
 import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
 import { ChapterTurnAffordance, type ChapterTurnTarget } from "./ChapterTurnAffordance";
+import { holdScrollUntilStable } from "./holdScrollUntilStable";
 import {
   advanceChapterOverscroll,
   CHAPTER_OVERSCROLL_REGRIP_GRACE_MS,
@@ -60,6 +62,8 @@ interface EditorSurfaceProps {
   activeSearchIndex: number;
   activeSearchMatch: ManuscriptSearchMatch | null;
   historyOpen: boolean;
+  /** False until the world's documents are loaded; the editor is not mounted before then. */
+  documentsReady: boolean;
   historyCommits: SnapshotInfo[];
   historyRef: string;
   historicalChapter: SnapshotChapterRecord | null;
@@ -103,6 +107,7 @@ export function EditorSurface({
   activeSearchIndex,
   activeSearchMatch,
   historyOpen,
+  documentsReady,
   historyCommits,
   historyRef,
   historicalChapter,
@@ -138,10 +143,13 @@ export function EditorSurface({
   const viewSelectionRef = useRef<{ chapterId: string; selection: EditorViewSelection } | null>(
     null,
   );
-  const sessionCallbackRef = useRef(onSessionStateChange);
+  // Read only, by captureSession and the restore effect.
+  const sessionCallbackRef = useLatest(onSessionStateChange);
   const pendingRestoreCancelRef = useRef<(() => void) | null>(null);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  sessionCallbackRef.current = onSessionStateChange;
+  // The scroll position the live chapter had when a historical version opened. Declared
+  // before captureSession, which reads it: declared after, the compiler saw a plain value
+  // captured by that hook and the history effect's write to it as a mutation.
+  const historyScrollRef = useRef<{ chapterId: string; top: number; left: number } | null>(null);
   const stopScheduledRestore = useCallback(() => {
     pendingRestoreCancelRef.current?.();
     pendingRestoreCancelRef.current = null;
@@ -154,15 +162,25 @@ export function EditorSurface({
     const view = viewSelectionRef.current;
     const scroller = scrollRef.current;
     if (historyOpen || !view || !scroller || view.chapterId !== current?.id) return;
+    const restoring = restoreRef.current;
+    // While a version is open, the editor shows that version; its lines say nothing about
+    // where the live chapter stood, so only the pixel position is kept.
+    const historical = historyScrollRef.current?.chapterId === view.chapterId;
+    const scrollTop = historical
+      ? (historyScrollRef.current?.top ?? 0)
+      : (restoring?.scrollTop ?? scroller.scrollTop);
+    const scrollAnchor = historical
+      ? null
+      : restoring
+        ? restoring.scrollAnchor
+        : editorRef.current?.scrollAnchorAt?.(scroller, scrollTop);
     sessionCallbackRef.current?.({
       chapterId: view.chapterId,
       selection: view.selection,
-      scrollTop:
-        historyScroll.current?.chapterId === view.chapterId
-          ? historyScroll.current.top
-          : (restoreRef.current?.scrollTop ?? scroller.scrollTop),
+      scrollTop,
+      ...(scrollAnchor ? { scrollAnchor } : {}),
     });
-  }, [current?.id, historyOpen]);
+  }, [current?.id, editorRef, historyOpen]);
   const pendingLandingRef = useRef<{
     chapterId: string;
     edge: "top" | "bottom";
@@ -183,16 +201,14 @@ export function EditorSurface({
   const chapterOverscrollRef = useRef(chapterOverscroll);
   const currentChapterId = current?.id;
   const chapterTitle = current?.title;
-  const currentChapterIdRef = useRef(currentChapterId);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  currentChapterIdRef.current = currentChapterId;
+  // Read only, by the title paste handler's deferred selection.
+  const currentChapterIdRef = useLatest(currentChapterId);
   const displayedChapterTitle =
     titleComposition && titleComposition.chapterId === currentChapterId
       ? titleComposition.value
       : chapterTitle;
   const chapterNavigationContext = `${currentChapterId ?? ""}:${previousChapter?.id ?? ""}:${nextChapter?.id ?? ""}`;
   const chapterNavigationContextRef = useRef(chapterNavigationContext);
-  const historyScroll = useRef<{ chapterId: string; top: number; left: number } | null>(null);
   const previousHistoryOpen = useRef(historyOpen);
 
   const resizeChapterTitle = useCallback(() => {
@@ -249,11 +265,10 @@ export function EditorSurface({
     const scroller = scrollRef.current;
     if (!scroller || previousHistoryOpen.current === historyOpen) return;
     previousHistoryOpen.current = historyOpen;
-    const saved = historyScroll.current;
+    const saved = historyScrollRef.current;
     if (historyOpen && currentChapterId) {
       abandonSessionRestore();
-      // eslint-disable-next-line react-hooks/immutability -- historyScroll is a ref written inside an effect, not a render value
-      historyScroll.current = {
+      historyScrollRef.current = {
         chapterId: currentChapterId,
         top: scroller.scrollTop,
         left: scroller.scrollLeft,
@@ -262,7 +277,7 @@ export function EditorSurface({
       const frame = requestAnimationFrame(() => {
         scroller.scrollTop = saved.top;
         scroller.scrollLeft = saved.left;
-        historyScroll.current = null;
+        historyScrollRef.current = null;
         captureSession();
       });
       return () => cancelAnimationFrame(frame);
@@ -323,11 +338,19 @@ export function EditorSurface({
       restoreRef.current = null;
       return;
     }
+    // The saved line, located in the current height map. A pixel target alone is clamped for
+    // good when CodeMirror underestimates the unmeasured lines above it: they are never
+    // measured from down there, so the scrollable height never grows (T-149b, 3455 for 3622).
+    const savedTop = (scroller: HTMLElement) => {
+      const anchor = saved.scrollAnchor;
+      const fromAnchor = anchor ? editorRef.current?.scrollTopForAnchor?.(scroller, anchor) : null;
+      return Math.max(0, fromAnchor ?? saved.scrollTop);
+    };
     const restoreViewport = () => {
       const scroller = scrollRef.current;
       if (!scroller) return;
       editorRef.current?.focus();
-      scroller.scrollTop = Math.max(0, saved.scrollTop);
+      scroller.scrollTop = savedTop(scroller);
     };
     // Set the viewport before paint, then write the exact position after CodeMirror has
     // measured its virtual document and applied scroll anchoring. This is a one-time return,
@@ -341,17 +364,29 @@ export function EditorSurface({
         restoreRef.current = null;
         return;
       }
-      scroller.scrollTop = Math.max(0, saved.scrollTop);
+      scroller.scrollTop = savedTop(scroller);
       restoreRef.current = null;
       const view = viewSelectionRef.current;
       if (view) {
-        sessionCallbackRef.current?.({ ...view, scrollTop: scroller.scrollTop });
+        sessionCallbackRef.current?.({
+          ...view,
+          scrollTop: scroller.scrollTop,
+          ...(saved.scrollAnchor ? { scrollAnchor: saved.scrollAnchor } : {}),
+        });
       }
     };
     const afterMeasure = editorRef.current?.afterMeasure;
+    const scroller = scrollRef.current;
     let cancel: () => void;
-    if (afterMeasure) {
-      cancel = afterMeasure(finishRestore);
+    if (afterMeasure && scroller) {
+      // A later measure may still correct line heights and move the position (ci.md F7),
+      // so the position is written again until a measure passes without moving it.
+      cancel = holdScrollUntilStable({
+        scroller,
+        top: () => savedTop(scroller),
+        afterMeasure,
+        onSettled: finishRestore,
+      });
     } else {
       const frame = requestAnimationFrame(() => finishRestore(Boolean(editorRef.current)));
       cancel = () => cancelAnimationFrame(frame);
@@ -665,78 +700,87 @@ export function EditorSurface({
                 onClose={onCloseSearch}
               />
             )}
-            <ManuscriptEditor
-              key={current.id}
-              value={historyOpen && historicalChapter ? historicalChapter.text : current.body}
-              mentions={historyOpen ? [] : current.mentions}
-              marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
-              issues={historyOpen ? [] : grammarIssues}
-              searchMatches={historyOpen ? [] : currentSearchMatches}
-              initialSelection={
-                // eslint-disable-next-line react-hooks/refs -- the restore target is read once as the editor's initial selection; later changes must not re-render the editor
-                allowSessionRestore && restoreRef.current?.chapterId === current.id
-                  ? restoreRef.current.selection
-                  : undefined
-              }
-              onViewSelectionChange={(selection) => {
-                if (historyOpen) return;
-                viewSelectionRef.current = { chapterId: current.id, selection };
-                captureSession();
-              }}
-              activeSearchMatch={
-                !historyOpen && activeSearchMatch?.chapterId === current.id
-                  ? activeSearchMatch
-                  : null
-              }
-              entities={historyOpen ? [] : figures.nodes}
-              label={t("chapterText")}
-              placeholder={t("startWritingPlaceholder")}
-              vocabulary={vocabulary}
-              editorRef={editorRef}
-              onChange={historyOpen ? () => undefined : onEditorChange}
-              held={historyOpen ? null : held}
-              readOnly={historyOpen}
-              versionDiff={historyOpen && historySnapshotReady ? historyProjection : null}
-              versionDiffLabels={{
-                added: t("versionAdded"),
-                addedLineBreak: t("versionAddedLineBreak"),
-                removed: t("versionRemoved"),
-                formattingAdded: {
-                  bold: `${t("versionFormattingAdded")}: ${t("formatBold")}`,
-                  italic: `${t("versionFormattingAdded")}: ${t("formatItalic")}`,
-                },
-                formattingRemoved: {
-                  bold: `${t("versionFormattingRemoved")}: ${t("formatBold")}`,
-                  italic: `${t("versionFormattingRemoved")}: ${t("formatItalic")}`,
-                },
-              }}
-              onSelection={(next: EditorTextSelection | null) =>
-                onSelection(
-                  historyOpen || !next
-                    ? null
-                    : { ...next, chapterId: current.id, revision: current.body },
-                )
-              }
-              onSelectionMenu={(next) =>
-                !historyOpen &&
-                onSelectionMenu({ ...next, chapterId: current.id, revision: current.body })
-              }
-              onIssue={onIssue}
-              onOpenEntity={(node: FigureNode) =>
-                onOpenEntity?.({
-                  workspace: node.type === "ort" ? "places" : "figures",
-                  id: node.id,
-                })
-              }
-              describeEntity={(node: FigureNode) =>
-                `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ""}`
-              }
-              describeMention={(node: FigureNode) => ({
-                kind: kindLabel(node.type, t),
-                detail: node.sub ?? "",
-                openLabel: t("openEntity", { name: node.name }),
-              })}
-            />
+            {!documentsReady ? (
+              // No editor before the chapter is loaded: there is nothing to type into yet.
+              <p role="status" aria-busy="true">
+                {t("chapterLoading")}
+              </p>
+            ) : (
+              <ManuscriptEditor
+                key={current.id}
+                value={historyOpen && historicalChapter ? historicalChapter.text : current.body}
+                mentions={historyOpen ? [] : current.mentions}
+                marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
+                issues={historyOpen ? [] : grammarIssues}
+                searchMatches={historyOpen ? [] : currentSearchMatches}
+                // Asked when the editor creates its view, not while rendering: the restore
+                // target is one-time and is cleared once the restore has run, so a view that is
+                // created again later (new label after a language switch) must not replay it.
+                initialSelection={() =>
+                  allowSessionRestore && restoreRef.current?.chapterId === current.id
+                    ? restoreRef.current.selection
+                    : undefined
+                }
+                onViewSelectionChange={(selection) => {
+                  if (historyOpen) return;
+                  viewSelectionRef.current = { chapterId: current.id, selection };
+                  captureSession();
+                }}
+                activeSearchMatch={
+                  !historyOpen && activeSearchMatch?.chapterId === current.id
+                    ? activeSearchMatch
+                    : null
+                }
+                entities={historyOpen ? [] : figures.nodes}
+                label={t("chapterText")}
+                placeholder={t("startWritingPlaceholder")}
+                vocabulary={vocabulary}
+                editorRef={editorRef}
+                onChange={historyOpen ? () => undefined : onEditorChange}
+                held={historyOpen ? null : held}
+                readOnly={historyOpen}
+                versionDiff={historyOpen && historySnapshotReady ? historyProjection : null}
+                versionDiffLabels={{
+                  added: t("versionAdded"),
+                  addedLineBreak: t("versionAddedLineBreak"),
+                  removed: t("versionRemoved"),
+                  formattingAdded: {
+                    bold: `${t("versionFormattingAdded")}: ${t("formatBold")}`,
+                    italic: `${t("versionFormattingAdded")}: ${t("formatItalic")}`,
+                  },
+                  formattingRemoved: {
+                    bold: `${t("versionFormattingRemoved")}: ${t("formatBold")}`,
+                    italic: `${t("versionFormattingRemoved")}: ${t("formatItalic")}`,
+                  },
+                }}
+                onSelection={(next: EditorTextSelection | null) =>
+                  onSelection(
+                    historyOpen || !next
+                      ? null
+                      : { ...next, chapterId: current.id, revision: current.body },
+                  )
+                }
+                onSelectionMenu={(next) =>
+                  !historyOpen &&
+                  onSelectionMenu({ ...next, chapterId: current.id, revision: current.body })
+                }
+                onIssue={onIssue}
+                onOpenEntity={(node: FigureNode) =>
+                  onOpenEntity?.({
+                    workspace: node.type === "ort" ? "places" : "figures",
+                    id: node.id,
+                  })
+                }
+                describeEntity={(node: FigureNode) =>
+                  `${kindLabel(node.type, t)}${node.sub ? ` · ${node.sub}` : ""}`
+                }
+                describeMention={(node: FigureNode) => ({
+                  kind: kindLabel(node.type, t),
+                  detail: node.sub ?? "",
+                  openLabel: t("openEntity", { name: node.name }),
+                })}
+              />
+            )}
           </div>
           {historyOpen && (
             <ChapterHistoryPanel

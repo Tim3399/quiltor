@@ -95,13 +95,6 @@ export function PlaceMapActions({
       <IconButton
         size="compact"
         appearance="ghost"
-        label={t("placeOpenLevel", { name: map.name })}
-        icon={<CornerDownRight />}
-        onClick={onEnter}
-      />
-      <IconButton
-        size="compact"
-        appearance="ghost"
         label={
           expanded
             ? t("placeCollapseMap", { name: map.name })
@@ -109,6 +102,13 @@ export function PlaceMapActions({
         }
         icon={expanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
         onClick={expanded ? onCollapse : onExpand}
+      />
+      <IconButton
+        size="compact"
+        appearance="ghost"
+        label={t("placeOpenLevel", { name: map.name })}
+        icon={<CornerDownRight />}
+        onClick={onEnter}
       />
     </>
   );

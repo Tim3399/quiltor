@@ -208,8 +208,8 @@ describe("TextWorkspace chapter binder", () => {
       binderOpen: true,
       inspectorOpen: true,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Buch exportieren" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Manuskript" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Manuskript als Markdown" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     const reader = new FileReader();
     const exported = new Promise<string>((resolve, reject) => {
@@ -252,6 +252,43 @@ describe("TextWorkspace chapter binder", () => {
         ],
       }),
     );
+  });
+
+  it("withdraws the undo notice once the deleted chapter has left the trash", async () => {
+    function Stateful() {
+      const [value, setValue] = useState(manuscript);
+      return (
+        <TestProviders>
+          <button type="button" onClick={() => setValue((current) => ({ ...current, trash: [] }))}>
+            Test-Papierkorb-leeren
+          </button>
+          <TextWorkspace
+            manuscript={value}
+            figures={figures}
+            onChange={setValue}
+            focus={false}
+            onFocus={vi.fn()}
+            viewportMode="wide"
+            binderOpen
+            inspectorOpen
+          />
+        </TestProviders>
+      );
+    }
+    const view = render(<Stateful />);
+    const binder = within(within(view.container).getByRole("complementary", { name: "Kapitel" }));
+    fireEvent.click(binder.getByRole("button", { name: "Kapitelaktionen: Prolog" }));
+    const actions = within(await screen.findByRole("menu", { name: "Kapitelaktionen: Prolog" }));
+    fireEvent.click(actions.getByRole("menuitem", { name: "Kapitel löschen" }));
+    const dialog = within(await screen.findByRole("alertdialog"));
+    fireEvent.click(dialog.getByRole("button", { name: "Kapitel löschen" }));
+    expect(await screen.findByText(/Kapitel wurde in den Papierkorb verschoben/)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-Papierkorb-leeren" }));
+
+    expect(
+      screen.queryByText(/Kapitel wurde in den Papierkorb verschoben/),
+    ).not.toBeInTheDocument();
   });
 
   it("anchors a flashback without changing the manuscript order", () => {

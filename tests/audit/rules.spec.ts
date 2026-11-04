@@ -164,6 +164,57 @@ test.describe("clipped-text", () => {
     );
     expect(byRule(findings, "clipped-text")).toEqual([]);
   });
+
+  test("reports text cut off in a nested block of a clipping box", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<aside id="panel" style="width:120px;overflow:hidden"><div><p>Donaudampfschifffahrtsgesellschaftskapitaen</p></div></aside>',
+    );
+    const hits = byRule(findings, "clipped-text");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ severity: "high", selector: "aside#panel" });
+    expect(hits[0].message).toContain("Donaudampf");
+  });
+
+  test("reports text pushed below a clipping box vertically", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div id="short" style="width:200px;height:20px;overflow:hidden"><p style="margin:0">First line</p><p style="margin:0">Second line</p></div>',
+    );
+    expect(byRule(findings, "clipped-text")).toHaveLength(1);
+  });
+
+  test("stays quiet when a descendant box is larger but no text is cut", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div style="width:200px;height:60px;overflow:hidden"><span>Fits</span><div style="width:500px;height:10px;background:#ccc"></div></div>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("stays quiet when an inner scroller owns the overflowing text", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<aside style="width:200px;height:100px;overflow:hidden"><div style="height:150px;overflow-y:auto"><p style="margin:0">One</p><p style="margin:0;margin-top:300px">Far below</p></div></aside>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("stays quiet for a pan surface whose content lies beyond the window", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<div style="width:300px;height:200px;overflow:hidden;position:relative"><div style="position:absolute;inset:0;transform:translate(0,0) scale(1)"><div style="position:absolute;left:900px;top:40px">Node far to the right</div><div style="position:absolute;left:10px;top:600px">Node far below</div></div></div>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
+
+  test("stays quiet for the content of a collapsed details element", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<details style="width:200px;height:30px;overflow:hidden"><summary>Title</summary><p>Hidden body that is long enough to wrap onto several lines of text in the box</p></details>',
+    );
+    expect(byRule(findings, "clipped-text")).toEqual([]);
+  });
 });
 
 test.describe("overlap", () => {
@@ -208,6 +259,127 @@ test.describe("overlap", () => {
        </div>`,
     );
     expect(byRule(findings, "overlap")).toEqual([]);
+  });
+});
+
+test.describe("overlap of stacked overlays", () => {
+  const stacked = [".trail", ".banner", ".legend"];
+
+  test("reports a hint banner that lies over a breadcrumb trail", async ({ page }) => {
+    // Neither is a control the rule above counts, so only the named stack finds it.
+    const findings = await analyze(
+      page,
+      `<nav class="trail" style="position:absolute;left:10px;top:10px;width:200px;height:30px;background:#ddd">Pfad</nav>
+       <div class="banner" style="position:absolute;left:100px;top:10px;width:250px;height:40px;background:#eef">Hinweis</div>`,
+      { stackedSelectors: stacked },
+    );
+    const hits = byRule(findings, "overlap");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].severity).toBe("high");
+    expect(hits[0].message).toContain(".trail");
+    expect(hits[0].message).toContain(".banner");
+  });
+
+  test("stays quiet for overlays that stack in one column", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div style="display:flex;flex-direction:column;gap:4px;width:300px">
+         <nav class="trail" style="height:30px">Pfad</nav>
+         <div class="banner" style="height:40px">Hinweis</div>
+         <div class="legend" style="height:50px">Maßstab</div>
+       </div>`,
+      { stackedSelectors: stacked },
+    );
+    expect(byRule(findings, "overlap")).toEqual([]);
+  });
+
+  test("does nothing for a state that names no stack", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<nav class="trail" style="position:absolute;left:10px;top:10px;width:200px;height:30px">Pfad</nav>
+       <div class="banner" style="position:absolute;left:100px;top:10px;width:250px;height:40px">Hinweis</div>`,
+    );
+    expect(byRule(findings, "overlap")).toEqual([]);
+  });
+});
+
+test.describe("broken-word", () => {
+  // A box too narrow for the word, and a break rule that lets it split anyway.
+  const narrow = (tag: string, text: string, extra = "") =>
+    `<${tag} id="cut" style="display:block;width:60px;font:16px monospace;overflow-wrap:anywhere;${extra}">${text}</${tag}>`;
+
+  test("reports a button label split inside its word", async ({ page }) => {
+    const findings = await analyze(page, narrow("button", "MASSSTAB"));
+    const hits = byRule(findings, "broken-word");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ severity: "high", selector: "button#cut" });
+    const parts = /\("([A-Z]+)" \/ "([A-Z]+)"\)/.exec(hits[0].message);
+    expect(hits[0].message).toContain('The word "MASSSTAB" breaks');
+    expect(parts?.[1].length).toBeGreaterThan(0);
+    expect(`${parts?.[1]}${parts?.[2]}`).toBe("MASSSTAB");
+  });
+
+  test("rates a split inside running text as medium", async ({ page }) => {
+    const findings = await analyze(page, narrow("p", "Weltkartenrand"));
+    const hits = byRule(findings, "broken-word");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].severity).toBe("medium");
+  });
+
+  test("reports a word split by a forced break-all", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<h2 style="width:50px;font:16px monospace;word-break:break-all">Maßstab</h2>',
+    );
+    const hits = byRule(findings, "broken-word");
+    expect(hits.map((hit) => hit.severity)).toEqual(["high"]);
+    expect(hits[0].message).toContain('The word "Maßstab" breaks');
+  });
+
+  test("allows hyphenation with hyphens: auto", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<p lang="de" style="width:60px;font:16px monospace;hyphens:auto;overflow-wrap:anywhere">Weltkartenrand</p>`,
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("allows a break after a hyphen or at a soft hyphen", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<p style="width:60px;font:16px monospace">Ort-Karte</p>
+       <p style="width:60px;font:16px monospace;hyphens:manual">Welt&shy;karte</p>`,
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("stays quiet for words that wrap between each other", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      '<button style="width:60px;font:16px monospace">Ort Karte Pin</button>',
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("lets machine text and the author's own text break anywhere", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `${narrow("code", "/Welten/Sicherungen")}
+       <div contenteditable="true">${narrow("p", "Sturmflutwarnung")}</div>`,
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
+  });
+
+  test("ignores text that is hidden for screen readers only", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      narrow(
+        "label",
+        "MASSSTAB",
+        "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)",
+      ),
+    );
+    expect(byRule(findings, "broken-word")).toEqual([]);
   });
 });
 
@@ -258,5 +430,76 @@ test.describe("contrast", () => {
   test("accepts dark text on white", async ({ page }) => {
     const findings = await analyze(page, '<p style="color:#111111">Readable</p>');
     expect(byRule(findings, "contrast")).toEqual([]);
+  });
+});
+
+test.describe("toolbar-row", () => {
+  const button = (label: string) =>
+    `<button style="width:90px;height:32px;flex:none">${label}</button>`;
+
+  test("reports a toolbar whose last button wraps onto a second row", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;flex-wrap:wrap;width:300px">
+        ${button("Notiz")}${button("Gruppe")}${button("Vorne")}${button("Undo")}
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits).toHaveLength(1);
+    expect(hits[0].severity).toBe("high");
+    expect(hits[0].message).toContain("wraps onto 2 rows");
+    expect(hits[0].message).toContain('"Undo"');
+  });
+
+  test("reports a button cut off by the toolbar's overflow", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;width:300px;overflow:hidden">
+        ${button("Notiz")}${button("Gruppe")}${button("Vorne")}${button("Hinten")}
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0].message).toContain("is hidden or cut off");
+  });
+
+  test("reports a scroll strip whose scrollbar lies over the buttons", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="width:300px">
+        <div style="display:flex;overflow-x:auto;height:32px">
+          ${button("Kapitel")}${button("Details")}${button("Fokus")}${button("Fassungen")}
+        </div>
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => hit.message.includes("is hidden or cut off"))).toBe(true);
+  });
+
+  test("reports a button that CSS removes from the toolbar", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;width:390px">
+        ${button("Notiz")}<span style="display:none">${button("Undo")}</span>
+        <button style="width:90px;height:32px;visibility:hidden">Redo</button>
+      </div>`,
+    );
+    const hits = byRule(findings, "toolbar-row");
+    expect(hits).toHaveLength(2);
+    expect(hits.every((hit) => hit.message.includes("is removed by CSS"))).toBe(true);
+    expect(hits[0].message).toContain('"Undo"');
+    expect(hits[1].message).toContain('"Redo"');
+  });
+
+  test("stays quiet for a toolbar that fits on one row", async ({ page }) => {
+    const findings = await analyze(
+      page,
+      `<div role="toolbar" aria-label="Werkzeuge" style="display:flex;flex-wrap:wrap;width:390px">
+        ${button("Notiz")}${button("Gruppe")}${button("Mehr")}
+        <div role="menu" hidden>${button("Vorne")}</div>
+      </div>`,
+    );
+    expect(byRule(findings, "toolbar-row")).toEqual([]);
   });
 });

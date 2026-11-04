@@ -122,15 +122,13 @@ describe("workspace create-action consistency", () => {
     expectSharedCreateContract(container, 2);
 
     const actions = container.querySelector(".timeline-toolbar-actions");
-    expect(actions).toHaveAttribute("data-layout", "wrap");
-    expect(actions).not.toHaveClass("scroll-area");
-    expect(actions).not.toHaveAttribute("data-axis");
+    expect(actions).toHaveAttribute("data-layout", "scroll");
     const groups = Array.from(
       actions?.querySelectorAll(":scope > .workspace-toolbar__group") ?? [],
     );
     // The order comes from the action strip's slots (create, view, history, actions) and
-    // not from this toolbar. The compact two-row arrangement is placed explicitly in
-    // TimelineWorkspace.css.
+    // not from this toolbar. Every toolbar is one row (T-104); on compact widths the time
+    // system select gives way in TimelineWorkspace.css instead of a second row.
     expect(groups.map((group) => group.classList.item(1))).toEqual([
       "timeline-create-group",
       "timeline-time-group",
@@ -147,14 +145,9 @@ describe("workspace create-action consistency", () => {
       join(process.cwd(), "packages/client/src/modules/story-world/timeline/TimelineWorkspace.css"),
       "utf8",
     );
+    expect(css).not.toMatch(/\.timeline-toolbar-actions\s*\{[^}]*display:\s*grid;/s);
     expect(css).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s,
-    );
-    expect(css).toMatch(
-      /\.timeline-workspace \.timeline-toolbar-actions > \.timeline-time-group\s*\{[^}]*grid-column:\s*1 \/ -1;/s,
-    );
-    expect(css).toMatch(
-      /\.timeline-workspace \.timeline-history-group\s*\{[^}]*justify-self:\s*end;/s,
+      /@media \(max-width: 820px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions > \.timeline-time-group\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1 1 auto;/s,
     );
   });
 });

@@ -51,6 +51,7 @@
   pointer-events: none;
 }
 
+.places-measure-overlays .place-level-trail,
 .places-measure-overlays .mode-banner,
 .places-measure-overlays .places-scale-legend {
   position: static;
@@ -58,6 +59,7 @@
   pointer-events: auto;
 }
 
+.places-measure-overlays .place-level-trail,
 .places-measure-overlays .places-scale-legend {
   align-self: flex-start;
 }

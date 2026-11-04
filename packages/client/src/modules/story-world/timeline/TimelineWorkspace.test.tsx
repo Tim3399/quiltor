@@ -77,7 +77,7 @@ describe("TimelineWorkspace sections", () => {
       /\.timeline-workspace\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/s,
     );
     expect(workspaceCss).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s,
+      /@media \(max-width: 820px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions > \.timeline-time-group\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1 1 auto;/s,
     );
     expect(controlsCss).toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.timeline-time-controls\s*\{[^}]*width:\s*100%;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--control-touch\);/s,
@@ -495,5 +495,60 @@ describe("TimelineWorkspace chapter story-time integrity", () => {
     );
     fireEvent.click(within(alert).getByRole("button", { name: "Kapitel „Zeitraum“ öffnen" }));
     expect(onOpenChapter).toHaveBeenCalledWith("range");
+  });
+});
+
+describe("TimelineWorkspace derived selection and form", () => {
+  const timed: FigureState = {
+    ...state,
+    timeline: [
+      { id: "past", title: "Früher", time: -2, position: 0 },
+      { id: "m1", title: "Ankunft", time: 0, position: 1 },
+      { id: "same", title: "Gleichzeitig", time: 0, position: 2 },
+    ],
+  };
+
+  it("selects the first moment once a timeline arrives, without a choice of its own", () => {
+    const tree = (value: FigureState) => (
+      <I18nProvider>
+        <TimelineWorkspace state={value} onChange={vi.fn()} manuscript={emptyManuscript} />
+      </I18nProvider>
+    );
+    const view = render(tree({ ...state, timeline: [] }));
+    expect(screen.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+
+    view.rerender(tree(timed));
+
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Früher");
+  });
+
+  it("fills the placement fields from the neighbour of the selected moment", () => {
+    renderTimeline(vi.fn(), timed);
+
+    fireEvent.click(screen.getByRole("button", { name: /^1Früher/ }));
+    const placement = screen.getByRole("group", { name: "Zeitliche Einordnung" });
+    expect(within(placement).getByRole("combobox", { name: "Liegt" })).toHaveValue("before");
+    expect(within(placement).getByRole("spinbutton", { name: "Abstand in Tagen" })).toHaveValue(2);
+    expect(within(placement).getByRole("combobox", { name: "Bezugspunkt" })).toHaveValue("m1");
+
+    fireEvent.click(screen.getByRole("button", { name: /^3Gleichzeitig/ }));
+    expect(within(placement).getByRole("combobox", { name: "Liegt" })).toHaveValue("after");
+    expect(within(placement).getByRole("spinbutton", { name: "Abstand in Tagen" })).toHaveValue(0);
+    expect(within(placement).getByRole("combobox", { name: "Bezugspunkt" })).toHaveValue("m1");
+  });
+
+  it("closes a relationship inspector when another moment is selected", () => {
+    renderTimeline(vi.fn(), {
+      ...timed,
+      edges: [{ id: "bond", from: "ada", to: "hafen", label: "Heimat" }],
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Alle Beziehungen" }));
+    const card = () => document.querySelector(".relationship-change-card");
+    fireEvent.click(card() as HTMLElement);
+    expect(card()).toHaveClass("selected");
+
+    fireEvent.click(screen.getByRole("button", { name: /^2Ankunft/ }));
+
+    expect(card()).not.toHaveClass("selected");
   });
 });

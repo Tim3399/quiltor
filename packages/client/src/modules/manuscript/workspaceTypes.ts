@@ -1,6 +1,10 @@
 import type { TextSearchTarget, ViewportMode, Workspace } from "../../shared";
 import type { FigureState } from "../story-world";
-import type { EditorTextSelection, EditorViewSelection } from "./ManuscriptEditor";
+import type {
+  EditorScrollAnchor,
+  EditorTextSelection,
+  EditorViewSelection,
+} from "./ManuscriptEditor";
 import type { Manuscript } from "./model";
 
 /** Volatile view data only; owned by the active world workspace, never persisted. */
@@ -8,12 +12,16 @@ export interface ManuscriptEditorSessionState {
   chapterId: string;
   selection: EditorViewSelection;
   scrollTop: number;
+  /** The same position in document coordinates; preferred over `scrollTop` on restore. */
+  scrollAnchor?: EditorScrollAnchor | null;
 }
 
 export type ManuscriptChapterFilter = "all" | "in-book" | "set-aside";
 
 export interface TextWorkspaceProps {
   worldTitle?: string;
+  /** False while the application is still loading the world's documents. Defaults to true. */
+  documentsReady?: boolean;
   manuscript: Manuscript;
   figures: FigureState;
   orphanedMentions?: number;

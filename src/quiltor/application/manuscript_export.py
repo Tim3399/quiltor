@@ -5,12 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import Any
 
 from quiltor.application.document_wire_v1 import InvalidDocumentWireV1, encode_document_v1
 from quiltor.application.documents.ports import DocumentRepository
 from quiltor.application.errors import ApplicationConflict, InvalidApplicationInput
+from quiltor.domain.json_values import as_object
 from quiltor.domain.manuscript import flatten_tree, structure_or_flat
 
 PRESETS = ("editor", "normseite", "epub")
@@ -66,17 +68,17 @@ class ManuscriptExportUseCases:
     def __init__(
         self,
         documents: DocumentRepository,
-        render: Callable[[list[dict], str], bytes],
-        render_epub: Callable[[list[dict], dict, str], bytes] | None = None,
-    ):
+        render: Callable[[list[dict[str, Any]], str], bytes],
+        render_epub: Callable[[list[dict[str, Any]], dict[str, str], str], bytes] | None = None,
+    ) -> None:
         self._documents = documents
         self._render = render
         self._render_epub = render_epub
 
     @staticmethod
-    def _epub_metadata(state: dict) -> dict[str, str]:
-        layout = state.get("bookLayout", {})
-        if not isinstance(layout, dict):
+    def _epub_metadata(state: Mapping[str, object]) -> dict[str, str]:
+        layout = as_object(state.get("bookLayout", {}))
+        if layout is None:
             raise InvalidExportContent("The book metadata is invalid.")
         title = layout.get("bookTitle", "")
         author = layout.get("author", "")
@@ -97,7 +99,7 @@ class ManuscriptExportUseCases:
             "language": language,
         }
 
-    def _snapshot(self, database: Path, preset: str) -> tuple[dict, list[dict]]:
+    def _snapshot(self, database: Path, preset: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         validate_preset(preset)
         state = self._documents.load("manuscript", database)
         revision = self._documents.revision("manuscript", database)
@@ -158,7 +160,7 @@ class ManuscriptExportUseCases:
             "extensions": len(state.keys() - known_manuscript)
             + sum(len(chapter.keys() - known_chapter) for chapter in chapters),
         }
-        preview = {
+        preview: dict[str, Any] = {
             "preset": preset,
             "revision": revision,
             "sourceSha256": digest,
@@ -188,21 +190,21 @@ class ManuscriptExportUseCases:
             preview["metadata"] = self._epub_metadata(state)
         return preview, chapters
 
-    def _render_snapshot(self, preview: dict, chapters: list[dict]) -> bytes:
+    def _render_snapshot(self, preview: dict[str, Any], chapters: list[dict[str, Any]]) -> bytes:
         if preview["preset"] == "epub":
             if self._render_epub is None:
                 raise InvalidExportRequest("EPUB export is unavailable.")
             return self._render_epub(chapters, preview["metadata"], preview["sourceSha256"])
         return self._render(chapters, preview["preset"])
 
-    def preview(self, database: Path, preset: str) -> dict:
+    def preview(self, database: Path, preset: str) -> dict[str, Any]:
         preview, chapters = self._snapshot(database, preset)
         # Run the same bounded serializer before the author approves the preview.
         # No file, generated archive, or manuscript content is persisted here.
         self._render_snapshot(preview, chapters)
         return preview
 
-    def export(self, database: Path, payload: dict) -> tuple[str, bytes]:
+    def export(self, database: Path, payload: dict[str, Any]) -> tuple[str, bytes]:
         preview, chapters = self._snapshot(database, payload["preset"])
         if (
             payload["revision"] != preview["revision"]

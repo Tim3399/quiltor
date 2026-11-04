@@ -10,6 +10,7 @@ import {
   fulfillStoryWorld,
 } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -176,7 +177,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
       }),
     );
   expect(undersizedToolbarButtons).toEqual([]);
-  await expect(page.getByRole("button", { name: "Buch exportieren" })).toBeVisible();
+  await expect(manuscriptToolbar.getByRole("button", { name: "Weitere Aktionen" })).toBeVisible();
   const offCenterToolbarIcons = await manuscriptToolbar.getByRole("button").evaluateAll((buttons) =>
     buttons.flatMap((button) => {
       const label = button.querySelector(".ui-button__label");
@@ -240,6 +241,8 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
   );
   test.setTimeout(90_000);
 
+  // The world opens at the first size, so only the later sizes need a fresh load of their own.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await openBlankWorld(page, "Menü-Vertragswelt");
 
   for (const viewport of [
@@ -247,11 +250,13 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
     { name: "Mobile", width: 390, height: 844 },
   ]) {
     await test.step(viewport.name, async () => {
-      await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await page.reload();
+      if (viewport.name !== "Desktop") {
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await page.reload();
+      }
       await waitForManuscriptReady(page);
 
-      await expectKeyboardMenuContract(page, "Buch exportieren", "Buchexport");
+      await expectKeyboardMenuContract(page, "Weitere Aktionen");
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
@@ -732,12 +737,10 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   expect(compactFit.scrollWidth).toBeLessThanOrEqual(compactFit.clientWidth + 1);
   expect(compactFit.overflowX).toBe("auto");
 
-  const versionsAction = manuscriptToolbar.getByRole("button", { name: "Fassungen" });
-  const sceneBreakAction = manuscriptToolbar.getByRole("button", {
-    name: "Szenenwechsel einfügen",
-  });
-  const exportAction = manuscriptToolbar.getByRole("button", { name: "Buch exportieren" });
-  for (const action of [versionsAction, sceneBreakAction, exportAction]) {
+  // Since T-104 versions, the scene break and the book export wait in the overflow menu; its
+  // trigger is the control that has to stay inside the strip.
+  const overflowAction = manuscriptToolbar.getByRole("button", { name: "Weitere Aktionen" });
+  for (const action of [overflowAction]) {
     await expect(action).toBeVisible();
     await action.focus();
     await expect(action).toBeFocused();
@@ -1816,7 +1819,11 @@ test("Chapter folders stay hierarchical and usable at compact width", async ({
   expect(chapterGeometry.handleWidth).toBe(0);
 });
 
-test("Shortcuts tell saving and backing up apart", async ({ page }) => {
+test("Shortcuts tell saving and backing up apart", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "Two keyboard shortcuts and whether a dialog opens: nothing here depends on the width.",
+  );
   // The test checks the two keyboard shortcuts, not the upload. It used to claim as well
   // that a configured endpoint makes "Sichern & hochladen" active -- that no longer holds:
   // the endpoint demands a sign-in, and without one the upload would run into a 401. The
@@ -2992,7 +2999,7 @@ test("Chapter versions appear inline in the writing surface", async ({ page }, t
     }),
   );
   await openBlankWorld(page);
-  await page.getByRole("button", { name: "Fassungen" }).click();
+  await openToolbarOverflow(page, "Manuskript", "Fassungen");
   const history = page.getByRole("complementary", { name: "Fassungen" });
   await expect(history).toBeVisible();
   const editor = page.getByLabel("Kapiteltext");

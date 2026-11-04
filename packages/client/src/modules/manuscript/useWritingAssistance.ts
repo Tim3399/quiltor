@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
 import {
   quiltorClient,
   type WritingAssistanceLookupResult,
   type WritingAssistanceStatus,
 } from "../../platform";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { FigureNode, FigureState } from "../story-world";
 import { writingVocabulary } from "./autocomplete";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import { addDeterministicMentions, scanEntityMentions } from "./mentions";
 import type { Chapter, EntityMention, Manuscript, TextMark, WritingIssue } from "./model";
 import type { HelperMode, WorkspaceSelection, WritingTool } from "./workspaceTypes";
+import { writingAssistanceErrorMessage } from "./writingAssistanceErrors";
 
 interface WritingAssistanceOptions {
   selectionKey: string;
@@ -44,9 +46,8 @@ export function useWritingAssistance({
   const editor = useRef<ManuscriptEditorHandle | null>(null);
   const lookupRequest = useRef<AbortController | null>(null);
   const grammarRequest = useRef<AbortController | null>(null);
-  const currentRef = useRef(current);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  currentRef.current = current;
+  // Read only, by the grammar request's callback, which resolves after later renders.
+  const currentRef = useLatest(current);
   const [symbolPicker, setSymbolPicker] = useState(false);
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
   const [selectionMenuOpen, setSelectionMenuOpen] = useState(false);
@@ -60,11 +61,16 @@ export function useWritingAssistance({
   const [status, setStatus] = useState<WritingAssistanceStatus | null>(null);
   const [results, setResults] = useState<WritingAssistanceLookupResult[]>([]);
   const [phase, setPhase] = useState<"idle" | "loading" | "installing" | "error">("idle");
+  // The text shown while `phase` is "error"; it names what failed instead of one
+  // sentence for every cause.
+  const [lookupError, setLookupError] = useState("");
+  const [statusFailed, setStatusFailed] = useState(false);
   const [grammarIssues, setGrammarIssues] = useState<WritingIssue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<WritingIssue | null>(null);
   const [grammarPhase, setGrammarPhase] = useState<
     "idle" | "checking" | "installing" | "unavailable" | "error"
   >("idle");
+  const [grammarError, setGrammarError] = useState("");
   // biome-ignore lint/correctness/useExhaustiveDependencies: the vocabulary only reads `manuscript.words`; depending on the whole manuscript would rebuild it on every keystroke
   const vocabulary = useMemo(
     () => writingVocabulary(manuscript, figures),
@@ -83,9 +89,12 @@ export function useWritingAssistance({
     [current, figures.nodes],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item resets all selection-bound state
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Switching the edited item resets all selection-bound state. Adjusted during render, so the
+  // new item never paints the previous item's selection or query; only the outward part, the
+  // grammar request that belongs to the old item, is aborted in an effect.
+  const [seenSelectionKey, setSeenSelectionKey] = useState(selectionKey);
+  if (seenSelectionKey !== selectionKey) {
+    setSeenSelectionKey(selectionKey);
     setSelection(null);
     setSelectionMenuOpen(false);
     setWritingSelection(null);
@@ -93,16 +102,32 @@ export function useWritingAssistance({
     setResults([]);
     setGrammarIssues([]);
     setSelectedIssue(null);
+  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item aborts the grammar request of the old one
+  useEffect(() => {
     grammarRequest.current?.abort();
   }, [selectionKey]);
 
-  useEffect(() => {
+  // Without a status the panels cannot tell installed from missing, so a failed
+  // request is shown with a way to ask again rather than left as an empty panel.
+  const loadStatus = useCallback(() => {
     void quiltorClient.application.writingAssistance
       .status()
-      .then(setStatus)
-      .catch(() => setPhase("error"));
-    return () => lookupRequest.current?.abort();
+      .then((next) => {
+        setStatus(next);
+        setStatusFailed(false);
+      })
+      .catch(() => setStatusFailed(true));
   }, []);
+  const retryStatus = () => {
+    setStatusFailed(false);
+    loadStatus();
+  };
+
+  useEffect(() => {
+    loadStatus();
+    return () => lookupRequest.current?.abort();
+  }, [loadStatus]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the selection fields are triggers: a changed writing selection aborts the lookup that belongs to the old one
   useEffect(
@@ -169,6 +194,7 @@ export function useWritingAssistance({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setLookupError(writingAssistanceErrorMessage(error, "lookup", t));
         setPhase("error");
       });
   };
@@ -218,7 +244,10 @@ export function useWritingAssistance({
         setStatus(nextStatus);
         setPhase("idle");
       })
-      .catch(() => setPhase("error"));
+      .catch((error) => {
+        setLookupError(writingAssistanceErrorMessage(error, "lookup", t));
+        setPhase("error");
+      });
   };
   const applyValue = (text: string) => {
     if (!replaceTarget) return insert(text);
@@ -234,6 +263,8 @@ export function useWritingAssistance({
       setWritingSelection(null);
     }
   };
+  const grammarErrorMessage = (error: unknown) =>
+    writingAssistanceErrorMessage(error, "grammar", t, status?.grammar?.javaRequired);
   const projectWords = () => [
     ...(manuscript.words || []).map((item) => (typeof item === "string" ? item : item.w)),
     ...figures.nodes.map((node) => node.name),
@@ -264,6 +295,7 @@ export function useWritingAssistance({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setGrammarError(grammarErrorMessage(error));
         setGrammarPhase("error");
       });
   };
@@ -276,7 +308,10 @@ export function useWritingAssistance({
         setStatus(nextStatus);
         setGrammarPhase("idle");
       })
-      .catch(() => setGrammarPhase("error"));
+      .catch((error) => {
+        setGrammarError(grammarErrorMessage(error));
+        setGrammarPhase("error");
+      });
   };
   const applyIssue = (issue: WritingIssue, replacement: string) => {
     if (
@@ -305,11 +340,17 @@ export function useWritingAssistance({
     };
   }, [current?.id, current?.body, manuscript.grammarMode, status?.grammar?.available]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `liveSelection.from` is a trigger: selecting the same text elsewhere refills the query
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // A live selection fills the query, also when the same text is selected somewhere else, so the
+  // key carries the position. Handled during render: the query is part of the commit that shows
+  // the selection.
+  const liveSelectionKey = liveSelection?.text
+    ? `${liveSelection.from}\u0000${liveSelection.text}`
+    : "";
+  const [seenLiveSelectionKey, setSeenLiveSelectionKey] = useState("");
+  if (liveSelectionKey !== seenLiveSelectionKey) {
+    setSeenLiveSelectionKey(liveSelectionKey);
     if (liveSelection?.text) setQuery(liveSelection.text);
-  }, [liveSelection?.text, liveSelection?.from]);
+  }
 
   const grammarSupported = status?.grammar?.supported !== false;
   const helperModes: HelperMode[] = grammarSupported
@@ -355,11 +396,14 @@ export function useWritingAssistance({
     status,
     results,
     phase,
-    lookupSources: [...new Set(results.map((result) => result.source))],
+    lookupError,
+    statusFailed,
+    retryStatus,
     grammarIssues,
     selectedIssue,
     setSelectedIssue,
     grammarPhase,
+    grammarError,
     vocabulary,
     ambiguousMentions,
     insert,

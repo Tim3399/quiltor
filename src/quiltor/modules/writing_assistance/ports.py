@@ -9,6 +9,21 @@ from typing import Protocol, runtime_checkable
 class WritingAssistanceRepository(Protocol):
     def version(self) -> str | None: ...
 
+    def coverage(self) -> str | None:
+        """ "core" (built-in starter set) or "full" (upstream import); None
+        when nothing is installed."""
+        ...
+
+    def schema(self) -> int | None:
+        """Layout of the installed database (1 before the ``forms`` table);
+        None when nothing is installed."""
+        ...
+
+    def sources(self) -> list[dict[str, str]]:
+        """The upstream sources recorded in the installed database (name, url,
+        license, license_url, ...); empty when none is recorded."""
+        ...
+
     def lookup(self, language: str, mode: str, query: str) -> list[dict]: ...
 
 

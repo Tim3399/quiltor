@@ -145,7 +145,7 @@ export const designAuditProfiles = {
       disabled: ["Disabled"],
       longContent: ["LongOptions"],
       keyboard: ["Default", "LongOptions"],
-      overlay: ["Default", "LongOptions"],
+      overlay: ["Default", "InDialog", "LongOptions"],
       scrolling: ["LongOptions"],
       responsive: ["LongOptions"],
       touch: ["LongOptions"],
@@ -159,8 +159,8 @@ export const designAuditProfiles = {
       selection: ["DisabledAndSelected"],
       keyboard: ["Default", "DisabledAndSelected", "NestedSubmenu"],
       longContent: ["LongLabels"],
-      overlay: ["NestedSubmenu"],
-      responsive: ["LongLabels", "NestedSubmenu"],
+      overlay: ["NestedSubmenu", "SubmenuInPopover"],
+      responsive: ["LongLabels", "NestedSubmenu", "SubmenuInPopover"],
     },
   },
   PageState: {
@@ -188,7 +188,7 @@ export const designAuditProfiles = {
     coverage: {
       default: ["Phases"],
       variants: ["AttentionOnlyLabel"],
-      error: ["LongError"],
+      error: ["LongError", "ErrorWithId"],
       longContent: ["LongError"],
     },
   },

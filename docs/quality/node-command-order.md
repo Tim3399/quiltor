@@ -37,14 +37,12 @@ ground without commands of their own; the map's commands live on its card, its t
 expanded chrome. A "known node kinds" test reads the registrations in the sources and fails
 when a kind appears that this file does not account for, so a new node cannot slip in unobserved.
 
-## Known finding: the collapsed map card
+## Map commands
 
-The collapsed map card on the canvas lists "expand, open". The toolbar beside the canvas and
-the expanded chrome, both drawn by `PlaceMapActions`, list "open, expand". Reordering
-`PlaceMapActions` moves the commands of every map toolbar and chrome and with them the
-expanded-map baselines of all platforms, which is a design decision and not part of a test
-task. The comparison therefore runs under `test.fail()`: it is green while the two orders
-differ and turns red the moment they agree, which is the cue to remove the wrapper.
+The collapsed map card, the toolbar beside the canvas and the expanded chrome all list the
+same order: toggle first, open last. `PlaceMapActions` draws the toolbar and the chrome as
+"lock, expand/collapse, open", and the collapsed card as "expand, open". The comparison
+between card and toolbar runs as an ordinary test.
 
 ## Proving it
 

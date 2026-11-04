@@ -112,6 +112,11 @@ const intentionalTextTruncationOwners = [
     reason: "SaveStatus retains its live-region label while protecting the adjacent retry action.",
   },
   {
+    selector: ".save-status-component__error-id",
+    reason:
+      "The error id line yields before the label; its title and the live region carry the full id, and one click selects all of it.",
+  },
+  {
     selector: ".workspace-toolbar__title strong, .workspace-toolbar__title span",
     reason: "Toolbar title and context yield to the explicitly scrollable action region.",
   },
@@ -131,7 +136,8 @@ const visuallyHiddenTextOwners = [
   { selector: ".sr-only", reason: "Shared screen-reader-only utility." },
   {
     selector: ".save-status-component__detail",
-    reason: "SaveStatus announces the detailed error through its live region.",
+    reason:
+      "SaveStatus announces the detailed error and its error id through its live region; the visible id line repeats the id for sighted authors.",
   },
   {
     selector: ".workspace-toolbar__group > legend",
@@ -590,6 +596,28 @@ for (const theme of ["light", "dark"] as const) {
   }
 }
 
+test("a wrapping Button label keeps a one-line action at the control height", async ({ page }) => {
+  await openStory(page, "Button/Primary");
+  const button = page.getByRole("button", { name: "Neue Szene" });
+  const heights = await button.evaluate((element) => {
+    if (!(element instanceof HTMLElement)) throw new Error("Button is not an element");
+    const root = getComputedStyle(document.documentElement);
+    const expected = Number.parseFloat(
+      root.getPropertyValue(
+        matchMedia("(pointer: coarse)").matches ? "--control-touch" : "--control-regular",
+      ),
+    );
+    element.dataset.labelOverflow = "wrap";
+    const oneLine = element.getBoundingClientRect().height;
+    element.style.width = "96px";
+    element.textContent = "Eine lange Aktion in zwei Zeilen";
+    const wrapped = element.getBoundingClientRect().height;
+    return { expected, oneLine, wrapped };
+  });
+  expect(heights.oneLine).toBe(heights.expected);
+  expect(heights.wrapped).toBeGreaterThan(heights.expected);
+});
+
 test("action and field primitives honor their computed visual contracts", async ({
   page,
 }, testInfo) => {
@@ -770,6 +798,29 @@ test("composite components keep their keyboard and disclosure contracts", async 
   await expect(page.getByText("Zusätzliche Optionen")).toBeVisible();
 });
 
+test("ListboxSelect inside a body dialog is operable on desktop", async ({ page }, testInfo) => {
+  // Compact and touch present the options as a Sheet, which owns its own layer.
+  test.skip(
+    ["design-compact-boundary", "design-touch"].includes(testInfo.project.name),
+    "options open as a Sheet on compact and touch",
+  );
+  await openStory(page, "ListboxSelect/InDialog");
+  const select = page.getByRole("combobox", { name: "Sprache" });
+  await select.click();
+  const english = page.getByRole("option", { name: "Englisch" });
+  await expect(english).toBeVisible();
+  // A mouse click lands on whatever is topmost at the point; visibility alone would pass behind
+  // the dialog backdrop, so assert the option itself is hit.
+  const hit = await english.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return top === element || element.contains(top) ? "option" : `${top?.className}`;
+  });
+  expect(hit, "the listbox option is covered by another layer").toBe("option");
+  await english.click();
+  await expect(select).toContainText("Englisch");
+});
+
 test("menu stress states stay scrollable, visible and keyboard reachable", async ({ page }) => {
   await openStory(page, "DropdownMenu/LongManyItemsOpen");
   const dropdown = page.getByRole("menu", { name: "Sehr umfangreiche Elementaktionen" });
@@ -842,16 +893,91 @@ test("nested menus preserve arrow-key focus and viewport containment", async ({ 
   const nested = page.getByRole("menuitem", { name: "Akt 1 · Ankunft" });
   await expect(nested).toBeFocused();
   const submenu = page.getByRole("menu", { name: "Verschieben nach" });
-  const contained = await submenu.evaluate((element) => {
-    const box = element.closest(".ui-popover")?.getBoundingClientRect();
-    return (
-      !!box && box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight
-    );
-  });
-  expect(contained).toBe(true);
+  // Anchored beside its trigger on desktop, a sheet of its own on compact; the sheet slides in,
+  // so containment is read once it has settled.
+  await expect
+    .poll(() =>
+      submenu.evaluate((element) => {
+        const box = element.closest(".ui-popover, .ui-sheet")?.getBoundingClientRect();
+        return (
+          !!box &&
+          box.left >= 0 &&
+          box.top >= 0 &&
+          box.right <= innerWidth &&
+          box.bottom <= innerHeight
+        );
+      }),
+    )
+    .toBe(true);
   await nested.press("ArrowLeft");
   await expect(trigger).toBeFocused();
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
+});
+
+test("a submenu opened from a menu in a compact sheet is on top and can be chosen", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !["design-compact-boundary", "design-touch"].includes(testInfo.project.name),
+    "Only compact turns the parent menu into a modal sheet.",
+  );
+  await openStory(page, "Menu/SubmenuInPopover");
+  await page.getByRole("button", { name: "Kapitelaktionen" }).click();
+  const trigger = page.getByRole("menuitem", { name: "Verschieben nach" });
+  await trigger.click();
+  await expect(page.getByRole("dialog", { name: "Verschieben nach" })).toBeVisible();
+  const choice = page.getByRole("menuitem", { name: "Akt 1 · Ankunft" });
+  await expect(choice).toBeVisible();
+  // On compact the parent menu is a modal sheet; a submenu below it is visible to the
+  // accessibility tree but not to a finger. Only the topmost element at its centre counts.
+  // The sheet slides in; retry until it has settled, a submenu stuck below never passes.
+  await expect(() => expectCenterHit(choice)).toPass({ timeout: 3_000 });
+  await choice.click();
+  await expect(page.locator("output")).toHaveText("Akt 1 · Ankunft");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+});
+
+test("a tap opens a submenu in the regular layout on a touch screen", async ({
+  browser,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "design-intermediate",
+    "One regular-width touch run is enough.",
+  );
+  const context = await browser.newContext({
+    baseURL: testInfo.project.use.baseURL,
+    viewport: { width: 820, height: 800 },
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  try {
+    await openStory(page, "Menu/SubmenuInPopover");
+    await page.getByRole("button", { name: "Kapitelaktionen" }).tap();
+    const trigger = page.getByRole("menuitem", { name: "Verschieben nach" });
+    await trigger.tap();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const choice = page.getByRole("menuitem", { name: "Akt 1 · Ankunft" });
+    await expect(choice).toBeVisible();
+    await expect(() => expectCenterHit(choice)).toPass({ timeout: 3_000 });
+  } finally {
+    await context.close();
+  }
+});
+
+test("hovering a submenu trigger in a compact sheet opens no sheet", async ({ page }, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "design-compact-boundary",
+    "Only a mouse on compact can hover a trigger inside a modal sheet.",
+  );
+  await openStory(page, "Menu/SubmenuInPopover");
+  await page.getByRole("button", { name: "Kapitelaktionen" }).click();
+  const trigger = page.getByRole("menuitem", { name: "Verschieben nach" });
+  await expect(trigger).toBeVisible();
+  await trigger.hover();
+  // Give a wrongly opened sheet time to mount before asserting its absence.
+  await page.waitForTimeout(300);
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("dialog", { name: "Verschieben nach" })).toHaveCount(0);
 });
 
 test("workspace, tabs and side panels stay usable in narrow hosts", async ({ page }) => {

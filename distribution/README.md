@@ -218,8 +218,11 @@ entrypoint.
 
 Build and publish are separate workflows:
 
-- `release.yml` validates version/profile contracts and produces immutable,
-  named artifacts only after its own complete portable release gate succeeds.
+- `release.yml` is the single entry point for pushes to `main`. It validates
+  version/profile contracts and produces immutable, named artifacts only after
+  its same-workflow gate succeeds: the portable release gate and the called full
+  test matrix (`test.yml` with `full_matrix: true`, verdict `full-success`).
+  A pull-request result is never release evidence.
 - `release-publish.yml` consumes one successful build run, verifies its manifest
   and expected files, then promotes those exact artifacts. It does not rebuild.
 

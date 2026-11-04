@@ -83,6 +83,17 @@ class GlobTests(unittest.TestCase):
             with self.subTest(pattern=pattern), self.assertRaises(path_filter.PathFilterError):
                 path_filter.glob_to_regex(pattern)
 
+    def test_a_glob_is_compiled_once_and_a_refused_glob_is_not_cached(self):
+        path_filter.glob_to_regex.cache_clear()
+        first = path_filter.glob_to_regex("cache-probe/**/*.md")
+        hits = path_filter.glob_to_regex.cache_info().hits
+        self.assertIs(path_filter.glob_to_regex("cache-probe/**/*.md"), first)
+        self.assertEqual(path_filter.glob_to_regex.cache_info().hits, hits + 1)
+        for _ in range(2):
+            with self.assertRaises(path_filter.PathFilterError):
+                path_filter.glob_to_regex("/abs")
+        self.assertEqual(path_filter.glob_to_regex.cache_info().currsize, 1)
+
 
 class PlanTests(unittest.TestCase):
     def test_a_rule_selects_its_groups_only(self):

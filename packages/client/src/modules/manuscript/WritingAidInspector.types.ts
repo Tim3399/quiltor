@@ -24,11 +24,17 @@ export interface WritingAidInspectorProps {
   status: WritingAssistanceStatus | null;
   results: WritingAssistanceLookupResult[];
   assistancePhase: AssistancePhase;
+  /** What failed, shown while `assistancePhase` is "error". */
+  lookupError: string;
+  /** The status request failed: neither panel can tell installed from missing. */
+  statusFailed: boolean;
+  onRetryStatus: () => void;
   replaceTarget: boolean;
-  lookupSources: string[];
   grammarIssues: WritingIssue[];
   selectedIssue: WritingIssue | null;
   grammarPhase: GrammarPhase;
+  /** What failed, shown while `grammarPhase` is "error". */
+  grammarError: string;
   ambiguousMentions: AmbiguousMention[];
   symbolPicker: boolean;
   onSymbolPicker: (open: boolean) => void;

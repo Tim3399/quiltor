@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+from quiltor.application.errors import ApplicationError
 from quiltor.delivery.http.routes import Request, get, save
 
 
 @get("/api/writing-assistance/status")
 def status(handler, request: Request, app) -> None:
-    handler.send_json({"ok": True, **app.writing_assistance.status()})
+    # `installable` is False on a hosted server: the operator installs the data and
+    # LanguageTool there, and the client shows no install button for either.
+    status = app.writing_assistance.status()
+    grammar = status.get("grammar")
+    if isinstance(grammar, dict):
+        status = {**status, "grammar": {**grammar, "installable": app.installable}}
+    handler.send_json({"ok": True, **status, "installable": app.installable})
 
 
-@save("/api/writing-assistance/install")
+@save("/api/writing-assistance/install", operator_only=True)
 def install(handler, request: Request, app) -> None:
     try:
         handler.send_json(app.writing_assistance.install())
@@ -18,7 +25,7 @@ def install(handler, request: Request, app) -> None:
         handler.send_exception(exc)
 
 
-@save("/api/writing-assistance/grammar/install")
+@save("/api/writing-assistance/grammar/install", operator_only=True)
 def install_grammar(handler, request: Request, app) -> None:
     try:
         handler.send_json(app.writing_assistance.install_grammar())
@@ -73,7 +80,9 @@ def check(handler, request: Request, app) -> None:
             error_code="writing_assistance.not_installed",
             retryable=False,
         )
-    except ValueError as exc:
+    except (ApplicationError, ValueError) as exc:
+        # ApplicationError carries its own code (Java missing, server would not
+        # start); the catch-all below would flatten it to grammar_unavailable.
         handler.send_exception(exc)
     except Exception:
         # 503 rather than 500: the usual cause is the grammar server not being

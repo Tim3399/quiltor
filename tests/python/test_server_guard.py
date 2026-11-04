@@ -73,7 +73,9 @@ class _LiveLocalServerTestCase(unittest.TestCase):
 
         self.httpd = server.Server(("127.0.0.1", 0), server.Handler, self.application)
         self.port = self.httpd.server_address[1]
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self.thread.start()
 
     def tearDown(self):

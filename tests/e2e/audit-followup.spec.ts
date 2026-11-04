@@ -1,11 +1,13 @@
-import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
 import type { FigureState } from "../../packages/client/src/modules/story-world";
 import type { StoryboardState } from "../../packages/client/src/modules/storyboard/model";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldV1 } from "../../packages/client/src/platform/contracts/v1/storyWorld";
+import { putVersioned as putDocument } from "./support/seed";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const docxFixture = new URL("../fixtures/manuscript-import/harbor.docx", import.meta.url);
@@ -74,17 +76,6 @@ const storyboards: StoryboardState = {
     },
   ],
 };
-
-async function putDocument(page: Page, path: string, encode: (revision: number) => unknown) {
-  const current = await page.request.get(path);
-  expect(current.ok(), await current.text()).toBe(true);
-  const revision = Number((current.headers().etag ?? '"0"').replaceAll('"', ""));
-  const saved = await page.request.put(path, {
-    headers: { "If-Match": `"${revision}"` },
-    data: encode(revision),
-  });
-  expect(saved.ok(), await saved.text()).toBe(true);
-}
 
 async function seedAuditWorld(page: Page, title: string) {
   const world = await createTestWorld(page, title);
@@ -257,7 +248,7 @@ async function openImportPreview(page: Page) {
 }
 
 async function openExportPreview(page: Page) {
-  await page.getByRole("button", { name: "Buch exportieren", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript");
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("/api/manuscript-export/preview"),
   );
@@ -269,7 +260,7 @@ async function openExportPreview(page: Page) {
 }
 
 async function openEpubPreview(page: Page) {
-  await page.getByRole("button", { name: "Buch exportieren", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript");
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("/api/manuscript-export/preview"),
   );

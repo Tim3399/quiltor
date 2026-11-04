@@ -50,6 +50,14 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "correctness": {
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": {
+            "hooks": [{ "name": "useLatest", "stableResult": true }]
+          }
+        }
+      },
       "style": {
         "noDescendingSpecificity": "off"
       }

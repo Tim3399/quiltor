@@ -39,6 +39,4 @@ export const worlds = {
   unreachable: "Werkstatt nicht erreichbar",
   restartServerHint: "Starte den lokalen Server mit {code} und lade die Seite neu.",
   languageChoice: "Sprache",
-  germanLanguage: "Deutsch",
-  englishLanguage: "Englisch",
 } as const;

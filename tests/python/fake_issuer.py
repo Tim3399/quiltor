@@ -263,7 +263,9 @@ class FakeIssuer:
                 pass
 
         self._httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-        self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
+        self._thread = threading.Thread(
+            target=self._httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self._thread.start()
         return self
 

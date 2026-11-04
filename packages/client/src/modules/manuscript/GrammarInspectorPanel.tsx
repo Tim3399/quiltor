@@ -20,6 +20,8 @@ export interface GrammarInspectorPanelProps {
   issues: WritingIssue[];
   selectedIssue: WritingIssue | null;
   phase: GrammarPhase;
+  /** Shown while `phase` is "error"; the generic sentence when empty. */
+  errorMessage?: string;
   onCheck: () => void;
   onInstall: () => void;
   onSelectIssue: (issue: WritingIssue | null) => void;
@@ -34,6 +36,7 @@ export function GrammarInspectorPanel({
   issues,
   selectedIssue,
   phase,
+  errorMessage,
   onCheck,
   onInstall,
   onSelectIssue,
@@ -42,7 +45,17 @@ export function GrammarInspectorPanel({
 }: GrammarInspectorPanelProps) {
   const { t } = useI18n();
   const grammar = status?.grammar;
+  // A configured external server replaces the local LanguageTool, so neither
+  // Java nor the download applies; without the opt-in it is simply not enabled.
+  const external = !!grammar?.externalConfigured;
+  const externalBlocked = external && !grammar?.externalEnabled;
+  // Installing LanguageTool cannot succeed without Java, so the panel says what
+  // is missing instead of offering a download that ends in an error.
+  const javaMissing =
+    !!grammar && (grammar.javaVersion === null || grammar.javaVersion < grammar.javaRequired);
   const mode = manuscript.grammarMode || "manual";
+  // A hosted server's operator installs LanguageTool; the panel never offers it there.
+  const installable = status?.installable !== false && grammar?.installable !== false;
 
   return (
     <div className="grammar-tool">
@@ -70,14 +83,18 @@ export function GrammarInspectorPanel({
         <EmptyState
           className="writing-data-state"
           title={
-            grammar?.installed
-              ? t("grammarJavaMissing").replace("{version}", String(grammar.javaRequired))
-              : t("grammarUnavailable")
+            externalBlocked
+              ? t("grammarExternalOptInRequired")
+              : javaMissing
+                ? t("grammarJavaMissing").replace("{version}", String(grammar.javaRequired))
+                : t("grammarUnavailable")
           }
           headingLevel={3}
           size="compact"
           actions={
-            !grammar?.installed ? (
+            !installable ? (
+              <p className="writing-data-state__note">{t("writingInstalledByOperator")}</p>
+            ) : !external && !javaMissing && !grammar?.installed ? (
               <Button
                 onClick={onInstall}
                 loading={phase === "installing"}
@@ -92,7 +109,7 @@ export function GrammarInspectorPanel({
           {phase === "installing" && <ProgressBar label={t("grammarInstalling")} />}
         </EmptyState>
       )}
-      {phase === "error" && <Alert tone="danger">{t("grammarCheckError")}</Alert>}
+      {phase === "error" && <Alert tone="danger">{errorMessage || t("grammarCheckError")}</Alert>}
       {!!issues.length && (
         <ul className="grammar-issues">
           {issues.map((issue) => {
@@ -142,7 +159,7 @@ export function GrammarInspectorPanel({
         ]}
         onChange={onGrammarMode}
       />
-      {grammar?.installed && (
+      {(grammar?.installed || grammar?.externalEnabled) && (
         <footer className="writing-attribution">
           <span>{t("writingAttribution")}</span>
           <ul>

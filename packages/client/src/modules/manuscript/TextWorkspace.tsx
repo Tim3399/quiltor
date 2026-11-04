@@ -48,6 +48,7 @@ import "./TextWorkspace.css";
 
 export function TextWorkspace({
   worldTitle,
+  documentsReady = true,
   manuscript,
   figures,
   orphanedMentions = 0,
@@ -138,16 +139,17 @@ export function TextWorkspace({
   useEffect(() => {
     onCurrentChapterId?.(current?.id || "");
   }, [current?.id, onCurrentChapterId]);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // The navigation token is an event carried by a prop: each new value opens the trash once.
+  // Handled during render, so the dialog is part of the same commit as the new token.
+  const [seenTrashToken, setSeenTrashToken] = useState(0);
+  if (seenTrashToken !== openChapterTrashToken) {
+    setSeenTrashToken(openChapterTrashToken);
     if (openChapterTrashToken > 0) setTrashOpen(true);
-  }, [openChapterTrashToken]);
-  useEffect(() => {
-    if (lastDeletedId && !manuscript.trash?.some((entry) => entry.chapter.id === lastDeletedId)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-      setLastDeletedId("");
-    }
-  }, [lastDeletedId, manuscript.trash]);
+  }
+  // The undo notice goes once its chapter has left the trash (restored or emptied elsewhere).
+  if (lastDeletedId && !manuscript.trash?.some((entry) => entry.chapter.id === lastDeletedId)) {
+    setLastDeletedId("");
+  }
   const commitManuscript = (nextChapters: Chapter[], nextStructure = structure) => {
     const byId = new Map(nextChapters.map((chapter) => [chapter.id, chapter]));
     const ordered = flattenChapterIds(nextStructure).map((id) => {
@@ -369,11 +371,14 @@ ${markdownBody(current.body, current.marks)}
       status={writing.status}
       results={writing.results}
       assistancePhase={writing.phase}
+      lookupError={writing.lookupError}
+      statusFailed={writing.statusFailed}
+      onRetryStatus={writing.retryStatus}
       replaceTarget={Boolean(writing.heldSelection || writing.liveSelection)}
-      lookupSources={writing.lookupSources}
       grammarIssues={writing.grammarIssues}
       selectedIssue={writing.selectedIssue}
       grammarPhase={writing.grammarPhase}
+      grammarError={writing.grammarError}
       ambiguousMentions={writing.ambiguousMentions}
       symbolPicker={writing.symbolPicker}
       onSymbolPicker={writing.setSymbolPicker}
@@ -498,6 +503,7 @@ ${markdownBody(current.body, current.marks)}
                 activeSearchIndex={search.activeIndex}
                 activeSearchMatch={search.activeMatch}
                 historyOpen={history.open}
+                documentsReady={documentsReady}
                 historyCommits={history.commits}
                 historyRef={history.selectedRef}
                 historicalChapter={history.selected}

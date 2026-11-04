@@ -1,4 +1,4 @@
-import { lazy, useCallback, useRef } from "react";
+import { type ComponentProps, lazy, type RefObject, useCallback, useRef, useState } from "react";
 import {
   loadTextWorkspace,
   type Manuscript,
@@ -26,6 +26,31 @@ const TimelineWorkspace = lazy(loadTimelineWorkspace);
 const PlacesWorkspace = lazy(loadPlacesWorkspace);
 const StoryboardWorkspace = lazy(loadStoryboardWorkspace);
 
+type StoredSession = { worldId: string; state: ManuscriptEditorSessionState };
+
+/**
+ * Seeds the text workspace with the editor session stored for this world.
+ *
+ * The seed is read once per mount, in the state initializer: the editor takes it only as its
+ * starting selection and scroll position, and later captures must not re-render it. Reading
+ * it here rather than in the surface keeps that true for every mount -- the text workspace is
+ * unmounted whenever another workspace shows and mounts again on return, and each mount needs
+ * the session as it was left.
+ */
+function SeededTextWorkspace({
+  sessionStore,
+  worldId,
+  ...props
+}: Omit<ComponentProps<typeof TextWorkspace>, "sessionState"> & {
+  sessionStore: RefObject<StoredSession | null>;
+  worldId: string;
+}) {
+  const [seed] = useState(() =>
+    sessionStore.current?.worldId === worldId ? sessionStore.current.state : null,
+  );
+  return <TextWorkspace {...props} sessionState={seed} />;
+}
+
 type HistoryActions<T> = {
   change: (value: T) => void;
   undo: () => void;
@@ -37,6 +62,7 @@ type HistoryActions<T> = {
 export function WorkspaceSurface({
   worldId,
   worldTitle,
+  documentsReady = true,
   workspace,
   manuscript,
   figures,
@@ -60,6 +86,8 @@ export function WorkspaceSurface({
 }: {
   worldId: string;
   worldTitle: string;
+  /** False while the world's documents are still loading; the text editor waits for it. */
+  documentsReady?: boolean;
   workspace: Workspace;
   manuscript: Manuscript;
   figures: FigureState;
@@ -82,10 +110,7 @@ export function WorkspaceSurface({
   onChapterFilter?: (filter: "all" | "in-book" | "set-aside") => void;
 }) {
   const layout = useWorkspaceLayout(worldId, workspace);
-  const manuscriptSession = useRef<{
-    worldId: string;
-    state: ManuscriptEditorSessionState;
-  } | null>(null);
+  const manuscriptSession = useRef<StoredSession | null>(null);
   const captureManuscriptSession = useCallback(
     (state: ManuscriptEditorSessionState) => {
       manuscriptSession.current = { worldId, state };
@@ -98,9 +123,12 @@ export function WorkspaceSurface({
   };
   if (workspace === "text")
     return (
-      <TextWorkspace
+      <SeededTextWorkspace
         key={worldId}
+        worldId={worldId}
+        sessionStore={manuscriptSession}
         worldTitle={worldTitle}
+        documentsReady={documentsReady}
         manuscript={manuscript}
         figures={figures}
         orphanedMentions={orphanedMentions}
@@ -108,10 +136,6 @@ export function WorkspaceSurface({
         onOpenEntity={onNavigate}
         currentChapterId={currentChapterId}
         onCurrentChapterId={onCurrentChapterId}
-        sessionState={
-          // eslint-disable-next-line react-hooks/refs -- the stored session is read once to seed the editor; it is written only by captureManuscriptSession and must not trigger a re-render
-          manuscriptSession.current?.worldId === worldId ? manuscriptSession.current.state : null
-        }
         onSessionStateChange={captureManuscriptSession}
         focus={focus}
         onFocus={onFocus}

@@ -1,6 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n";
+import { ApplicationGatewayError } from "../../platform/application/errors";
 import type { SavePhase } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
+
+// The request id is what an operator searches the server log for; code says what failed.
+function reportSaveFailure(reason: unknown): void {
+  const gateway = reason instanceof ApplicationGatewayError ? reason : null;
+  console.warn("save failed", {
+    code: gateway?.code ?? "unknown",
+    requestId: gateway?.requestId,
+  });
+}
+
+/** The server request id of a failed save, when the failure carries one. */
+function saveFailureRequestId(failure: unknown): string | undefined {
+  return failure instanceof ApplicationGatewayError ? failure.requestId : undefined;
+}
 
 const DEFAULT_AUTOSAVE_DELAY_MS = 800;
 
@@ -20,7 +36,14 @@ export function useAutosave<T>(
   const dirty = useRef(false);
   const initialized = useRef(false);
   const acceptedReplacement = useRef<T | null>(null);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
+  // Not useLatest, deliberately (T-17 F-17-2): `latest` has two writers. The render gives it
+  // the current value; replace() gives it the server-confirmed `persisted`, and flush(),
+  // resolve() and the timer compare against that before the next render. An assignment in an
+  // insertion effect would overwrite the handler's value with the prop at the next commit
+  // whenever the caller does not re-render with `persisted` at once -- a new window in the
+  // save path for a purely formal gain. Covered by "resolves the persisted value right after a
+  // replace…" and the test after it.
+  // eslint-disable-next-line react-hooks/refs -- two writers (render and replace) by design, F-17-2; see above
   latest.current = value;
 
   const flush = useCallback((): Promise<void> => {
@@ -42,6 +65,7 @@ export function useAutosave<T>(
         setSavedAt(Date.now());
         setPhase("saved");
       } catch (reason) {
+        reportSaveFailure(reason);
         setError(reason instanceof Error ? reason.message : t("saveFailed"));
         setFailure(reason);
         setPhase("error");
@@ -52,9 +76,8 @@ export function useAutosave<T>(
     });
     return pending.current;
   }, [save, t]);
-  const flushRef = useRef(flush);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  flushRef.current = flush;
+  // Read only, by the debounce timer, which must run the flush of the latest render.
+  const flushRef = useLatest(flush);
 
   useEffect(() => {
     if (!value) return;
@@ -104,6 +127,7 @@ export function useAutosave<T>(
           setSavedAt(Date.now());
           setPhase("saved");
         } catch (reason) {
+          reportSaveFailure(reason);
           setError(reason instanceof Error ? reason.message : t("saveFailed"));
           setFailure(reason);
           setPhase("error");
@@ -128,6 +152,38 @@ export function useAutosave<T>(
     setPhase("saved");
     return true;
   }, []);
+  // The next value is loaded, not edited: it must not count as a change to save.
+  const accept = useCallback((loaded: T) => {
+    acceptedReplacement.current = loaded;
+  }, []);
+  // Drop all save state when the documents leave. Refuses while a save is still out.
+  // `onScreen` keeps the current value as the baseline: the documents stay visible, so the
+  // next change is an edit that must reach `save` (and beforeunload), not a fresh load.
+  const discard = useCallback(({ onScreen = false }: { onScreen?: boolean } = {}): boolean => {
+    if (pending.current) return false;
+    clearTimeout(timer.current);
+    dirty.current = false;
+    acceptedReplacement.current = null;
+    if (!onScreen) initialized.current = false;
+    setPhase("idle");
+    setError("");
+    setFailure(null);
+    return true;
+  }, []);
   const isDirty = useCallback(() => dirty.current, []);
-  return { phase, error, failure, savedAt, flush, retry, resolve, replace, isDirty };
+  const errorId = saveFailureRequestId(failure);
+  return {
+    phase,
+    error,
+    errorId,
+    failure,
+    savedAt,
+    flush,
+    retry,
+    resolve,
+    replace,
+    accept,
+    discard,
+    isDirty,
+  };
 }

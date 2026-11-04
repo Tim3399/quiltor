@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import { resolveDesignPort } from "./tools/dev/design-port.mjs";
 import { resolvePlaywrightWorkers } from "./tests/playwright/workers";
+
+const designPort = resolveDesignPort();
+const designUrl = `http://127.0.0.1:${designPort}`;
 
 export default defineConfig({
   testDir: "./tests/design",
@@ -12,7 +16,7 @@ export default defineConfig({
   workers: resolvePlaywrightWorkers(4),
   timeout: 45_000,
   use: {
-    baseURL: "http://127.0.0.1:4174",
+    baseURL: designUrl,
     locale: "de-DE",
     timezoneId: "Europe/Berlin",
     trace: "retain-on-failure",
@@ -38,8 +42,12 @@ export default defineConfig({
   ],
   webServer: {
     command: "node ./node_modules/vite/bin/vite.js --config vite.design.config.ts",
-    url: "http://127.0.0.1:4174",
-    reuseExistingServer: !process.env.CI,
+    url: designUrl,
+    // Never reuse: a server already on the port may be another worktree's gallery, which serves
+    // that worktree's sources. Playwright then stops with "is already used" instead of running
+    // the suite against foreign code. Pick a free port with QUILTOR_DESIGN_PORT.
+    reuseExistingServer: false,
+    env: { QUILTOR_DESIGN_PORT: String(designPort) },
     timeout: 30_000,
   },
 });

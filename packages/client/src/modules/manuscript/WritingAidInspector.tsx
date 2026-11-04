@@ -1,4 +1,5 @@
-import { SidePanelBody, Tab, TabList, TabPanel, Tabs } from "../../design";
+import { RotateCw } from "lucide-react";
+import { Alert, Button, SidePanelBody, Tab, TabList, TabPanel, Tabs } from "../../design";
 import { useI18n } from "../../i18n";
 import { GrammarInspectorPanel } from "./GrammarInspectorPanel";
 import type { WritingAidInspectorProps } from "./WritingAidInspector.types";
@@ -23,11 +24,14 @@ export function WritingAidInspector({
   status,
   results,
   assistancePhase,
+  lookupError,
+  statusFailed,
+  onRetryStatus,
   replaceTarget,
-  lookupSources,
   grammarIssues,
   selectedIssue,
   grammarPhase,
+  grammarError,
   ambiguousMentions,
   symbolPicker,
   onSymbolPicker,
@@ -69,7 +73,13 @@ export function WritingAidInspector({
           </TabList>
         </WritingTabScroller>
         <TabPanel className="writing-aid-tabs__panel" value={activeMode}>
-          {activeMode === "lookup" ? (
+          {statusFailed && activeMode !== "insert" ? (
+            <Alert className="writing-status-error" tone="danger" title={t("writingStatusError")}>
+              <Button size="compact" icon={<RotateCw />} onClick={onRetryStatus}>
+                {t("retry")}
+              </Button>
+            </Alert>
+          ) : activeMode === "lookup" ? (
             <WritingLookupPanel
               selectionTool={selectionTool}
               writingLocale={writingLocale}
@@ -77,8 +87,8 @@ export function WritingAidInspector({
               status={status}
               results={results}
               phase={assistancePhase}
+              errorMessage={lookupError}
               replaceTarget={replaceTarget}
-              lookupSources={lookupSources}
               onWritingQuery={onWritingQuery}
               onRunLookup={onRunLookup}
               onChooseTool={onChooseTool}
@@ -94,6 +104,7 @@ export function WritingAidInspector({
               issues={grammarIssues}
               selectedIssue={selectedIssue}
               phase={grammarPhase}
+              errorMessage={grammarError}
               onCheck={onCheckGrammar}
               onInstall={onInstallGrammar}
               onSelectIssue={onSelectIssue}

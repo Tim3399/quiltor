@@ -77,7 +77,7 @@ describe("FigureInspector panels", () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Als wichtig markieren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Figur favorisieren" }));
     expect(onPatch).toHaveBeenCalledWith({ important: true });
   });
 

@@ -15,6 +15,21 @@ async function seedManuscript(page: Page, worldId: string) {
   expect(response.ok(), await response.text()).toBeTruthy();
 }
 
+// Clicks, then waits for the manuscript save that click causes and reads the stored
+// state once. Polling instead gave the save only the 5 s expect budget, which a loaded
+// server (2-3 s per request) can use up before the PUT lands (T-99).
+async function savedAfter(page: Page, worldId: string, action: () => Promise<void>) {
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      response.url().includes(`/api/manuscript?world=${worldId}`),
+  );
+  await action();
+  const response = await saved;
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return (await (await page.request.get(`/api/manuscript?world=${worldId}`)).json()).payload;
+}
+
 async function openBinder(page: Page) {
   await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
   if (!(await page.getByRole("button", { name: "Papierkorb", exact: true }).isVisible())) {
@@ -95,46 +110,36 @@ test("Set-aside chapters remain editable and survive trash, reload and restore",
   await expect(page.getByLabel("Kapiteltext")).toContainText("Erste Fassung.");
   await openBinder(page);
   await page.getByRole("button", { name: "Kapitelaktionen: Anfang", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Aus dem Buch nehmen", exact: true }).click();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get(`/api/manuscript?world=${world.id}`);
-      return (await response.json()).payload.chapters[0].inBook;
-    })
-    .toBe(false);
+  const setAside = await savedAfter(page, world.id, () =>
+    page.getByRole("menuitem", { name: "Aus dem Buch nehmen", exact: true }).click(),
+  );
+  expect(setAside.chapters[0].inBook).toBe(false);
   await page.reload();
   await expect(page.getByLabel("Kapiteltext")).toContainText("Erste Fassung.");
   await openBinder(page);
   await page.getByRole("button", { name: "Zurückgestellt", exact: true }).click();
   await page.getByRole("button", { name: "Kapitelaktionen: Anfang", exact: true }).click();
   await page.getByRole("menuitem", { name: "Kapitel löschen", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Kapitel löschen", exact: true })
-    .click();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get(`/api/manuscript?world=${world.id}`);
-      return (await response.json()).payload.trash?.length;
-    })
-    .toBe(1);
+  const deleted = await savedAfter(page, world.id, () =>
+    page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Kapitel löschen", exact: true })
+      .click(),
+  );
+  expect(deleted.trash?.length).toBe(1);
   await page.reload();
   await openBinder(page);
   await page.getByRole("button", { name: "Papierkorb", exact: true }).click();
   const trash = page.getByRole("dialog", { name: "Papierkorb", exact: true });
   await expect(trash).toContainText("Erste Fassung.");
   await trash.getByRole("textbox").fill("Erste Fassung");
-  await trash.getByRole("button", { name: "Kapitel wiederherstellen", exact: true }).click();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get(`/api/manuscript?world=${world.id}`);
-      const manuscript = (await response.json()).payload;
-      return { chapter: manuscript.chapters[0], trash: manuscript.trash?.length ?? 0 };
-    })
-    .toMatchObject({
-      chapter: { id: "opening", body: "Erste Fassung.", note: "Notiz.", inBook: false },
-      trash: 0,
-    });
+  const restored = await savedAfter(page, world.id, () =>
+    trash.getByRole("button", { name: "Kapitel wiederherstellen", exact: true }).click(),
+  );
+  expect({ chapter: restored.chapters[0], trash: restored.trash?.length ?? 0 }).toMatchObject({
+    chapter: { id: "opening", body: "Erste Fassung.", note: "Notiz.", inBook: false },
+    trash: 0,
+  });
 });
 
 test("Project trash remains accessible after reload and restores the same manuscript", async ({
@@ -286,6 +291,27 @@ for (const theme of ["light", "dark"] as const) {
       "Weltwissen vorbereiten",
     ]) {
       await expect(guide.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    }
+    const rows = await guide.locator(".getting-started-guide__tasks section").evaluateAll((all) =>
+      all.map((row) => {
+        const icon = row.querySelector("svg")?.getBoundingClientRect();
+        const heading = row.querySelector("h3");
+        const button = row.querySelector("button")?.getBoundingClientRect();
+        if (!icon || !heading || !button) throw new Error("Guide row is incomplete");
+        const range = document.createRange();
+        range.selectNodeContents(heading);
+        const firstLine = range.getClientRects()[0];
+        return {
+          buttonWidth: button.width,
+          iconCenter: icon.top + icon.height / 2,
+          firstLineCenter: firstLine.top + firstLine.height / 2,
+        };
+      }),
+    );
+    expect(rows).toHaveLength(4);
+    for (const row of rows) {
+      expect(Math.abs(row.buttonWidth - rows[0].buttonWidth)).toBeLessThanOrEqual(1);
+      expect(Math.abs(row.iconCenter - row.firstLineCenter)).toBeLessThanOrEqual(1);
     }
     const guideAccessibility = await new AxeBuilder({ page })
       .include('[role="dialog"]')

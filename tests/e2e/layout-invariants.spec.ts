@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
-import { mockRequiredWorldDocuments } from "./support/application-api";
+import { toolbarRowFindings } from "../audit/support/toolbar-row";
+import { mockWorkshop as mockWorkshopRoutes } from "./support/application-api";
 import {
   closePlaceSheet,
   mockExpandedMapWorld,
@@ -8,6 +8,8 @@ import {
   selectMapChild,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { waitForSettledLayout } from "./support/layout-settled";
+import { expect, test } from "./support/transient-network";
 
 /*
  * Geometry invariants.
@@ -168,27 +170,17 @@ const storyboards = {
   ],
 };
 
-async function mockWorkshop(page: Page) {
-  await page.route("**/api/version", (route) =>
-    route.fulfill({ json: { ok: true, version: "layout" } }),
-  );
-  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
-  const world = {
-    id: "layout",
-    title: "Der gläserne Atlas",
-    backupUrl: "",
-    updated: "2026-09-03T12:00:00Z",
-  };
-  await page.route("**/api/worlds", (route) =>
-    route.fulfill({ json: { ok: true, worlds: [world] } }),
-  );
-  await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
-  await mockRequiredWorldDocuments(page, { manuscript, storyWorld: figures, storyboards });
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({
-      json: { ok: true, available: false, mode: "local", reason: "-", chunks: 0 },
-    }),
-  );
+function mockWorkshop(page: Page) {
+  return mockWorkshopRoutes(page, {
+    version: "layout",
+    world: {
+      id: "layout",
+      title: "Der gläserne Atlas",
+      backupUrl: "",
+      updated: "2026-09-03T12:00:00Z",
+    },
+    documents: { manuscript, storyWorld: figures, storyboards },
+  });
 }
 
 /** Every violation as one readable line; an empty list is the pass. */
@@ -352,6 +344,12 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
 
 const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as const;
 
+// From the project's own width down: each project walks the widths below it, so the compact
+// project stays at the phone and the wide one covers every breakpoint in between.
+const TOOLBAR_WIDTHS = [
+  1440, 1280, 1180, 1100, 1024, 960, 900, 860, 820, 768, 719, 640, 560, 500, 430, 390, 360, 320,
+];
+
 for (const viewport of [
   { name: "inspector sheet boundary", width: 820, height: 800, coarse: false },
   { name: "compact controls boundary", width: 719, height: 800, coarse: false },
@@ -448,6 +446,21 @@ for (const viewport of [
       await expect(page.locator(".places-measure-overlays")).toBeVisible();
       await expect(page.locator(".place-map-chrome")).toBeVisible();
       await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
+
+      // Inside a level the trail joins the hint and the scale at the top edge. On the top
+      // level there is no trail, so only this step can find the three on one spot.
+      await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+      await expect(page.locator(".places-measure-overlays")).toHaveCount(0);
+      await page
+        .locator(".place-map-chrome")
+        .getByRole("button", { name: "Weltkarte öffnen", exact: true })
+        .click();
+      await expect(page.locator(".place-level-trail")).toContainText("Weltkarte");
+      await waitForMapViewport(page);
+      await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+      await expect(page.locator(".places-measure-overlays")).toBeVisible();
+      await expect(page.locator(".place-level-trail")).toBeVisible();
+      await expect.poll(() => violations(page, TOLERANCE)).toEqual([]);
     } finally {
       await context.close();
     }
@@ -484,11 +497,79 @@ for (const workspace of workspaces) {
     }
     // The canvases fit their viewport on arrival; only after that do the rectangles this
     // measures stand still.
-    await page.waitForTimeout(900);
+    await waitForSettledLayout(page);
 
     expect(await violations(page, TOLERANCE)).toEqual([]);
   });
+
+  /*
+   * T-104: every toolbar is exactly one row, and none of its controls is hidden or cut off --
+   * not wrapped onto a second row (the storyboard's undo alone below the rest), not clipped at
+   * the edge ("Element nach vorne"), not under a scrollbar (the manuscript strip). The three
+   * project viewports alone missed the storyboard, which wraps between them, so the test walks
+   * a row of widths from the widest layout down to the phone.
+   */
+  for (const theme of ["light", "dark"] as const) {
+    test(`${workspace}: every toolbar is one row with nothing hidden (${theme})`, async ({
+      page,
+    }) => {
+      await page.addInitScript((chosen) => {
+        localStorage.setItem("quiltor-theme", chosen);
+        localStorage.setItem("quiltor-interface-language", "de");
+      }, theme);
+      await mockWorkshop(page);
+      await page.goto("/");
+      await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+      await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+      if (workspace !== "Text") {
+        await page.getByRole("button", { name: workspace, exact: true }).click();
+      }
+      await waitForSettledLayout(page);
+      const start = page.viewportSize() ?? { width: 1440, height: 900 };
+      const messages: string[] = [];
+      for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+        await page.setViewportSize({ width, height: start.height });
+        await waitForSettledLayout(page);
+        for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+          messages.push(`${width}px: ${finding.message}`);
+        }
+      }
+      expect(messages).toEqual([]);
+    });
+  }
 }
+
+/*
+ * T-148: the timeline toolbar was one row at 768px on Windows and Linux and two on macOS,
+ * whose system font runs wider. A fix tuned to one font's widths breaks on the next, so this
+ * forces text wider than macOS's onto the toolbar and asks for one row all the same.
+ */
+test("Timeline: the toolbar stays one row with a wider font", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  // Test-only: roughly 15 percent wider text than Segoe UI, more than the macOS difference.
+  await page.addStyleTag({
+    content: ".timeline-toolbar, .timeline-toolbar * { letter-spacing: 0.08em !important; }",
+  });
+  await waitForSettledLayout(page);
+  const start = page.viewportSize() ?? { width: 1440, height: 900 };
+  const messages: string[] = [];
+  for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+    await page.setViewportSize({ width, height: start.height });
+    await waitForSettledLayout(page);
+    for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+      messages.push(`${width}px: ${finding.message}`);
+    }
+  }
+  expect(messages).toEqual([]);
+});
 
 /*
  * A menu lies on top of whatever it was opened from.
@@ -537,49 +618,88 @@ test("Menus lie above the opened drawer", async ({ page }) => {
 /*
  * A monogram sits in the middle of its circle.
  *
- * Zoomed out, a place card shrinks to 32 pixels with a single letter in it. The map card kept
- * pushing its text 38 percent to the right -- the column next to the preview image, which
- * does not exist at all at that size. Ten pixels off the centre of a circle is obvious at a
- * glance, and yet there was nowhere to measure it.
+ * Zoomed out, a card shrinks to a 32 pixel circle with a single letter in it -- the only thing
+ * left of the element. The map card once pushed its text 38 percent to the right, and after
+ * that the capital still sat low (T-130): with `line-height: 1` the box that gets centred is
+ * the font's ascent plus descent, and a capital fills only the part above the baseline. A text
+ * range reports that font box, not the ink, so the letter is measured with the canvas metrics
+ * of the font it is drawn in, placed on the range's baseline.
  */
-test("Places: monograms sit centred in the circle", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
-  await page.getByRole("button", { name: "Orte", exact: true }).click();
-
-  // The circle appears only far out; the canvas offers no shortcut for getting there.
-  const zoomOut = page.locator(".react-flow__controls-zoomout");
-  for (let step = 0; step < 6; step += 1) {
-    await zoomOut.click();
-    await page.waitForTimeout(120);
-  }
-  await expect(page.locator(".story-node.zoom-overview.is-map")).toHaveCount(1);
-
-  const offset = await page.evaluate(() => {
+async function monogramOffsets(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
     const found: string[] = [];
-    for (const node of document.querySelectorAll(".story-node.zoom-overview")) {
-      const monogram = node.querySelector(".node-monogram");
-      if (!monogram) continue;
+    const context = document.createElement("canvas").getContext("2d");
+    if (!context) return ["no 2d canvas context"];
+    for (const node of document.querySelectorAll<HTMLElement>(
+      ".story-node.zoom-overview:not(.is-important)",
+    )) {
+      const monogram = node.querySelector<HTMLElement>(".node-monogram");
+      const text = monogram?.textContent ?? "";
+      if (!monogram || !text) continue;
+      const style = getComputedStyle(monogram);
+      if (style.display === "none") continue;
+      // The font box comes rounded to whole pixels, as the line layout uses it. The ink is
+      // measured a thousand times larger, because at 12px canvas rounds it to whole pixels too.
+      const fontSize = Number.parseFloat(style.fontSize);
+      context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const ascent = context.measureText(text).fontBoundingBoxAscent;
+      context.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+      const ink = context.measureText(text);
+      const unit = fontSize / 1000;
       const box = node.getBoundingClientRect();
+      const scale = box.width / node.offsetWidth;
       const range = document.createRange();
       range.selectNodeContents(monogram);
-      const ink = range.getBoundingClientRect();
-      const offset = ink.left + ink.width / 2 - (box.left + box.width / 2);
-      if (Math.abs(offset) > 1.5) {
-        found.push(`${monogram.textContent} steht ${offset.toFixed(1)}px neben der Mitte`);
+      const line = range.getBoundingClientRect();
+      const baseline = line.top + ascent * scale;
+      const inkX =
+        line.left + ((ink.actualBoundingBoxRight - ink.actualBoundingBoxLeft) / 2) * unit * scale;
+      const inkY =
+        baseline +
+        ((ink.actualBoundingBoxDescent - ink.actualBoundingBoxAscent) / 2) * unit * scale;
+      const dx = inkX - (box.left + box.width / 2);
+      const dy = inkY - (box.top + box.height / 2);
+      // Across, a letter may stand up to a pixel aside: a K's ink sits off its own advance by
+      // design. Up and down it is half a pixel: the capital sat 0.78px low, which at 1x lands
+      // a whole device pixel off, and the trimmed box snaps well inside half a pixel.
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 0.5) {
+        found.push(`${text} is off centre by x ${dx.toFixed(1)}px, y ${dy.toFixed(1)}px`);
       }
     }
     return found;
   });
+}
 
-  expect(offset).toEqual([]);
-});
+for (const theme of ["light", "dark"] as const) {
+  for (const workspace of ["Orte", "Figuren"] as const) {
+    test(`${workspace} (${theme}): monograms sit centred in the circle`, async ({ page }) => {
+      await page.addInitScript((chosen) => {
+        localStorage.setItem("quiltor-theme", chosen);
+        localStorage.setItem("quiltor-interface-language", "de");
+      }, theme);
+      await mockWorkshop(page);
+      await page.goto("/");
+      await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+      await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+      await page.getByRole("button", { name: workspace, exact: true }).click();
+
+      // The circle appears only far out; the canvas offers no shortcut for getting there.
+      // The figure canvas opens closer in than the place canvas, so step until it shows.
+      const zoomOut = page.locator(".react-flow__controls-zoomout");
+      const circles = page.locator(".story-node.zoom-overview:not(.is-important)");
+      for (let step = 0; step < 12 && (step < 6 || (await circles.count()) === 0); step += 1) {
+        await zoomOut.click();
+        await page.waitForTimeout(120);
+      }
+      if (workspace === "Orte") {
+        await expect(page.locator(".story-node.zoom-overview.is-map")).toHaveCount(1);
+      }
+      await expect(circles.locator(".node-monogram").first()).toBeVisible();
+
+      expect(await monogramOffsets(page)).toEqual([]);
+    });
+  }
+}
 
 /*
  * The minimap shows what stands on the canvas.
@@ -611,7 +731,7 @@ test("Places: the minimap also shows what stands on a map", async ({ page }) => 
 
   // Only once it is opened out are there any places standing on a map.
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
 
   const counts = await page.evaluate(() => ({
     canvas: document.querySelectorAll(".react-flow__node").length,
@@ -644,7 +764,7 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  await page.waitForTimeout(600);
+  await waitForSettledLayout(page);
 
   const spot = await page.evaluate(() => {
     const path = document.querySelector<SVGPathElement>(".react-flow__edge-interaction");
@@ -712,7 +832,7 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
   await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
 
   // The map frame clips the part of the sheet that falls below the canvas. At the initial
   // fit, Steg's centre is behind the frame footer, so a pointer aimed there correctly hits
@@ -751,7 +871,7 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(target.x, target.y, { steps: 40 });
   await page.mouse.up();
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
 
   const after = await steg.boundingBox();
   expect(after).not.toBeNull();
@@ -781,7 +901,7 @@ test("Text: the writing aid's search button sits on the line of its field", asyn
   await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
 
-  await page.waitForTimeout(900);
+  await waitForSettledLayout(page);
   const schreibhilfe = page.getByRole("radio", { name: "Schreibhilfe" });
   test.skip(
     !(await schreibhilfe.isVisible()),
