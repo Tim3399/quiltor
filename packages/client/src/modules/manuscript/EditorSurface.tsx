@@ -162,15 +162,24 @@ export function EditorSurface({
     const view = viewSelectionRef.current;
     const scroller = scrollRef.current;
     if (historyOpen || !view || !scroller || view.chapterId !== current?.id) return;
+    const restoring = restoreRef.current;
+    // While a version is open, the editor shows that version; its lines say nothing about
+    // where the live chapter stood, so only the pixel position is kept.
+    const historical = historyScrollRef.current?.chapterId === view.chapterId;
+    const scrollTop = historical
+      ? (historyScrollRef.current?.top ?? 0)
+      : (restoring?.scrollTop ?? scroller.scrollTop);
     sessionCallbackRef.current?.({
       chapterId: view.chapterId,
       selection: view.selection,
-      scrollTop:
-        historyScrollRef.current?.chapterId === view.chapterId
-          ? historyScrollRef.current.top
-          : (restoreRef.current?.scrollTop ?? scroller.scrollTop),
+      scrollTop,
+      scrollAnchor: historical
+        ? null
+        : restoring
+          ? (restoring.scrollAnchor ?? null)
+          : (editorRef.current?.scrollAnchorAt?.(scroller, scrollTop) ?? null),
     });
-  }, [current?.id, historyOpen]);
+  }, [current?.id, editorRef, historyOpen]);
   const pendingLandingRef = useRef<{
     chapterId: string;
     edge: "top" | "bottom";
@@ -328,11 +337,19 @@ export function EditorSurface({
       restoreRef.current = null;
       return;
     }
+    // The saved line, located in the current height map. A pixel target alone is clamped for
+    // good when CodeMirror underestimates the unmeasured lines above it: they are never
+    // measured from down there, so the scrollable height never grows (T-149b, 3455 for 3622).
+    const savedTop = (scroller: HTMLElement) => {
+      const anchor = saved.scrollAnchor;
+      const fromAnchor = anchor ? editorRef.current?.scrollTopForAnchor?.(scroller, anchor) : null;
+      return Math.max(0, fromAnchor ?? saved.scrollTop);
+    };
     const restoreViewport = () => {
       const scroller = scrollRef.current;
       if (!scroller) return;
       editorRef.current?.focus();
-      scroller.scrollTop = Math.max(0, saved.scrollTop);
+      scroller.scrollTop = savedTop(scroller);
     };
     // Set the viewport before paint, then write the exact position after CodeMirror has
     // measured its virtual document and applied scroll anchoring. This is a one-time return,
@@ -346,11 +363,15 @@ export function EditorSurface({
         restoreRef.current = null;
         return;
       }
-      scroller.scrollTop = Math.max(0, saved.scrollTop);
+      scroller.scrollTop = savedTop(scroller);
       restoreRef.current = null;
       const view = viewSelectionRef.current;
       if (view) {
-        sessionCallbackRef.current?.({ ...view, scrollTop: scroller.scrollTop });
+        sessionCallbackRef.current?.({
+          ...view,
+          scrollTop: scroller.scrollTop,
+          scrollAnchor: saved.scrollAnchor ?? null,
+        });
       }
     };
     const afterMeasure = editorRef.current?.afterMeasure;
@@ -361,7 +382,7 @@ export function EditorSurface({
       // so the position is written again until a measure passes without moving it.
       cancel = holdScrollUntilStable({
         scroller,
-        top: Math.max(0, saved.scrollTop),
+        top: () => savedTop(scroller),
         afterMeasure,
         onSettled: finishRestore,
       });

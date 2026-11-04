@@ -38,6 +38,18 @@ export type EditorTextSelection = {
   rect: { left: number; top: number; width: number; height: number };
 };
 
+/** Where the editor's document starts inside an enclosing scroller, in that scroller's offsets. */
+function documentOffsetIn(view: EditorView, scroller: HTMLElement) {
+  return view.documentTop - scroller.getBoundingClientRect().top + scroller.scrollTop;
+}
+
+/**
+ * A scroll position in document coordinates: the line at the top of the viewport and how
+ * far into it the viewport starts. Pixels alone do not survive a remount, because CodeMirror
+ * estimates every line it has not measured yet (T-149b).
+ */
+export type EditorScrollAnchor = { pos: number; offset: number };
+
 export type EditorViewSelection = {
   anchor: number;
   head: number;
@@ -49,6 +61,10 @@ export type ManuscriptEditorHandle = {
   restorePosition: (position: ManuscriptEditorPosition) => void;
   /** Run after CodeMirror has completed its pending geometry measurement and scroll anchoring. */
   afterMeasure?: (callback: (hasFocus: boolean) => void) => () => void;
+  /** The document position at `scrollTop` of the given scroller; null above the text. */
+  scrollAnchorAt?: (scroller: HTMLElement, scrollTop: number) => EditorScrollAnchor | null;
+  /** The scroller offset that brings the anchor back to the top, from the current heights. */
+  scrollTopForAnchor?: (scroller: HTMLElement, anchor: EditorScrollAnchor) => number | null;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
@@ -467,6 +483,16 @@ export function ManuscriptEditor({
         const safeHead = Math.max(0, Math.min(head, length));
         instance.dispatch({ selection: EditorSelection.range(safeAnchor, safeHead) });
         if (focused) instance.focus();
+      },
+      scrollAnchorAt: (scroller, scrollTop) => {
+        const height = scrollTop - documentOffsetIn(instance, scroller);
+        if (height <= 0) return null;
+        const block = instance.lineBlockAtHeight(height);
+        return { pos: block.from, offset: height - block.top };
+      },
+      scrollTopForAnchor: (scroller, anchor) => {
+        if (anchor.pos > instance.state.doc.length) return null;
+        return documentOffsetIn(instance, scroller) + instance.lineBlockAt(anchor.pos).top + anchor.offset;
       },
       afterMeasure: (callback) => {
         let cancelled = false;
