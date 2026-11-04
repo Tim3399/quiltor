@@ -7,7 +7,6 @@ swap. A hosted server restores its own history like a local one (D-61).
 """
 
 import json
-import unittest
 from pathlib import Path
 
 from quiltor.infrastructure.backup.snapshots import _manifest_digests
@@ -123,13 +122,24 @@ class HistoryRestoreTest(_HistoryServer):
         self.assertEqual(status, 409, raw[:400])
         self.assertEqual(self.documents(), target)
 
-    @unittest.skip("pending D-T-85-2: kind is persisted there; set before-restore via its writer")
     def test_the_state_a_restore_replaced_is_kept_as_before_restore(self):
         target_id, _ = self.prepare_two_versions()
         self.assertEqual(self.restore(target_id)[0], 200)
         newest = self.commits()[0]
         self.assertEqual(newest["subject"], "Before restore")
         self.assertEqual(newest["kind"], "before-restore")
+        # Labelled by the restore itself, not read back from its English name: the
+        # fallback would report the same kind for an unlabelled entry.
+        owner = SessionData(
+            sub=config.LOCAL_OWNER, email="", name="", created_at=0.0, expires_at=0.0
+        )
+        context = self.application.resolve_world(owner, self.world_id).backup
+        labels = [
+            json.loads(line)
+            for line in (context.root / "labels.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertIn({"id": newest["hash"], "kind": "before-restore"}, labels)
 
     def test_every_reported_kind_is_one_the_contract_knows(self):
         self.write_chapter("Der Morgen lag still über dem Hafen.")

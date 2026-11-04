@@ -206,7 +206,9 @@ class BackupUseCases:
                 raise BackupSnapshotNotFound(params={"operation": "restore_version"})
             previous_revisions = self._documents.revision_checkpoint(location.database)
             if self._documents.exists(location.database):
-                self._history.commit(context, "Before restore", push=False, authorization=None)
+                self._history.commit(
+                    context, "Before restore", push=False, authorization=None, kind="before-restore"
+                )
             result = self._history.restore(context, entry, fetch=None)
             self._worlds.finalize_restore(world_id, owner_sub, previous_revisions)
             answer = {
