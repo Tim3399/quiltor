@@ -62,6 +62,33 @@ class CliWritingAssistanceInstallTests(unittest.TestCase):
         service.close.assert_called_once_with()
         capabilities.assert_called_once_with(process_role=ProcessRole.CLI)
 
+    def test_unpublished_data_is_reported_plainly_and_languagetool_still_installs(self):
+        from quiltor.modules.writing_assistance.errors import DataNotPublished
+
+        service = MagicMock()
+        service.status.side_effect = [
+            {"installed": False, "grammar": {"available": False, "version": "6.6"}},
+            {"installed": False, "grammar": {"available": False, "version": "6.6"}},
+        ]
+        service.install.side_effect = DataNotPublished()
+        service.install_grammar.return_value = {"version": "6.6"}
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"QUILTOR_HOME": directory}, clear=False),
+            patch("quiltor.hosts.cli.main.typer.confirm", return_value=True),
+            patch("quiltor.hosts.cli.main.typer.echo") as echo,
+            patch("quiltor.bootstrap.build_feature_availability"),
+            patch("quiltor.bootstrap.build_writing_assistance_service", return_value=service),
+        ):
+            cli._install_writing_assistance_step()
+        lines = [str(call.args[0]) for call in echo.call_args_list]
+        self.assertIn(
+            "Writing data is not published yet; it follows with a later update.",
+            lines,
+        )
+        self.assertFalse(any("setup failed" in line for line in lines))
+        service.install_grammar.assert_called_once_with()
+
     def test_existing_packages_are_not_downloaded_again(self):
         service = MagicMock()
         service.status.side_effect = [

@@ -6,6 +6,7 @@ import os
 import sqlite3
 import stat
 import threading
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import closing
 from pathlib import Path
 
@@ -17,7 +18,45 @@ CREATE TABLE IF NOT EXISTS entries(
  meaning TEXT NOT NULL DEFAULT '', values_json TEXT NOT NULL DEFAULT '[]', source TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS entries_lookup ON entries(language, mode, query COLLATE NOCASE);
+CREATE TABLE IF NOT EXISTS forms(
+ language TEXT NOT NULL, form TEXT NOT NULL COLLATE NOCASE, lemma TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS forms_lookup ON forms(language, form COLLATE NOCASE);
 """
+
+# Layout of the dictionary database. 2 added the ``forms`` table and the license
+# keys. The database is replaced on install, never migrated, so a file without
+# the marker is schema 1 and is read from ``entries`` alone.
+DICTIONARY_SCHEMA = 2
+
+# Keys a build may set in ``metadata`` next to version, coverage and schema.
+LICENSE_KEYS = ("license", "license_url", "attribution")
+
+# ``metadata.sources``: one object per upstream source, so a copy of the database
+# passed on without its release manifest still names where its data came from
+# (CC BY-SA 4.0 asks for attribution on the shared work itself). ``version`` is
+# the upstream's own tag, such as an ETag, and may be empty; the rest may not.
+SOURCE_FIELDS = ("name", "url", "version", "retrieved", "license", "license_url")
+_REQUIRED_SOURCE_FIELDS = frozenset(SOURCE_FIELDS) - {"version"}
+
+
+def encode_sources(sources: Sequence[Mapping[str, str]]) -> str:
+    """The canonical JSON stored in ``metadata.sources``, after checking that
+    every source carries every field and that no name repeats."""
+    if not sources:
+        raise ValueError("writing-assistance sources must name at least one source")
+    names: set[str] = set()
+    for source in sources:
+        if set(source) != set(SOURCE_FIELDS):
+            raise ValueError(f"writing-assistance source fields must be {list(SOURCE_FIELDS)}")
+        empty = sorted(field for field in _REQUIRED_SOURCE_FIELDS if not source[field].strip())
+        if empty:
+            raise ValueError(f"writing-assistance source is missing {empty}")
+        if source["name"] in names:
+            raise ValueError(f"writing-assistance source repeated: {source['name']}")
+        names.add(source["name"])
+    ordered = sorted((dict(source) for source in sources), key=lambda source: source["name"])
+    return json.dumps(ordered, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 _MIGRATION_LOCK = threading.Lock()
@@ -168,6 +207,15 @@ class SQLiteWritingAssistanceRepository:
     def coverage(self) -> str | None:
         return coverage(self.path)
 
+    def schema(self) -> int | None:
+        return schema(self.path)
+
+    def sources(self) -> list[dict[str, str]]:
+        return sources(self.path)
+
+    def metadata(self) -> dict[str, str]:
+        return metadata(self.path)
+
     def lookup(self, language: str, mode: str, query: str) -> list[dict]:
         return lookup(self.path, language, mode, query)
 
@@ -179,11 +227,27 @@ def connect(path: Path, readonly: bool = False) -> sqlite3.Connection:
     return sqlite3.connect(path)
 
 
-def initialize(path: Path, version: str, coverage: str) -> sqlite3.Connection:
+def initialize(
+    path: Path,
+    version: str,
+    coverage: str,
+    licenses: Mapping[str, str] | None = None,
+    sources: Sequence[Mapping[str, str]] | None = None,
+) -> sqlite3.Connection:
+    unknown = set(licenses or {}) - set(LICENSE_KEYS)
+    if unknown:
+        raise ValueError(f"unknown writing-assistance metadata keys: {sorted(unknown)}")
+    encoded = None if sources is None else encode_sources(sources)
     conn = connect(path)
     conn.executescript(SCHEMA)
-    conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('version',?)", (version,))
-    conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('coverage',?)", (coverage,))
+    values = {
+        "version": version,
+        "coverage": coverage,
+        "schema": str(DICTIONARY_SCHEMA),
+        **(licenses or {}),
+        **({} if encoded is None else {"sources": encoded}),
+    }
+    conn.executemany("INSERT OR REPLACE INTO metadata(key,value) VALUES(?,?)", values.items())
     return conn
 
 
@@ -213,12 +277,29 @@ def insert(
     )
 
 
+def insert_form(conn: sqlite3.Connection, language: str, form: str, lemma: str) -> None:
+    conn.execute(
+        "INSERT INTO forms(language,form,lemma) VALUES(?,?,?)",
+        (language, form.casefold(), lemma),
+    )
+
+
+_ENTRIES = "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50"
+
+
 def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
+    """Entries for ``query``; an inflected form with no entry of its own falls
+    back to its lemmas, one step deep. Schema 1 has no ``forms`` table."""
     with closing(connect(path, readonly=True)) as conn, conn:
-        rows = conn.execute(
-            "SELECT lemma,part_of_speech,meaning,values_json,source FROM entries WHERE language=? AND mode=? AND query=? COLLATE NOCASE ORDER BY id LIMIT 50",
-            (language, mode, query.casefold()),
-        ).fetchall()
+        rows = conn.execute(_ENTRIES, (language, mode, query.casefold())).fetchall()
+        if not rows and _schema(conn) >= 2:
+            lemmas = conn.execute(
+                "SELECT DISTINCT lemma FROM forms WHERE language=? AND form=? COLLATE NOCASE ORDER BY lemma",
+                (language, query.casefold()),
+            ).fetchall()
+            for (lemma,) in lemmas:
+                rows += conn.execute(_ENTRIES, (language, mode, lemma.casefold())).fetchall()
+            rows = rows[:50]
     return [
         {
             "lemma": row[0],
@@ -229,6 +310,38 @@ def lookup(path: Path, language: str, mode: str, query: str) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def _schema(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+    return int(row[0]) if row else 1
+
+
+def schema(path: Path) -> int | None:
+    """Layout of the installed database; 1 for files written before the marker."""
+    if not path.exists():
+        return None
+    try:
+        with closing(connect(path, readonly=True)) as conn, conn:
+            return _schema(conn)
+    except (sqlite3.Error, ValueError):
+        return None
+
+
+def metadata(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    try:
+        with closing(connect(path, readonly=True)) as conn, conn:
+            return dict(conn.execute("SELECT key,value FROM metadata ORDER BY key").fetchall())
+    except sqlite3.Error:
+        return {}
+
+
+def sources(path: Path) -> list[dict[str, str]]:
+    """The upstream sources recorded in the database; empty when it records none."""
+    stored = metadata(path).get("sources")
+    return [] if stored is None else list(json.loads(stored))
 
 
 def coverage(path: Path) -> str | None:
@@ -256,3 +369,47 @@ def version(path: Path) -> str | None:
             return row[0] if row else None
     except sqlite3.Error:
         return None
+
+
+# The dictionary tables in the order the canonical dump visits them, each with
+# the columns that make up its content. ``entries.id`` is left out: it only
+# records insertion order, which the sorted insert already fixes.
+CANONICAL_TABLES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("metadata", ("key", "value")),
+    (
+        "entries",
+        (
+            "language",
+            "mode",
+            "query",
+            "lemma",
+            "part_of_speech",
+            "meaning",
+            "values_json",
+            "source",
+        ),
+    ),
+    ("forms", ("language", "form", "lemma")),
+)
+
+
+def canonical_lines(path: Path) -> Iterator[bytes]:
+    """The database's content in a fixed text form, independent of SQLite's
+    version, page layout and header bytes: the DDL constant, then each table's
+    rows ordered by every column."""
+    yield SCHEMA.encode("utf-8")
+    with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as conn:
+        for table, columns in CANONICAL_TABLES:
+            yield f"-- {table}\n".encode()
+            listed = ",".join(columns)
+            for row in conn.execute(f"SELECT {listed} FROM {table} ORDER BY {listed}"):  # noqa: S608 - fixed table names
+                yield (
+                    json.dumps(list(row), ensure_ascii=False, separators=(",", ":")) + "\n"
+                ).encode()
+
+
+def content_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    for line in canonical_lines(path):
+        digest.update(line)
+    return digest.hexdigest()

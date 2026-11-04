@@ -331,6 +331,7 @@ def _install_writing_assistance_step() -> None:
         build_writing_assistance_service,
     )
     from quiltor.infrastructure.platform.runtime_target import ProcessRole
+    from quiltor.modules.writing_assistance.errors import DataNotPublished
 
     home = Path(os.environ["QUILTOR_HOME"])
     data_dir = Path(os.environ.get("QUILTOR_DATA_DIR", str(home / "data"))).expanduser().resolve()
@@ -343,8 +344,15 @@ def _install_writing_assistance_step() -> None:
         if status["installed"]:
             typer.echo("✓ Dictionary, synonyms, and translations are already installed.")
         else:
-            result = service.install()
-            typer.echo(f"✓ German reference data installed ({result['entries']} starter entries).")
+            try:
+                result = service.install()
+                typer.echo(
+                    f"✓ German reference data installed ({result['entries']} starter entries)."
+                )
+            except DataNotPublished:
+                # Not a failure of this installation: the release ships without the
+                # data, so setup goes on with LanguageTool and exits 0 as before.
+                typer.echo("Writing data is not published yet; it follows with a later update.")
         grammar = service.status()["grammar"]
         if grammar["available"]:
             typer.echo(f"✓ LanguageTool {grammar['version']} is already ready.")

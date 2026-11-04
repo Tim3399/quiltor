@@ -52,7 +52,7 @@ def _read_archive(handler) -> bytes:
         raise ProjectArchiveLimitExceeded("Project archive exceeds the transfer limit.")
     if length <= 0:
         raise InvalidProjectArchive("Project archive size is invalid.")
-    archive = handler.rfile.read(length)
+    archive = handler.read_request_body(length)
     if len(archive) != length:
         raise InvalidProjectArchive("Project archive body is incomplete.")
     return archive

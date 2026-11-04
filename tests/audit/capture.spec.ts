@@ -619,14 +619,15 @@ async function worldGateScenario(s: Session): Promise<void> {
   await base();
   await s.view("world-gate");
   await s.enumerate("world-gate", base);
-  const dialogs: [string, string][] = [
+  const dialogs: [string, string, string?][] = [
     ["Neue Welt", "world-gate/sheet.new-world"],
     ["Papierkorb", "world-gate/sheet.trash"],
-    ["Manuskript importieren", "world-gate/dialog.manuscript-import"],
-    ["Projekt importieren", "world-gate/dialog.project-import"],
+    ["Importieren", "world-gate/dialog.import-choice"],
+    ["Importieren", "world-gate/dialog.manuscript-import", "Manuskript"],
+    ["Importieren", "world-gate/dialog.project-import", "Projekt"],
     ["Ebbe – Welt löschen", "world-gate/dialog.delete-world"],
   ];
-  for (const [label, state] of dialogs) {
+  for (const [label, state, choice] of dialogs) {
     await base();
     const dialog = await s.opened(
       state,
@@ -634,8 +635,12 @@ async function worldGateScenario(s: Session): Promise<void> {
       async () => {
         await base();
         await s.tap(s.button(label));
+        if (choice) await s.tap(s.button(choice));
       },
-      async () => s.tap(s.button(label)),
+      async () => {
+        await s.tap(s.button(label));
+        if (choice) await s.tap(s.button(choice));
+      },
       { enumerate: true },
     );
     if (dialog && label === "Papierkorb") {

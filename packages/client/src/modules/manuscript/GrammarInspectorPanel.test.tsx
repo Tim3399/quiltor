@@ -21,7 +21,6 @@ const status: WritingAssistanceStatus = {
   installed: true,
   stale: false,
   version: "test",
-  sources: {},
   grammar: {
     supported: true,
     unsupportedReason: "",

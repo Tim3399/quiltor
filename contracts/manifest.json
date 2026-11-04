@@ -393,6 +393,24 @@
       ]
     },
     {
+      "name": "persistence.writing-data-manifest",
+      "version": 1,
+      "owner": "quiltor/persistence",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "Fields, hash semantics and the canonical dump order are fixed; an incompatible change needs manifestVersion 2."
+      },
+      "schema": "writing-data/manifest/v1.schema.json",
+      "reference": "writing-data/manifest/v1.md",
+      "fixtures": [
+        {
+          "path": "fixtures/writing-data/manifest.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "semantics.timeline-order",
       "version": 1,
       "owner": "quiltor/core",

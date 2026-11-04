@@ -342,7 +342,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(exportDialog).toHaveCount(0);
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
     await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
-    await page.getByRole("button", { name: "Projekt importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Projekt", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Quiltor-Projekt importieren", exact: true });
     const confirm = dialog.getByRole("button", {
       name: "Als neues Projekt importieren",

@@ -375,7 +375,6 @@ ${markdownBody(current.body, current.marks)}
       statusFailed={writing.statusFailed}
       onRetryStatus={writing.retryStatus}
       replaceTarget={Boolean(writing.heldSelection || writing.liveSelection)}
-      lookupSources={writing.lookupSources}
       grammarIssues={writing.grammarIssues}
       selectedIssue={writing.selectedIssue}
       grammarPhase={writing.grammarPhase}

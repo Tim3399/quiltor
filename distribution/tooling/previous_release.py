@@ -124,6 +124,24 @@ def require_not_older_version(
     return highest
 
 
+def notes_start_tag(
+    current_version: str,
+    releases: list[dict[str, Any]],
+    tags: list[str] | None = None,
+) -> str | None:
+    """The newest stable app tag older than current, where generated notes start.
+
+    Without it GitHub starts at the latest release it finds, and a writing-data release is a
+    release too. Only semantic versions count, so writing-data-<date> tags never qualify.
+    """
+
+    current = semantic_version(current_version)
+    older = [version for version in stable_history_versions(releases, tags) if version < current]
+    if not older:
+        return None
+    return "v" + ".".join(str(part) for part in max(older))
+
+
 def select_previous(
     releases: list[dict[str, Any]],
     current_version: str,
@@ -347,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     check = parser.add_mutually_exclusive_group()
     check.add_argument("--check-monotonic", action="store_true")
     check.add_argument("--check-not-older", action="store_true")
+    check.add_argument("--notes-start-tag", action="store_true")
     parser.add_argument("--kind", choices=("macos-dmg", "windows-installer"))
     parser.add_argument("--current-version", required=True)
     parser.add_argument("--output", type=Path)
@@ -359,6 +378,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         releases = fetch_releases(args.repository, token)
         tags = fetch_tags(args.repository, token)
+        if args.notes_start_tag:
+            if args.kind is not None or args.output is not None or args.metadata_output is not None:
+                parser.error("--notes-start-tag cannot be combined with artifact options")
+            start = notes_start_tag(args.current_version, releases, tags)
+            print(f"NOTES_START_TAG={start or ''}")
+            return 0
         if args.check_monotonic or args.check_not_older:
             if args.kind is not None or args.output is not None or args.metadata_output is not None:
                 parser.error("version checks cannot be combined with artifact options")

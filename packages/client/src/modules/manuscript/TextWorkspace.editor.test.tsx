@@ -8,7 +8,9 @@ import {
   manuscript,
   renderWorkspace,
   requireValue,
+  TestProviders,
 } from "./TextWorkspace.testSupport";
+import { TextWorkspace } from "./TextWorkspace";
 
 function codeMirrorView(container: HTMLElement) {
   const root = requireValue(
@@ -429,5 +431,34 @@ describe("TextWorkspace editor, search and versions", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Ausschneiden/ }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Zwischenablage/));
     expect(writeText).toHaveBeenCalledWith("Welt");
+  });
+
+  // T-159: every transaction makes CodeMirror drop a DOM selection it has not read yet and
+  // write its own back. A re-render that changes nothing must therefore not reach the view:
+  // otherwise one that lands between "select all" and typing puts the text in front of the
+  // old chapter text instead of replacing it ("Nach Reload vorhandenAnfang").
+  it("sends the editor no transaction when the workspace re-renders with unchanged input", async () => {
+    const props = {
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide" as const,
+      binderOpen: true,
+      inspectorOpen: true,
+    };
+    const view = renderWorkspace(props);
+    const editor = codeMirrorView(view.container);
+    await waitFor(() => expect(editor.state.doc.length).toBeGreaterThan(0));
+    const update = vi.spyOn(editor, "update");
+
+    view.rerender(
+      <TestProviders>
+        <TextWorkspace {...props} />
+      </TestProviders>,
+    );
+
+    expect(update).not.toHaveBeenCalled();
   });
 });

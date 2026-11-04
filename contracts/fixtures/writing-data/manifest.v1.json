@@ -1,0 +1,54 @@
+{
+  "asset": {
+    "bytes": 8547,
+    "name": "writing-2026.11.03.sqlite3.gz",
+    "sha256": "c511b6c4fb7af95cf1e44a64de792be278cbc1dccae100253df0f6bde4338eef"
+  },
+  "attribution": "Wiktionary-Autorinnen und -Autoren, de.wiktionary.org, CC BY-SA 4.0; maschinenlesbar aufbereitet durch Wiktextract/kaikki.org. OpenThesaurus.de, Daniel Naber, CC BY-SA 4.0, https://www.openthesaurus.de. Auszug, umformatiert.",
+  "dataVersion": "2026.11.03",
+  "dictionarySchema": 2,
+  "license": "CC-BY-SA-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "manifestVersion": 1,
+  "rows": {
+    "entries": {
+      "de-DE/dictionary": 43,
+      "de-DE/synonyms": 36,
+      "de-DE/translation": 40,
+      "en-GB/translation": 50
+    },
+    "forms": 102
+  },
+  "sources": {
+    "dewiktionary": {
+      "archive_name": "source-dewiktionary-7b9c51936e2d6f3e.jsonl.gz",
+      "archive_url": "https://github.com/Tim3399/quiltor/releases/download/writing-data-2026.11.03/source-dewiktionary-7b9c51936e2d6f3e.jsonl.gz",
+      "bytes": 2415,
+      "etag": "\"6ae3112a-127c5a18\"",
+      "fetched_at": "2026-11-03T09:00:00Z",
+      "file": "dewiktionary.jsonl.gz",
+      "last_modified": "Thu, 29 Oct 2026 00:00:00 GMT",
+      "sha256": "7b9c51936e2d6f3e817967c32cdf3d9ff3d23326fb6749537b993089264ccc9e",
+      "upstream_url": "https://kaikki.org/dewiktionary/raw-wiktextract-data.jsonl.gz"
+    },
+    "openthesaurus": {
+      "archive_name": "source-openthesaurus-926668187cdb705c.zip",
+      "archive_url": "https://github.com/Tim3399/quiltor/releases/download/writing-data-2026.11.03/source-openthesaurus-926668187cdb705c.zip",
+      "bytes": 676,
+      "etag": null,
+      "fetched_at": "2026-11-03T09:00:00Z",
+      "file": "openthesaurus.zip",
+      "last_modified": "Tue, 03 Nov 2026 19:58:03 GMT",
+      "sha256": "926668187cdb705c925b42a4fb09713b9442bfacadc105bf117c924889bf6ee4",
+      "upstream_url": "https://www.openthesaurus.de/export/OpenThesaurus-Textversion.zip"
+    }
+  },
+  "sqlite": {
+    "bytes": 49152,
+    "contentSha256": "677aeae9cce537051835a464d3b4a8a23afe2e657ebd5f145fb8bf2d2473db9f",
+    "sha256": "8b063e3280e0d7930d77279ecf560350ef6bcf0dea5b450f56259b0684a2eb57",
+    "sqliteVersion": "3.49.1",
+    "zlibVersion": "1.3.1"
+  },
+  "toolCommit": "2daf1f76"
+}

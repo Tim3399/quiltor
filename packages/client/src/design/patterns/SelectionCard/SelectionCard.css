@@ -99,6 +99,12 @@
   white-space: nowrap;
 }
 
+.selection-card--wrap-description .selection-card__description {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .selection-card--selected .selection-card__description {
   color: var(--soft);
 }
