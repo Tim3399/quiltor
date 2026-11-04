@@ -116,7 +116,18 @@ async function viewportTopLine(scroller: Locator) {
     const edge = element.getBoundingClientRect().top;
     for (const line of element.querySelectorAll<HTMLElement>(".cm-line")) {
       const box = line.getBoundingClientRect();
-      if (box.bottom > edge) return { text: line.textContent, offset: Math.round(edge - box.top) };
+      if (box.bottom > edge) {
+        return {
+          text: line.textContent,
+          // Unrounded geometry, reported only when the restored offset misses (T-149c).
+          geometry: {
+            rawOffset: edge - box.top,
+            lineHeight: box.height,
+            scrollTop: element.scrollTop,
+            devicePixelRatio: window.devicePixelRatio,
+          },
+        };
+      }
     }
     return null;
   });
@@ -202,17 +213,27 @@ async function expectReturnToTextRestoresSession(page: Page, scrollRatio: number
 
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Zweites Kapitel");
   await expect(editor).toBeFocused();
-  // Within a pixel: line tops are fractional and the estimate rounds differently.
+  // Within two pixels of the unrounded offset. The restore settles once scrollTop is within a
+  // pixel of its target (holdScrollUntilStable), and scrollTop itself snaps to whole pixels,
+  // so up to 1.5 px is by design; line tops add a fraction (macOS regular: 1.64 px, T-149c).
+  // A real miss is a line or half a line, 31 px and more, and stays red.
   await expect
     .poll(async () => {
       const restored = await viewportTopLine(scroller);
+      const offsetWithinTwoPixels =
+        Math.abs(
+          (restored?.geometry.rawOffset ?? Number.NaN) - (savedTopLine?.geometry.rawOffset ?? 0),
+        ) <= 2;
       return {
         text: restored?.text,
-        offsetWithinAPixel:
-          Math.abs((restored?.offset ?? Number.NaN) - (savedTopLine?.offset ?? 0)) <= 1,
+        offsetWithinTwoPixels,
+        // toEqual ignores an undefined property, so this shows up only in a failing diff.
+        geometry: offsetWithinTwoPixels
+          ? undefined
+          : { saved: savedTopLine?.geometry, restored: restored?.geometry },
       };
     })
-    .toEqual({ text: savedTopLine?.text, offsetWithinAPixel: true });
+    .toEqual({ text: savedTopLine?.text, offsetWithinTwoPixels: true });
 
   await page.keyboard.type("Y");
   await scroller.evaluate((element) => {
