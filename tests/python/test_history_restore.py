@@ -12,6 +12,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from quiltor.application.backups.ports import SnapshotKind
 from quiltor.infrastructure.backup.snapshots import _manifest_digests
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.modules.identity.auth import SessionData
@@ -224,13 +225,12 @@ class HistoryRestoreTest(_HistoryServer):
         with closing(sqlite3.connect(context.database)) as database, database:
             database.execute("CREATE TABLE IF NOT EXISTS t85_probe(value TEXT)")
         self.keep_version("")  # automatic: only the database changed
-        for position, (message, kind) in enumerate(
-            (
-                ("Cloud sync", "cloud-sync"),
-                ("Before cloud sync", "before-cloud-sync"),
-                ("Cloud sync conflict (local)", "cloud-sync-conflict"),
-            )
-        ):
+        sync_kinds: tuple[tuple[str, SnapshotKind], ...] = (
+            ("Cloud sync", "cloud-sync"),
+            ("Before cloud sync", "before-cloud-sync"),
+            ("Cloud sync conflict (local)", "cloud-sync-conflict"),
+        )
+        for position, (message, kind) in enumerate(sync_kinds):
             self.write_chapter(f"Stand {position}.")
             history.commit(context, message, push=False, authorization=None, kind=kind)
         self.write_chapter("Vor dem Zurückholen.")
