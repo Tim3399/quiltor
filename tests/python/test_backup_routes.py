@@ -41,6 +41,7 @@ from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.platform.adapters.credentials import InMemoryCredentialVault
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity import service as identity
+from tests.python import late_body
 from tests.python.fake_issuer import FakeIssuer
 from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
@@ -406,6 +407,22 @@ class HostedTokenTests(BackupRouteTestCase):
             "GET", "/api/backup/login", cookies={identity.SESSION_COOKIE: session_id}
         )
         self.assertFalse(answer["signedIn"], "and the dialog is told the same thing")
+
+    def test_a_refusal_by_the_route_itself_arrives_whole(self):
+        """The route answers 409 without reading the body; the server must still
+        drain it, or closing the socket resets the connection on Windows."""
+        cookie = f"{identity.SESSION_COOKIE}={self.session_for('t')}"
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/backup/login",
+                    headers={"Content-Type": "application/json", "Cookie": cookie},
+                    body=b"{}",
+                )
+                self.assertEqual(answer.status, 409, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "backup.login_not_applicable")
 
     def test_there_is_no_browser_flow_to_start(self):
         """A rejected operation always crosses the HTTP error boundary."""
