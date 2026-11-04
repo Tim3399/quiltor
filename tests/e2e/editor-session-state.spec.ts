@@ -116,7 +116,19 @@ async function viewportTopLine(scroller: Locator) {
     const edge = element.getBoundingClientRect().top;
     for (const line of element.querySelectorAll<HTMLElement>(".cm-line")) {
       const box = line.getBoundingClientRect();
-      if (box.bottom > edge) return { text: line.textContent, offset: Math.round(edge - box.top) };
+      if (box.bottom > edge) {
+        return {
+          text: line.textContent,
+          offset: Math.round(edge - box.top),
+          // Unrounded geometry, reported only when the restored offset misses (T-149c).
+          geometry: {
+            rawOffset: edge - box.top,
+            lineHeight: box.height,
+            scrollTop: element.scrollTop,
+            devicePixelRatio: window.devicePixelRatio,
+          },
+        };
+      }
     }
     return null;
   });
@@ -206,10 +218,15 @@ async function expectReturnToTextRestoresSession(page: Page, scrollRatio: number
   await expect
     .poll(async () => {
       const restored = await viewportTopLine(scroller);
+      const offsetWithinAPixel =
+        Math.abs((restored?.offset ?? Number.NaN) - (savedTopLine?.offset ?? 0)) <= 1;
       return {
         text: restored?.text,
-        offsetWithinAPixel:
-          Math.abs((restored?.offset ?? Number.NaN) - (savedTopLine?.offset ?? 0)) <= 1,
+        offsetWithinAPixel,
+        // toEqual ignores an undefined property, so this shows up only in a failing diff.
+        geometry: offsetWithinAPixel
+          ? undefined
+          : { saved: savedTopLine?.geometry, restored: restored?.geometry },
       };
     })
     .toEqual({ text: savedTopLine?.text, offsetWithinAPixel: true });
