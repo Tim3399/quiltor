@@ -93,7 +93,7 @@ class RemoteRestoreTests(unittest.TestCase):
         ports = Ports()
         ports.restore("")
         ports.history.commit.assert_called_once_with(
-            "context", "Before restore", push=False, authorization=None
+            "context", "Before restore", push=False, authorization=None, kind="before-restore"
         )
         ports.worlds.finalize_restore.assert_called_once_with("w", "owner", {"manuscript": 3})
 
