@@ -33,19 +33,15 @@ const manual: SnapshotInfo = {
   subject: "Vor dem Umbau",
   kind: "manual",
 };
-// Typed loosely: the model lists "before-restore" once part B is in (T-87).
-const beforeRestore = {
+const beforeRestore: SnapshotInfo = {
   hash: "commit-before",
   shortHash: "def5678",
   date: "2026-10-29T09:05:00",
   subject: "Before restore",
   kind: "before-restore",
-} as unknown as SnapshotInfo;
-
-type HistoryWithRestore = typeof quiltorClient.application.history & {
-  restore: (id: string) => Promise<void>;
 };
-const history = quiltorClient.application.history as HistoryWithRestore;
+
+const history = quiltorClient.application.history;
 
 let commits: SnapshotInfo[];
 let calls: string[];
@@ -62,7 +58,7 @@ beforeEach(() => {
   restore = vi.fn(async (id: string) => {
     calls.push(`restore:${id}`);
   });
-  history.restore = restore;
+  vi.spyOn(history, "restore").mockImplementation(restore);
 });
 
 afterEach(() => {
@@ -97,6 +93,7 @@ function renderDialog(
 const tab = (name: string) => screen.getByRole("tab", { name });
 const states = () => screen.getByRole("navigation", { name: "Stände" });
 const noteField = () => screen.getByRole("textbox", { name: "Was hat sich geändert?" });
+const saveButton = () => screen.getByRole("button", { name: "Version festhalten" });
 
 async function chooseManualVersion() {
   fireEvent.click(await within(states()).findByRole("button", { name: /Vor dem Umbau/ }));
@@ -186,18 +183,36 @@ describe("VersionsDialog, holding on to a version", () => {
         return {} as Awaited<ReturnType<typeof quiltorClient.application.backup.saveSnapshot>>;
       });
     renderDialog();
-    // The server's English summary arrives in the author's language.
-    await waitFor(() => expect(noteField()).toHaveValue("Kapitel „Anfang“ bearbeitet"));
+    await waitFor(() => expect(saveButton()).toBeEnabled());
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /hochladen|anmelden/i })).toBeNull();
 
     calls = [];
-    fireEvent.click(screen.getByRole("button", { name: "Version festhalten" }));
-    await waitFor(() => expect(save).toHaveBeenCalledWith("Kapitel „Anfang“ bearbeitet", false));
+    fireEvent.change(noteField(), { target: { value: "Vor dem Umbau" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(save).toHaveBeenCalledWith("Vor dem Umbau", false));
     expect(calls.slice(0, 2)).toEqual(["flush", "save"]);
     const created = await within(states()).findByRole("button", { name: /Neu/ });
     await waitFor(() => expect(created).toHaveAttribute("aria-pressed", "true"));
     expect(screen.getByRole("status")).toHaveTextContent("Version festgehalten.");
+  });
+
+  it("keeps the server's suggestion out of the note and saves it when the note stays empty", async () => {
+    const save = vi
+      .spyOn(quiltorClient.application.backup, "saveSnapshot")
+      .mockResolvedValue(
+        {} as Awaited<ReturnType<typeof quiltorClient.application.backup.saveSnapshot>>,
+      );
+    renderDialog();
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+    // The author sees no server wording to edit, only a hint what an empty note does.
+    expect(noteField()).toHaveValue("");
+    expect(noteField()).toHaveAttribute(
+      "placeholder",
+      "Leer lassen, dann beschreibt Quiltor die Änderung selbst.",
+    );
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(save).toHaveBeenCalledWith('Chapter "Anfang" edited', false));
   });
 });
 

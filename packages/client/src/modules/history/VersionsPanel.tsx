@@ -8,7 +8,7 @@ import { applicationErrorMessage, quiltorClient } from "../../platform";
 import { useFlushedEffect } from "../../shared/hooks/useFlushedEffect";
 import type { SnapshotInfo } from "./model";
 import { describePath, type PathKind } from "./pathNames";
-import { localizedSummary, snapshotName } from "./snapshotName";
+import { snapshotName } from "./snapshotName";
 import "./VersionsPanel.css";
 
 interface DiffSegment {
@@ -112,6 +112,9 @@ export function VersionsPanel({
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
   const [note, setNote] = useState("");
+  // What the server would call this version. Kept apart from the note: an empty note saves the
+  // suggestion, so the author never edits server wording (T-85 turns it into a flag).
+  const [suggestion, setSuggestion] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<SnapshotInfo | null>(null);
@@ -131,9 +134,9 @@ export function VersionsPanel({
     flush,
     async () => {
       await loadLog();
-      // The suggestion is a convenience; a note field without one still saves.
+      // The suggestion is a convenience; without one an empty note cannot be saved.
       const status = await quiltorClient.application.backup.status().catch(() => null);
-      if (status) setNote((current) => current || localizedSummary(status.suggestedMessage, t));
+      if (status) setSuggestion(status.suggestedMessage);
     },
     (error) => setResult({ diff: "", empty: applicationErrorMessage(error) }),
   );
@@ -190,7 +193,7 @@ export function VersionsPanel({
     setNotice(null);
     try {
       await flush();
-      await quiltorClient.application.backup.saveSnapshot(note, false);
+      await quiltorClient.application.backup.saveSnapshot(note.trim() || suggestion, false);
       const latest = await loadLog();
       if (latest[0]) setSelected(latest[0].hash);
       setNote("");
@@ -252,13 +255,14 @@ export function VersionsPanel({
           // The sheet claims focus after its children mounted; it hands it on to this mark.
           data-autofocus={autoFocusNote ? "" : undefined}
           value={note}
+          placeholder={t("versionNotePlaceholder")}
           disabled={busy}
           onChange={(event) => setNote(event.target.value)}
         />
         <div className="versions-tab__actions">
           <Button
             appearance="primary"
-            disabled={saving || busy || !note.trim()}
+            disabled={saving || busy || !(note.trim() || suggestion)}
             icon={<Save />}
             onClick={() => void holdVersion()}
           >

@@ -86,6 +86,7 @@ export const tools = {
   states: "States",
   currentState: "Current state",
   changesSinceLastVersion: "Changes since the last version",
+  versionNotePlaceholder: "Leave empty and Quiltor describes the change itself.",
   holdVersion: "Save version",
   versionHeld: "Version saved.",
   restoreVersion: "Restore this version",
