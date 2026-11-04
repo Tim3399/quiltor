@@ -21,6 +21,7 @@ export interface HistoryGateway {
       shortHash: string;
       date: string;
       subject: string;
+      kind?: "automatic" | "manual";
     }>;
   }>;
   diff(

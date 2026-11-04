@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import type { SnapshotChapterRecord } from "../../platform";
-import type { VersionDiffProjection } from "../history";
+import type { SnapshotInfo, VersionDiffProjection } from "../history";
 import { ChapterHistoryPanel } from "./ChapterHistoryPanel";
 
 const record = (
@@ -143,5 +143,88 @@ describe("ChapterHistoryPanel", () => {
         "Dieses Kapitel existierte in dieser Fassung noch nicht.",
       ),
     ).toBeVisible();
+  });
+
+  const renderChoices = (commits: SnapshotInfo[]) =>
+    render(
+      <I18nProvider>
+        <ChapterHistoryPanel
+          commits={commits}
+          selectedRef={commits[0]?.hash ?? ""}
+          selected={record("Text")}
+          previous={record("Text")}
+          projection={unchanged}
+          state="idle"
+          onClose={() => undefined}
+          onRefChange={() => undefined}
+        />
+      </I18nProvider>,
+    );
+
+  it("is built from the inspector's own header, body and empty state", () => {
+    const { container } = renderChoices([
+      { hash: "own", shortHash: "own", date: "2026-10-28T12:20:28", subject: "Vor dem Umbau" },
+    ]);
+    const header = container.querySelector(".side-panel__header");
+    expect(header?.querySelector("strong")).toHaveTextContent(/^Frühere Fassung$/);
+    expect(screen.getByRole("button", { name: "Kapitelfassungen schließen" })).toHaveAttribute(
+      "title",
+      "Kapitelfassungen schließen",
+    );
+    const body = container.querySelector(".side-panel__body");
+    expect(body).toContainElement(screen.getByRole("combobox", { name: "Fassung" }));
+    expect(body).toHaveTextContent("Änderungen zur direkt vorherigen Fassung");
+    const unchangedNote = screen.getByRole("status");
+    expect(unchangedNote).toHaveClass("empty-state-component");
+    expect(unchangedNote).toHaveTextContent("Keine Änderungen");
+  });
+
+  it("names a server-generated backup in German instead of its stored English name", () => {
+    renderChoices([
+      {
+        hash: "auto",
+        shortHash: "auto",
+        date: "2026-10-28T12:20:28",
+        subject: "Writing backup 2026-10-28 12:20",
+        kind: "automatic",
+      },
+    ]);
+    const option = screen.getByRole("option");
+    expect(option).toHaveTextContent("Automatische Sicherung, 28.10.2026, 12:20");
+    expect(option).not.toHaveTextContent("Writing backup");
+  });
+
+  it("shows the date of an author's version in German, not as ISO", () => {
+    renderChoices([
+      { hash: "own", shortHash: "own", date: "2026-10-28T12:20:28", subject: "Vor dem Umbau" },
+    ]);
+    const option = screen.getByRole("option");
+    expect(option).toHaveTextContent("28.10.2026, 12:20 · Vor dem Umbau");
+    expect(option).not.toHaveTextContent("2026-10-28T");
+  });
+
+  it("offers the full name of the chosen version where the field cuts it off", () => {
+    renderChoices([
+      {
+        hash: "own",
+        shortHash: "own",
+        date: "2026-10-28T12:20:28",
+        subject: "Der lange Abend, an dem die Fähre nicht kam",
+      },
+    ]);
+    const field = screen.getByRole("combobox", { name: "Fassung" });
+    expect(field).toHaveAttribute(
+      "title",
+      "28.10.2026, 12:20 · Der lange Abend, an dem die Fähre nicht kam",
+    );
+    // A tooltip needs a pointer; the name is also written out below the field.
+    const described = (field.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id))
+      .find((element) => element?.textContent?.includes("Fähre"));
+    expect(described).toHaveTextContent(
+      "28.10.2026, 12:20 · Der lange Abend, an dem die Fähre nicht kam",
+    );
+    expect(described).toBeVisible();
   });
 });

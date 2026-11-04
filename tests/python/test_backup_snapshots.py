@@ -116,6 +116,31 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertEqual(history[0]["subject"], "Erster Stand")
         self.assertEqual(history[0]["shortHash"], history[0]["hash"][:8])
 
+    def test_history_marks_server_generated_names_as_automatic(self):
+        """The client shows its own wording for a name the server made up; an
+        author's message is shown as written."""
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "", push=False)
+        self._write(ctx, "# Kapitel\n\nText.\n")
+        self.store.commit(ctx, "Erster Stand", push=False)
+
+        newest, oldest = self.store.history(ctx)
+        self.assertTrue(oldest["subject"].startswith("Writing backup "))
+        self.assertEqual(oldest["kind"], "automatic")
+        self.assertEqual(newest["kind"], "manual")
+
+    def test_an_accepted_suggested_name_counts_as_automatic(self):
+        """The snapshot dialog pre-fills the suggested name; an author who keeps it
+        did not write it, and snapshots made before the flag existed look the same."""
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "Writing backup 2026-10-28 12:20", push=False)
+        self.assertEqual(self.store.history(ctx)[0]["kind"], "automatic")
+
+    def test_a_name_that_only_starts_like_the_generated_one_is_the_authors(self):
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "Writing backup 2026-10-28 12:20 vor dem Umbau", push=False)
+        self.assertEqual(self.store.history(ctx)[0]["kind"], "manual")
+
     def test_committing_twice_without_edits_is_recognised_as_unchanged(self):
         """sqlite3's backup() output is byte-stable for an unchanged database,
         which is what lets content addressing recognise "nothing happened" and

@@ -190,6 +190,7 @@ export const manuscript = {
     "Custom terms count as correctly spelled for the grammar check and are ready to insert while you write.",
   chooseSymbols: "Choose special characters",
   previousVersion: "Previous version",
+  automaticBackupName: "Automatic backup, {date}",
   changesSincePreviousVersion: "Changes from the directly preceding version",
   versionDiff: "Changes in this version",
   versionDiffLegend: "Version changes legend",
