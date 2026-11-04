@@ -1,9 +1,9 @@
+import type { WritingIssue } from "../../../modules/manuscript";
 import type {
   GrammarStatus,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
 } from "../../application";
-import type { WritingIssue } from "../../../modules/manuscript";
 
 export interface WritingAssistanceStatusWireV1 {
   ok: boolean;

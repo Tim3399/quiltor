@@ -4,8 +4,8 @@ import {
   type SynchronizationGateway,
 } from "../application";
 import { decodeManuscriptV1 } from "../contracts/v1/manuscript";
-import { decodeStoryWorldV1 } from "../contracts/v1/storyWorld";
 import { decodeStoryboardsV1 } from "../contracts/v1/storyboards";
+import { decodeStoryWorldV1 } from "../contracts/v1/storyWorld";
 import { currentMessages } from "./locale";
 import { type HttpApplicationState, requestJson, withWorldBody, withWorldQuery } from "./request";
 

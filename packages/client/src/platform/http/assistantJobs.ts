@@ -8,14 +8,14 @@ import {
   type AssistantBatchRequest,
   type AssistantGateway,
 } from "../application";
-import { decodeAssistantJobV1, type AssistantJobWireV1 } from "../contracts/v1/assistant";
+import { type AssistantJobWireV1, decodeAssistantJobV1 } from "../contracts/v1/assistant";
 import { currentUiLocale } from "./locale";
 import {
   applicationCodeForHttpStatus,
+  type HttpApplicationState,
   requestJson,
   withWorldBody,
   withWorldQuery,
-  type HttpApplicationState,
 } from "./request";
 
 const JOBS_PATH = "/api/assistant/jobs";

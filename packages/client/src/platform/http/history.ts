@@ -1,4 +1,9 @@
-import type { ChapterComparisonResult, HistoryGateway } from "../application";
+import type {
+  ChapterComparisonResult,
+  HistoryGateway,
+  SnapshotChangesWire,
+  SnapshotKindWire,
+} from "../application";
 import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
 
 export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGateway {
@@ -11,7 +16,8 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           shortHash: string;
           date: string;
           subject: string;
-          kind?: "automatic" | "manual";
+          kind?: SnapshotKindWire;
+          changes?: SnapshotChangesWire;
         }>;
       }>(withWorldQuery(state, "/api/history")),
     diff: (ref = "WORK", word = true, all = false) =>

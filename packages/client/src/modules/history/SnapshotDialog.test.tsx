@@ -198,6 +198,15 @@ describe("SnapshotDialog", () => {
     );
   });
 
+  it("sends an unchanged suggestion empty so the server names and labels it", async () => {
+    backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: false }));
+    show();
+    const message = await screen.findByRole("textbox", { name: "Was hat sich geändert?" });
+    expect(message).toHaveValue("Kapitel 3");
+    fireEvent.click(screen.getByRole("button", { name: "Nur lokal sichern" }));
+    await waitFor(() => expect(saveSnapshot).toHaveBeenCalledWith("", false));
+  });
+
   it("uploads and shows the account once signed in", async () => {
     backupLoginStatus.mockResolvedValue(
       loginStatus({ signedIn: true, email: "autorin@example.org" }),
@@ -206,7 +215,8 @@ describe("SnapshotDialog", () => {
     const upload = await screen.findByRole("button", { name: /Sichern & hochladen/ });
     await waitFor(() => expect(upload).toBeEnabled());
     fireEvent.click(upload);
-    await waitFor(() => expect(saveSnapshot).toHaveBeenCalledWith("Kapitel 3", true));
+    // The suggestion was left as it was: the server names the snapshot itself.
+    await waitFor(() => expect(saveSnapshot).toHaveBeenCalledWith("", true));
     expect(screen.getByText("autorin@example.org")).toBeInTheDocument();
     backupLogout.mockResolvedValue({ ok: true, signedIn: false });
     backupLoginStatus.mockResolvedValue(loginStatus({ signedIn: false }));

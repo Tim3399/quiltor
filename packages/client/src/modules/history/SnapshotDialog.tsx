@@ -113,7 +113,10 @@ export function SnapshotDialog({
     setTransferWarning(false);
     try {
       await flush();
-      const result = await quiltorClient.application.backup.saveSnapshot(message, upload);
+      // An unchanged suggestion goes out empty: the server names the snapshot itself and
+      // labels it as its own, so the history words it in the reader's language.
+      const written = message === status?.suggestedMessage ? "" : message;
+      const result = await quiltorClient.application.backup.saveSnapshot(written, upload);
       setOutput(result.log.join("\n") || t("done"));
       setStatus(result.status);
       setTransferWarning(result.warnings?.includes("backup.transfer_status_failed") ?? false);

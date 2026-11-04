@@ -46,7 +46,13 @@ export type {
   ManuscriptExportWarningCode,
 } from "./documents";
 export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
-export type { ChapterComparisonResult, HistoryGateway, SnapshotChapterRecord } from "./history";
+export type {
+  ChapterComparisonResult,
+  HistoryGateway,
+  SnapshotChangesWire,
+  SnapshotChapterRecord,
+  SnapshotKindWire,
+} from "./history";
 export type { IdentityGateway, IdentityLogoutResult } from "./identity";
 export type { ManuscriptGateway } from "./manuscript";
 export {

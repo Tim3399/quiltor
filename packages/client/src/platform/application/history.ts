@@ -13,6 +13,24 @@ export interface ChapterComparisonResult {
   previous: SnapshotChapterRecord;
 }
 
+/** Who named a snapshot; the client words each kind itself. One list with the server
+ * (`SNAPSHOT_KINDS`) and contracts/persistence/history-labels. */
+export type SnapshotKindWire =
+  | "manual"
+  | "automatic"
+  | "changes"
+  | "before-restore"
+  | "cloud-sync"
+  | "before-cloud-sync"
+  | "cloud-sync-conflict";
+
+/** The chapters and profiles a "changes" snapshot touched. Absent when the server
+ * could not compare it with its parent. */
+export interface SnapshotChangesWire {
+  chapters: string[];
+  profiles: string[];
+}
+
 export interface HistoryGateway {
   log(): Promise<{
     ok: boolean;
@@ -21,7 +39,8 @@ export interface HistoryGateway {
       shortHash: string;
       date: string;
       subject: string;
-      kind?: "automatic" | "manual";
+      kind?: SnapshotKindWire;
+      changes?: SnapshotChangesWire;
     }>;
   }>;
   diff(

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPlatformGateway } from "../createPlatformGateway";
-import type { ApplicationGateway } from "../application";
-import { createHttpApplicationGateway } from ".";
 import type { AssistantReply } from "../../modules/assistant";
+import type { ApplicationGateway } from "../application";
+import { createPlatformGateway } from "../createPlatformGateway";
+import { createHttpApplicationGateway } from ".";
 
 const REPLY: AssistantReply = {
   ok: true,
