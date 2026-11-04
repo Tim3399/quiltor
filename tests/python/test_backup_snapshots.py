@@ -383,7 +383,7 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertIn("Neuer", working["diff"])
 
     def test_diff_output_carries_the_headers_the_history_dialog_parses(self):
-        """packages/client/src/modules/history/HistoryDialog.tsx splits segments on the
+        """packages/client/src/modules/history/VersionsPanel.tsx splits segments on the
         'diff --git a/X b/Y' header, so its shape is a contract between the two
         sides, not an implementation detail. The marker is the conventional
         unified-diff one, which is also what makes an exported diff render

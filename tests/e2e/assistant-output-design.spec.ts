@@ -119,10 +119,10 @@ for (const theme of ["light", "dark"] as const) {
             },
           });
         }
+        // The save reaches the real server: the panel confirms a version only when the
+        // history head moved, and a mocked answer never moves it (T-87 F2).
         if (pathname === "/api/backup" && request.method() === "POST") {
-          return route.fulfill({
-            json: { ok: true, log: [`saved ${longSegment}/snapshot.log`], status },
-          });
+          return route.fallback();
         }
         return route.fulfill({ json: status });
       });

@@ -126,6 +126,14 @@ jobs:
             cat "$RUNNER_TEMP/vite.log"
             exit 1
           fi
+          # curl does not warm Vite: the first browser request waited 30.8 s on windows-2025
+          # (run 41859545842) and the first tests timed out on the loading screen. Pay that
+          # cost here, once, and stop before any test if the server never gets warm.
+          if ! node tools/dev/warm-vite.mjs --url http://127.0.0.1:4173 --timeout-ms 120000; then
+            echo "::error::Vite did not finish warming up on 127.0.0.1:4173."
+            cat "$RUNNER_TEMP/vite.log"
+            exit 1
+          fi
 
           # Playwright fails a run when it writes a missing image -- right for a normal run,
           # but the success case here. Soft screenshot assertions let every core view write
