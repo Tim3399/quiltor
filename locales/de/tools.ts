@@ -74,6 +74,7 @@ export const tools = {
   files: "Dateien",
   notConfigured: "Nicht eingerichtet",
   snapshotMessage: "Was hat sich geändert?",
+  technicalDetails: "Technische Details",
   loadingBackupStatus: "Status wird geladen …",
   done: "Fertig.",
   backupSignIn: "Bei der Sicherung anmelden",

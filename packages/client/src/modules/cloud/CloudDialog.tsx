@@ -1,4 +1,4 @@
-import { Cloud, LogIn, RefreshCw } from "lucide-react";
+import { Cloud, LogIn, LogOut, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Alert, Button, ConfirmDialog, Dialog, Disclosure, TextField } from "../../design";
@@ -306,6 +306,24 @@ export function CloudDialog({
           </dl>
           {target && target.source !== "none" && !reloadRequired && (
             <Disclosure summary={t("syncTargetChange")}>{targetForm("syncTargetSave")}</Disclosure>
+          )}
+          {login?.signedIn && !reloadRequired && (
+            <Disclosure summary={t("technicalDetails")}>
+              <Button
+                appearance="secondary"
+                icon={<LogOut />}
+                disabled={busy}
+                onClick={() =>
+                  // Signing out changes the account, not the project: nothing to save first.
+                  void run(async () => {
+                    await quiltorClient.application.backup.signOut();
+                    await load();
+                  }, false)
+                }
+              >
+                {t("logout")}
+              </Button>
+            </Disclosure>
           )}
           {readOnly && <Alert tone="warning">{t("cloudReadOnly")}</Alert>}
           {status.account?.deleteAfter && (
