@@ -500,6 +500,57 @@ describe("ManuscriptEditor selection", () => {
     expect(live).toHaveBeenCalledWith("Abend!", [], []);
   });
 
+  // T-159: a re-render that changes nothing must not send the view a transaction, even when
+  // the optional decoration props are absent and fall back to their defaults.
+  it("sends the view no transaction when it re-renders with unchanged props", () => {
+    const props = {
+      value: "Anfang",
+      label: "Kapiteltext",
+      placeholder: "",
+      vocabulary: [],
+      editorRef:
+        createRef<ManuscriptEditorHandle>() as React.MutableRefObject<ManuscriptEditorHandle | null>,
+      onChange: vi.fn(),
+      onSelection: vi.fn(),
+    };
+    const view = render(<ManuscriptEditor {...props} />);
+    const editor = requireValue(
+      EditorView.findFromDOM(
+        requireValue(view.container.querySelector<HTMLElement>(".cm-editor"), "root"),
+      ),
+      "view",
+    );
+    const update = vi.spyOn(editor, "update");
+
+    view.rerender(
+      <ManuscriptEditor
+        {...props}
+        versionDiffLabels={{
+          added: "+",
+          addedLineBreak: "",
+          removed: "-",
+          formattingAdded: { bold: "", italic: "" },
+          formattingRemoved: { bold: "", italic: "" },
+        }}
+      />,
+    );
+    view.rerender(
+      <ManuscriptEditor
+        {...props}
+        versionDiffLabels={{
+          added: "+",
+          addedLineBreak: "",
+          removed: "-",
+          formattingAdded: { bold: "", italic: "" },
+          formattingRemoved: { bold: "", italic: "" },
+        }}
+      />,
+    );
+
+    // One transaction for the labels that appeared, none for the identical second render.
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
   it("maps marks and mentions through two edits that land before the next commit", () => {
     const { editor, onChange } = renderEditor({
       marks: [{ from: 6, to: 10, kind: "italic" }],

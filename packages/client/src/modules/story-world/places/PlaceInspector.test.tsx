@@ -403,3 +403,33 @@ describe("the picture a place carries", () => {
     }
   });
 });
+
+// T-159 (F-159-1): a place without stored note marks must not hand its note editor a fresh
+// array on every render, or each re-render sends CodeMirror a transaction.
+describe("PlaceInspector note re-render", () => {
+  it("sends the note editor no transaction when the inspector re-renders unchanged", () => {
+    const inspector = () => (
+      <I18nProvider>
+        <PlaceInspector
+          selected={state.nodes[0]}
+          state={state}
+          onPatch={vi.fn()}
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          mapImageUrl={(id) => `/api/place-map?id=${id}`}
+          onChooseMapImage={vi.fn()}
+          onRemoveMapImage={vi.fn()}
+        />
+      </I18nProvider>
+    );
+    const view = render(inspector());
+    const textbox = view.container.querySelector<HTMLElement>(".cm-content");
+    if (!textbox) throw new Error("note editor missing");
+    const update = vi.spyOn(noteView(textbox), "update");
+
+    view.rerender(inspector());
+    view.rerender(inspector());
+
+    expect(update).toHaveBeenCalledTimes(0);
+  });
+});

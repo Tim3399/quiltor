@@ -9,14 +9,17 @@ import { useNoteReferenceContext } from "./NoteReferenceContext";
 import { ReferenceTextEditor } from "./ReferenceTextEditor";
 import "./NoteEditor.css";
 
+// Stable defaults: a fresh [] on every render would send CodeMirror a transaction each time
+// (T-159).
 const noReferences: readonly NoteReference[] = [];
+const noMarks: readonly NoteMark[] = [];
 
 export function NoteEditor({
   owner,
   label,
   value,
   references = noReferences,
-  marks = [],
+  marks = noMarks,
   onChange,
   placeholder,
   size = "comfortable",
