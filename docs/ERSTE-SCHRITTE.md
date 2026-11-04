@@ -26,7 +26,8 @@ Bei einer gehosteten Webseite liegen die Projektdaten auf deren Server.
 ## Ein Projekt mit der Cloud abgleichen
 
 Wenn ein kompatibles Cloud-Ziel eingerichtet ist, öffne in deinem Projekt
-**Mehr → Cloud-Synchronisation**. Melde dich bei Bedarf beim Ziel an und wähle anschließend
+**Mehr → Versionen & Sicherungen** und dort den Reiter **Mit anderen Geräten abgleichen**.
+Melde dich bei Bedarf beim Ziel an und wähle anschließend
 **Status aktualisieren**. **Jetzt synchronisieren** startet einen einzelnen Abgleich.
 Im Hintergrund werden keine Änderungen automatisch übertragen.
 
@@ -84,8 +85,8 @@ bestätigte Aktion. Sie löscht keine Kopien auf einem separat betriebenen Backu
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Buch exportieren                  | Aktuelle Buchfassung ohne zurückgestellte und gelöschte Kapitel.                                                                                                                                                                                          |
 | Projekt exportieren / importieren | Aktuelles Projekt als `.quiltor`, einschließlich zurückgestellter Kapitel, Kapitelpapierkorb und benötigter Bilder. Ohne Versionsverlauf und frühere Sicherungen. Import erstellt eine neue Welt; Konten und Backup-Zugangsdaten werden nicht übernommen. |
-| Sicherung wiederherstellen        | Vorschau einer lokalen Sicherung; vor dem Ersetzen wird der aktuelle gespeicherte Zustand nochmals gesichert. Der Dialog zeigt Speicherort und letzte lokale Sicherung.                                                                                   |
-| Arbeitsstand sichern              | Benannter Stand im Verlauf; optionaler Upload an einen konfigurierten Backup-Server.                                                                                                                                                                      |
+| Sicherung wiederherstellen        | Im Reiter **Automatische Sicherungen**: Vorschau einer lokalen Sicherung; vor dem Ersetzen wird der aktuelle gespeicherte Zustand nochmals gesichert. Der Dialog zeigt Speicherort und letzte lokale Sicherung.                                           |
+| Version festhalten                | Benannter Stand im Reiter **Versionen** unter Mehr → Versionen & Sicherungen; bleibt auf dem Gerät.                                                                                                                                                       |
 
 Bei **Speichern fehlgeschlagen** bleibt dein Entwurf im Editor. **Entwurf retten**
 ermöglicht Kopieren und Herunterladen. Die zusätzliche JSON-Rettung enthält die
