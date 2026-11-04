@@ -25,9 +25,12 @@ RUN useradd --create-home --shell /usr/sbin/nologin quiltor
 WORKDIR /app
 COPY services/backup-server/server.py ./
 # The service and application restore path execute this exact shared manifest
-# contract.  Copy only the stdlib-only contract module; namespace packages keep
-# the backup image independent of the rest of the application runtime.
+# contract.  Copy only the stdlib-only contract module and the one stdlib-only
+# module it imports; namespace packages keep the backup image independent of the
+# rest of the application runtime. test_distribution imports this payload in
+# isolation, so a new import here fails there before it fails in a container.
 COPY src/quiltor/application/backup_manifest.py ./quiltor/application/backup_manifest.py
+COPY src/quiltor/domain/json_values.py ./quiltor/domain/json_values.py
 COPY services/backup-server/artifact-contract.json ./quiltor-backup-service.json
 COPY VERSION LICENSE THIRD-PARTY-NOTICES.md ./
 RUN python3 -c "import json,pathlib,re; p=json.load(open('quiltor-backup-service.json')); files={str(x.relative_to('/app')).replace('\\\\','/') for x in pathlib.Path('/app').rglob('*') if x.is_file()}; assert p['schemaVersion']==1 and p['contractVersion']==1; assert p['id']=='quiltor-backup-service' and p['role']=='backup-service'; assert files==set(p['payload']); assert re.fullmatch(r'[0-9]+\\.[0-9]+\\.[0-9]+', pathlib.Path(p['versionSource']).read_text().strip())"

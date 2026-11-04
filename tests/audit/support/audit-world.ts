@@ -413,9 +413,15 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
     revisions.manuscript += 1;
     return fulfillDocumentSave(route, revisions.manuscript);
   });
-  await page.route("**/api/state?*", (route) => {
-    if (route.request().method() === "GET")
+  await page.route("**/api/state?*", async (route) => {
+    if (route.request().method() === "GET") {
+      // Timing probe: QUILTOR_AUDIT_STATE_DELAY_MS=2500 serves the story world that late, as a slow
+      // machine does, and shifts later frames into a capture step (it surfaced the T-115 reflow,
+      // T-27). Unset, nothing is delayed.
+      const delay = Number(process.env.QUILTOR_AUDIT_STATE_DELAY_MS ?? 0);
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
       return fulfillStoryWorld(route, storyWorld, revisions.state);
+    }
     if (options.failSaves) return failSave(route);
     storyWorld = decodeStoryWorldV1(route.request().postDataJSON()).document;
     revisions.state += 1;

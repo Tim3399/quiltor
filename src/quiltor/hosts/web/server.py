@@ -882,6 +882,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._discard_unread_body()
             return on_miss()
 
+        if registration.operator_only and not self.application.installable:
+            # Several people share a hosted server; what it runs is installed by its
+            # operator (D-59). Refused before the world and before any body is read.
+            self._discard_unread_body()
+            # `path` is a key of the route table here, never the raw request URL.
+            self.log_rejection("install.forbidden_hosted", route=path)
+            return self.send_api_error(403, error_code="install.forbidden_hosted", retryable=False)
+
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:
             # Resolved before the route runs, so a refusal here leaves the body unread.

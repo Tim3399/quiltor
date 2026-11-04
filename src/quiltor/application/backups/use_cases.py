@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from quiltor.application.backups.errors import BackupSnapshotNotFound
@@ -37,7 +38,7 @@ class BackupUseCases:
         self._login = login
         self._observer = observer
 
-    def list_local(self, backups) -> list[dict[str, Any]]:
+    def list_local(self, backups: Path) -> list[dict[str, Any]]:
         return self._local.list_local(backups)
 
     def preview_local(self, name: str, location: DocumentLocation) -> dict[str, Any]:

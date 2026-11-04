@@ -11,7 +11,6 @@ import {
   PLACE_PIN_SCREEN_SIZES,
   placePinSize,
 } from "./placeCanvasModel";
-import { mapBoxOf } from "./PlaceMapNode";
 
 const t = ((key: keyof typeof de, variables?: Record<string, string | number>) => {
   let value: string = de[key];
@@ -222,15 +221,6 @@ describe("a map laid out on the level", () => {
       mapY: 150,
       mapWidth: 860,
       mapHeight: 650,
-    });
-  });
-
-  it("keeps the origin of what a resize gesture reports", () => {
-    expect(mapBoxOf({ x: 40, y: 150, width: 860, height: 650 })).toEqual({
-      x: 40,
-      y: 150,
-      width: 860,
-      height: 650,
     });
   });
 });

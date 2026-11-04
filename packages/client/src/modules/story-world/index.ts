@@ -1,5 +1,6 @@
 import "./StoryGraph.css";
 
+export { countBoardElements } from "./figures/figureCanvasModel";
 export { authoredFigureLabel } from "./figures/figureLabel";
 export { kindLabel } from "./figures/relationships";
 export type {

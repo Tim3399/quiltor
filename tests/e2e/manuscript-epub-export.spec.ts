@@ -5,6 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { DEFAULT_BOOK_LAYOUT, type Manuscript } from "../../packages/client/src/modules/manuscript";
 import { seedManuscriptWorld } from "./support/seed";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { expect, test } from "./support/world-fixture";
 
 const run = promisify(execFile);
@@ -121,7 +122,7 @@ function seed(page: Page, model: Manuscript = manuscript) {
 }
 
 async function openEpubExport(page: Page) {
-  await page.getByRole("button", { name: "Buch exportieren", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript");
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("/api/manuscript-export/preview"),
   );
@@ -227,7 +228,11 @@ for (const theme of ["light", "dark"] as const) {
     expect(errors).toEqual([]);
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Buch exportieren", exact: true })).toBeFocused();
+    await expect(
+      page
+        .getByRole("toolbar", { name: "Manuskript", exact: true })
+        .getByRole("button", { name: "Weitere Aktionen", exact: true }),
+    ).toBeFocused();
   });
 }
 

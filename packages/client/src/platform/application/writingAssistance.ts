@@ -21,7 +21,26 @@ export type GrammarStatus = {
   javaRequired: number;
   externalConfigured: boolean;
   externalEnabled: boolean;
+  /** False when the server's operator installs LanguageTool; missing means true. */
+  installable?: boolean;
   download: { url: string; checksum: string; license: string };
+};
+
+export type WritingDataRelease = {
+  available: boolean;
+  reason: "not_published" | null;
+  version: string | null;
+  bytes: number | null;
+};
+
+/** One upstream source the installed dictionary records about itself. */
+export type WritingInstalledSource = {
+  name: string;
+  /** Where the source lives; shown as a link only when it is http(s). */
+  url: string;
+  license: string;
+  /** The license text's address; the link target for `license`. */
+  licenseUrl: string;
 };
 
 export type WritingAssistanceStatus = {
@@ -34,11 +53,20 @@ export type WritingAssistanceStatus = {
    */
   coverage?: "core" | "full" | null;
   stale: boolean;
+  /** False when the server's operator installs the language data; missing means true. */
+  installable?: boolean;
   version: string | null;
-  sources: Record<
-    string,
-    { version: string; url: string; checksum: string; license: string; attribution: string }
-  >;
+  /**
+   * Whether this release can download a dictionary at all. available false
+   * with reason "not_published": no data release exists yet, so there is no
+   * install to offer. Missing on older servers, which means available.
+   */
+  data?: WritingDataRelease;
+  /**
+   * The sources the installed dictionary names in its own metadata. Empty when
+   * nothing is installed, on older servers, or when the file records none.
+   */
+  installedSources?: WritingInstalledSource[];
   grammar?: GrammarStatus;
 };
 

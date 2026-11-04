@@ -21,6 +21,7 @@ import {
 import { Button, DropdownMenu, Field, IconButton, MenuItem, Popover } from "../../design";
 import { useI18n } from "../../i18n";
 import type { NoteHeadingLevel, NoteMark, NoteReference } from "../../shared";
+import { useLatest } from "../../shared/hooks/useLatest";
 import {
   searchWorldReferences,
   type WorldReferenceCandidate,
@@ -237,10 +238,11 @@ export function ReferenceTextEditor({
   const host = useRef<HTMLDivElement>(null);
   const anchor = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const changeRef = useRef(onChange);
-  const openReferenceRef = useRef(onOpenReference);
-  const candidatesRef = useRef(candidates);
-  const marksRef = useRef(normalizeNoteMarks(value, marks));
+  const changeRef = useLatest(onChange);
+  const openReferenceRef = useLatest(onOpenReference);
+  const candidatesRef = useLatest(candidates);
+  // Written by publishMarks and the editor listener too: each moves it ahead to the marks it passes on.
+  const marksRef = useLatest(normalizeNoteMarks(value, marks));
   const completionRef = useRef<CompletionState | null>(null);
   const [completion, setCompletionState] = useState<CompletionState | null>(null);
   const [renderedReferences, setRenderedReferences] = useState(() =>
@@ -251,15 +253,6 @@ export function ReferenceTextEditor({
     italic: false,
     heading: null,
   });
-
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  changeRef.current = onChange;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  openReferenceRef.current = onOpenReference;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  candidatesRef.current = candidates;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  marksRef.current = normalizeNoteMarks(value, marks);
 
   const publishMarks = (nextMarks: NoteMark[], view = viewRef.current) => {
     if (!view) return false;

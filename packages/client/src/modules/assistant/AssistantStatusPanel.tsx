@@ -53,6 +53,8 @@ export function AssistantStatusPanel({
             >
               {t("retry")}
             </Button>
+          ) : status.installable === false ? (
+            <p className="assistant-offline-note">{t("assistantInstalledByOperator")}</p>
           ) : (
             <Button
               className="assistant-offline-action"

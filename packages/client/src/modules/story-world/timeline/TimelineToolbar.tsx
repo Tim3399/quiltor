@@ -53,7 +53,6 @@ export function TimelineToolbar({
       />
       <WorkspaceToolbarActions
         className="timeline-toolbar-actions"
-        layout="wrap"
         create={
           <WorkspaceToolbarGroup
             className="timeline-create-group"

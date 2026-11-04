@@ -21,6 +21,7 @@ export type {
   VersionedDocument,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
+  WritingInstalledSource,
 } from "./application";
 export {
   ApplicationGatewayError,

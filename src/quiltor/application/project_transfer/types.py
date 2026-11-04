@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 
@@ -16,7 +17,7 @@ class ProjectTransferPreview:
     storyboards: int
     images: int
 
-    def public(self) -> dict:
+    def public(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "counts": {

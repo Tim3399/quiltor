@@ -1,45 +1,115 @@
 name: Release Build
 
+# The single entry point for every push to main. It always calls test.yml at the same commit
+# with full_matrix: true; its release jobs run only when release-plan finds a changed VERSION,
+# or on a manual dispatch. Every job that writes, pushes, reads a secret or creates the
+# manifest needs both the called full test matrix and the release gate directly, and runs only
+# on the verdict full-success (workflow_contract.py, C-17). A dispatch with dry_run rehearses
+# all of it on any branch, but pushes no image, signs nothing and creates no manifest.
 on:
   push:
     branches: [main]
-    paths: ["VERSION"]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Rehearse on any branch: run every gate, push no image, create no manifest"
+        type: boolean
+        default: false
 
-concurrency:
-  group: release-build
-  cancel-in-progress: false
+# No workflow-level concurrency: a group shared by main pushes would let a newer run replace an
+# older pending one, and that run's tests with it.
 
 permissions:
   contents: read
 
 jobs:
+  release-plan:
+    name: Decide whether this run releases
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      dry_run: ${{ steps.plan.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: plan
+        name: Decide release and dry run
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A push to main: the question the old paths filter asked, without its limits.
+          # Unknown history (a new ref, a force push, an unreachable before) counts as a release
+          # candidate; version-check then refuses an existing tag. Doubt never skips tests,
+          # because tests do not depend on this job.
+          if [[ ! "$BEFORE" =~ ^[0-9a-f]{40}$ ]] \
+            || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \
+            || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --quiet "$BEFORE" "$GITHUB_SHA" -- VERSION; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # The full matrix, called at this exact commit. Not gated on release-plan or release-context:
+  # every push to main gets its tests, whatever those jobs decide. test.yml reads no secret.
+  tests:
+    name: Full test matrix
+    uses: ./.github/workflows/test.yml
+    with:
+      full_matrix: true
+    permissions:
+      contents: read
+
   release-context:
-    name: Require the exact main revision
+    name: Require the exact revision
+    needs: release-plan
+    if: needs.release-plan.outputs.release == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Refuse release work outside main
+        env:
+          DRY_RUN: ${{ needs.release-plan.outputs.dry_run }}
         run: |
           set -euo pipefail
-          [ "$GITHUB_REF" = "refs/heads/main" ] \
+          [ "$GITHUB_REF" = "refs/heads/main" ] || [ "$DRY_RUN" = true ] \
             || { echo "::error::Release Build must run on refs/heads/main, not $GITHUB_REF"; exit 1; }
-      # Keeps the checkout token: the next step fetches origin/main to compare heads. This
-      # job uploads no artifact, so the persisted credential cannot leave the runner.
+      # Keeps the checkout token: the next step fetches the branch to compare heads. This job
+      # uploads no artifact, so the persisted credential cannot leave the runner.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: true # zizmor: ignore[artipacked]
           fetch-depth: 0
-      - name: Require the current main head
+      # On main this is the current main head; a dry run compares with its own branch head.
+      - name: Require the current head of the run's branch
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
-          [ "$GITHUB_SHA" = "$MAIN_SHA" ] \
-            || { echo "::error::Release revision $GITHUB_SHA is not current main $MAIN_SHA"; exit 1; }
+          git fetch --no-tags origin "$GITHUB_REF_NAME:refs/remotes/origin/$GITHUB_REF_NAME"
+          HEAD_SHA="$(git rev-parse "refs/remotes/origin/$GITHUB_REF_NAME")"
+          [ "$GITHUB_SHA" = "$HEAD_SHA" ] \
+            || { echo "::error::Release revision $GITHUB_SHA is not current $GITHUB_REF_NAME $HEAD_SHA"; exit 1; }
 
+  # The release-specific part of the portable gate. It runs beside tests (R5) and skips exactly
+  # the steps the called full matrix runs at this commit. It writes nothing: no write
+  # permission, no login, no push.
   release-gate:
     name: Portable release gate
-    needs: release-context
+    needs: [release-plan, release-context]
+    if: needs.release-plan.outputs.release == 'true'
     runs-on: ubuntu-24.04
     env:
       PYTHONPATH: src
@@ -54,6 +124,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
+      # rust-toolchain.toml requires rustfmt and clippy for every cargo call, even
+      # `cargo --version`; without them installed here the preflight fails at random.
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
           toolchain: "1.98.0"
@@ -64,11 +136,12 @@ jobs:
           python -m pip install --quiet "build==1.5.0" "editables==0.5" "hatchling==1.31.0" "ruff==0.16.4"
           python -m pip install --quiet --no-build-isolation -e .
           bash tools/dev/playwright-linux.sh
-      - name: Run every portable release test, contract and build gate
-        run: python distribution/tooling/release_preflight.py
+      - name: Run the release-specific gate; the called full matrix covers the rest
+        run: python distribution/tooling/release_preflight.py --ci-release-scope
 
   version-check:
-    needs: release-context
+    needs: [release-plan, release-context]
+    if: needs.release-plan.outputs.release == 'true'
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.value }}
@@ -100,8 +173,12 @@ jobs:
             && { echo "::error::v$VERSION already exists"; exit 1; }
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
+  # Write job (C-17): writes packages and pushes the hand-off tag to the registry.
   web-image:
-    needs: [version-check, release-gate]
+    needs: [release-plan, release-context, version-check, release-gate, tests]
+    if: >-
+      needs.release-plan.outputs.release == 'true'
+      && needs.tests.outputs.verdict == 'full-success'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -120,7 +197,9 @@ jobs:
         with:
           python-version: "3.12.10"
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+      # A dry run builds without a login, so even a stray push would fail.
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: needs.release-plan.outputs.dry_run == 'false'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -146,7 +225,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
-          push: true
+          push: ${{ needs.release-plan.outputs.dry_run == 'false' }}
           build-args: |
             QUILTOR_VERSION=${{ needs.version-check.outputs.version }}
             QUILTOR_REVISION=${{ github.sha }}
@@ -157,6 +236,7 @@ jobs:
           sbom: true
       - id: immutable
         name: Bind the app image to the pushed manifest digest
+        if: needs.release-plan.outputs.dry_run == 'false'
         env:
           REPOSITORY: ${{ steps.image.outputs.repository }}
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -166,13 +246,18 @@ jobs:
             || { echo "::error::build did not return an immutable OCI digest"; exit 1; }
           echo "value=$REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
       - name: Enforce the compressed web runtime-image budget
+        if: needs.release-plan.outputs.dry_run == 'false'
         env:
           IMAGE: ${{ steps.immutable.outputs.value }}
         run: >-
           python distribution/tooling/oci_image_size.py check "$IMAGE" --budget web
 
+  # Write job (C-17): writes packages and pushes the hand-off tag, as web-image.
   backup-image:
-    needs: [version-check, release-gate]
+    needs: [release-plan, release-context, version-check, release-gate, tests]
+    if: >-
+      needs.release-plan.outputs.release == 'true'
+      && needs.tests.outputs.verdict == 'full-success'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -190,6 +275,7 @@ jobs:
         run: python distribution/tooling/container_contract.py check
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: needs.release-plan.outputs.dry_run == 'false'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -206,7 +292,7 @@ jobs:
         with:
           context: .
           file: services/backup-server/Dockerfile
-          push: true
+          push: ${{ needs.release-plan.outputs.dry_run == 'false' }}
           build-args: |
             QUILTOR_VERSION=${{ needs.version-check.outputs.version }}
             QUILTOR_REVISION=${{ github.sha }}
@@ -215,6 +301,7 @@ jobs:
           sbom: true
       - id: immutable
         name: Bind the backup image to the pushed manifest digest
+        if: needs.release-plan.outputs.dry_run == 'false'
         env:
           REPOSITORY: ${{ steps.image.outputs.repository }}
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -224,8 +311,12 @@ jobs:
             || { echo "::error::build did not return an immutable OCI digest"; exit 1; }
           echo "value=$REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
 
+  # Uploads a run artifact only: no write permission, no push. Same edges as the write jobs.
   python-package:
-    needs: [version-check, release-gate]
+    needs: [release-plan, release-context, version-check, release-gate, tests]
+    if: >-
+      needs.release-plan.outputs.release == 'true'
+      && needs.tests.outputs.verdict == 'full-success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -250,9 +341,14 @@ jobs:
             pkg-dist/*.whl
             pkg-dist/*.tar.gz
 
+  # Signing job (C-17, C-19): reads the Apple signing secrets, so never in a dry run.
   macos-direct:
-    needs: [version-check, release-gate]
-    if: needs.version-check.outputs.macos_direct == 'true'
+    needs: [release-plan, release-context, version-check, release-gate, tests]
+    if: >-
+      needs.release-plan.outputs.release == 'true'
+      && needs.tests.outputs.verdict == 'full-success'
+      && needs.release-plan.outputs.dry_run == 'false'
+      && needs.version-check.outputs.macos_direct == 'true'
     runs-on: macos-15
     env:
       QUILTOR_BUILD_NUMBER: ${{ github.run_number }}
@@ -264,7 +360,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.23.2"
-          cache: npm
+          package-manager-cache: false # an artifact job restores no cache
       - run: npm ci
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
@@ -338,9 +434,14 @@ jobs:
       - if: always()
         run: '[ ! -f "$RUNNER_TEMP/quiltor-signing.keychain-db" ] || security delete-keychain "$RUNNER_TEMP/quiltor-signing.keychain-db"'
 
+  # Signing job (C-17, C-19): reads the Authenticode secrets, so never in a dry run.
   windows-direct:
-    needs: [version-check, release-gate]
-    if: needs.version-check.outputs.windows_direct == 'true'
+    needs: [release-plan, release-context, version-check, release-gate, tests]
+    if: >-
+      needs.release-plan.outputs.release == 'true'
+      && needs.tests.outputs.verdict == 'full-success'
+      && needs.release-plan.outputs.dry_run == 'false'
+      && needs.version-check.outputs.windows_direct == 'true'
     runs-on: windows-2025
     env:
       QUILTOR_BUILD_NUMBER: ${{ github.run_number }}
@@ -352,7 +453,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "22.23.2"
-          cache: npm
+          package-manager-cache: false # an artifact job restores no cache
       - run: npm ci
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
@@ -430,11 +531,15 @@ jobs:
         shell: pwsh
         run: Remove-Item -LiteralPath "$env:RUNNER_TEMP\quiltor-signing.pfx" -Force -ErrorAction SilentlyContinue
 
+  # Manifest job (C-17): its artifact is the one input Publish acts on. It runs again in every
+  # attempt that re-runs anything upstream, so it checks the head and the tag again first.
   release-manifest:
     needs:
       [
+        release-plan,
         version-check,
         release-gate,
+        tests,
         web-image,
         backup-image,
         python-package,
@@ -444,6 +549,9 @@ jobs:
     if: >-
       ${{
         !cancelled()
+        && needs.release-plan.outputs.release == 'true'
+        && needs.tests.outputs.verdict == 'full-success'
+        && needs.release-plan.outputs.dry_run == 'false'
         && needs.version-check.result == 'success'
         && needs.release-gate.result == 'success'
         && needs.web-image.result == 'success'
@@ -464,6 +572,27 @@ jobs:
       }}
     runs-on: ubuntu-24.04
     steps:
+      - name: Require the current main head again
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)"
+          [ "$GITHUB_SHA" = "$MAIN_SHA" ] \
+            || { echo "::error::main moved to $MAIN_SHA; release revision $GITHUB_SHA is stale"; exit 1; }
+      - name: Require the version tag to be absent again
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ needs.version-check.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAGS="$(gh api "repos/$REPOSITORY/git/matching-refs/tags/v$VERSION" --jq '.[].ref')"
+          if grep -qxF "refs/tags/v$VERSION" <<<"$TAGS"; then
+            echo "::error::v$VERSION was tagged since version-check ran"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -517,3 +646,48 @@ jobs:
           name: release-manifest
           if-no-files-found: error
           path: release-manifest.json
+
+  # Turns a release run that produced nothing into a red run instead of a green one: a called
+  # workflow and skipped jobs alone would conclude success.
+  release-complete:
+    name: Release run complete
+    needs:
+      [
+        release-plan,
+        tests,
+        web-image,
+        backup-image,
+        python-package,
+        macos-direct,
+        windows-direct,
+        release-manifest,
+      ]
+    if: ${{ always() && needs.release-plan.outputs.release == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Require the verdict and every artifact
+        env:
+          DRY_RUN: ${{ needs.release-plan.outputs.dry_run }}
+          VERDICT: ${{ needs.tests.outputs.verdict }}
+          MANIFEST: ${{ needs.release-manifest.result }}
+          WEB: ${{ needs.web-image.result }}
+          BACKUP: ${{ needs.backup-image.result }}
+          PACKAGE: ${{ needs.python-package.result }}
+          MACOS: ${{ needs.macos-direct.result }}
+          WINDOWS: ${{ needs.windows-direct.result }}
+        run: |
+          set -euo pipefail
+          [ "$VERDICT" = full-success ] \
+            || { echo "::error::the full test matrix verdict is '$VERDICT', not full-success"; exit 1; }
+          for result in "$WEB" "$BACKUP" "$PACKAGE"; do
+            [ "$result" = success ] || { echo "::error::an artifact job is $result"; exit 1; }
+          done
+          if [ "$DRY_RUN" = true ]; then
+            [ "$MACOS" = skipped ] && [ "$WINDOWS" = skipped ] \
+              || { echo "::error::a dry run ran a signing job ($MACOS, $WINDOWS)"; exit 1; }
+            [ "$MANIFEST" = skipped ] \
+              || { echo "::error::a dry run produced a manifest ($MANIFEST)"; exit 1; }
+          else
+            [ "$MANIFEST" = success ] || { echo "::error::release-manifest is $MANIFEST"; exit 1; }
+          fi

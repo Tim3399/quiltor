@@ -1,5 +1,5 @@
 import { Ruler } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button, IconButton, Popover, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { MapScale } from "../model";
@@ -26,12 +26,12 @@ export function PlaceMapScaleControl({
   const { t } = useI18n();
   const anchor = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `anchorPositionKey` is a trigger: a moved anchor closes the editor
-  useEffect(() => {
-    // Opening the editor leaves the key unchanged; only a moved anchor closes it.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Opening the editor leaves the key unchanged; only a moved anchor closes it.
+  const [openAt, setOpenAt] = useState(anchorPositionKey);
+  if (openAt !== anchorPositionKey) {
+    setOpenAt(anchorPositionKey);
     setOpen(false);
-  }, [anchorPositionKey]);
+  }
   const label = t("placeMapScale", { name });
   const triggerProps = {
     ref: anchor,

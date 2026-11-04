@@ -7,6 +7,7 @@ import {
 } from "@codemirror/view";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { VersionDiffProjection } from "../history";
 import type { FigureNode } from "../story-world";
 import { EntityMentionCard, type EntityMentionDescription } from "./EntityMentionCard";
@@ -29,6 +30,15 @@ import { mapMentions } from "./mentions";
 import type { EntityMention, TextMark, TextMarkKind, WritingIssue } from "./model";
 
 const controlledUpdate = Annotation.define<boolean>();
+// Stable stand-ins for absent decoration props. A fresh `[]` default differs on every render
+// and made its effect dispatch a transaction each time. Every transaction makes CodeMirror
+// drop a DOM selection it has not read yet and write its own back, so one that landed between
+// "select all" and typing put the typed text in front of the old text (T-159).
+const NO_MENTIONS: EntityMention[] = [];
+const NO_MARKS: TextMark[] = [];
+const NO_ISSUES: WritingIssue[] = [];
+const NO_ENTITIES: FigureNode[] = [];
+const NO_SEARCH_MATCHES: Array<{ from: number; to: number }> = [];
 
 export type EditorTextSelection = {
   from: number;
@@ -36,6 +46,18 @@ export type EditorTextSelection = {
   text: string;
   rect: { left: number; top: number; width: number; height: number };
 };
+
+/** Where the editor's document starts inside an enclosing scroller, in that scroller's offsets. */
+function documentOffsetIn(view: EditorView, scroller: HTMLElement) {
+  return view.documentTop - scroller.getBoundingClientRect().top + scroller.scrollTop;
+}
+
+/**
+ * A scroll position in document coordinates: the line at the top of the viewport and how
+ * far into it the viewport starts. Pixels alone do not survive a remount, because CodeMirror
+ * estimates every line it has not measured yet (T-149b).
+ */
+export type EditorScrollAnchor = { pos: number; offset: number };
 
 export type EditorViewSelection = {
   anchor: number;
@@ -48,6 +70,10 @@ export type ManuscriptEditorHandle = {
   restorePosition: (position: ManuscriptEditorPosition) => void;
   /** Run after CodeMirror has completed its pending geometry measurement and scroll anchoring. */
   afterMeasure?: (callback: (hasFocus: boolean) => void) => () => void;
+  /** The document position at `scrollTop` of the given scroller; null above the text. */
+  scrollAnchorAt?: (scroller: HTMLElement, scrollTop: number) => EditorScrollAnchor | null;
+  /** The scroller offset that brings the anchor back to the top, from the current heights. */
+  scrollTopForAnchor?: (scroller: HTMLElement, anchor: EditorScrollAnchor) => number | null;
   insert: (text: string) => void;
   insertEntity: (entity: FigureNode) => void;
   replaceSelection: (from: number, to: number, expected: string, text: string) => boolean;
@@ -68,12 +94,12 @@ export function ManuscriptEditor({
   label,
   placeholder,
   vocabulary,
-  mentions = [],
-  marks = [],
-  issues = [],
-  entities = [],
+  mentions = NO_MENTIONS,
+  marks = NO_MARKS,
+  issues = NO_ISSUES,
+  entities = NO_ENTITIES,
   held = null,
-  searchMatches = [],
+  searchMatches = NO_SEARCH_MATCHES,
   activeSearchMatch = null,
   readOnly = false,
   versionDiff = null,
@@ -111,7 +137,12 @@ export function ManuscriptEditor({
     formattingRemoved: Record<"bold" | "italic", string>;
   };
   editorRef: React.MutableRefObject<ManuscriptEditorHandle | null>;
-  initialSelection?: EditorViewSelection;
+  /**
+   * Where the cursor starts when the view is created. A function is asked at that moment,
+   * so an owner can hand over a one-time restore target it keeps in a ref without reading
+   * the ref while rendering.
+   */
+  initialSelection?: EditorViewSelection | (() => EditorViewSelection | undefined);
   onChange: (value: string, mentions: EntityMention[], marks: TextMark[]) => void;
   /** Every change of the marked range. Reports what is selected -- nothing more. */
   onSelection: (selection: EditorTextSelection | null) => void;
@@ -126,21 +157,26 @@ export function ManuscriptEditor({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const changeRef = useRef(onChange),
-    selectionRef = useRef(onSelection),
-    viewSelectionRef = useRef(onViewSelectionChange),
-    selectionMenuRef = useRef(onSelectionMenu),
-    issueRef = useRef(onIssue),
-    openEntityRef = useRef(onOpenEntity),
-    describeEntityRef = useRef(describeEntity),
-    vocabularyRef = useRef(vocabulary),
-    mentionsRef = useRef(mentions || []),
-    marksRef = useRef(marks || []),
-    issuesRef = useRef(issues),
-    entitiesRef = useRef(entities || []);
-  const readOnlyRef = useRef(readOnly);
-  // eslint-disable-next-line react-hooks/refs -- a stable Compartment created once per mount; reading the ref's initial value is intended
-  const editableCompartment = useRef(new Compartment()).current;
+  // Latest-value refs, read by the listeners and commands the editor view is created with
+  // once. They are current before any layout effect of the same commit, so the parent's
+  // restore effects, which drive the view, already reach the new callbacks. Writable are only
+  // mentionsRef and marksRef: the update listener and applyMark move them ahead to what they
+  // hand to onChange, so a second change before the next commit builds on it.
+  const changeRef = useLatest(onChange);
+  const selectionRef = useLatest(onSelection);
+  const viewSelectionRef = useLatest(onViewSelectionChange);
+  const selectionMenuRef = useLatest(onSelectionMenu);
+  const issueRef = useLatest(onIssue);
+  const describeEntityRef = useLatest(describeEntity);
+  const vocabularyRef = useLatest(vocabulary);
+  const mentionsRef = useLatest(mentions || []);
+  const marksRef = useLatest(marks || []);
+  const issuesRef = useLatest(issues);
+  const entitiesRef = useLatest(entities || []);
+  const readOnlyRef = useLatest(readOnly);
+  // One Compartment for the whole life of the view: the readOnly effect reconfigures the one
+  // the view was created with.
+  const [editableCompartment] = useState(() => new Compartment());
   const savedLiveState = useRef<{
     anchor: number;
     head: number;
@@ -149,41 +185,22 @@ export function ManuscriptEditor({
   } | null>(null);
   const wasReadOnly = useRef(readOnly);
   const [completion, setCompletion] = useState<EditorCompletion | null>(null);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  changeRef.current = onChange;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  selectionRef.current = onSelection;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  viewSelectionRef.current = onViewSelectionChange;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  selectionMenuRef.current = onSelectionMenu;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  issueRef.current = onIssue;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  openEntityRef.current = onOpenEntity;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  describeEntityRef.current = describeEntity;
-  const describeMentionRef = useRef(describeMention);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  describeMentionRef.current = describeMention;
   // The card is React's, rendered through the node CodeMirror hands over, so
   // the design system owns it the same way it owns every other surface.
   const [mentionCard, setMentionCard] = useState<{
     host: HTMLElement;
     entity: FigureNode;
   } | null>(null);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  vocabularyRef.current = vocabulary;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  mentionsRef.current = mentions || [];
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  marksRef.current = marks || [];
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  issuesRef.current = issues;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  entitiesRef.current = entities || [];
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  readOnlyRef.current = readOnly;
+  // Turning read-only (a historical version opens) closes what belongs to live writing.
+  // Adjusted during render, so the version never paints with the live completion or card.
+  const [readOnlySeen, setReadOnlySeen] = useState(readOnly);
+  if (readOnlySeen !== readOnly) {
+    setReadOnlySeen(readOnly);
+    if (readOnly) {
+      setCompletion(null);
+      setMentionCard(null);
+    }
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: The editor view is created once; controlled document updates are synchronized by the value effect below.
   useLayoutEffect(() => {
@@ -244,14 +261,16 @@ export function ManuscriptEditor({
       return true;
     };
     const clampPosition = (position: number) => Math.max(0, Math.min(position, value.length));
+    const startSelection =
+      typeof initialSelection === "function" ? initialSelection() : initialSelection;
     const instance = new EditorView({
       parent: host.current,
       state: EditorState.create({
         doc: value,
-        selection: initialSelection
+        selection: startSelection
           ? EditorSelection.single(
-              clampPosition(initialSelection.anchor),
-              clampPosition(initialSelection.head),
+              clampPosition(startSelection.anchor),
+              clampPosition(startSelection.head),
             )
           : undefined,
         extensions: [
@@ -474,6 +493,20 @@ export function ManuscriptEditor({
         instance.dispatch({ selection: EditorSelection.range(safeAnchor, safeHead) });
         if (focused) instance.focus();
       },
+      scrollAnchorAt: (scroller, scrollTop) => {
+        const height = scrollTop - documentOffsetIn(instance, scroller);
+        if (height <= 0) return null;
+        const block = instance.lineBlockAtHeight(height);
+        return { pos: block.from, offset: height - block.top };
+      },
+      scrollTopForAnchor: (scroller, anchor) => {
+        if (anchor.pos > instance.state.doc.length) return null;
+        return (
+          documentOffsetIn(instance, scroller) +
+          instance.lineBlockAt(anchor.pos).top +
+          anchor.offset
+        );
+      },
       afterMeasure: (callback) => {
         let cancelled = false;
         let frame: number | null = null;
@@ -587,9 +620,6 @@ export function ManuscriptEditor({
         scrollTop: instance.scrollDOM.scrollTop,
         scrollLeft: instance.scrollDOM.scrollLeft,
       };
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-      setCompletion(null);
-      setMentionCard(null);
       selectionRef.current(null);
     }
     wasReadOnly.current = readOnly;
@@ -643,18 +673,22 @@ export function ManuscriptEditor({
       effects: setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),
     });
   }, [searchMatches, activeSearchMatch]);
+  // The labels arrive as a fresh object on every render; only their text decides whether the
+  // decorations need a transaction (T-159).
+  const versionDiffLabelsKey = JSON.stringify(versionDiffLabels ?? null);
   useEffect(() => {
+    const labels = JSON.parse(versionDiffLabelsKey) as typeof versionDiffLabels | null;
     view.current?.dispatch({
       effects: setVersionDiffDecorations.of({
         projection: versionDiff,
-        addedLabel: versionDiffLabels?.added ?? "",
-        addedLineBreakLabel: versionDiffLabels?.addedLineBreak ?? "",
-        removedLabel: versionDiffLabels?.removed ?? "",
-        formattingAddedLabels: versionDiffLabels?.formattingAdded ?? { bold: "", italic: "" },
-        formattingRemovedLabels: versionDiffLabels?.formattingRemoved ?? { bold: "", italic: "" },
+        addedLabel: labels?.added ?? "",
+        addedLineBreakLabel: labels?.addedLineBreak ?? "",
+        removedLabel: labels?.removed ?? "",
+        formattingAddedLabels: labels?.formattingAdded ?? { bold: "", italic: "" },
+        formattingRemovedLabels: labels?.formattingRemoved ?? { bold: "", italic: "" },
       }),
     });
-  }, [versionDiff, versionDiffLabels]);
+  }, [versionDiff, versionDiffLabelsKey]);
 
   return (
     <div className="prose-editor" ref={host} data-readonly={readOnly || undefined}>

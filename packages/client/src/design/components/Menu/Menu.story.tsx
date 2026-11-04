@@ -1,4 +1,7 @@
 import { Copy, FolderInput, Pencil, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Button } from "../../primitives/Button";
+import { Popover } from "../Popover";
 import { Menu, MenuItem, MenuSeparator, MenuSubmenu } from "./Menu";
 
 export function Default() {
@@ -50,5 +53,35 @@ export function NestedSubmenu() {
         <MenuItem label="Ohne Ordner" onSelect={() => undefined} />
       </MenuSubmenu>
     </Menu>
+  );
+}
+
+/** The way menus open in the product: inside a popover, which is a modal sheet on compact. */
+export function SubmenuInPopover() {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [chosen, setChosen] = useState("");
+  return (
+    <>
+      <Button ref={trigger} onClick={() => setOpen((current) => !current)}>
+        Kapitelaktionen
+      </Button>
+      <output>{chosen}</output>
+      <Popover
+        anchorRef={trigger}
+        open={open}
+        label="Kapitelaktionen"
+        desktopRole="presentation"
+        onClose={() => setOpen(false)}
+      >
+        <Menu label="Kapitelaktionen" onClose={() => setOpen(false)}>
+          <MenuItem icon={<Pencil />} label="Umbenennen" onSelect={() => setChosen("Umbenennen")} />
+          <MenuSubmenu icon={<FolderInput />} label="Verschieben nach">
+            <MenuItem label="Akt 1 · Ankunft" onSelect={() => setChosen("Akt 1 · Ankunft")} />
+            <MenuItem label="Ohne Ordner" onSelect={() => setChosen("Ohne Ordner")} />
+          </MenuSubmenu>
+        </Menu>
+      </Popover>
+    </>
   );
 }

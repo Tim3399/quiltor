@@ -11,7 +11,7 @@ class ManuscriptImportUseCases:
         self._repository = repository
         self._observer = observer
 
-    def preview(self, file_name: str, content: bytes, selection: Any = None) -> dict:
+    def preview(self, file_name: str, content: bytes, selection: Any = None) -> dict[str, Any]:
         with self._observer.observe("persistence", "preview_manuscript_import"):
             return self._repository.preview(file_name, content, selection)
 
@@ -38,7 +38,7 @@ class ManuscriptImportUseCases:
                 owner_sub,
             )
 
-    def preview_v2(self, file_name: str, content: bytes, selection: Any = None) -> dict:
+    def preview_v2(self, file_name: str, content: bytes, selection: Any = None) -> dict[str, Any]:
         with self._observer.observe("persistence", "preview_manuscript_import_v2"):
             return self._repository.preview_v2(file_name, content, selection)
 

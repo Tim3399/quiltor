@@ -286,6 +286,9 @@
 .writing-attribution li {
   overflow-wrap: anywhere;
 }
+.writing-attribution__edited {
+  margin: var(--space-3) 0 0;
+}
 .grammar-heading {
   display: flex;
   align-items: center;
@@ -361,4 +364,9 @@
 .writing-insert > h3:not(:first-child),
 .writing-insert > .helper-section-heading:not(:first-child) {
   margin-top: var(--space-8);
+}
+.writing-data-state__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-size-metadata);
 }

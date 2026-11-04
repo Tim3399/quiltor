@@ -8,7 +8,9 @@ import {
   manuscript,
   renderWorkspace,
   requireValue,
+  TestProviders,
 } from "./TextWorkspace.testSupport";
+import { TextWorkspace } from "./TextWorkspace";
 
 function codeMirrorView(container: HTMLElement) {
   const root = requireValue(
@@ -200,7 +202,10 @@ describe("TextWorkspace editor, search and versions", () => {
       onFocus: vi.fn(),
     });
     const context = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
-    const versions = context.getByRole("button", { name: "Fassungen" });
+    const openVersions = () => {
+      fireEvent.click(context.getByRole("button", { name: "Weitere Aktionen" }));
+      return screen.getByRole("menuitem", { name: "Fassungen" });
+    };
     const editor = codeMirrorView(view.container);
     const editorScroll = requireValue(
       view.container.querySelector<HTMLElement>(".editor-scroll"),
@@ -214,9 +219,11 @@ describe("TextWorkspace editor, search and versions", () => {
       scrollTop: 83,
     });
     onSessionStateChange.mockClear();
-    expect(versions).toHaveAttribute("aria-pressed", "false");
+    const versions = openVersions();
+    expect(versions).not.toHaveAttribute("aria-current");
     fireEvent.click(versions);
-    expect(versions).toHaveAttribute("aria-pressed", "true");
+    expect(openVersions()).toHaveAttribute("aria-current", "true");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     expect(within(view.container).getByRole("complementary", { name: "Fassungen" })).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();
     expect(editor.contentDOM).toHaveAttribute("aria-readonly", "true");
@@ -295,7 +302,8 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    fireEvent.click(within(view.container).getByRole("button", { name: "Fassungen" }));
+    fireEvent.click(within(view.container).getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fassungen" }));
     const editor = codeMirrorView(view.container);
     await waitFor(() => expect(editor.state.doc.toString()).toBe("Neue Fassung"));
 
@@ -358,7 +366,8 @@ describe("TextWorkspace editor, search and versions", () => {
       focus: false,
       onFocus: vi.fn(),
     });
-    fireEvent.click(screen.getByRole("button", { name: "Szenenwechsel einfügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Szenenwechsel einfügen" }));
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -422,5 +431,34 @@ describe("TextWorkspace editor, search and versions", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Ausschneiden/ }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Zwischenablage/));
     expect(writeText).toHaveBeenCalledWith("Welt");
+  });
+
+  // T-159: every transaction makes CodeMirror drop a DOM selection it has not read yet and
+  // write its own back. A re-render that changes nothing must therefore not reach the view:
+  // otherwise one that lands between "select all" and typing puts the text in front of the
+  // old chapter text instead of replacing it ("Nach Reload vorhandenAnfang").
+  it("sends the editor no transaction when the workspace re-renders with unchanged input", async () => {
+    const props = {
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide" as const,
+      binderOpen: true,
+      inspectorOpen: true,
+    };
+    const view = renderWorkspace(props);
+    const editor = codeMirrorView(view.container);
+    await waitFor(() => expect(editor.state.doc.length).toBeGreaterThan(0));
+    const update = vi.spyOn(editor, "update");
+
+    view.rerender(
+      <TestProviders>
+        <TextWorkspace {...props} />
+      </TestProviders>,
+    );
+
+    expect(update).not.toHaveBeenCalled();
   });
 });

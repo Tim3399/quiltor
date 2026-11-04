@@ -11,6 +11,7 @@
   "payload": [
     "server.py",
     "quiltor/application/backup_manifest.py",
+    "quiltor/domain/json_values.py",
     "quiltor-backup-service.json",
     "VERSION",
     "LICENSE",

@@ -68,20 +68,21 @@ export function CommandPalette({
     );
   }, [items, query]);
 
-  useEffect(() => {
+  // Opening starts from an empty query and no selection. Adjusted during render, React redoes
+  // the render at once, so the old query is never painted into the reopened palette.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
       setQuery("");
       setActive(-1);
     }
-  }, [open]);
+  }
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setActive((current) =>
-      results[current] && !results[current].disabled ? current : firstEnabledIndex(results),
-    );
-  }, [results]);
+  // The selection is derived, not synced: a stale or disabled index falls back to the first
+  // enabled result, whatever made the result list change.
+  const activeIndex =
+    results[active] && !results[active].disabled ? active : firstEnabledIndex(results);
 
   const select = (item: CommandPaletteItem | undefined) => {
     if (!item || item.disabled) return;
@@ -89,7 +90,7 @@ export function CommandPalette({
     item.onSelect();
   };
 
-  const activeOptionId = active >= 0 ? `${optionPrefix}-option-${active}` : undefined;
+  const activeOptionId = activeIndex >= 0 ? `${optionPrefix}-option-${activeIndex}` : undefined;
   const hasResults = results.length > 0;
 
   useEffect(() => {
@@ -121,12 +122,12 @@ export function CommandPalette({
           onKeyDown={(event) => {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
-              setActive((index) =>
-                moveToEnabledItem(results, index, event.key === "ArrowDown" ? 1 : -1),
+              setActive(
+                moveToEnabledItem(results, activeIndex, event.key === "ArrowDown" ? 1 : -1),
               );
             } else if (event.key === "Enter") {
               event.preventDefault();
-              select(results[active]);
+              select(results[activeIndex]);
             }
           }}
         />
@@ -146,7 +147,7 @@ export function CommandPalette({
               type="button"
               role="option"
               tabIndex={-1}
-              aria-selected={index === active}
+              aria-selected={index === activeIndex}
               disabled={item.disabled}
               onPointerMove={() => !item.disabled && setActive(index)}
               onFocus={() => !item.disabled && setActive(index)}

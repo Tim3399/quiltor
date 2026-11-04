@@ -55,18 +55,20 @@ grep '"event": "http.error"' quiltor-server.log
 
 ## Events, roughly
 
-| Event                    | When                                                               |
-| ------------------------ | ------------------------------------------------------------------ |
-| `http.access`            | once per request                                                   |
-| `http.error`             | every API answer with status 400 or above, with its error `code`   |
-| `http.unhandled`         | an exception no route handled, with `error_type` and a `traceback` |
-| `document.save_rejected` | a save refused for its content or revision                         |
-| `document.save_conflict` | a save refused because the document changed in the meantime        |
-| `world.resolve_failed`   | the requested world is invalid, forbidden or missing (`reason`)    |
-| `storage.failed`         | the database or the disk failed, with the raw error code           |
-| `logging.configured`     | once at start                                                      |
+| Event                      | When                                                               |
+| -------------------------- | ------------------------------------------------------------------ |
+| `http.access`              | once per request                                                   |
+| `http.error`               | every API answer with status 400 or above, with its error `code`   |
+| `http.unhandled`           | an exception no route handled, with `error_type` and a `traceback` |
+| `document.save_rejected`   | a save refused for its content or revision                         |
+| `document.save_conflict`   | a save refused because the document changed in the meantime        |
+| `world.resolve_failed`     | the requested world is invalid, forbidden or missing (`reason`)    |
+| `storage.failed`           | the database or the disk failed, with the raw error code           |
+| `logging.configured`       | once at start                                                      |
+| `install.forbidden_hosted` | an install request refused because the server is hosted (OIDC)     |
+| `backup.*_failed`          | a backup, restore or backup sign-in step failed, with `error_type` |
 
-Further events from other parts of the server (backup, identity, assistant) keep their own fields.
+The backup failures are `backup.preview_failed`, `backup.remote_worlds_failed`, `backup.snapshot_failed`, `backup.remote_restore_failed`, `backup.local_restore_request_invalid`, `backup.local_restore_failed`, `backup.login_start_failed`, `backup.login_callback_rejected` and `backup.login_callback_failed`; each carries the exception's type, never its text. `backup.remote_request_failed` is written when a call to the backup endpoint fails and carries the call's `operation` (`push`, `worlds`, `snapshots`, `fetch_blob`, `account`, `sync_head`) and `error_type`, never the endpoint or the exception's text. Further events from other parts of the server (identity, assistant) keep their own fields.
 
 ## What is never in the log
 

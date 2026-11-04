@@ -8,12 +8,13 @@ may expose the same catalog to a local model or MCP without copying integrity ru
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from quiltor.application.story_world.queries import StoryWorldQueries
 from quiltor.application.story_world.use_cases import StoryWorldUseCases
+from quiltor.domain.json_values import JsonObject, as_array, as_mapping
 from quiltor.domain.story_world.profile import normalize_profile
 
 ReadToolName = Literal[
@@ -212,15 +213,15 @@ def read_tool_catalog() -> tuple[dict[str, Any], ...]:
     )
 
 
-def _safe_name(name: Any) -> str:
+def _safe_name(name: object) -> str:
     return name if isinstance(name, str) and name in READ_TOOL_NAMES else "unknown"
 
 
-def _valid_revision(value: Any) -> bool:
+def _valid_revision(value: object) -> bool:
     return type(value) is int and 0 <= value <= MAX_SAFE_REVISION
 
 
-def _error(name: Any, revision: int, code: str) -> dict[str, Any]:
+def _error(name: object, revision: int, code: str) -> JsonObject:
     messages = {
         "unknown_tool": "The requested read tool is not available.",
         "invalid_arguments": "The read tool arguments are invalid or exceed their limits.",
@@ -240,14 +241,14 @@ def _error(name: Any, revision: int, code: str) -> dict[str, Any]:
     }
 
 
-def _bounded_envelope(envelope: dict[str, Any], name: str, revision: int) -> dict[str, Any]:
+def _bounded_envelope(envelope: JsonObject, name: str, revision: int) -> JsonObject:
     encoded = json.dumps(envelope, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) <= MAX_READ_TOOL_OUTPUT_BYTES:
         return envelope
     return _error(name, revision, "result_too_large")
 
 
-def _success(name: str, revision: int, result: Any) -> dict[str, Any]:
+def _success(name: str, revision: int, result: object) -> JsonObject:
     return _bounded_envelope(
         {
             "name": name,
@@ -263,18 +264,20 @@ def _success(name: str, revision: int, result: Any) -> dict[str, Any]:
 
 
 def _arguments(
-    value: Any, *, allowed: Sequence[str], required: Sequence[str] = ()
-) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
+    value: object, *, allowed: Sequence[str], required: Sequence[str] = ()
+) -> JsonObject:
+    # A mapping with a key that is not a str has a key outside `allowed` and fails here too.
+    mapping = as_mapping(value)
+    if mapping is None:
         raise _ReadToolInputError
-    arguments = dict(value)
+    arguments = dict(mapping)
     if set(arguments) - set(allowed) or any(key not in arguments for key in required):
         raise _ReadToolInputError
     return arguments
 
 
 def _text(
-    arguments: Mapping[str, Any],
+    arguments: Mapping[str, object],
     key: str,
     *,
     maximum: int,
@@ -293,42 +296,48 @@ def _text(
 
 
 def _string_list(
-    arguments: Mapping[str, Any],
+    arguments: Mapping[str, object],
     key: str,
     *,
     maximum_items: int,
     maximum_length: int = MAX_IDENTIFIER_LENGTH,
 ) -> tuple[str, ...]:
-    value = arguments.get(key, [])
-    if (
-        not isinstance(value, list)
-        or len(value) > maximum_items
-        or any(
-            not isinstance(item, str) or not item.strip() or len(item) > maximum_length
-            for item in value
-        )
-    ):
+    items = as_array(arguments.get(key, []))
+    if items is None or len(items) > maximum_items:
         raise _ReadToolInputError
-    cleaned = tuple(item.strip() for item in value)
+    cleaned: list[str] = []
+    for item in items:
+        if not isinstance(item, str) or not item.strip() or len(item) > maximum_length:
+            raise _ReadToolInputError
+        cleaned.append(item.strip())
     if len(cleaned) != len(set(cleaned)):
         raise _ReadToolInputError
-    return cleaned
+    return tuple(cleaned)
 
 
-def _limit(arguments: Mapping[str, Any], maximum: int, default: int) -> int:
+def _limit(arguments: Mapping[str, object], maximum: int, default: int) -> int:
     value = arguments.get("limit", default)
     if type(value) is not int or not 1 <= value <= maximum:
         raise _ReadToolInputError
     return value
 
 
-def _clipped(value: Any, maximum: int) -> tuple[str, bool]:
+def _clipped(value: object, maximum: int) -> tuple[str, bool]:
     text = value if isinstance(value, str) else str(value or "")
     return text[:maximum], len(text) > maximum
 
 
-def _entity_view(node: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
-    result: dict[str, Any] = {}
+def _required_mapping(value: object) -> Mapping[str, object]:
+    """A mapping the snapshot is expected to hold; anything else is an unavailable projection."""
+
+    mapping = as_mapping(value)
+    if mapping is None:
+        raise TypeError("expected a mapping")
+    return mapping
+
+
+def _entity_view(node: Mapping[str, object]) -> tuple[JsonObject, bool]:
+    result: JsonObject = {}
     truncated = False
     for key, maximum in (
         ("id", MAX_IDENTIFIER_LENGTH),
@@ -341,44 +350,47 @@ def _entity_view(node: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
         if key in node:
             result[key], clipped = _clipped(node[key], maximum)
             truncated = truncated or clipped
-    aliases = node.get("aliases") or []
+    aliases = as_array(node.get("aliases") or [])
     alias_views: list[dict[str, str]] = []
-    if isinstance(aliases, list):
+    if aliases is not None:
         truncated = truncated or len(aliases) > MAX_ENTITY_ALIASES
-        for item in aliases[:MAX_ENTITY_ALIASES]:
-            if not isinstance(item, Mapping):
+        for alias_item in aliases[:MAX_ENTITY_ALIASES]:
+            item = as_mapping(alias_item)
+            if item is None:
                 continue
             alias, alias_cut = _clipped(item.get("alias"), MAX_MENTION_LENGTH)
             source, source_cut = _clipped(item.get("source", "manual"), 40)
             alias_views.append({"alias": alias, "source": source})
             truncated = truncated or alias_cut or source_cut
     result["aliases"] = alias_views
-    raw_profile = node.get("profile")
-    if isinstance(raw_profile, Mapping):
+    raw_profile = as_mapping(node.get("profile"))
+    if raw_profile is not None:
         profile = normalize_profile(raw_profile, str(node.get("id", "")))
-        profile_view: dict[str, Any] = {}
+        profile_view: JsonObject = {}
         if "notes" in profile:
             profile_view["notes"], clipped = _clipped(profile["notes"], 1_000)
             truncated = truncated or clipped
-        fields = profile.get("fields") or []
-        if isinstance(fields, list):
+        fields = as_array(profile.get("fields") or [])
+        if fields is not None:
             truncated = truncated or len(fields) > MAX_ENTITY_ALIASES
-            profile_view["fields"] = []
-            for field in fields[:MAX_ENTITY_ALIASES]:
-                if not isinstance(field, Mapping):
+            field_views: list[dict[str, str]] = []
+            profile_view["fields"] = field_views
+            for field_item in fields[:MAX_ENTITY_ALIASES]:
+                field = as_mapping(field_item)
+                if field is None:
                     continue
                 field_id, id_cut = _clipped(field.get("id"), MAX_IDENTIFIER_LENGTH)
                 label, label_cut = _clipped(field.get("key"), MAX_MENTION_LENGTH)
                 content, content_cut = _clipped(field.get("value"), 1_000)
-                profile_view["fields"].append({"id": field_id, "key": label, "value": content})
+                field_views.append({"id": field_id, "key": label, "value": content})
                 truncated = truncated or id_cut or label_cut or content_cut
         result["profile"] = profile_view
     return result, truncated
 
 
-def _relationship_view(edge: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
-    result: dict[str, Any] = {
-        "directed": bool(edge.get("directed", edge.get("directed", False))),
+def _relationship_view(edge: Mapping[str, object]) -> tuple[JsonObject, bool]:
+    result: JsonObject = {
+        "directed": bool(edge.get("directed", False)),
         "active": edge.get("active", True) is not False,
     }
     truncated = False
@@ -392,14 +404,16 @@ def _relationship_view(edge: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
         if key in edge:
             result[key], clipped = _clipped(edge[key], maximum)
             truncated = truncated or clipped
-    versions = edge.get("versions") or []
-    result["versions"] = []
-    if isinstance(versions, list):
+    versions = as_array(edge.get("versions") or [])
+    version_views: list[JsonObject] = []
+    result["versions"] = version_views
+    if versions is not None:
         truncated = truncated or len(versions) > MAX_RELATIONSHIP_VERSIONS
-        for version in versions[:MAX_RELATIONSHIP_VERSIONS]:
-            if not isinstance(version, Mapping):
+        for version_item in versions[:MAX_RELATIONSHIP_VERSIONS]:
+            version = as_mapping(version_item)
+            if version is None:
                 continue
-            view: dict[str, Any] = {}
+            view: JsonObject = {}
             for key, maximum in (
                 ("momentId", MAX_IDENTIFIER_LENGTH),
                 ("from", MAX_IDENTIFIER_LENGTH),
@@ -412,14 +426,14 @@ def _relationship_view(edge: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
                     truncated = truncated or clipped
             if "active" in version:
                 view["active"] = version["active"] is True
-            if "directed" in version or "directed" in version:
-                view["directed"] = bool(version.get("directed", version.get("directed", False)))
-            result["versions"].append(view)
+            if "directed" in version:
+                view["directed"] = bool(version["directed"])
+            version_views.append(view)
     return result, truncated
 
 
-def _moment_view(moment: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
-    result: dict[str, Any] = {}
+def _moment_view(moment: Mapping[str, object]) -> tuple[JsonObject, bool]:
+    result: JsonObject = {}
     truncated = False
     for key, maximum in (
         ("id", MAX_IDENTIFIER_LENGTH),
@@ -438,8 +452,8 @@ def _moment_view(moment: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
     return result, truncated
 
 
-def _chunk_view(chunk: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
-    result: dict[str, Any] = {}
+def _chunk_view(chunk: Mapping[str, object]) -> tuple[JsonObject, bool]:
+    result: JsonObject = {}
     truncated = False
     for key, maximum in (
         ("id", 320),
@@ -449,12 +463,13 @@ def _chunk_view(chunk: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
     ):
         result[key], clipped = _clipped(chunk.get(key), maximum)
         truncated = truncated or clipped
-    target = chunk.get("target")
-    result["target"] = {}
-    if isinstance(target, Mapping):
+    target = as_mapping(chunk.get("target"))
+    target_view: dict[str, str] = {}
+    result["target"] = target_view
+    if target is not None:
         for key in ("workspace", "id"):
             if key in target:
-                result["target"][key], clipped = _clipped(target[key], MAX_IDENTIFIER_LENGTH)
+                target_view[key], clipped = _clipped(target[key], MAX_IDENTIFIER_LENGTH)
                 truncated = truncated or clipped
     return result, truncated
 
@@ -478,11 +493,13 @@ class StoryWorldReadTools:
             return _error(name, 0, "invalid_snapshot")
         if name not in READ_TOOL_NAMES:
             return _error(name, world_revision, "unknown_tool")
-        if not isinstance(manuscript, Mapping) or not isinstance(figures, Mapping):
+        # The declared types are what callers promise; what crosses the transport is checked.
+        manuscript_mapping, figures_mapping = as_mapping(manuscript), as_mapping(figures)
+        if manuscript_mapping is None or figures_mapping is None:
             return _error(name, world_revision, "invalid_snapshot")
         try:
-            manuscript_snapshot = deepcopy(dict(manuscript))
-            figures_snapshot = deepcopy(dict(figures))
+            manuscript_snapshot = deepcopy(dict(manuscript_mapping))
+            figures_snapshot = deepcopy(dict(figures_mapping))
         # Snapshot inputs cross a transport boundary and must fail closed on copy errors.
         except Exception:  # noqa: BLE001
             return _error(name, world_revision, "invalid_snapshot")
@@ -505,24 +522,26 @@ class StoryWorldReadTools:
         revision = world_revision if _valid_revision(world_revision) else 0
         valid_call_list = isinstance(calls, (list, tuple))
         too_many_calls = valid_call_list and len(calls) > MAX_READ_TOOL_CALLS
+        manuscript_mapping, figures_mapping = as_mapping(manuscript), as_mapping(figures)
         if (
             not valid_call_list
             or too_many_calls
             or not _valid_revision(world_revision)
-            or not isinstance(manuscript, Mapping)
-            or not isinstance(figures, Mapping)
+            or manuscript_mapping is None
+            or figures_mapping is None
         ):
             code = "too_many_calls" if too_many_calls else "invalid_snapshot"
             return (_error("unknown", revision, code),)
         try:
-            manuscript_snapshot = deepcopy(dict(manuscript))
-            figures_snapshot = deepcopy(dict(figures))
+            manuscript_snapshot = deepcopy(dict(manuscript_mapping))
+            figures_snapshot = deepcopy(dict(figures_mapping))
         # Snapshot inputs cross a transport boundary and must fail closed on copy errors.
         except Exception:  # noqa: BLE001
             return (_error("unknown", revision, "invalid_snapshot"),)
         results: list[dict[str, Any]] = []
-        for call in calls:
-            if not isinstance(call, Mapping):
+        for call_item in calls:
+            call = as_mapping(call_item)
+            if call is None:
                 results.append(_error("unknown", revision, "invalid_arguments"))
                 continue
             results.append(
@@ -538,16 +557,16 @@ class StoryWorldReadTools:
 
     def _execute_snapshot(
         self,
-        name: Any,
-        arguments: Any,
-        manuscript: dict[str, Any],
-        figures: dict[str, Any],
+        name: object,
+        arguments: object,
+        manuscript: JsonObject,
+        figures: JsonObject,
         revision: int,
-    ) -> dict[str, Any]:
-        if name not in READ_TOOL_NAMES:
+    ) -> JsonObject:
+        if not isinstance(name, str) or name not in READ_TOOL_NAMES:
             return _error(name, revision, "unknown_tool")
         try:
-            handlers = {
+            handlers: dict[str, Callable[[object, JsonObject, JsonObject], JsonObject]] = {
                 "resolve_entity": self._resolve_entity,
                 "get_entity": self._get_entity,
                 "get_relationships": self._get_relationships,
@@ -566,9 +585,7 @@ class StoryWorldReadTools:
             return _error(name, revision, "unavailable")
 
     @staticmethod
-    def _resolve_entity(
-        raw: Any, _manuscript: dict[str, Any], figures: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _resolve_entity(raw: object, _manuscript: JsonObject, figures: JsonObject) -> JsonObject:
         arguments = _arguments(
             raw,
             allowed=("mention", "entityType", "contextIds", "vocabulary"),
@@ -596,16 +613,14 @@ class StoryWorldReadTools:
             context_ids=context_ids,
             vocabulary=vocabulary,
         )
-        candidates = result.get("candidates") or []
+        candidates = as_array(result.get("candidates") or []) or []
         result["candidates"] = deepcopy(candidates[:MAX_RESOLUTION_CANDIDATES])
         result["candidateCount"] = len(candidates)
         result["truncated"] = len(candidates) > MAX_RESOLUTION_CANDIDATES
         return result
 
     @staticmethod
-    def _get_entity(
-        raw: Any, _manuscript: dict[str, Any], figures: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _get_entity(raw: object, _manuscript: JsonObject, figures: JsonObject) -> JsonObject:
         arguments = _arguments(raw, allowed=("elementId",), required=("elementId",))
         element_id = _text(
             arguments,
@@ -620,9 +635,7 @@ class StoryWorldReadTools:
         return {"entity": entity, "truncated": truncated}
 
     @staticmethod
-    def _get_relationships(
-        raw: Any, _manuscript: dict[str, Any], figures: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _get_relationships(raw: object, _manuscript: JsonObject, figures: JsonObject) -> JsonObject:
         arguments = _arguments(
             raw,
             allowed=("elementId", "otherElementId", "limit"),
@@ -646,7 +659,7 @@ class StoryWorldReadTools:
             other_element_id=other_id,
             limit=limit + 1,
         )
-        views: list[dict[str, Any]] = []
+        views: list[JsonObject] = []
         truncated = len(edges) > limit
         for edge in edges[:limit]:
             view, clipped = _relationship_view(edge)
@@ -656,8 +669,8 @@ class StoryWorldReadTools:
 
     @staticmethod
     def _find_timeline_events(
-        raw: Any, _manuscript: dict[str, Any], figures: dict[str, Any]
-    ) -> dict[str, Any]:
+        raw: object, _manuscript: JsonObject, figures: JsonObject
+    ) -> JsonObject:
         arguments = _arguments(raw, allowed=("query", "entityId", "limit"))
         query = _text(
             arguments,
@@ -675,7 +688,7 @@ class StoryWorldReadTools:
             entity_id=entity_id,
             limit=limit + 1,
         )
-        views: list[dict[str, Any]] = []
+        views: list[JsonObject] = []
         truncated = len(moments) > limit
         for moment in moments[:limit]:
             view, clipped = _moment_view(moment)
@@ -684,9 +697,7 @@ class StoryWorldReadTools:
         return {"events": views, "count": len(views), "truncated": truncated}
 
     @staticmethod
-    def _get_world_state(
-        raw: Any, _manuscript: dict[str, Any], figures: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _get_world_state(raw: object, _manuscript: JsonObject, figures: JsonObject) -> JsonObject:
         arguments = _arguments(
             raw,
             allowed=("momentId", "phase", "entityIds", "relationshipIds"),
@@ -712,8 +723,8 @@ class StoryWorldReadTools:
             maximum_items=MAX_RESULT_ITEMS,
         )
         state = StoryWorldQueries.get_world_state(figures, moment_id or "", phase=phase)
-        all_entities = state.get("entities") or {}
-        all_relationships = state.get("relationships") or {}
+        all_entities = _required_mapping(state.get("entities") or {})
+        all_relationships = _required_mapping(state.get("relationships") or {})
         if entity_ids and any(identifier not in all_entities for identifier in entity_ids):
             raise LookupError
         if relationship_ids and any(
@@ -724,20 +735,20 @@ class StoryWorldReadTools:
         selected_relationships = (
             list(relationship_ids) or sorted(all_relationships)[:MAX_RESULT_ITEMS]
         )
-        entities: dict[str, Any] = {}
-        relationships: dict[str, Any] = {}
+        entities: dict[str, JsonObject] = {}
+        relationships: dict[str, JsonObject] = {}
         field_truncated = False
         for identifier in selected_entities:
             safe_id, clipped = _clipped(identifier, MAX_IDENTIFIER_LENGTH)
             field_truncated = field_truncated or clipped
-            entity = all_entities[identifier]
+            entity = _required_mapping(all_entities[identifier])
             location, location_cut = _clipped(entity.get("location"), MAX_IDENTIFIER_LENGTH)
             entities[safe_id] = {"alive": entity.get("alive"), "location": location}
             field_truncated = field_truncated or location_cut
         for identifier in selected_relationships:
             safe_id, clipped = _clipped(identifier, MAX_IDENTIFIER_LENGTH)
             field_truncated = field_truncated or clipped
-            view, view_cut = _relationship_view(all_relationships[identifier])
+            view, view_cut = _relationship_view(_required_mapping(all_relationships[identifier]))
             relationships[safe_id] = view
             field_truncated = field_truncated or view_cut
         truncated = (
@@ -758,9 +769,7 @@ class StoryWorldReadTools:
         }
 
     @staticmethod
-    def _search_manuscript(
-        raw: Any, manuscript: dict[str, Any], _figures: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _search_manuscript(raw: object, manuscript: JsonObject, _figures: JsonObject) -> JsonObject:
         arguments = _arguments(
             raw,
             allowed=("query", "chapterIds", "limit"),
@@ -784,7 +793,7 @@ class StoryWorldReadTools:
             chapter_ids=chapter_ids,
             limit=limit + 1,
         )
-        views: list[dict[str, Any]] = []
+        views: list[JsonObject] = []
         truncated = len(chunks) > limit
         for chunk in chunks[:limit]:
             view, clipped = _chunk_view(chunk)

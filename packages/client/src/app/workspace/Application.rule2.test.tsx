@@ -2,7 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import type { FigureState } from "../../modules/story-world";
 import type { Manuscript } from "../../modules/manuscript";
+import type { StoryboardState } from "../../modules/storyboard";
 import { quiltorClient } from "../../platform";
 import { App } from "../Application";
 import type { LoadedWorldDocuments, WorldBinding } from "../world/useWorldSession";
@@ -45,27 +47,68 @@ vi.mock("./WorkspaceSurface", () => ({
   WorkspaceSurface: ({
     manuscript,
     manuscriptHistory,
+    figures,
+    figureHistory,
+    storyboards,
+    storyboardHistory,
     documentsReady,
   }: {
     manuscript: Manuscript;
     manuscriptHistory: ReturnType<typeof useHistoryState<Manuscript>>;
+    figures: FigureState;
+    figureHistory: ReturnType<typeof useHistoryState<FigureState>>;
+    storyboards: StoryboardState;
+    storyboardHistory: ReturnType<typeof useHistoryState<StoryboardState>>;
     documentsReady: boolean;
-  }) =>
-    documentsReady ? (
+  }) => (
+    <>
+      <output aria-label="figure count">{figures.nodes.length}</output>
+      <output aria-label="storyboard count">{storyboards.boards.length}</output>
       <button
         type="button"
         onClick={() =>
-          manuscriptHistory.change({
-            ...manuscript,
-            chapters: [{ ...manuscript.chapters[0], body: `${manuscript.chapters[0].body}+` }],
+          figureHistory.change({
+            ...figures,
+            nodes: [
+              ...figures.nodes,
+              { id: `figure-${figures.nodes.length}`, name: "Ada" } as never,
+            ],
           })
         }
       >
-        {manuscript.chapters[0].body}
+        add figure
       </button>
-    ) : (
-      <p role="status">Kapitel lädt …</p>
-    ),
+      <button
+        type="button"
+        onClick={() =>
+          storyboardHistory.change({
+            ...storyboards,
+            boards: [
+              ...storyboards.boards,
+              { id: `board-${storyboards.boards.length}`, title: "Akt" } as never,
+            ],
+          })
+        }
+      >
+        add board
+      </button>
+      {documentsReady ? (
+        <button
+          type="button"
+          onClick={() =>
+            manuscriptHistory.change({
+              ...manuscript,
+              chapters: [{ ...manuscript.chapters[0], body: `${manuscript.chapters[0].body}+` }],
+            })
+          }
+        >
+          {manuscript.chapters[0].body}
+        </button>
+      ) : (
+        <p role="status">Kapitel lädt …</p>
+      )}
+    </>
+  ),
 }));
 
 function documents(body: string): LoadedWorldDocuments {
@@ -185,5 +228,143 @@ describe("a load over unsaved manuscript changes (rule 2)", () => {
     expect(await screen.findByRole("button", { name: "Anfang in B" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Konflikt vergleichen" })).not.toBeInTheDocument();
     expect(loadOverUnsaved(warn)).toHaveLength(0);
+  });
+});
+
+describe("a load over unsaved figure or storyboard changes (rule 2, T-73)", () => {
+  let storyWorldSave: { mock: { calls: unknown[][] } };
+  let storyWorldSaveExpected: { mock: { calls: [FigureState, number][] } };
+  let storyboardsSave: { mock: { calls: unknown[][] } };
+  let storyboardsSaveExpected: { mock: { calls: [StoryboardState, number][] } };
+
+  beforeEach(() => {
+    const application = quiltorClient.application;
+    storyWorldSave = vi.spyOn(application.storyWorld, "save").mockResolvedValue(saved);
+    storyWorldSaveExpected = vi
+      .spyOn(application.storyWorld, "saveExpected")
+      .mockResolvedValue(saved);
+    storyboardsSave = vi.spyOn(application.storyboards, "save").mockResolvedValue(saved);
+    storyboardsSaveExpected = vi
+      .spyOn(application.storyboards, "saveExpected")
+      .mockResolvedValue(saved);
+    vi.spyOn(application.storyWorld, "peek").mockResolvedValue({
+      document: { nodes: [], edges: [] },
+      revision: 5,
+    });
+    vi.spyOn(application.storyboards, "peek").mockResolvedValue({
+      document: { boards: [], nodes: [], edges: [] },
+      revision: 6,
+    });
+    vi.spyOn(application.storyWorld, "adoptPersisted").mockImplementation(
+      (versioned) => versioned.document,
+    );
+    vi.spyOn(application.storyboards, "adoptPersisted").mockImplementation(
+      (versioned) => versioned.document,
+    );
+  });
+
+  async function editThen(button: string) {
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    await screen.findByRole("button", { name: "Anfang" });
+    fireEvent.click(screen.getByRole("button", { name: button }));
+    session.selected = { worldId: "world-a", generation: 2 };
+    act(() => session.load?.(documents("Serverstand"), { ...session.selected, source: "open" }));
+  }
+
+  it("holds back a load over unsaved figures and keeps the draft against the arrived revision", async () => {
+    await editThen("add figure");
+    expect(await screen.findByRole("heading", { name: "Konflikt vergleichen" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "figure count" })).toHaveTextContent("1");
+    expect(loadOverUnsaved(warn)).toHaveLength(1);
+    await wait(1000);
+    expect(storyWorldSave.mock.calls).toHaveLength(0);
+
+    await authorizeDecision();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf als neue Fassung speichern" }),
+    );
+    await waitFor(() => expect(storyWorldSaveExpected.mock.calls).toHaveLength(1));
+    expect(storyWorldSaveExpected.mock.calls[0][0].nodes).toHaveLength(1);
+    expect(storyWorldSaveExpected.mock.calls[0][1]).toBe(5);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Konflikt vergleichen" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(await screen.findByRole("button", { name: "Serverstand" })).toBeVisible();
+    expect(refused(warn)).toBe(false);
+  });
+
+  it("holds back a load over unsaved storyboards and adopts the arrived version on request", async () => {
+    await editThen("add board");
+    expect(await screen.findByRole("heading", { name: "Konflikt vergleichen" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "storyboard count" })).toHaveTextContent("1");
+    await wait(1000);
+    expect(storyboardsSave.mock.calls).toHaveLength(0);
+
+    await authorizeDecision();
+    fireEvent.click(screen.getByRole("button", { name: "Gespeicherte Fassung übernehmen" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status", { name: "storyboard count" })).toHaveTextContent("0"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "add board" }));
+    await wait(1000);
+    expect(storyboardsSave.mock.calls).toHaveLength(1);
+    expect(storyboardsSaveExpected.mock.calls).toHaveLength(0);
+    expect(refused(warn)).toBe(false);
+  });
+
+  it("holds back a load over unsaved storyboards and keeps the draft against the arrived revision", async () => {
+    await editThen("add board");
+    expect(await screen.findByRole("heading", { name: "Konflikt vergleichen" })).toBeVisible();
+    await wait(1000);
+    expect(storyboardsSave.mock.calls).toHaveLength(0);
+
+    await authorizeDecision();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf als neue Fassung speichern" }),
+    );
+    await waitFor(() => expect(storyboardsSaveExpected.mock.calls).toHaveLength(1));
+    expect(storyboardsSaveExpected.mock.calls[0][0].boards).toHaveLength(1);
+    expect(storyboardsSaveExpected.mock.calls[0][1]).toBe(6);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "Konflikt vergleichen" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("status", { name: "storyboard count" })).toHaveTextContent("1");
+    expect(storyboardsSave.mock.calls).toHaveLength(0);
+    expect(refused(warn)).toBe(false);
+  });
+
+  it("asks once per family when manuscript and figures are both unsaved", async () => {
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Anfang" }));
+    fireEvent.click(screen.getByRole("button", { name: "add figure" }));
+    session.selected = { worldId: "world-a", generation: 2 };
+    act(() => session.load?.(documents("Serverstand"), { ...session.selected, source: "open" }));
+
+    await authorizeDecision();
+    fireEvent.click(screen.getByRole("button", { name: "Gespeicherte Fassung übernehmen" }));
+    // The figures still wait for their own decision, in a fresh dialog.
+    expect(await screen.findByRole("button", { name: "Gespeicherte Fassung laden" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Konflikt vergleichen" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "figure count" })).toHaveTextContent("1");
+    await authorizeDecision();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf als neue Fassung speichern" }),
+    );
+    await waitFor(() => expect(storyWorldSaveExpected.mock.calls).toHaveLength(1));
+    expect(storyWorldSaveExpected.mock.calls[0][1]).toBe(5);
+    expect(await screen.findByRole("button", { name: "Serverstand" })).toBeVisible();
+    expect(refused(warn)).toBe(false);
   });
 });
