@@ -30,6 +30,15 @@ import { mapMentions } from "./mentions";
 import type { EntityMention, TextMark, TextMarkKind, WritingIssue } from "./model";
 
 const controlledUpdate = Annotation.define<boolean>();
+// Stable stand-ins for absent decoration props. A fresh `[]` default differs on every render
+// and made its effect dispatch a transaction each time. Every transaction makes CodeMirror
+// drop a DOM selection it has not read yet and write its own back, so one that landed between
+// "select all" and typing put the typed text in front of the old text (T-159).
+const NO_MENTIONS: EntityMention[] = [];
+const NO_MARKS: TextMark[] = [];
+const NO_ISSUES: WritingIssue[] = [];
+const NO_ENTITIES: FigureNode[] = [];
+const NO_SEARCH_MATCHES: Array<{ from: number; to: number }> = [];
 
 export type EditorTextSelection = {
   from: number;
@@ -85,12 +94,12 @@ export function ManuscriptEditor({
   label,
   placeholder,
   vocabulary,
-  mentions = [],
-  marks = [],
-  issues = [],
-  entities = [],
+  mentions = NO_MENTIONS,
+  marks = NO_MARKS,
+  issues = NO_ISSUES,
+  entities = NO_ENTITIES,
   held = null,
-  searchMatches = [],
+  searchMatches = NO_SEARCH_MATCHES,
   activeSearchMatch = null,
   readOnly = false,
   versionDiff = null,
@@ -664,18 +673,22 @@ export function ManuscriptEditor({
       effects: setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),
     });
   }, [searchMatches, activeSearchMatch]);
+  // The labels arrive as a fresh object on every render; only their text decides whether the
+  // decorations need a transaction (T-159).
+  const versionDiffLabelsKey = JSON.stringify(versionDiffLabels ?? null);
   useEffect(() => {
+    const labels = JSON.parse(versionDiffLabelsKey) as typeof versionDiffLabels | null;
     view.current?.dispatch({
       effects: setVersionDiffDecorations.of({
         projection: versionDiff,
-        addedLabel: versionDiffLabels?.added ?? "",
-        addedLineBreakLabel: versionDiffLabels?.addedLineBreak ?? "",
-        removedLabel: versionDiffLabels?.removed ?? "",
-        formattingAddedLabels: versionDiffLabels?.formattingAdded ?? { bold: "", italic: "" },
-        formattingRemovedLabels: versionDiffLabels?.formattingRemoved ?? { bold: "", italic: "" },
+        addedLabel: labels?.added ?? "",
+        addedLineBreakLabel: labels?.addedLineBreak ?? "",
+        removedLabel: labels?.removed ?? "",
+        formattingAddedLabels: labels?.formattingAdded ?? { bold: "", italic: "" },
+        formattingRemovedLabels: labels?.formattingRemoved ?? { bold: "", italic: "" },
       }),
     });
-  }, [versionDiff, versionDiffLabels]);
+  }, [versionDiff, versionDiffLabelsKey]);
 
   return (
     <div className="prose-editor" ref={host} data-readonly={readOnly || undefined}>
