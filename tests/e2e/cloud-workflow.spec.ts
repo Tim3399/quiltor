@@ -9,14 +9,15 @@ test("Unconfigured cloud leaves the actual local writing workflow available", as
   await page.goto(`/?world=${world.id}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Cloud-Synchronisation", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Cloud-Synchronisation", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+  await dialog.getByRole("tab", { name: "Mit anderen Geräten abgleichen", exact: true }).click();
   await expect(dialog).toContainText("Keine Cloud eingerichtet");
   await expect(dialog).toContainText("ohne Cloud nutzbar");
   await expect(
     dialog.getByRole("button", { name: "Jetzt synchronisieren", exact: true }),
   ).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Schließen", exact: true }).click();
+  await dialog.getByRole("button", { name: "Dialog schließen", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
 });
@@ -137,8 +138,9 @@ for (const theme of ["light", "dark"] as const) {
     }
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Cloud-Synchronisation", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Cloud-Synchronisation", exact: true });
+    await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+    await dialog.getByRole("tab", { name: "Mit anderen Geräten abgleichen", exact: true }).click();
     const choose = dialog.getByRole("button", { name: "Lokale Fassung übernehmen", exact: true });
     await expect(choose).toBeDisabled();
     await dialog
@@ -179,7 +181,7 @@ for (const theme of ["light", "dark"] as const) {
       baseline,
     );
     await expect(choose).toBeDisabled();
-    await dialog.getByRole("button", { name: "Schließen", exact: true }).click();
+    await dialog.getByRole("button", { name: "Dialog schließen", exact: true }).click();
     await expect(page.getByLabel("Kapiteltext")).toContainText(local.chapters[0].body);
   });
 }

@@ -520,8 +520,12 @@ async function overlayScenario(s: Session): Promise<void> {
     state: string,
     item: string,
     extra?: (dialog: Locator) => Promise<void>,
+    tab?: string,
   ) => {
-    const open = async () => s.mehr(item);
+    const open = async () => {
+      await s.mehr(item);
+      if (tab) await s.tap(page.getByRole("tab", { name: tab, exact: true }));
+    };
     await base();
     const dialog = await s.opened(
       state,
@@ -556,15 +560,24 @@ async function overlayScenario(s: Session): Promise<void> {
   }
   await s.closeAll();
 
-  await viaMehr("overlay.history", "Verlauf");
-  await viaMehr("overlay.snapshot", "Arbeitsstand sichern");
-  await viaMehr("overlay.backups", "Sicherungen", async (dialog) => {
-    await s.tap(dialog.getByRole("button", { pressed: false }).filter({ hasText: "KB" }).first());
-    await s.opened("overlay.backups/dialog.restore", "dialog", base, async () =>
-      s.tap(dialog.getByRole("button", { name: "Sicherung wiederherstellen" })),
-    );
-  });
-  await viaMehr("overlay.cloud", "Cloud-Synchronisation");
+  await viaMehr("overlay.versions.versions", "Versionen & Sicherungen");
+  await viaMehr(
+    "overlay.versions.backups",
+    "Versionen & Sicherungen",
+    async (dialog) => {
+      await s.tap(dialog.getByRole("button", { pressed: false }).filter({ hasText: "KB" }).first());
+      await s.opened("overlay.versions.backups/dialog.restore", "dialog", base, async () =>
+        s.tap(dialog.getByRole("button", { name: "Sicherung wiederherstellen" })),
+      );
+    },
+    "Automatische Sicherungen",
+  );
+  await viaMehr(
+    "overlay.versions.sync",
+    "Versionen & Sicherungen",
+    undefined,
+    "Mit anderen Geräten abgleichen",
+  );
   await viaMehr("dialog.getting-started", "Erste Schritte");
   await viaMehr("dialog.project-export", "Projekt exportieren");
 }

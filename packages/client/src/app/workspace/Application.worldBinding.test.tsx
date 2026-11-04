@@ -204,9 +204,15 @@ function mockBackupRestore() {
     .mockResolvedValue({ ok: true, warnings: ["backup.mirror_failed"] });
 }
 
+// The menu has one entry for versions, backups and sync; each is a tab of the dialog it opens.
+async function openVersionsTab(name: string) {
+  fireEvent.click(screen.getByRole("menuitem", { name: "Versionen & Sicherungen" }));
+  fireEvent.click(await screen.findByRole("tab", { name }));
+}
+
 async function restoreBackupBehindReload() {
   fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Sicherungen" }));
+  await openVersionsTab("Automatische Sicherungen");
   fireEvent.click(await screen.findByRole("button", { name: /2 KB/ }));
   await screen.findByText("Sicherung");
   fireEvent.click(screen.getByRole("button", { name: "Sicherung wiederherstellen" }));
@@ -232,7 +238,7 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
     await openWorldAndSaveOnce();
 
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Sicherungen" }));
+    await openVersionsTab("Automatische Sicherungen");
     fireEvent.click(await screen.findByRole("button", { name: /2 KB/ }));
     await screen.findByText("Sicherung");
     fireEvent.click(screen.getByRole("button", { name: "Sicherung wiederherstellen" }));
@@ -306,7 +312,7 @@ describe("a world replaced on the server is never saved over (P-Q4)", () => {
     await openWorldAndSaveOnce();
 
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Cloud-Synchronisation" }));
+    await openVersionsTab("Mit anderen Geräten abgleichen");
     fireEvent.click(await screen.findByRole("button", { name: "Jetzt synchronisieren" }));
     const reload = await screen.findByRole("button", { name: "Quiltor neu laden" });
 

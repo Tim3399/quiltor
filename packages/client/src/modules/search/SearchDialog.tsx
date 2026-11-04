@@ -41,7 +41,8 @@ export function SearchDialog({
     // The second line used to carry the same word "Befehl" for every entry -- the same
     // answer nine times over is no answer. It now names the keyboard shortcut where there is
     // one, and otherwise at least says whether the entry changes the view or does something.
-    // Only "Arbeitsstand sichern" has one today; none is invented here.
+    // Only "Version festhalten" has one today; none is invented here. The three entries that
+    // open the versions dialog keep their ids and each starts on its own tab.
     const commands: CommandPaletteItem[] = (
       [
         ["text", t("switchToManuscript"), "view"],
@@ -50,9 +51,9 @@ export function SearchDialog({
         ["places", t("switchToPlaces"), "view"],
         ["storyboard", t("switchToStoryboard"), "view"],
         ["focus", t("toggleFocus"), "action"],
-        ["history", t("openHistory"), "action"],
-        ["snapshot", t("openBackupDialog"), "action", shortcut("S", locale, { shift: true })],
-        ["backups", t("openBackups"), "action"],
+        ["history", t("openVersions"), "action"],
+        ["snapshot", t("openVersionSave"), "action", shortcut("S", locale, { shift: true })],
+        ["backups", t("openAutoBackups"), "action"],
       ] as const
     ).map(([id, label, kind, shortcutLabel]) => ({
       id: `command-${id}`,

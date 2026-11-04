@@ -90,9 +90,12 @@ function kindLabel(kind: PathKind, t: Translate): string | null {
 export function HistoryDialog({
   onClose,
   flush,
+  embedded = false,
 }: {
   onClose: () => void;
   flush: () => Promise<void>;
+  /** Body only, without the sheet and its header: the versions dialog hosts it as a tab. */
+  embedded?: boolean;
 }) {
   const { t } = useI18n();
   const [commits, setCommits] = useState<SnapshotInfo[]>([]),
@@ -153,147 +156,149 @@ export function HistoryDialog({
       return next;
     });
 
-  return (
-    <Sheet open label={t("history")} onClose={onClose} wide>
-      <div className="utility-sheet">
+  const content = (
+    <div className={embedded ? undefined : "utility-sheet"}>
+      {!embedded && (
         <header>
           <h2>{t("history")}</h2>
           <IconButton label={t("closeDialog")} icon={<X />} onClick={onClose} />
         </header>
-        <div className="utility-sheet-content">
-          <div className="history-toolbar">
-            <span>{t("comparison")}</span>
-            <div>
-              <Button
-                appearance="secondary"
-                size="compact"
-                aria-pressed={word}
-                onClick={() => setWord(!word)}
-              >
-                {word ? t("byWord") : t("byLine")}
-              </Button>
-              <Button
-                appearance="secondary"
-                size="compact"
-                aria-pressed={all}
-                onClick={() => setAll(!all)}
-              >
-                {all ? t("allFiles") : t("textOnly")}
-              </Button>
-            </div>
+      )}
+      <div className="utility-sheet-content">
+        <div className="history-toolbar">
+          <span>{t("comparison")}</span>
+          <div>
+            <Button
+              appearance="secondary"
+              size="compact"
+              aria-pressed={word}
+              onClick={() => setWord(!word)}
+            >
+              {word ? t("byWord") : t("byLine")}
+            </Button>
+            <Button
+              appearance="secondary"
+              size="compact"
+              aria-pressed={all}
+              onClick={() => setAll(!all)}
+            >
+              {all ? t("allFiles") : t("textOnly")}
+            </Button>
           </div>
-          <div className="history-layout">
-            <nav aria-label={t("states")}>
+        </div>
+        <div className="history-layout">
+          <nav aria-label={t("states")}>
+            <Button
+              className="history-state-button"
+              appearance="ghost"
+              aria-pressed={selected === "WORK"}
+              onClick={() => setSelected("WORK")}
+            >
+              <span className="history-state-copy">
+                <strong>{t("sinceCommit")}</strong>
+                <small>{t("workingState")}</small>
+              </span>
+            </Button>
+            {commits.map((commit) => (
               <Button
+                key={commit.hash}
                 className="history-state-button"
                 appearance="ghost"
-                aria-pressed={selected === "WORK"}
-                onClick={() => setSelected("WORK")}
+                aria-pressed={selected === commit.hash}
+                onClick={() => setSelected(commit.hash)}
               >
                 <span className="history-state-copy">
-                  <strong>{t("sinceCommit")}</strong>
-                  <small>{t("workingState")}</small>
+                  <strong>{commit.subject}</strong>
+                  <small>
+                    {commit.shortHash} · {commit.date}
+                  </small>
                 </span>
               </Button>
-              {commits.map((commit) => (
-                <Button
-                  key={commit.hash}
-                  className="history-state-button"
-                  appearance="ghost"
-                  aria-pressed={selected === commit.hash}
-                  onClick={() => setSelected(commit.hash)}
-                >
-                  <span className="history-state-copy">
-                    <strong>{commit.subject}</strong>
-                    <small>
-                      {commit.shortHash} · {commit.date}
-                    </small>
-                  </span>
-                </Button>
-              ))}
-            </nav>
-            <div className="diff-view">
-              {!result ? (
-                <EmptyState headingLevel={3} role="status" size="compact" title={t("loading")} />
-              ) : segments.length === 0 ? (
-                <EmptyState
-                  headingLevel={3}
-                  size="compact"
-                  title={result.empty || t("noChanges")}
-                />
-              ) : (
-                <>
-                  <ul className="diff-summary">
-                    {segments.map((segment) => (
-                      <li key={segment.path}>
-                        <Button
-                          className="diff-summary-button"
-                          appearance="secondary"
-                          size="compact"
-                          aria-expanded={open.has(segment.path)}
-                          onClick={() => toggle(segment.path)}
-                        >
-                          <span className="diff-summary-content">
-                            {kindLabel(segment.kind, t) && (
-                              <span className="diff-kind">{kindLabel(segment.kind, t)}</span>
-                            )}
-                            <span className="diff-summary-title">{segment.title}</span>
-                            {!segment.binary && (
-                              <span className="diff-stat">
-                                {t(word ? "statWords" : "statLines", {
-                                  added: segment.added,
-                                  removed: segment.removed,
-                                })}
-                              </span>
-                            )}
-                          </span>
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                  {segments
-                    .filter((segment) => open.has(segment.path))
-                    .map((segment) => (
-                      <section key={segment.path} className="diff-segment" data-kind={segment.kind}>
-                        <h3>
-                          {kindLabel(segment.kind, t)
-                            ? `${kindLabel(segment.kind, t)} · ${segment.title}`
-                            : segment.title}
-                        </h3>
-                        {segment.binary ? (
-                          <p className="diff-note">{t("binaryChange")}</p>
-                        ) : (
-                          <div className="diff-content">
-                            {withOccurrenceKeys(segment.lines).map(({ key, value: line }) =>
-                              line === GAP_MARK ? (
-                                <div key={key} className="diff-gap">
-                                  {GAP_MARK}
-                                </div>
-                              ) : (
-                                <div
-                                  key={key}
-                                  className={
-                                    line.startsWith("+")
-                                      ? "diff-add"
-                                      : line.startsWith("-")
-                                        ? "diff-del"
-                                        : ""
-                                  }
-                                >
-                                  {word ? markWords(line) : line}
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        )}
-                      </section>
-                    ))}
-                </>
-              )}
-            </div>
+            ))}
+          </nav>
+          <div className="diff-view">
+            {!result ? (
+              <EmptyState headingLevel={3} role="status" size="compact" title={t("loading")} />
+            ) : segments.length === 0 ? (
+              <EmptyState headingLevel={3} size="compact" title={result.empty || t("noChanges")} />
+            ) : (
+              <>
+                <ul className="diff-summary">
+                  {segments.map((segment) => (
+                    <li key={segment.path}>
+                      <Button
+                        className="diff-summary-button"
+                        appearance="secondary"
+                        size="compact"
+                        aria-expanded={open.has(segment.path)}
+                        onClick={() => toggle(segment.path)}
+                      >
+                        <span className="diff-summary-content">
+                          {kindLabel(segment.kind, t) && (
+                            <span className="diff-kind">{kindLabel(segment.kind, t)}</span>
+                          )}
+                          <span className="diff-summary-title">{segment.title}</span>
+                          {!segment.binary && (
+                            <span className="diff-stat">
+                              {t(word ? "statWords" : "statLines", {
+                                added: segment.added,
+                                removed: segment.removed,
+                              })}
+                            </span>
+                          )}
+                        </span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                {segments
+                  .filter((segment) => open.has(segment.path))
+                  .map((segment) => (
+                    <section key={segment.path} className="diff-segment" data-kind={segment.kind}>
+                      <h3>
+                        {kindLabel(segment.kind, t)
+                          ? `${kindLabel(segment.kind, t)} · ${segment.title}`
+                          : segment.title}
+                      </h3>
+                      {segment.binary ? (
+                        <p className="diff-note">{t("binaryChange")}</p>
+                      ) : (
+                        <div className="diff-content">
+                          {withOccurrenceKeys(segment.lines).map(({ key, value: line }) =>
+                            line === GAP_MARK ? (
+                              <div key={key} className="diff-gap">
+                                {GAP_MARK}
+                              </div>
+                            ) : (
+                              <div
+                                key={key}
+                                className={
+                                  line.startsWith("+")
+                                    ? "diff-add"
+                                    : line.startsWith("-")
+                                      ? "diff-del"
+                                      : ""
+                                }
+                              >
+                                {word ? markWords(line) : line}
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  ))}
+              </>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+  if (embedded) return content;
+  return (
+    <Sheet open label={t("history")} onClose={onClose} wide>
+      {content}
     </Sheet>
   );
 }

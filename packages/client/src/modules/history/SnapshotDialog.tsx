@@ -24,9 +24,18 @@ const RECHECK_MS = 1500,
 export function SnapshotDialog({
   onClose,
   flush,
+  embedded = false,
+  autoFocusMessage = false,
+  onSaved,
 }: {
   onClose: () => void;
   flush: () => Promise<void>;
+  /** Body and actions without the dialog frame: the versions dialog hosts it as a tab. */
+  embedded?: boolean;
+  /** Put the cursor into the note field once it is there (the "save a version" entry points). */
+  autoFocusMessage?: boolean;
+  /** A snapshot was written; the host refreshes whatever lists snapshots. */
+  onSaved?: () => void;
 }) {
   const { t } = useI18n();
   const [status, setStatus] = useState<BackupStatus | null>(null),
@@ -117,6 +126,7 @@ export function SnapshotDialog({
       setOutput(result.log.join("\n") || t("done"));
       setStatus(result.status);
       setTransferWarning(result.warnings?.includes("backup.transfer_status_failed") ?? false);
+      onSaved?.();
     } catch (error) {
       setOutput(applicationErrorMessage(error));
     } finally {
@@ -176,13 +186,8 @@ export function SnapshotDialog({
         )}
       </>
     ) : undefined;
-  return (
-    <Dialog
-      title={t("snapshotSave")}
-      closeLabel={t("closeDialog")}
-      footer={actions}
-      onClose={onClose}
-    >
+  const body = (
+    <>
       {statusError ? (
         <Alert tone="danger">{statusError}</Alert>
       ) : !status ? (
@@ -191,6 +196,7 @@ export function SnapshotDialog({
         <>
           <TextArea
             label={t("snapshotMessage")}
+            autoFocus={autoFocusMessage}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />
@@ -280,6 +286,23 @@ export function SnapshotDialog({
           </Disclosure>
         </>
       )}
+    </>
+  );
+  if (embedded)
+    return (
+      <div className="snapshot-embedded">
+        {body}
+        {actions && <div className="snapshot-embedded__actions">{actions}</div>}
+      </div>
+    );
+  return (
+    <Dialog
+      title={t("snapshotSave")}
+      closeLabel={t("closeDialog")}
+      footer={actions}
+      onClose={onClose}
+    >
+      {body}
     </Dialog>
   );
 }

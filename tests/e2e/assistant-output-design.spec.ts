@@ -25,8 +25,8 @@ async function openAssistant(page: Page) {
 
 async function openSnapshot(page: Page) {
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Arbeitsstand sichern", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Arbeitsstand sichern", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog).toBeVisible();
   return dialog;
 }

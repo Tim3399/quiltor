@@ -4,8 +4,7 @@ export {
   type VersionDiffProjection,
 } from "./versionDiff";
 
-export const loadHistoryDialog = () =>
-  import("./HistoryDialog").then(({ HistoryDialog }) => ({ default: HistoryDialog }));
+export type { VersionsOpenOptions } from "./VersionsDialog";
 
-export const loadSnapshotDialog = () =>
-  import("./SnapshotDialog").then(({ SnapshotDialog }) => ({ default: SnapshotDialog }));
+export const loadVersionsDialog = () =>
+  import("./VersionsDialog").then(({ VersionsDialog }) => ({ default: VersionsDialog }));

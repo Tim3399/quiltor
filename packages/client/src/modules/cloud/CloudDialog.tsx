@@ -1,5 +1,6 @@
 import { Cloud, LogIn, RefreshCw } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Alert, Button, ConfirmDialog, Dialog, Disclosure } from "../../design";
 import { type MessageKey, useI18n } from "../../i18n";
 import {
@@ -30,12 +31,18 @@ export function CloudDialog({
   flush,
   manuscript,
   onDocumentsReplaced,
+  embedded = false,
+  onBusyChange,
 }: {
   onClose: () => void;
   flush: () => Promise<void>;
   manuscript: Manuscript;
   /** The server now holds other documents than the open workspace; nothing may save over them. */
   onDocumentsReplaced: () => void;
+  /** Body and actions without the dialog frame: the versions dialog hosts it as a tab. */
+  embedded?: boolean;
+  /** Reports a running sync or a pending reload, so the host can keep the tab from changing. */
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { t, locale } = useI18n();
   const [status, setStatus] = useState<CloudSyncStatus | null>(null);
@@ -144,193 +151,205 @@ export function CloudDialog({
       ))}
     </div>
   );
-  return (
+  const hostBusy = busy || reloadRequired;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Only the value is reported.
+  useEffect(() => onBusyChange?.(hostBusy), [hostBusy]);
+  const footer = reloadRequired ? (
+    <Button appearance="primary" onClick={() => location.reload()}>
+      {t("reloadAfterRestore")}
+    </Button>
+  ) : (
     <>
-      <Dialog
-        title={t("cloudTitle")}
-        closeLabel={t("close")}
-        onClose={() => {
-          if (!busy && !reloadRequired) onClose();
-        }}
-        size="wide"
-        footer={
-          reloadRequired ? (
-            <Button appearance="primary" onClick={() => location.reload()}>
-              {t("reloadAfterRestore")}
+      <Button
+        appearance="secondary"
+        icon={<RefreshCw />}
+        disabled={busy}
+        onClick={() => void run(load)}
+      >
+        {t("cloudRefresh")}
+      </Button>
+      {status?.configured && !requiresChoice && (
+        <Button
+          appearance="primary"
+          icon={<Cloud />}
+          disabled={
+            busy ||
+            !!error ||
+            (readOnly && status.state !== "remote-pending" && status.state !== "synced")
+          }
+          onClick={() => void synchronize("sync")}
+        >
+          {t("cloudSyncNow")}
+        </Button>
+      )}
+    </>
+  );
+  const body = (
+    <div className="cloud-sync" aria-busy={busy}>
+      <p>{t("cloudManualExplanation")}</p>
+      <p>{t("cloudLocalIndependence")}</p>
+      {error && (
+        <Alert tone="danger">
+          {error}
+          {!recoveryRequired && <p>{t("cloudErrorHelp")}</p>}
+        </Alert>
+      )}
+      {busy && <p role="status">{t("cloudWorking")}</p>}
+      {reloadRequired && !recoveryRequired && (
+        <Alert tone="success">{t("cloudReloadRequired")}</Alert>
+      )}
+      {stateWarning && <Alert tone="warning">{t("cloudStateNotSaved")}</Alert>}
+      {login?.configured && !login.signedIn && (
+        <Alert tone="info">
+          <p>{t(login.hosted ? "backupSessionExpired" : "backupSignInHint")}</p>
+          {!login.hosted && (
+            <Button
+              appearance="secondary"
+              icon={<LogIn />}
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const result = await quiltorClient.application.backup.beginLogin();
+                  quiltorClient.platform.externalNavigation.open(result.authorizeUrl);
+                })
+              }
+            >
+              {t("backupSignIn")}
             </Button>
-          ) : (
-            <>
+          )}
+        </Alert>
+      )}
+      {status && (
+        <>
+          {!error && !busy && (
+            <p className="cloud-sync__state" role="status">
+              {t(stateLabels[status.state])}
+            </p>
+          )}
+          {!status.configured && <p>{t("cloudSetupHint")}</p>}
+          <dl className="cloud-sync__facts">
+            <dt>{t("target")}</dt>
+            <dd>{status.endpoint || t("notConfigured")}</dd>
+            <dt>{t("cloudLastSync")}</dt>
+            <dd>{status.lastSyncedAt ? date(status.lastSyncedAt) : t("noConfirmedTransfer")}</dd>
+            {status.account && (
+              <>
+                <dt>{t("cloudStorage")}</dt>
+                <dd>
+                  {t("cloudUsedBytes", { used: number(status.account.usedBytes) })}
+                  {status.account.limitBytes !== null
+                    ? ` / ${number(status.account.limitBytes)} Bytes`
+                    : ` · ${t("cloudNoQuotaSpecified")}`}
+                </dd>
+              </>
+            )}
+          </dl>
+          {readOnly && <Alert tone="warning">{t("cloudReadOnly")}</Alert>}
+          {status.account?.deleteAfter && (
+            <Alert tone="warning">
+              {t("cloudDeletionDate", { date: date(status.account.deleteAfter) })}
+            </Alert>
+          )}
+          {requiresChoice && !reloadRequired && (
+            <section aria-label={t("cloudConflict")}>
+              <Alert tone="warning">
+                {t(status.state === "unlinked" ? "cloudUnlinkedHelp" : "cloudConflictHelp")}
+              </Alert>
               <Button
                 appearance="secondary"
-                icon={<RefreshCw />}
-                disabled={busy}
-                onClick={() => void run(load)}
+                disabled={busy || !!error}
+                onClick={() =>
+                  void run(async () => {
+                    const value = await quiltorClient.application.synchronization.preview();
+                    if (
+                      value.generation !== status.remote.generation ||
+                      value.snapshotId !== status.remote.snapshotId
+                    ) {
+                      await load();
+                      return;
+                    }
+                    setPreview(value);
+                  })
+                }
               >
-                {t("cloudRefresh")}
+                {t("cloudInspectRemote")}
               </Button>
-              {status?.configured && !requiresChoice && (
-                <Button
-                  appearance="primary"
-                  icon={<Cloud />}
-                  disabled={
-                    busy ||
-                    !!error ||
-                    (readOnly && status.state !== "remote-pending" && status.state !== "synced")
-                  }
-                  onClick={() => void synchronize("sync")}
-                >
-                  {t("cloudSyncNow")}
-                </Button>
+              {preview && (
+                <div className="cloud-sync__comparison">
+                  <section>
+                    <h3>{t("cloudLocalVersion")}</h3>
+                    {contents(manuscript)}
+                  </section>
+                  <section>
+                    <h3>{t("cloudRemoteVersion")}</h3>
+                    {contents(preview.documents.manuscript)}
+                    <p>
+                      {t("backupFigureCount", {
+                        count: preview.documents.figures.nodes.length,
+                      })}{" "}
+                      ·{" "}
+                      {t("backupBoardCount", {
+                        count: preview.documents.storyboards.boards?.length ?? 0,
+                      })}
+                    </p>
+                  </section>
+                </div>
               )}
-            </>
-          )
-        }
-      >
-        <div className="cloud-sync" aria-busy={busy}>
-          <p>{t("cloudManualExplanation")}</p>
-          <p>{t("cloudLocalIndependence")}</p>
-          {error && (
-            <Alert tone="danger">
-              {error}
-              {!recoveryRequired && <p>{t("cloudErrorHelp")}</p>}
-            </Alert>
-          )}
-          {busy && <p role="status">{t("cloudWorking")}</p>}
-          {reloadRequired && !recoveryRequired && (
-            <Alert tone="success">{t("cloudReloadRequired")}</Alert>
-          )}
-          {stateWarning && <Alert tone="warning">{t("cloudStateNotSaved")}</Alert>}
-          {login?.configured && !login.signedIn && (
-            <Alert tone="info">
-              <p>{t(login.hosted ? "backupSessionExpired" : "backupSignInHint")}</p>
-              {!login.hosted && (
+              <div className="cloud-sync__actions">
                 <Button
                   appearance="secondary"
-                  icon={<LogIn />}
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      const result = await quiltorClient.application.backup.beginLogin();
-                      quiltorClient.platform.externalNavigation.open(result.authorizeUrl);
-                    })
-                  }
+                  disabled={!canResolve || readOnly}
+                  onClick={() => setConfirmation("keep-local")}
                 >
-                  {t("backupSignIn")}
+                  {t("cloudKeepLocal")}
                 </Button>
-              )}
-            </Alert>
+                <Button
+                  appearance="secondary"
+                  disabled={!canResolve}
+                  onClick={() => setConfirmation("use-remote")}
+                >
+                  {t("cloudUseRemote")}
+                </Button>
+              </div>
+            </section>
           )}
-          {status && (
-            <>
-              {!error && !busy && (
-                <p className="cloud-sync__state" role="status">
-                  {t(stateLabels[status.state])}
-                </p>
-              )}
-              {!status.configured && <p>{t("cloudSetupHint")}</p>}
-              <dl className="cloud-sync__facts">
-                <dt>{t("target")}</dt>
-                <dd>{status.endpoint || t("notConfigured")}</dd>
-                <dt>{t("cloudLastSync")}</dt>
-                <dd>
-                  {status.lastSyncedAt ? date(status.lastSyncedAt) : t("noConfirmedTransfer")}
-                </dd>
-                {status.account && (
-                  <>
-                    <dt>{t("cloudStorage")}</dt>
-                    <dd>
-                      {t("cloudUsedBytes", { used: number(status.account.usedBytes) })}
-                      {status.account.limitBytes !== null
-                        ? ` / ${number(status.account.limitBytes)} Bytes`
-                        : ` · ${t("cloudNoQuotaSpecified")}`}
-                    </dd>
-                  </>
-                )}
-              </dl>
-              {readOnly && <Alert tone="warning">{t("cloudReadOnly")}</Alert>}
-              {status.account?.deleteAfter && (
-                <Alert tone="warning">
-                  {t("cloudDeletionDate", { date: date(status.account.deleteAfter) })}
-                </Alert>
-              )}
-              {requiresChoice && !reloadRequired && (
-                <section aria-label={t("cloudConflict")}>
-                  <Alert tone="warning">
-                    {t(status.state === "unlinked" ? "cloudUnlinkedHelp" : "cloudConflictHelp")}
-                  </Alert>
-                  <Button
-                    appearance="secondary"
-                    disabled={busy || !!error}
-                    onClick={() =>
-                      void run(async () => {
-                        const value = await quiltorClient.application.synchronization.preview();
-                        if (
-                          value.generation !== status.remote.generation ||
-                          value.snapshotId !== status.remote.snapshotId
-                        ) {
-                          await load();
-                          return;
-                        }
-                        setPreview(value);
-                      })
-                    }
-                  >
-                    {t("cloudInspectRemote")}
-                  </Button>
-                  {preview && (
-                    <div className="cloud-sync__comparison">
-                      <section>
-                        <h3>{t("cloudLocalVersion")}</h3>
-                        {contents(manuscript)}
-                      </section>
-                      <section>
-                        <h3>{t("cloudRemoteVersion")}</h3>
-                        {contents(preview.documents.manuscript)}
-                        <p>
-                          {t("backupFigureCount", {
-                            count: preview.documents.figures.nodes.length,
-                          })}{" "}
-                          ·{" "}
-                          {t("backupBoardCount", {
-                            count: preview.documents.storyboards.boards?.length ?? 0,
-                          })}
-                        </p>
-                      </section>
-                    </div>
-                  )}
-                  <div className="cloud-sync__actions">
-                    <Button
-                      appearance="secondary"
-                      disabled={!canResolve || readOnly}
-                      onClick={() => setConfirmation("keep-local")}
-                    >
-                      {t("cloudKeepLocal")}
-                    </Button>
-                    <Button
-                      appearance="secondary"
-                      disabled={!canResolve}
-                      onClick={() => setConfirmation("use-remote")}
-                    >
-                      {t("cloudUseRemote")}
-                    </Button>
-                  </div>
-                </section>
-              )}
-            </>
-          )}
-        </div>
-      </Dialog>
-      {confirmation && (
-        <ConfirmDialog
-          title={t(confirmation === "keep-local" ? "cloudKeepLocal" : "cloudUseRemote")}
-          description={t("cloudResolveConfirmation")}
-          closeLabel={t("closeDialog")}
-          confirmLabel={t("cloudConfirmResolution")}
-          cancelLabel={t("cancel")}
-          onConfirm={() => void synchronize(confirmation)}
-          onClose={() => setConfirmation(null)}
-        />
+        </>
       )}
+    </div>
+  );
+  // Inside the tab the dialog would sit in the sheet, which a modal on top makes inert.
+  const confirm = confirmation && (
+    <ConfirmDialog
+      title={t(confirmation === "keep-local" ? "cloudKeepLocal" : "cloudUseRemote")}
+      description={t("cloudResolveConfirmation")}
+      closeLabel={t("closeDialog")}
+      confirmLabel={t("cloudConfirmResolution")}
+      cancelLabel={t("cancel")}
+      onConfirm={() => void synchronize(confirmation)}
+      onClose={() => setConfirmation(null)}
+    />
+  );
+  return (
+    <>
+      {embedded ? (
+        <>
+          {body}
+          <div className="cloud-sync__footer">{footer}</div>
+        </>
+      ) : (
+        <Dialog
+          title={t("cloudTitle")}
+          closeLabel={t("close")}
+          onClose={() => {
+            if (!busy && !reloadRequired) onClose();
+          }}
+          size="wide"
+          footer={footer}
+        >
+          {body}
+        </Dialog>
+      )}
+      {embedded && confirm ? createPortal(confirm, document.body) : confirm}
     </>
   );
 }

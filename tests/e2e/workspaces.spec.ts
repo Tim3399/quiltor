@@ -1833,8 +1833,10 @@ test("Shortcuts tell saving and backing up apart", async ({ page }, testInfo) =>
   // can be produced without a real Keycloak.
   await openBlankWorld(page, "Testwelt", "https://backup.example.com/shortcut-test");
   await page.keyboard.press("Control+Shift+S");
-  const dialog = page.getByRole("dialog", { name: /Arbeitsstand sichern/ });
+  const dialog = page.getByRole("dialog", { name: /Versionen & Sicherungen/ });
   await expect(dialog).toBeVisible();
+  // The shortcut lands in the note field, ready to type.
+  await expect(dialog.getByLabel("Was hat sich geändert?")).toBeFocused();
   await dialog.getByLabel("Was hat sich geändert?").fill("Zwischenstand aus dem Test");
   // Saving locally needs neither an endpoint nor a sign-in -- it is the path that is always
   // open, and therefore the dependable evidence that the dialog is alive.
@@ -1964,13 +1966,22 @@ test("The command palette runs every visible action atomically", async ({ page }
     .click();
   await expect(page.getByRole("button", { name: /Fokusmodus verlassen/ })).toBeVisible();
   await page.keyboard.press("Escape");
-  for (const command of ["Verlauf öffnen", "Sicherung öffnen", "Sicherungen öffnen"]) {
+  // Three palette entries, one dialog: each starts on its own tab.
+  for (const [command, tab] of [
+    ["Versionen öffnen", "Versionen"],
+    ["Version festhalten", "Versionen"],
+    ["Automatische Sicherungen öffnen", "Automatische Sicherungen"],
+  ] as const) {
     await open();
     await page
       .getByRole("dialog")
       .getByRole("option", { name: new RegExp(command) })
       .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Versionen & Sicherungen" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await page
       .getByRole("dialog")
       .getByRole("button", { name: /schließen/i })
