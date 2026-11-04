@@ -23,6 +23,7 @@ from quiltor.application.backups import (
     BackupGatewayError,
     BackupSnapshotNotFound,
 )
+from quiltor.application.backups.ports import SnapshotKind
 from quiltor.infrastructure.backup import SnapshotStore
 from quiltor.infrastructure.backup.snapshots import SNAPSHOT_KINDS, BackupContext
 
@@ -189,7 +190,7 @@ class SnapshotStoreTest(unittest.TestCase):
 
     def test_each_use_case_kind_is_persisted_as_written(self):
         ctx = self._world("world-a")
-        cases = (
+        cases: tuple[tuple[str, SnapshotKind], ...] = (
             ("Before restore", "before-restore"),
             ("Cloud sync", "cloud-sync"),
             ("Before cloud sync", "before-cloud-sync"),

@@ -34,7 +34,7 @@ from collections.abc import Callable, Iterable
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, cast, get_args
+from typing import Any, cast, get_args
 
 from quiltor.application.backup_manifest import (
     CURRENT_FORMAT_VERSION,
@@ -61,6 +61,7 @@ from quiltor.application.backups import (
     RemoteBackupGateway,
 )
 from quiltor.application.backups import WorldBackupContext as BackupContext
+from quiltor.application.backups.ports import SnapshotKind
 from quiltor.application.history import HistoryRevisionNotFound
 from quiltor.application.history.types import HistoryContext
 from quiltor.domain.text_offsets import utf16_offsets_to_indices
@@ -74,15 +75,6 @@ _MIRROR_TITLE_RE = re.compile(r"^\d{2,} - (.+)\.md$")
 # Who named a snapshot, so the client can word it in the reader's language. The
 # message itself stays as written (English for generated names), because older
 # builds show it as is and the fallback below reads it.
-SnapshotKind = Literal[
-    "manual",
-    "automatic",
-    "changes",
-    "before-restore",
-    "cloud-sync",
-    "before-cloud-sync",
-    "cloud-sync-conflict",
-]
 SNAPSHOT_KINDS: frozenset[str] = frozenset(get_args(SnapshotKind))
 
 # The kind of each snapshot lives beside index.jsonl, not in the manifest: the

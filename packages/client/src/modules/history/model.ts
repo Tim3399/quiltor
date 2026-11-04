@@ -1,4 +1,4 @@
-import type { SnapshotChangesWire, SnapshotKindWire } from "../../platform/application";
+import type { SnapshotChangesWire, SnapshotKindWire } from "../../platform";
 
 export interface SnapshotInfo {
   hash: string;

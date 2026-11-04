@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type Translate, translateUiMessage } from "../../i18n";
-import type { SnapshotKindWire } from "../../platform/application";
+import type { SnapshotKindWire } from "../../platform";
 import type { SnapshotInfo } from "./model";
 import { snapshotName } from "./snapshotName";
 

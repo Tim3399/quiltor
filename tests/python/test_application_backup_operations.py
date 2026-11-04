@@ -69,7 +69,7 @@ class _Snapshots:
         self.restored = (context, entry, fetch)
         return {"snapshot": entry["id"]}
 
-    def commit(self, context, message, push, authorization=None, *, kind="manual"):
+    def commit(self, context, message, push, authorization=None, *, kind="manual") -> dict:
         raise AssertionError("a fresh world must not create a pre-restore snapshot")
 
 
@@ -78,7 +78,7 @@ class _RecordingSnapshots(_Snapshots):
         super().__init__()
         self.commits: list[tuple[str, str]] = []
 
-    def commit(self, context, message, push, authorization=None, *, kind="manual"):
+    def commit(self, context, message, push, authorization=None, *, kind="manual") -> dict:
         self.commits.append((message, kind))
         return {"ok": True}
 
