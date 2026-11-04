@@ -11,7 +11,7 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           shortHash: string;
           date: string;
           subject: string;
-          kind?: "automatic" | "manual";
+          kind?: "automatic" | "manual" | "before-restore";
         }>;
       }>(withWorldQuery(state, "/api/history")),
     diff: (ref = "WORK", word = true, all = false) =>
@@ -35,5 +35,11 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           `/api/history/chapter-comparison?ref=${encodeURIComponent(ref)}&chapterId=${encodeURIComponent(chapterId)}`,
         ),
       ),
+    restore: async (id: string) => {
+      await requestJson<{ ok: boolean }>(withWorldQuery(state, "/api/history/restore"), {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+    },
   };
 }

@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import historyLog from "../../../../../contracts/fixtures/application-api/history/log.v1.json";
+import restoreRequest from "../../../../../contracts/fixtures/application-api/history/restore-request.v1.json";
+import restoreResponse from "../../../../../contracts/fixtures/application-api/history/restore-response.v1.json";
 import { createHistoryHttpGateway } from "./history";
 import { createHttpApplicationState } from "./request";
 
@@ -75,6 +78,32 @@ describe("history HTTP port", () => {
       `/api/history/chapter-text?ref=${encodeURIComponent("HEAD~1")}&chapter=7&title=${encodeURIComponent("Ankunft & Abschied")}&world=${encodedWorld}`,
       `/api/history/chapter-comparison?ref=${encodeURIComponent("HEAD~1")}&chapterId=${encodeURIComponent("chapter / ä")}&world=${encodedWorld}`,
     ]);
+  });
+
+  it("restores a version by posting its id to the selected world", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(restoreResponse));
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createHttpApplicationState();
+    state.activeWorldId = WORLD_ID;
+
+    await expect(
+      createHistoryHttpGateway(state).restore(restoreRequest.id),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/history/restore?world=${encodeURIComponent(WORLD_ID)}`,
+      expect.objectContaining({ method: "POST", body: JSON.stringify(restoreRequest) }),
+    );
+  });
+
+  it("passes the before-restore kind of the history contract through", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(historyLog)));
+    const state = createHttpApplicationState();
+    state.activeWorldId = WORLD_ID;
+
+    const { commits } = await createHistoryHttpGateway(state).log();
+
+    expect(commits.map((commit) => commit.kind)).toEqual(["before-restore", "automatic", "manual"]);
   });
 
   it("uses the public diff defaults without inventing world scope", async () => {

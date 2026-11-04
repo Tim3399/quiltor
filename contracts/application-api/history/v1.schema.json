@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/history/v1.schema.json",
+  "title": "Quiltor version history v1",
+  "description": "A world's local version history. GET /api/history?world=ID lists the versions; POST /api/history/restore?world=ID takes { id } and puts that version back after keeping the current state as \"Before restore\" (T-87 B). An unknown id answers 404 backup.snapshot_not_found, a missing or damaged blob 409 backup_content_integrity; in both cases the world documents are unchanged.",
+  "oneOf": [
+    { "$ref": "#/$defs/log" },
+    { "$ref": "#/$defs/restoreRequest" },
+    { "$ref": "#/$defs/restoreResponse" }
+  ],
+  "$defs": {
+    "commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hash", "shortHash", "date", "subject", "kind"],
+      "properties": {
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "shortHash": { "type": "string", "pattern": "^[0-9a-f]{8}$" },
+        "date": { "type": "string", "minLength": 1 },
+        "subject": {
+          "description": "The persisted name, as written. The client words automatic and before-restore names itself.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "automatic: a name the server generated. before-restore: the state a restore replaced, persisted as \"Before restore\". manual: everything else.",
+          "enum": ["automatic", "manual", "before-restore"]
+        }
+      }
+    },
+    "log": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "commits"],
+      "properties": {
+        "ok": { "const": true },
+        "commits": { "type": "array", "items": { "$ref": "#/$defs/commit" } }
+      }
+    },
+    "restoreRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "restoreResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "restored", "files"],
+      "properties": {
+        "ok": { "const": true },
+        "restored": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "files": { "type": "integer", "minimum": 0 },
+        "warnings": {
+          "description": "The restore committed, but the readable mirror files could not be rewritten.",
+          "type": "array",
+          "items": { "enum": ["backup.mirror_failed"] }
+        }
+      }
+    }
+  }
+}
