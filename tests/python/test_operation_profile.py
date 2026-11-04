@@ -1,8 +1,9 @@
 """The operation profile (D-59): who may install software on this server."""
 
 import unittest
+from types import SimpleNamespace
 
-from quiltor.bootstrap.web import operation_profile_for
+from quiltor.bootstrap.web import WebApplication, operation_profile_for
 from quiltor.infrastructure.platform.runtime_target import ProcessRole
 
 
@@ -29,6 +30,16 @@ class OperationProfileTest(unittest.TestCase):
 
     def test_no_role_is_local(self):
         self.assertEqual(operation_profile_for(multi_user=False, process_role=None), "local")
+
+
+class SyncableTest(unittest.TestCase):
+    def test_only_hosted_is_not_syncable(self):
+        for profile, expected in (("hosted", False), ("local", True), ("desktop", True)):
+            with self.subTest(profile=profile):
+                app = SimpleNamespace(operation_profile=profile)
+                syncable = WebApplication.syncable.fget
+                assert syncable is not None
+                self.assertIs(syncable(app), expected)
 
 
 if __name__ == "__main__":

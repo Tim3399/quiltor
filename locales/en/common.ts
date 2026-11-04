@@ -25,5 +25,7 @@ export const common = {
   errorStorageLocked:
     "The project is currently locked for writes. Your draft is preserved. Try again or rescue the draft.",
   errorBackupPreviewFailed: "The backup could not be opened for preview. It may be damaged.",
+  errorSyncForbiddenHosted:
+    "This server does not sync with other devices. Your versions are already stored on the server.",
   errorUnknown: "The action could not be completed.",
 } as const;

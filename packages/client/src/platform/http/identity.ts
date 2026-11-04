@@ -35,6 +35,8 @@ export function createIdentityHttpGateway(): IdentityGateway {
         email?: string;
         name?: string;
         multiUser?: boolean;
+        /** False on a hosted server, which offers no device sync (D-61). */
+        syncAvailable?: boolean;
       }>("/api/whoami"),
     logout: async () =>
       decodeLogoutResponse(await requestJson<unknown>("/logout", { method: "POST" })),

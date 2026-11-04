@@ -10,6 +10,8 @@ export interface IdentityGateway {
     email?: string;
     name?: string;
     multiUser?: boolean;
+    /** False on a hosted server, which offers no device sync (D-61). */
+    syncAvailable?: boolean;
   }>;
   logout(): Promise<IdentityLogoutResult>;
 }

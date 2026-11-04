@@ -47,6 +47,8 @@ def whoami(handler, request: Request, app) -> None:
             "email": request.session.email,
             "name": request.session.name,
             "multiUser": app.identity.multi_user,
+            # Whether the client offers device sync at all (D-61, T-87).
+            "syncAvailable": app.syncable,
         }
     )
 

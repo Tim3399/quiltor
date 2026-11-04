@@ -27,5 +27,7 @@ export const common = {
     "Das Projekt ist gerade für Schreibzugriffe gesperrt. Dein Entwurf bleibt erhalten. Versuche es erneut oder rette den Entwurf.",
   errorBackupPreviewFailed:
     "Die Sicherung konnte nicht für die Vorschau geöffnet werden. Sie wurde möglicherweise beschädigt.",
+  errorSyncForbiddenHosted:
+    "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten. Deine Versionen liegen bereits auf dem Server.",
   errorUnknown: "Die Aktion konnte nicht abgeschlossen werden.",
 } as const;
