@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+from quiltor.domain.json_values import as_array, as_object
+
 MAX_SAFE_INTEGER = 9_007_199_254_740_991
 
 
@@ -22,6 +24,13 @@ class CalendarDate:
     weekday_short_name: str = ""
 
 
+@dataclass(frozen=True)
+class _Month:
+    day_count: int
+    name: str
+    short_name: str
+
+
 def add_time(base_time: int, delta: int) -> int:
     if type(base_time) is not int or type(delta) is not int:
         raise TypeError("Canonical time and delta must be integers.")
@@ -31,7 +40,7 @@ def add_time(base_time: int, delta: int) -> int:
     return result
 
 
-def _integer(system: Mapping[str, Any], key: str, default: int) -> int:
+def _integer(system: Mapping[str, object], key: str, default: int) -> int:
     value = system.get(key, default)
     if type(value) is not int:
         raise ValueError(f"{key} must be an integer.")
@@ -40,46 +49,45 @@ def _integer(system: Mapping[str, Any], key: str, default: int) -> int:
     return value
 
 
-def _parts(value: CalendarDate | Mapping[str, Any]) -> tuple[int, int, int]:
+def _parts(value: CalendarDate | Mapping[str, object]) -> tuple[int, int, int]:
     if isinstance(value, CalendarDate):
         return value.year, value.month, value.day
     try:
-        parts = value["year"], value["month"], value["day"]
+        year, month, day = value["year"], value["month"], value["day"]
     except (KeyError, TypeError) as exc:
         raise ValueError("A calendar date needs year, month and day.") from exc
-    if any(type(part) is not int for part in parts):
+    if type(year) is not int or type(month) is not int or type(day) is not int:
         raise ValueError("Calendar date components must be integers.")
-    return parts
+    return year, month, day
 
 
-def _months(system: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    months = system.get("months", [])
-    if (
-        not isinstance(months, list)
-        or not months
-        or any(
-            not isinstance(month, Mapping)
-            or type(month.get("dayCount")) is not int
-            or month["dayCount"] <= 0
-            for month in months
+def _months(system: Mapping[str, object]) -> list[_Month]:
+    rows = as_array(system.get("months", []))
+    months: list[_Month] = []
+    for row in rows or []:
+        month = as_object(row)
+        day_count = month.get("dayCount") if month is not None else None
+        if month is None or type(day_count) is not int or day_count <= 0:
+            months = []
+            break
+        months.append(
+            _Month(day_count, str(month.get("name", "")), str(month.get("shortName", "")))
         )
-    ):
+    if not months:
         raise ValueError("A custom calendar needs months with positive dayCount.")
     return months
 
 
-def _ordinal(year: int, month: int, day: int, months: list[Mapping[str, Any]]) -> int:
+def _ordinal(year: int, month: int, day: int, months: list[_Month]) -> int:
     if month < 1 or month > len(months):
         raise ValueError("Month is outside the custom calendar.")
-    if day < 1 or day > months[month - 1]["dayCount"]:
+    if day < 1 or day > months[month - 1].day_count:
         raise ValueError("Day is outside the custom month.")
-    year_length = sum(item["dayCount"] for item in months)
-    return (
-        (year - 1) * year_length + sum(item["dayCount"] for item in months[: month - 1]) + day - 1
-    )
+    year_length = sum(item.day_count for item in months)
+    return (year - 1) * year_length + sum(item.day_count for item in months[: month - 1]) + day - 1
 
 
-def time_to_calendar_date(time_value: int, system: Mapping[str, Any]) -> CalendarDate | None:
+def time_to_calendar_date(time_value: int, system: Mapping[str, object]) -> CalendarDate | None:
     if type(time_value) is not int:
         raise TypeError("Canonical time must be an integer.")
     if abs(time_value) > MAX_SAFE_INTEGER:
@@ -115,32 +123,31 @@ def time_to_calendar_date(time_value: int, system: Mapping[str, Any]) -> Calenda
         raise ValueError(f"Unknown time system kind: {kind}")
     months = _months(system)
     ordinal = _ordinal(*epoch, months) + delta
-    year_length = sum(month["dayCount"] for month in months)
+    year_length = sum(month.day_count for month in months)
     year_offset, day_of_year = divmod(ordinal, year_length)
     month_index = 0
-    while day_of_year >= months[month_index]["dayCount"]:
-        day_of_year -= months[month_index]["dayCount"]
+    while day_of_year >= months[month_index].day_count:
+        day_of_year -= months[month_index].day_count
         month_index += 1
-    weekdays = system.get("weekdays", [])
-    weekdays = weekdays if isinstance(weekdays, list) else []
+    weekdays = as_array(system.get("weekdays", [])) or []
     epoch_weekday = _integer(system, "epochWeekday", 0)
     weekday = (epoch_weekday + delta) % len(weekdays) if weekdays else None
     month_item = months[month_index]
-    weekday_item = weekdays[weekday] if weekday is not None else {}
+    weekday_item = (as_object(weekdays[weekday]) or {}) if weekday is not None else {}
     return CalendarDate(
         year_offset + 1,
         month_index + 1,
         day_of_year + 1,
         weekday,
-        str(month_item.get("name", "")),
-        str(month_item.get("shortName", "")),
+        month_item.name,
+        month_item.short_name,
         str(weekday_item.get("name", "")),
         str(weekday_item.get("shortName", "")),
     )
 
 
 def calendar_date_to_time(
-    value: CalendarDate | Mapping[str, Any], system: Mapping[str, Any]
+    value: CalendarDate | Mapping[str, object], system: Mapping[str, object]
 ) -> int:
     kind = system.get("kind", "relative")
     if kind == "relative":
@@ -170,7 +177,7 @@ class _FormatValues(dict[str, Any]):
         return "{" + key + "}"
 
 
-def format_time(time_value: int, system: Mapping[str, Any]) -> str:
+def format_time(time_value: int, system: Mapping[str, object]) -> str:
     kind = system.get("kind", "relative")
     if kind == "relative":
         if type(time_value) is not int:

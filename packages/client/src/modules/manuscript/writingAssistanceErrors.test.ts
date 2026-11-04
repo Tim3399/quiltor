@@ -27,6 +27,22 @@ describe("writingAssistanceErrorMessage", () => {
     );
   });
 
+  it("names the needed and the free space when the drive is too small", () => {
+    document.documentElement.lang = "de";
+    const message = writingAssistanceErrorMessage(
+      failure("writing_assistance.insufficient_space", { needed: 620_400_000, free: 1_500_000 }),
+      "lookup",
+      (key: string, params?: Record<string, string | number>) =>
+        Object.entries(params ?? {}).reduce(
+          (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+          (de as Record<string, string>)[key] ?? key,
+        ),
+    );
+    expect(message).toBe(
+      "Für die Sprachdaten fehlt freier Speicher: Benötigt werden 621 MB, frei sind 2 MB.",
+    );
+  });
+
   it("falls back to the generic sentence for an unknown code or a dropped connection", () => {
     expect(writingAssistanceErrorMessage(failure("application.internal_error"), "lookup", t)).toBe(
       de.writingRequestError,

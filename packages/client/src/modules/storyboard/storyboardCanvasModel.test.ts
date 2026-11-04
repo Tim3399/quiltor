@@ -8,6 +8,7 @@ import {
   connectedStoryboardEdge,
   groupNode,
   insertStoryboardNodeAtLayerFront,
+  keepMeasuredFlowNodes,
   moveStoryboardNodeInLayer,
   moveStoryboardNodeWithGroupMembers,
   noteNode,
@@ -665,5 +666,31 @@ describe("storyboard canvas model", () => {
       { id: "front-card", zIndex: 4 },
       { id: "new-group", zIndex: 2 },
     ]);
+  });
+});
+
+describe("replacing the flow nodes", () => {
+  const context = {
+    onPatch: () => undefined,
+    onNoteChange: () => undefined,
+    onOpenReference: () => undefined,
+    onOpenBoard: () => undefined,
+  };
+  const note = noteNode("main", { x: 40, y: 40 }, []);
+
+  it("keeps the measured size, so React Flow does not hide the card to measure it again", () => {
+    // React Flow renders a node without dimensions with visibility: hidden. The size lives in
+    // style only, so a fresh node object without `measured` vanished for a frame on every
+    // selection change (T-149).
+    const shown = { ...storyboardFlowNode(note, context), measured: { width: 280, height: 210 } };
+    const next = { ...storyboardFlowNode(note, context), selected: true };
+    const [kept] = keepMeasuredFlowNodes([next], [shown]);
+    expect(kept.measured).toEqual({ width: 280, height: 210 });
+    expect(kept.selected).toBe(true);
+  });
+
+  it("leaves a node that was never measured as it is", () => {
+    const next = storyboardFlowNode(note, context);
+    expect(keepMeasuredFlowNodes([next], [])[0]).toBe(next);
   });
 });

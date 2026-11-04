@@ -72,13 +72,13 @@ job. The expensive part is the system half: on Windows, `--with-deps` enables a 
 on every run, which no cache can carry across runners -- 3 to 4 minutes in each of the ten Windows
 browser jobs.
 
-**The system half cannot be skipped on either system; the runner images lack what it installs.**
+**The runner images lack what the system half installs; Windows skips it anyway, Linux cannot.**
 
 - **windows-2025:** in all 9 sampled jobs `Install-WindowsFeature` reported
   `Success True, Exit Code Success, Feature Result {Media Foundation}`. A feature that is already
-  present reports `NoChangeNeeded` and an empty result; this one is installed fresh every time. A
-  fail-closed check for Media Foundation in front of a plain `playwright install chromium` would
-  therefore fail every Windows job.
+  present reports `NoChangeNeeded` and an empty result; this one is installed fresh every time.
+  The suites do not need it, though (T-45): a full-matrix run with a plain
+  `playwright install chromium` on Windows was green, see "Windows without `--with-deps`".
 - **ubuntu-24.04:** in all 5 sampled jobs apt installed 9–10 new packages, the same set each time:
   `fonts-freefont-ttf fonts-ipafont-gothic fonts-tlwg-loma-otf fonts-unifont fonts-wqy-zenhei
 xfonts-cyrillic xfonts-encodings xfonts-scalable xfonts-utils`. These are fonts. Without them
@@ -111,6 +111,35 @@ once on 2026-10-03 (so there is no lower Windows cap), and the macOS job waited 
 slots free. The waits look like runner supply on GitHub's side rather than this repository's
 load: a job sometimes gets its runner about 20 minutes late, whatever else is running. Between
 releases they are as rare as during them -- four in about 200 starts.
+
+### A job GitHub gives up on (T-154)
+
+Since 2026-11 a wait can end without a runner at all. In Release Build 41738619319 (dispatch,
+2026-11-03) "Core on macos-15" was created at 23:22:27 and cancelled at 23:37:28, with no runner
+name and no step. Its annotations say why:
+
+- failure: "The job was not acquired by Runner of type hosted even after multiple attempts"
+- notice, three times: "Due to capacity constraints, jobs targeting macOS arm64 runners may
+  experience longer queue times."
+
+Nothing in this repository cancelled it:
+
+- no `timeout-minutes` in `test.yml`, and a timeout counts execution, not queue time;
+- `test.yml`'s concurrency cancels only pull requests, and `release.yml` has none;
+- every matrix has `fail-fast: false`, and the browser slot that failed at 23:35:51 is in another
+  job;
+- `browser-e2e` started at 23:37:30, after the cancellation, and only reads results.
+
+The run's macOS load was four jobs, under the documented five: slots 1 and 2 started within 18
+seconds, slot 3 after five minutes, Core never. No other workflow used macOS at the time. In the
+seven full runs before it, every macOS job got its runner within 30 seconds.
+
+So this is runner supply, as above, but now GitHub cancels after about 15 minutes instead of
+starting late. No workflow setting avoids it. The verdict stays strict -- a cancelled required job
+fails `browser-e2e`, as C-18 demands -- and the recovery is **Re-run failed jobs** on the Release
+Build run: it re-runs the cancelled job, `browser-e2e` and every job after it, and
+`release-manifest` checks the head and the tag again in that attempt. Release Publish follows the
+attempt that completes with success.
 
 ## Release Build, per job
 
@@ -155,11 +184,26 @@ caches still mean less to keep that way. `workflow_contract.py` fails if test.ym
 `actions/cache` or any `cache:` other than npm; adding one means measuring it first and changing
 that rule with it.
 
-**Windows keeps `--with-deps`.** The windows-2025 image does not contain Media Foundation (9 of 9
-job logs install it fresh, see "Playwright install, split"), so a plain `playwright install
-chromium` behind a fail-closed check would fail every job. Whether the suites need Media
-Foundation at all is a separate question for T-45. Linux keeps `--with-deps` for the fonts it
-installs.
+### Windows without `--with-deps`
+
+The Windows browser jobs install only the browser: `npx playwright install chromium`. The system
+half enabled Media Foundation on every run, and nothing in the product or design suite needs it.
+
+- **Probe:** run 41736724041 (`ci/t45-probe`, `full_matrix=true`). The whole run was green; all 8
+  Windows browser slots, product and design, passed without `--with-deps`, with no codec or media
+  errors.
+- **Install Chromium per Windows job:** probe 15, 16, 17, 17, 17, 18, 18, 20 s (median 17 s);
+  with `--with-deps` in run 41725174932: 144, 200, 202, 207, 211, 212, 214, 225 s (median 207 s).
+  About 190 s saved per Windows job.
+- **Fail-closed check:** with no system half installed, a browser that cannot start would only
+  show up as timeouts inside the tests. The next step, `node tools/dev/chromium-starts.mjs`,
+  launches Chromium, renders a page and fails the job before any test when that does not work.
+  It has no `continue-on-error`.
+- **Contract:** `workflow_contract.py` fails when a Windows browser job of test.yml installs with
+  `--with-deps`, loses the check or lets it pass on failure, or when macOS loses `--with-deps`.
+
+macOS keeps `--with-deps` (1–4 s). Linux keeps it, through `tools/dev/playwright-linux.sh`, for the
+fonts it installs.
 
 ## Matrix
 
@@ -361,14 +405,16 @@ plan or get any job-level `if:` other than the path filter's browser group (see 
 On Windows and macOS a pull request runs `npx vitest run` and these product specs (test.yml,
 `cross-platform-smoke`, "Product smoke specs"):
 
-| Spec                                      | Tests | Why this one shows a system difference                                                                              |
-| ----------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
-| `tests/e2e/visual-baseline.spec.ts`       | 15    | Compares pixels against that system's own baseline set -- font rasterisation and native controls differ per system. |
-| `tests/e2e/world-gate-responsive.spec.ts` | 6     | Creates and opens a world: file creation, locks and paths in the data directory, at several window sizes.           |
-| `tests/e2e/chapter-navigation.spec.ts`    | 3     | Opens and switches chapters, which writes and reads the manuscript files.                                           |
-| `tests/e2e/manuscript-import.spec.ts`     | 9     | Imports manuscript files: file pickers, path separators and text encodings, where Windows differs most.             |
-| `tests/e2e/manuscript-export.spec.ts`     | 18    | Exports to files: file names, line endings and encodings of what is written.                                        |
-| **Total**                                 | 51    | of 531 product tests; Windows ran out of network buffers above 115 in one process                                   |
+| Spec                                      | Tests | Why this one shows a system difference                                                                                                |
+| ----------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/e2e/visual-baseline.spec.ts`       | 15    | Compares pixels against that system's own baseline set -- font rasterisation and native controls differ per system.                   |
+| `tests/e2e/world-gate-responsive.spec.ts` | 6     | Creates and opens a world: file creation, locks and paths in the data directory, at several window sizes.                             |
+| `tests/e2e/chapter-navigation.spec.ts`    | 3     | Opens and switches chapters, which writes and reads the manuscript files.                                                             |
+| `tests/e2e/manuscript-import.spec.ts`     | 9     | Imports manuscript files: file pickers, path separators and text encodings, where Windows differs most.                               |
+| `tests/e2e/manuscript-export.spec.ts`     | 18    | Exports to files: file names, line endings and encodings of what is written.                                                          |
+| `tests/e2e/editor-session-state.spec.ts`  | 15    | Keeps cursor, scroll and selection per chapter: Home/End are Cmd+Arrow on macOS, and the state is stored beside the manuscript files. |
+| `tests/e2e/chapter-version-diff.spec.ts`  | 21    | Compares chapter versions: select-all is Cmd+A on macOS, and the versions come from files written and read back.                      |
+| **Total**                                 | 87    | of 531 product tests; Windows ran out of network buffers above 115 in one process                                                     |
 
 Left out on purpose: `workspaces.spec.ts` (126 tests, more than the Windows limit on its own) and
 the design suite, whose system differences the visual baseline already samples. Everything left
@@ -481,6 +527,12 @@ the filter. Without the two files in the base -- the pull request that introduce
 or when `git show` cannot read them, the step writes nothing, warns, and every `run_<group>`
 falls back to `'true'`. The base's blobs come from a lazy fetch (the sparse checkout is partial);
 the repository is public, so that needs no token, and a failed fetch lands in the same fallback.
+A filter that **crashes** (broken JSON in the base, a Python error) does not turn the plan red
+either (T-48): the step writes `run_<group>=true` for every group and stays green, without
+`continue-on-error`. Later lines of `$GITHUB_OUTPUT` win, so this also overrides what the script
+wrote before it died. A crash can therefore only cost time, never tests. `workflow_contract.py`
+checks that the fallback names exactly the groups of `test-paths.json`;
+`test_a_crashed_path_filter_runs_every_group` runs the step with a dying filter.
 `test_path_filter.py` (`BaseFilterTests`) runs the step's own script in a scratch repository
 with a base, a pull request and a merge commit.
 
@@ -527,6 +579,20 @@ test.yml without an entry fails the contract, so T-35 (F-35-1) extends the same 
 
 Side effect: `browser-e2e` now waits for the slowest job (on main, the Windows slots) and turns
 red when any filtered job does, not only a browser slot.
+
+### The verdict, and one entry for pushes to main (T-35)
+
+`browser-e2e` also carries the workflow's verdict. In full mode it additionally requires every
+filtered job to be selected except the reduced-only smoke test (`REDUCED_ONLY`), and writes
+`verdict=full-success` only after that; `workflow_call.outputs.verdict` points at it, with
+`permissions: {}`. A push to main no longer starts this workflow: `release.yml` calls it with
+`full_matrix: true`, so the check is reported as `Full test matrix / browser-e2e` there and as
+`browser-e2e` on a pull request. Only pull requests cancel superseded runs; every other run has a
+group of its own (before, 13 of the last 60 main pushes were cancelled by a newer push). The
+release now runs the full matrix once, beside its own gate, instead of twice at the same time.
+`workflow_contract.py` holds the verdict, the expansions (4 Linux slots, 2 core runners, 11
+cross-platform browser slots), the triggers, the concurrency, the allowed step conditions and
+that a full-mode run skips nothing.
 
 ### Browser jobs start beside `frontend` (T-46)
 
@@ -665,7 +731,7 @@ R7 37113154094, R8 37111931104, R9 34236701740, R10 34098759267.
 | F3   | Product on macos                                        | `workspaces` "Autosave survives a reload"                                                                        | `Nach Reload vorhandenAnfang`                                                                                   | R5, R7                              | the chapter editor remounted empty after showing its text; typed text landed before the chapter body loaded into the new editor, and the merged text was saved. Product behaviour                                                             | open, reported as a product question                                                                                                                                                                                                                                                               |
 | F4   | Browser on macos, local win32                           | `visual-baseline` light-figures compact                                                                          | 352 px / 216 px                                                                                                 | R1                                  | a compact card's height depends on the zoom; one fitView measured the old height, so the viewport ended 0.3 px apart                                                                                                                          | fit until the transform settles; win32 baseline regenerated, darwin and linux figures-compact refilled by the baseline workflow                                                                                                                                                                    |
 | F5   | Product on macos                                        | `places-drag-pin` "Derived places drag…"                                                                         | stored anchor 28.8 px off                                                                                       | R5                                  | the entered map's ground changed between measuring and the drop; only the viewport transform was awaited                                                                                                                                      | measure the map once its rectangle is stable                                                                                                                                                                                                                                                       |
-| F6   | Product on macos                                        | `audit-followup` "history comparison remains readable"                                                           | dialog right edge 1810 > 1441                                                                                   | R6                                  | the history dialog grew past the viewport after the word diff rendered and stayed there (failure screenshot). Layout, not timing; not reproducible on Windows                                                                                 | open, reported as a product question                                                                                                                                                                                                                                                               |
+| F6   | Product on macos                                        | `audit-followup` "history comparison remains readable"                                                           | dialog right edge 1810 > 1441                                                                                   | R6                                  | the sheet was measured halfway through its slide-in (1810 = 1441 + 369 of its 880 px); it had stood still at its place for the first measurement, so its entry animation started late and had no effect before that                           | fixed (T-70): `animation-fill-mode: backwards` on `.ui-sheet`, so a delayed start shows the first keyframe, not the final place                                                                                                                                                                    |
 | I1   | Product on windows                                      | `npm ci`                                                                                                         | `EEXIST` in the npm cache                                                                                       | R4                                  | infrastructure, file lock in the npm cache                                                                                                                                                                                                    | open                                                                                                                                                                                                                                                                                               |
 | L1   | local Windows                                           | live-server Python tests                                                                                         | WinError 10053                                                                                                  | none in CI                          | the server refused a request (origin, host, auth, unknown route) before reading its body; Windows closes a socket with unread bytes with a reset instead of a FIN, and the client drops the answer it had already received. Product behaviour | `_discard_unread_body` in `server.py` reads and drops a body of up to 64 KiB with a valid Content-Length within one 2 s deadline before such an answer; anything larger, invalid or slower stays unread                                                                                            |
 | L2   | local Windows                                           | `review-regressions` 11                                                                                          | editor not visible 5 s after `goto`                                                                             | none in CI                          | a cold start under a two-worker run was bounded by the five seconds of an assertion                                                                                                                                                           | wait for the manuscript toolbar, bounded by the test timeout                                                                                                                                                                                                                                       |
@@ -674,10 +740,45 @@ R7 37113154094, R8 37111931104, R9 34236701740, R10 34098759267.
 | F7   | Browser on macos                                        | `editor-session-state` "Returning to Text restores the edited chapter, cursor, scroll and input focus" (compact) | `scrollTop` 5863, expected 5880 (17 px short)                                                                   | 41185881579                         | `finishRestore` in `packages/client/src/modules/manuscript/EditorSurface.tsx` (lines 336-350) writes `scrollTop` exactly once; a later height correction by CodeMirror shifts the content by about 17 px and the position no longer matches   | fixed (T-75): `holdScrollUntilStable` writes the position again after every measure until one passes without moving it (at most 8 rounds); no tolerance in the test                                                                                                                                |
 | F8   | Browser on macos                                        | `visual-baseline` dark-assistant compact                                                                         | 17078 px (6 %); the assistant sheet 526 px below its place, backdrop complete                                   | 41194493626                         | `toBeVisible` holds from the first frame of the sheet's `ui-sheet-up` slide (220 ms), so the capture started mid-slide; Playwright's `finish()` did not reach the macOS capture, both attempts showed the same frame. Not product behaviour   | wait for the sheet's own animations to finish (`animation.finished`) before the capture (T-77); no tolerance, no retry                                                                                                                                                                             |
 | L5   | local Windows, full product suite under load (T-84 run) | `competition-findings` "Set-aside chapters remain editable and survive trash, reload and restore"                | `inBook` expected false, received undefined after 5 s                                                           | none in CI; locally 1 of a full run | the test waited for each save with `expect.poll` and its 5 s budget; under load a request took 2-3 s, so the last poll started before the PUT landed. The app had saved correctly (trace: PUT with `inBook: false`, 200)                      | the test waits for the PUT that the click causes and reads the stored manuscript once (`savedAfter`). A probe that holds every save 6 s fails the old test 3 of 3 and passes the new one; 30 of 30 green at 8 workers. Page loads slower than 5 s under heavier load are a separate, general limit |
+| L6   | local Windows                                           | layout audit `workspace.text/popover.entity-mention`, tablet                                                     | hover card not visible 5 s after the hover                                                                      | local (T-80, T-104)                 | the stored panel layout was loaded in an effect; the first paint showed the default panels and the text column reflowed 40-60 ms later, after the step had measured the name                                                                  | read the stored layout while rendering (`useWorkspaceLayout`), T-115; no retry                                                                                                                                                                                                                     |
 
 The macOS cases F3, F5 and F6 come from the old unsharded macOS job; whether they still occur
 after T-33 is open. None of the fixes adds a general retry: F2 is the one single-case reload,
 limited to one failure text and recorded in the report whenever it fires.
+
+### F6: the history sheet measured halfway through its entry (T-70)
+
+The failure read as "the dialog stays wider than the window": right edge 1810 in a 1441 px
+viewport. It cannot be a layout. The sheet is 880 px wide (`--sheet-wide`) and its backdrop is
+fixed to the viewport, so its edge passes the viewport only through the entry transform
+(`translateX(100%)` to none); 1810 - 1441 = 369 px is the sheet at about 58 % of its slide, and
+the failure screenshot shows it still moving, left edge at 654. The trace shows a first
+measurement that found the sheet at rest, and the failing one a moment later in the middle of the
+slide. `.ui-sheet` had no `animation-fill-mode`: until the animation actually starts a sheet is
+drawn at its final place, and when the start comes late (a busy macOS runner) it then jumps out to
+the right and slides back in. A reader sees that as a flicker, the test as an overflow.
+
+`animation-fill-mode: backwards` applies the first keyframe from the first frame, so there is no
+frame at the final place before the slide. `tests/e2e/sheet-entry.spec.ts` delays the start by two
+seconds on purpose and checks that the sheet stands outside the viewport until it runs and inside
+it afterwards, in the wide and the compact project; it reads "left 560 in a 1440 px viewport" on
+the base and passes with the fix. Windows reproduces it because the delay stands in for the late
+start; no macOS machine is needed.
+
+### L6: the text column reflowed after the editor appeared (T-115)
+
+The capture step measured "Mara Venn" as soon as "Kapiteltext" was visible. In about one run in
+eight the first paint still showed the default panels: `useWorkspaceLayout` loaded the stored
+layout in an effect, so for 40-60 ms the text column was 154 px wide instead of 434 px and the
+name sat elsewhere. CodeMirror's hover checks the pointer 300 ms after the last move, found
+plain text there and never opened the card. CPU throttling did not reproduce it; tracing the
+column width per frame did. The stored layout is now read while rendering, so the first paint is
+the final one. The audit step is unchanged and has no retry.
+
+To reproduce timing flakes like this one without loading the machine, set
+`QUILTOR_AUDIT_STATE_DELAY_MS` (for example 2500) for an audit run: the mocked audit world then
+serves the story world that much later, which moved the reflow into the capture step on the base
+before T-115 (T-27). Unset, nothing is delayed.
 
 ### F2: the cause, a port range too small
 

@@ -66,8 +66,9 @@ grep '"event": "http.error"' quiltor-server.log
 | `storage.failed`           | the database or the disk failed, with the raw error code           |
 | `logging.configured`       | once at start                                                      |
 | `install.forbidden_hosted` | an install request refused because the server is hosted (OIDC)     |
+| `backup.*_failed`          | a backup, restore or backup sign-in step failed, with `error_type` |
 
-Further events from other parts of the server (backup, identity, assistant) keep their own fields.
+The backup failures are `backup.preview_failed`, `backup.remote_worlds_failed`, `backup.snapshot_failed`, `backup.remote_restore_failed`, `backup.local_restore_request_invalid`, `backup.local_restore_failed`, `backup.login_start_failed`, `backup.login_callback_rejected` and `backup.login_callback_failed`; each carries the exception's type, never its text. `backup.remote_request_failed` is written when a call to the backup endpoint fails and carries the call's `operation` (`push`, `worlds`, `snapshots`, `fetch_blob`, `account`, `sync_head`) and `error_type`, never the endpoint or the exception's text. Further events from other parts of the server (identity, assistant) keep their own fields.
 
 ## What is never in the log
 

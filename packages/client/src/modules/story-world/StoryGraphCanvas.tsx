@@ -8,6 +8,7 @@ import {
   type ReactFlowProps,
 } from "@xyflow/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useLatest } from "../../shared/hooks/useLatest";
 import { GraphViewportChrome } from "../graph";
 import type { SemanticZoomTier } from "./figures/relationships";
 
@@ -69,18 +70,17 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   const [interactive, setInteractive] = useState(true);
   const hasVisibleMinimap = minimapProps !== false && minimapVisible;
   const surface = useRef<HTMLDivElement>(null);
-  const reportSurface = useRef(onSurfaceResize);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  reportSurface.current = onSurfaceResize;
+  // Read only, by the ResizeObserver below.
+  const reportSurfaceRef = useLatest(onSurfaceResize);
 
   useEffect(() => {
     const element = surface.current;
     // A test renderer has no ResizeObserver, and a surface whose size was never
     // reported simply has no zoom floor -- the canvas behaves as it always did.
-    if (!element || !reportSurface.current || typeof ResizeObserver === "undefined") return;
+    if (!element || !reportSurfaceRef.current || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => {
       const box = entry.contentRect;
-      reportSurface.current?.({ width: box.width, height: box.height });
+      reportSurfaceRef.current?.({ width: box.width, height: box.height });
     });
     observer.observe(element);
     return () => observer.disconnect();

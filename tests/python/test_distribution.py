@@ -319,6 +319,97 @@ class EmbeddedProfileTests(unittest.TestCase):
         # container does not have.
         self.assertEqual(result.stdout.strip(), "quiltor.application.backup_manifest")
 
+    def test_backup_image_payload_imports_with_nothing_but_itself(self):
+        """Rebuild the backup image's /app from the Dockerfile's own COPY lines and import
+        every Python module in it with `-I -S`: no site-packages, no PYTHONPATH, no
+        checkout. An editable install of the project otherwise supplies any module the
+        image forgot -- that is how `quiltor.domain.json_values` went missing from the
+        image while the flat-layout test above stayed green (T-152).
+        """
+        dockerfile = (REPO_ROOT / "services/backup-server/Dockerfile").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / "app"
+            app.mkdir()
+            copied = []
+            for line in dockerfile.splitlines():
+                parts = line.split()
+                if not parts or parts[0] != "COPY" or any(p.startswith("--") for p in parts):
+                    continue
+                *sources, destination = parts[1:]
+                for source in sources:
+                    target = (
+                        app / destination / Path(source).name
+                        if destination.endswith("/")
+                        else app / destination
+                    )
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(REPO_ROOT / source, target)
+                    copied.append(target)
+            modules = sorted(
+                ".".join(p.relative_to(app).with_suffix("").parts)
+                for p in copied
+                if p.suffix == ".py" and p.name != "server.py"
+            )
+            self.assertIn("quiltor.application.backup_manifest", modules)
+            # server.py runs as a script in the image, so it is executed under its
+            # container filename rather than imported.
+            probe = (
+                "import importlib, sys; "
+                "sys.path.insert(0, sys.argv[1]); "
+                "[importlib.import_module(name) for name in sys.argv[3:]]; "
+                "source = open(sys.argv[2], encoding='utf-8').read(); "
+                "namespace = {'__file__': '/app/server.py', '__name__': 'probe'}; "
+                "exec(compile(source, '/app/server.py', 'exec'), namespace); "
+                "print('ok')"
+            )
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if not key.startswith("QUILTOR_") and key != "PYTHONPATH"
+            }
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    "-S",
+                    "-c",
+                    probe,
+                    str(app),
+                    str(app / "server.py"),
+                    *modules,
+                ],
+                cwd=app,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ok")
+
+    def test_backup_contract_payload_matches_the_dockerfile_copies(self):
+        """The image's build step asserts its files equal the contract's payload. Checking
+        the same equality here catches a COPY added without the contract entry before a
+        Docker build does."""
+        dockerfile = (REPO_ROOT / "services/backup-server/Dockerfile").read_text(encoding="utf-8")
+        contract = json.loads(
+            (REPO_ROOT / "services/backup-server/artifact-contract.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        payload = set()
+        for line in dockerfile.splitlines():
+            parts = line.split()
+            if not parts or parts[0] != "COPY" or any(p.startswith("--") for p in parts):
+                continue
+            *sources, destination = parts[1:]
+            for source in sources:
+                target = (
+                    destination + Path(source).name if destination.endswith("/") else destination
+                )
+                payload.add(target.removeprefix("./"))
+        self.assertEqual(payload, set(contract["payload"]))
+
     def test_oci_base_and_legal_payload_contracts_are_fail_closed(self):
         container_contract.validate_sources()
         app = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")

@@ -147,7 +147,7 @@ describe("workspace create-action consistency", () => {
     );
     expect(css).not.toMatch(/\.timeline-toolbar-actions\s*\{[^}]*display:\s*grid;/s);
     expect(css).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions > \.timeline-time-group\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1 1 auto;/s,
+      /@media \(max-width: 820px\)[\s\S]*?\.timeline-workspace \.timeline-toolbar-actions > \.timeline-time-group\s*\{[^}]*min-width:\s*0;[^}]*flex:\s*1 1 auto;/s,
     );
   });
 });

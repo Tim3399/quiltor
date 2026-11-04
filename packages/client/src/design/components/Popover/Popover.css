@@ -1,6 +1,6 @@
 .ui-popover {
   position: fixed;
-  z-index: var(--z-popover);
+  z-index: var(--z-popover-portal);
   box-sizing: border-box;
   width: max-content;
   max-width: min(var(--popover-max), calc(100vw - var(--space-24)));

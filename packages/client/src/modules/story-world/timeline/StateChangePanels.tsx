@@ -35,8 +35,13 @@ export function MomentStateWorkspace({
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia("(max-width: 719px)").matches,
   );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Changing the active moment intentionally closes its relationship inspector.
-  useEffect(() => setSelectedEdgeId(null), [moment.id]); // eslint-disable-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Changing the active moment closes its relationship inspector. Adjusted during render, so
+  // the old moment's inspector is never painted next to the new moment.
+  const [inspectedMomentId, setInspectedMomentId] = useState(moment.id);
+  if (inspectedMomentId !== moment.id) {
+    setInspectedMomentId(moment.id);
+    setSelectedEdgeId(null);
+  }
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
     const media = matchMedia("(max-width: 719px)"),

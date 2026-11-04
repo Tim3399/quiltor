@@ -16,6 +16,17 @@ function requiredJava(error: unknown, fallback: number): number {
   return typeof value === "number" ? value : fallback;
 }
 
+function numberParam(error: unknown, name: string): number {
+  const value = error instanceof ApplicationGatewayError ? error.params[name] : undefined;
+  return typeof value === "number" ? value : 0;
+}
+
+/** "620 MB" in the interface language, which the I18nProvider keeps on <html lang>. */
+function formatMegabytes(bytes: number): string {
+  const locale = document.documentElement.lang || "de";
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Math.ceil(bytes / 1_000_000))} MB`;
+}
+
 /**
  * The text the author sees for a failed writing-assistance request.
  *
@@ -41,6 +52,11 @@ export function writingAssistanceErrorMessage(
       return t("grammarDownloadFailed");
     case "writing_assistance.checksum_mismatch":
       return t("grammarChecksumMismatch");
+    case "writing_assistance.insufficient_space":
+      return t("writingDataInsufficientSpace", {
+        needed: formatMegabytes(numberParam(error, "needed")),
+        free: formatMegabytes(numberParam(error, "free")),
+      });
     case "writing_assistance.grammar_start_failed":
       return t("grammarStartFailed");
     case "writing_assistance.grammar_unavailable":

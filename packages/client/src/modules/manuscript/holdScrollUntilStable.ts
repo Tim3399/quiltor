@@ -10,13 +10,17 @@
  */
 export function holdScrollUntilStable({
   scroller,
-  top,
+  top: target,
   afterMeasure,
   onSettled,
   maxRounds = 8,
 }: {
   scroller: { scrollTop: number };
-  top: number;
+  /**
+   * The position to hold. A function is asked again every round: a target taken from
+   * CodeMirror's height map moves when a measure corrects the lines above it (T-149b).
+   */
+  top: number | (() => number);
   afterMeasure: (callback: (hasFocus: boolean) => void) => () => void;
   onSettled: (hasFocus: boolean) => void;
   maxRounds?: number;
@@ -29,7 +33,12 @@ export function holdScrollUntilStable({
       onSettled(false);
       return;
     }
-    if (written !== null && scroller.scrollTop === written) {
+    const top = typeof target === "function" ? target() : target;
+    // Compare against the target, not against what the last write left: right after mount
+    // the browser clamps the write to CodeMirror's estimated height, and a clamped position
+    // that merely stays put is not the restored one (T-149). Within a pixel, because
+    // scrollTop is fractional on scaled displays.
+    if (written !== null && scroller.scrollTop === written && Math.abs(written - top) <= 1) {
       onSettled(true);
       return;
     }

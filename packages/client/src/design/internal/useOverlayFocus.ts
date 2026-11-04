@@ -1,4 +1,5 @@
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect } from "react";
+import { useLatest } from "../../shared/hooks/useLatest";
 
 const overlayStack: symbol[] = [];
 const focusableSelector =
@@ -11,9 +12,7 @@ export function useOverlayFocus(
   onClose: () => void,
   returnFocusRef?: RefObject<HTMLElement | null>,
 ) {
-  const onCloseRef = useRef(onClose);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  onCloseRef.current = onClose;
+  const onCloseRef = useLatest(onClose);
 
   useEffect(() => {
     if (!active) return;

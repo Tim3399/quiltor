@@ -19,17 +19,53 @@ concurrency:
   group: release-publish
   cancel-in-progress: false
 
-permissions:
-  actions: read
-  contents: write
-  packages: write
+# Each job names its own permissions: select only reads the run, publish writes the release.
+permissions: {}
 
 jobs:
-  publish:
+  # Every push to main now completes a "Release Build" run; only the runs that built a manifest
+  # are releases. A run without one skips publication -- the safe direction. A requested run
+  # without one is an error.
+  select:
+    name: Select a Release Build run with a manifest
     if: >-
       (github.event_name == 'workflow_dispatch') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+    outputs:
+      release: ${{ steps.select.outputs.release }}
+    steps:
+      - id: select
+        name: Ask the run for its release manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          REQUESTED_RUN: ${{ inputs.build_run_id }}
+          EVENT_RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          RUN_ID="${REQUESTED_RUN:-$EVENT_RUN}"
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::invalid build run ID"; exit 1; }
+          COUNT="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/artifacts?name=release-manifest" --jq .total_count)"
+          if [ "$COUNT" = 1 ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$REQUESTED_RUN" ]; then
+            echo "::error::run $RUN_ID has no release manifest"
+            exit 1
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: select
+    if: needs.select.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+      packages: write
     steps:
       - id: build
         name: Verify the selected Release Build run and exact main revision
@@ -130,14 +166,14 @@ jobs:
             --check-not-older --current-version "$VERSION"
           FILES="$(python distribution/tooling/release_manifest.py files \
             --manifest release-assets/release-manifest.json)"
-          mapfile -t MANIFEST_FILES <<< "$FILES"
           ASSETS=("release-assets/release-manifest.json")
-          for file in "${MANIFEST_FILES[@]}"; do
+          # A read loop, nothing from bash 4: the release tests run this step under macOS's bash 3.2.
+          while IFS= read -r file; do
             [ -n "$file" ] || { echo "::error::manifest returned an empty release filename"; exit 1; }
             [ -f "release-assets/$file" ] \
               || { echo "::error::verified release file disappeared: $file"; exit 1; }
             ASSETS+=("release-assets/$file")
-          done
+          done <<< "$FILES"
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             [ "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true ] \
               || { echo "::error::v$VERSION is already published"; exit 1; }
@@ -145,8 +181,15 @@ jobs:
               || { echo "::error::existing draft points at another revision"; exit 1; }
             gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
           else
+            # Notes start at the previous app tag; left to GitHub they would start at the
+            # latest release, which may be a writing-data release.
+            START="$(python distribution/tooling/previous_release.py \
+              --notes-start-tag --current-version "$VERSION")"
+            START="${START#NOTES_START_TAG=}"
+            NOTES=(--generate-notes)
+            [ -z "$START" ] || NOTES+=(--notes-start-tag "$START")
             gh release create "v$VERSION" --target "$BUILD_SHA" \
-              --title "v$VERSION" --generate-notes --draft "${ASSETS[@]}"
+              --title "v$VERSION" "${NOTES[@]}" --draft "${ASSETS[@]}"
           fi
       - name: Promote immutable images and publish the draft
         env:

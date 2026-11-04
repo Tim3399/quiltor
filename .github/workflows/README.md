@@ -1,16 +1,114 @@
 # Release workflow boundary
 
-`release.yml` creates immutable, named outputs and a canonical release
+`release.yml` is the single entry point for every push to `main`. It always
+calls `test.yml` at the same commit with `full_matrix: true`; its release jobs
+run only when `release-plan` finds a changed `VERSION` (or on a manual
+dispatch). It creates immutable, named outputs and a canonical release
 manifest. Every enabled image/package/installer job has the same-workflow
-portable release gate as a hard dependency; a prior pull-request result is never
-treated as release evidence. That gate runs Python and frontend tests,
-contracts, architecture/distribution checks, Cargo formatting/lints/tests, the
-production client build, committed-`dist` verification, wheel/sdist plus both
-OCI builds and Playwright once. An initial job also rejects every ref except the
-exact current `main` SHA before a job with artifacts or package-write access can
-run. The workflow never creates a Git tag or GitHub Release and never moves a
-public version or `latest` container tag. OCI builds are pushed only under a
-unique `build-<run>-<attempt>-<sha>` hand-off tag and recorded by digest.
+release gate and the called full test matrix as hard dependencies: the matrix's
+`browser-e2e` job reports `full-success` only if every required job, including
+every matrix expansion, succeeded. A skipped required job is a failure. A prior
+pull-request result, or a separate `test.yml` run, is never treated as release
+evidence. The release gate runs as `release_preflight.py --ci-release-scope`,
+which skips exactly the steps the called matrix runs at the same commit and
+prints each skipped step; it runs the contracts, architecture/distribution
+checks, wheel/sdist plus both OCI builds locally and the rest of the portable
+gate once. An initial job also rejects every ref except the exact current
+`main` SHA before a job with artifacts or package-write access can run; the only
+exception is an explicit `dry_run` dispatch, which pushes no image, signs
+nothing and produces no manifest, so nothing can be published from it. The
+workflow never creates a Git tag or GitHub Release and never moves a public
+version or `latest` container tag. OCI builds are pushed only under a unique
+`build-<run>-<attempt>-<sha>` hand-off tag and recorded by digest.
+
+## One entry point for tests
+
+- **`test.yml` runs on pull requests and manual dispatches only.** It has no
+  `push` trigger and never runs on `main` by itself. A push to `main` reaches the
+  tests through the `tests` job of `release.yml`, so every main commit gets the
+  full matrix whether or not it releases, and the tests run once, not twice.
+- **Concurrency.** Only pull requests share a group per ref and cancel their
+  superseded runs. Every other run, a dispatch or the call from `release.yml`,
+  gets a group of its own, so a newer push can never cancel the tests of an older
+  one. `release.yml` has no concurrency group for the same reason.
+- **The verdict.** `test.yml` exposes `verdict` as a `workflow_call` output. The
+  `browser-e2e` job writes it only after every check passed: `full-success` in
+  full mode, `reduced-success` otherwise, and nothing when the gate is red. A
+  called workflow concludes `success` even when all of its jobs were skipped, so
+  the release reads the verdict, never the conclusion of the call.
+- **Check names.** For pull requests the required check is `browser-e2e`. For a
+  push to `main` the same job is reported as `Full test matrix / browser-e2e`
+  (calling job / called job). Branch protection on `main` has to use that name;
+  protection for pull requests keeps the short one.
+- **Dry run.** A manual dispatch of `release.yml` with `dry_run: true` rehearses
+  the whole run on any branch: every gate and build runs, but no registry login or
+  push, no signing job (they read the signing secrets) and no manifest. The run
+  ends red unless the verdict is `full-success`, the three unsigned artifact jobs
+  succeeded and the manifest and signing jobs were skipped.
+- **Contracts.** `workflow_contract.py` holds all of this: the single entry, the
+  literal `full_matrix: true`, the verdict, the edges from every writing job to
+  `tests` and `release-gate`, and the dry-run boundary. Sources: [skipped required
+  checks report success](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/troubleshooting-required-status-checks),
+  [the `github` context in a called workflow is the caller's](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
+
+### Releases that change visual baselines
+
+The release run includes `visual-baseline-reach`, so a release commit that
+deletes baseline images cannot pass. Push the release state to a branch first,
+let "Generate visual baselines" fill in the missing images there, then
+fast-forward `main` to that branch head. The bootstrap never runs on `main`: it
+ignores pushes to `main` and refuses a dispatch that targets it, because a
+commit it pushed there would trigger no workflow and so carry no tests. If `main`
+still lacks images, fill them in on a branch off `main` and bring that branch
+back; release with a manual dispatch of `release.yml` if `VERSION` did not change
+in that push.
+
+### Re-running a red release
+
+"Re-run failed jobs" continues the same run at the same commit: the called test
+matrix, the artifact jobs that waited for it and `release-manifest` run again,
+and `release-manifest` re-checks the `main` head and the version tag first. The
+publisher re-checks both once more. A re-run uses the privileges of the actor who
+first triggered the run; for a release that is the person who pushed or
+dispatched, which is no problem here, but it is the reason a re-run cannot
+widen what a job may do. Re-runs end after 30 days and after 50 attempts.
+
+### Orphaned hand-off images
+
+A release run that fails after its image jobs leaves
+`build-<run>-<attempt>-<sha>` images in the registry, for example when two runs
+for different commits overlap and the older one stops at the head check. They
+are harmless: no tag or release points at them. CI does not delete them, because
+that would need delete permission on packages in a workflow. To list and remove
+them by hand:
+
+```bash
+gh api "/users/<owner>/packages/container/quiltor/versions" --paginate \
+  --jq '.[] | select(any(.metadata.container.tags[]; startswith("build-"))) | [.id, .metadata.container.tags[0]] | @tsv'
+gh api -X DELETE "/users/<owner>/packages/container/quiltor/versions/<id>"
+```
+
+Use `/orgs/<owner>/…` for an organization, and the same for `quiltor-backup`.
+This repository's owner is a user account, so `/orgs/…` answers 404 here. The
+`/users/…` path is right, but the token needs `read:packages` to list and
+`delete:packages` to delete (`gh auth refresh -s read:packages,delete:packages`).
+Never delete a version whose tag is a release version or `latest`.
+
+### Release gate scope
+
+In `release.yml` the portable gate runs as `--ci-release-scope` and nothing else
+may use the flag; locally, and in `npm run set-version`, the preflight always
+runs every step. The flag refuses to run outside `release.yml` on GitHub Actions.
+
+### Publishing
+
+`release-publish.yml` starts with a read-only `select` job. Only a successful
+`main` run of Release Build that built a `release-manifest` artifact is
+published; a push without a version change has none and is skipped. A manual
+dispatch for a run without a manifest is an error. The publish job needs
+`select`, so it cannot run on any other path. A second run for a version that is
+already released stops at the existing checks: a published release, or a draft
+that points at another revision, is refused before anything is promoted.
 
 `release-publish.yml` accepts one successful build run, checks out its exact SHA,
 and resolves the same source-controlled release targets. It always downloads the

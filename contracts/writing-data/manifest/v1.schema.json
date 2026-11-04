@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/writing-data/manifest/v1.schema.json",
+  "title": "Quiltor writing-data release manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "dataVersion",
+    "dictionarySchema",
+    "license",
+    "licenseUrl",
+    "attribution",
+    "asset",
+    "sqlite",
+    "rows",
+    "sources",
+    "toolCommit"
+  ],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "dataVersion": { "type": "string", "pattern": "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$" },
+    "dictionarySchema": { "const": 2 },
+    "license": { "const": "CC-BY-SA-4.0" },
+    "licenseUrl": { "const": "https://creativecommons.org/licenses/by-sa/4.0/" },
+    "attribution": { "type": "string", "minLength": 20 },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "bytes", "sha256"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^writing-[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.sqlite3\\.gz$"
+        },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "sqlite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bytes", "sha256", "contentSha256", "sqliteVersion", "zlibVersion"],
+      "properties": {
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "contentSha256": { "$ref": "#/$defs/sha256" },
+        "sqliteVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "zlibVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "rows": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries", "forms"],
+      "properties": {
+        "entries": {
+          "type": "object",
+          "patternProperties": {
+            "^(?:de-DE|en-GB)/(?:dictionary|synonyms|translation)$": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "forms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dewiktionary", "openthesaurus"],
+      "properties": {
+        "dewiktionary": { "$ref": "#/$defs/source" },
+        "openthesaurus": { "$ref": "#/$defs/source" }
+      }
+    },
+    "toolCommit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file",
+        "upstream_url",
+        "archive_name",
+        "archive_url",
+        "etag",
+        "last_modified",
+        "bytes",
+        "sha256",
+        "fetched_at"
+      ],
+      "properties": {
+        "file": { "type": "string", "pattern": "^[a-z]+\\.(?:jsonl\\.gz|zip)$" },
+        "upstream_url": { "type": "string", "pattern": "^https://" },
+        "archive_name": { "type": "string", "pattern": "^source-[a-z]+-[^/]+$" },
+        "archive_url": {
+          "oneOf": [{ "type": "string", "pattern": "^https://" }, { "type": "null" }]
+        },
+        "etag": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "last_modified": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "fetched_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        }
+      }
+    }
+  }
+}

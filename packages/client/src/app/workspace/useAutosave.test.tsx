@@ -145,6 +145,71 @@ describe("explicit autosave flush", () => {
     expect(result.current.phase).toBe("saved");
   });
 
+  it("lets the debounce timer save through the save function of the latest render", async () => {
+    vi.useFakeTimers();
+    const first = vi.fn().mockResolvedValue(undefined);
+    const latest = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = renderHook(({ value, save }) => useAutosave(value, save, 25), {
+      initialProps: { value: { body: "saved" }, save: first },
+      wrapper,
+    });
+    const draft = { body: "draft" };
+    rerender({ value: draft, save: first });
+    rerender({ value: draft, save: latest });
+
+    await act(async () => vi.advanceTimersByTimeAsync(25));
+
+    expect(latest).toHaveBeenCalledWith(draft);
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  // F-17-6: replace() hands over the server-confirmed value, and callers go on with it before
+  // React renders again. resolve() and a second replace() must compare against `persisted`.
+  it("resolves the persisted value right after a replace, without a render in between", async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const saveExpected = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(({ value }) => useAutosave(value, save), {
+      initialProps: { value: { body: "saved" } },
+      wrapper,
+    });
+    const draft = { body: "draft" };
+    rerender({ value: draft });
+    const persisted = { body: "persisted" };
+
+    let replaced = false;
+    await act(async () => {
+      replaced = result.current.replace(draft, persisted);
+      await result.current.resolve(persisted, saveExpected);
+    });
+
+    expect(replaced).toBe(true);
+    expect(saveExpected).toHaveBeenCalledWith(persisted);
+    expect(result.current.error).not.toMatch(/geändert|changed/i);
+    expect(result.current.phase).toBe("saved");
+  });
+
+  it("accepts a second replace of the persisted value right after the first", () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(({ value }) => useAutosave(value, save), {
+      initialProps: { value: { body: "saved" } },
+      wrapper,
+    });
+    const draft = { body: "draft" };
+    rerender({ value: draft });
+    const persisted = { body: "persisted" };
+    const next = { body: "next" };
+
+    let first = false;
+    let second = false;
+    act(() => {
+      first = result.current.replace(draft, persisted);
+      second = result.current.replace(persisted, next);
+    });
+
+    expect(first).toBe(true);
+    expect(second).toBe(true);
+  });
+
   it("does not save a value it was told is loaded, nor the first value after discard (b′)", async () => {
     vi.useFakeTimers();
     const save = vi.fn().mockResolvedValue(undefined);

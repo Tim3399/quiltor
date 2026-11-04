@@ -66,10 +66,9 @@ describe("StoryNodeCard", () => {
     );
 
     expect(screen.getByText("Ort")).toHaveClass("node-kind");
-    expect(screen.getByText("D", { selector: ".node-monogram" })).toHaveAttribute(
-      "aria-hidden",
-      "true",
-    );
+    expect(
+      screen.getByText("D", { selector: ".node-monogram-letter" }).closest(".node-monogram"),
+    ).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toContainElement(
       screen.getByTestId("leading"),
     );
@@ -77,5 +76,18 @@ describe("StoryNodeCard", () => {
       screen.getByTestId("trailing"),
     );
     expect(screen.getByText("An der Nebelküste", { selector: "small" })).toBeInTheDocument();
+  });
+
+  it("keeps the full name readable as a title when the card cuts it with an ellipsis", () => {
+    render(
+      <StoryNodeCard zoomTier="detail" viewportZoom={1}>
+        <StoryNodeIdentity kindLabel="Ort" name="Leuchtturm Süderoog" />
+      </StoryNodeCard>,
+    );
+
+    expect(screen.getByText("Leuchtturm Süderoog", { selector: "strong" })).toHaveAttribute(
+      "title",
+      "Leuchtturm Süderoog",
+    );
   });
 });
