@@ -148,13 +148,20 @@ for (const theme of ["light", "dark"] as const) {
     await expect(choose).toBeEnabled();
     await dialog.getByText("Anfang · Im Papierkorb", { exact: true }).click();
     await expect(dialog).toContainText("Die andere Fassung liegt im Papierkorb.");
-    await dialog.evaluate(async (element) => {
-      await Promise.all(
-        element
-          .getAnimations({ subtree: true })
-          .map((animation) => animation.finished.catch(() => undefined)),
-      );
-    });
+    // Wait for what is on screen to settle, not for `finished` promises: loading the cloud
+    // version toggles `disabled` on the sign-out button inside the collapsed "Technische
+    // Details", and Chromium never resolves `finished` for a transition in a closed <details>
+    // even though its playState reads "finished".
+    await expect
+      .poll(() =>
+        dialog.evaluate(
+          (element) =>
+            element
+              .getAnimations({ subtree: true })
+              .filter((animation) => animation.pending || animation.playState === "running").length,
+        ),
+      )
+      .toBe(0);
     const axe = await new AxeBuilder({ page })
       .include('[role="dialog"]')
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
