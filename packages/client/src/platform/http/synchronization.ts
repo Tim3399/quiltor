@@ -8,7 +8,13 @@ import { decodeManuscriptV1 } from "../contracts/v1/manuscript";
 import { decodeStoryWorldV1 } from "../contracts/v1/storyWorld";
 import { decodeStoryboardsV1 } from "../contracts/v1/storyboards";
 import { currentMessages } from "./locale";
-import { type HttpApplicationState, requestJson, withWorldBody, withWorldQuery } from "./request";
+import {
+  type HttpApplicationState,
+  postJson,
+  requestJson,
+  withWorldBody,
+  withWorldQuery,
+} from "./request";
 
 function invalid(): never {
   throw new ApplicationGatewayError(currentMessages().errorInvalidResponse, "invalid_response");
@@ -121,17 +127,11 @@ export function createSynchronizationHttpGateway(
       decodeSyncTarget(await requestJson(withWorldQuery(state, "/api/sync/target"))),
     setTarget: async (backupUrl) =>
       decodeSyncTarget(
-        await requestJson(withWorldQuery(state, "/api/sync/target"), {
-          method: "POST",
-          body: JSON.stringify({ backupUrl }),
-        }),
+        await postJson(withWorldQuery(state, "/api/sync/target"), { backupUrl }),
       ),
     synchronize: async (request) => {
       const wire = record(
-        await requestJson("/api/sync", {
-          method: "POST",
-          body: JSON.stringify(withWorldBody(state, request)),
-        }),
+        await postJson("/api/sync", withWorldBody(state, request)),
       );
       if (
         wire.ok !== true ||

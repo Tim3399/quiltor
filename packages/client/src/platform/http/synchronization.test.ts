@@ -98,6 +98,8 @@ describe("synchronization HTTP gateway", () => {
     expect(fetchMock.mock.calls[2]?.[1]).toEqual(
       expect.objectContaining({ method: "POST", cache: "no-store" }),
     );
+    // The server reads a JSON body only when it is declared as one; otherwise it answers 400.
+    expect(fetchMock.mock.calls[2]?.[1]?.headers).toEqual({ "Content-Type": "application/json" });
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
       action: "use-remote",
       expectedGeneration: 2,
@@ -255,6 +257,7 @@ describe("sync target", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/sync/target?world=${WORLD_ID}`);
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ backupUrl: "https://sync.example" }),
     });
   });
