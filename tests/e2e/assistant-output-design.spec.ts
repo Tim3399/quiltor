@@ -28,6 +28,11 @@ async function openSnapshot(page: Page) {
   await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog).toBeVisible();
+  // The sheet slides in; until that ends its box sits a few pixels past the right edge, and a
+  // fast save answer let the geometry check below measure mid-slide (T-174).
+  await dialog.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+  );
   return dialog;
 }
 
