@@ -69,9 +69,18 @@ async function expectContained(page: Page, dialog: Locator) {
   // The sheet slides and fades in, and a button under the pointer fades its colour; measured
   // mid-way either one sticks out or fails contrast. The design gallery stops transitions the same way.
   await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; }" });
-  await dialog.evaluate((element) =>
-    Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)),
-  );
+  // Poll the visible state rather than awaiting `finished`: Chromium never resolves it for a
+  // transition inside a closed <details> (see cloud-workflow.spec.ts, T-87 F1).
+  await expect
+    .poll(() =>
+      dialog.evaluate(
+        (element) =>
+          element
+            .getAnimations({ subtree: true })
+            .filter((animation) => animation.pending || animation.playState === "running").length,
+      ),
+    )
+    .toBe(0);
   const geometry = await dialog.evaluate((element) => ({
     width: element.clientWidth,
     scroll: element.scrollWidth,
