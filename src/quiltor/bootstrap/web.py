@@ -140,6 +140,9 @@ class ManuscriptImportRouteServices:
 class HistoryRouteServices:
     history: Any
     lock: threading.Lock
+    # The one write the history routes have (T-87 B): putting a version back. Only
+    # that bound use case, not the whole backups slice, so the routes stay narrow.
+    restore_version: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,7 +318,11 @@ class WebApplication:
         if path.startswith("/api/manuscript-export"):
             return ManuscriptExportRouteServices(self.application.manuscript_export, self.lock)
         if path.startswith("/api/history"):
-            return HistoryRouteServices(self.application.history, self.lock)
+            return HistoryRouteServices(
+                self.application.history,
+                self.lock,
+                self.application.backups.restore_version,
+            )
         if path.startswith("/api/writing-assistance"):
             return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)

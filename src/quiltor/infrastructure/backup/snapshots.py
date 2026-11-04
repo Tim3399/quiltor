@@ -86,6 +86,18 @@ def is_automatic_message(message: str) -> bool:
     return _AUTOMATIC_MESSAGE_RE.fullmatch(message) is not None
 
 
+# The name a restore gives the state it is about to replace (D-57 F3). Persisted
+# as written, like the automatic name; the history reports kind "before-restore".
+BEFORE_RESTORE_MESSAGE = "Before restore"
+
+
+def message_kind(message: str) -> str:
+    """The kind the history reports for a snapshot name the server may have chosen."""
+    if message == BEFORE_RESTORE_MESSAGE:
+        return "before-restore"
+    return "automatic" if is_automatic_message(message) else "manual"
+
+
 # Word-diff tokens: runs of non-space, single newlines, and runs of blanks kept
 # separate so rewrapping a paragraph does not read as every word having changed.
 _TOKEN_RE = re.compile(r"\S+|\n|[^\S\n]+")
@@ -830,7 +842,7 @@ class SnapshotStore:
                 "shortHash": entry["id"][:8],
                 "date": datetime.fromisoformat(entry["created"]).isoformat(timespec="seconds"),
                 "subject": entry.get("message", ""),
-                "kind": "automatic" if is_automatic_message(entry.get("message", "")) else "manual",
+                "kind": message_kind(entry.get("message", "")),
             }
             for entry in reversed(entries)
         ]
