@@ -13,6 +13,9 @@ export interface ChapterComparisonResult {
   previous: SnapshotChapterRecord;
 }
 
+/** Who named a snapshot. "before-restore": the server's own commit before a version restore. */
+export type SnapshotKindWire = "automatic" | "manual" | "before-restore";
+
 export interface HistoryGateway {
   log(): Promise<{
     ok: boolean;
@@ -21,9 +24,11 @@ export interface HistoryGateway {
       shortHash: string;
       date: string;
       subject: string;
-      kind?: "automatic" | "manual";
+      kind?: SnapshotKindWire;
     }>;
   }>;
+  /** Restores the world to a snapshot. The server records the current state first. */
+  restore(id: string): Promise<void>;
   diff(
     ref?: string,
     word?: boolean,

@@ -1,9 +1,11 @@
-"""Read-only routes for a world's local version history."""
+"""Routes for a world's local version history: reading it, and putting a version back."""
 
 from __future__ import annotations
 
+from quiltor.application.backup_manifest import BackupContractError
+from quiltor.application.errors import ApplicationError
 from quiltor.application.history import HistoryRequestInvalid
-from quiltor.delivery.http.routes import Request, get
+from quiltor.delivery.http.routes import Request, get, save
 
 
 @get("/api/history", world=True)
@@ -66,4 +68,33 @@ def chapter_comparison(handler, request: Request, app) -> None:
         )
 
 
-__all__ = ["chapter_comparison", "chapter_text", "diff", "entries"]
+@save("/api/history/restore", world=True)
+def restore(handler, request: Request, app) -> None:
+    """Put a version from the local history back (T-87 B). Local, so not device_sync:
+    a hosted server restores its own history like any other."""
+    try:
+        payload = handler._read_json_body()
+    except Exception:  # an unreadable body names no version
+        payload = None
+    revision_id = payload.get("id") if isinstance(payload, dict) else None
+    if not isinstance(revision_id, str) or not revision_id.strip() or len(revision_id) > 200:
+        return handler.send_exception(HistoryRequestInvalid(params={"field": "id"}))
+    world = request.world
+    try:
+        with app.lock:
+            result = app.restore_version(
+                world.backup,
+                world.document_location,
+                world.id,
+                request.session.sub,
+                revision_id,
+            )
+    except ApplicationError as exc:
+        return handler.send_exception(exc)
+    except BackupContractError as exc:
+        # A blob of that version is missing or damaged; the world was not touched.
+        return handler.send_api_error(409, error_code=exc.code, retryable=False)
+    handler.send_json(result)
+
+
+__all__ = ["chapter_comparison", "chapter_text", "diff", "entries", "restore"]
