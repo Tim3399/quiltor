@@ -156,7 +156,9 @@
 
 .ui-button[data-label-overflow="wrap"] {
   height: auto;
-  padding-block: var(--spacing-compact-wide);
+  /* One line plus this padding and the border must stay under the control height, so the
+     minimum height decides a one-line action and the padding only shows on two (T-127). */
+  padding-block: var(--spacing-compact-tight);
   white-space: normal;
 }
 

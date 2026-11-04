@@ -1,5 +1,5 @@
 import unittest
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from quiltor.domain.story_world.knowledge import (
     KnowledgeChunk,
@@ -132,6 +132,31 @@ class KnowledgeTest(unittest.TestCase):
         )
         self.assertIn("Ab Krönung: Misstrauen (aktiv)", chunk.text)
         self.assertIn("Ab Krönung: Bruch (beendet)", chunk.text)
+
+    def test_relationship_chunk_names_its_direction_in_german(self):
+        # The assistant reads this text as world knowledge, so no English word may sit in it.
+        directions = {}
+        for name, directed in (("gerichtet", True), ("ungerichtet", False), ("fehlt", None)):
+            edge: dict[str, Any] = {
+                "id": "trust",
+                "from": "mara",
+                "to": "iven",
+                "label": "Verbündete",
+            }
+            if directed is not None:
+                edge["directed"] = directed
+            figures = {**self.figures, "edges": [edge]}
+            chunk = next(
+                chunk
+                for chunk in build_knowledge(self.manuscript, figures)
+                if chunk.id == "relationship:trust"
+            )
+            directions[name] = chunk.text
+        self.assertIn("\nArt: gerichtet", directions["gerichtet"])
+        self.assertIn("\nArt: ungerichtet", directions["ungerichtet"])
+        self.assertIn("\nArt: ungerichtet", directions["fehlt"])
+        for text in directions.values():
+            self.assertNotIn("directed", text)
 
     def test_retrieve_graph_expansion_pulls_in_a_relationship_the_query_never_mentions(self):
         # The relationship chunk's own text never contains "Archivarin" or "Mara" as a query

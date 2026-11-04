@@ -162,4 +162,42 @@ describe("CommandPalette", () => {
     );
     expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
   });
+
+  it("clears the query and the selection when it opens again", () => {
+    const items: CommandPaletteItem[] = [
+      { id: "one", label: "Manuskript öffnen", onSelect: vi.fn() },
+      { id: "two", label: "Timeline öffnen", onSelect: vi.fn() },
+    ];
+    const palette = (open: boolean) => (
+      <CommandPalette
+        open={open}
+        label="Befehle"
+        closeLabel="Palette schließen"
+        inputLabel="Befehl suchen"
+        placeholder="Suchen"
+        emptyLabel="Nichts gefunden"
+        onClose={vi.fn()}
+        items={items}
+      />
+    );
+    const { rerender } = render(palette(true));
+    const input = () => screen.getByRole("combobox", { name: "Befehl suchen" });
+    fireEvent.change(input(), { target: { value: "öffnen" } });
+    fireEvent.keyDown(input(), { key: "ArrowDown" });
+    expect(input()).toHaveValue("öffnen");
+    expect(screen.getByRole("option", { name: "Timeline öffnen" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    rerender(palette(false));
+    rerender(palette(true));
+
+    expect(input()).toHaveValue("");
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.getByRole("option", { name: "Manuskript öffnen" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
 });

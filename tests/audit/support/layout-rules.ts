@@ -5,6 +5,7 @@
 // at, so a real Quiltor page stays within a few seconds. Contrast is delegated to axe-core.
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
+import { toolbarRowFindings } from "./toolbar-row";
 import type { Finding, LayoutContext, Rect, Severity } from "./types";
 
 type RawFinding = {
@@ -19,9 +20,18 @@ export async function analyzeLayout(page: Page, ctx: LayoutContext): Promise<Fin
   const domFindings = await page.evaluate(collectDomFindings, {
     touch: ctx.touch,
     popupSelector: ctx.popupSelector ?? null,
+    stackedSelectors: ctx.stackedSelectors ? [...ctx.stackedSelectors] : null,
   });
+  const toolbarFindings: RawFinding[] = (await page.evaluate(toolbarRowFindings, 1.5)).map(
+    (finding) => ({
+      rule: "toolbar-row",
+      severity: "high",
+      message: finding.message,
+      rect: finding.rect,
+    }),
+  );
   const contrastFindings = await collectContrastFindings(page);
-  return [...domFindings, ...contrastFindings].map((finding) => ({
+  return [...domFindings, ...toolbarFindings, ...contrastFindings].map((finding) => ({
     source: "rules" as const,
     ...finding,
   }));
@@ -79,6 +89,7 @@ async function collectContrastFindings(page: Page): Promise<RawFinding[]> {
 function collectDomFindings(options: {
   touch: boolean;
   popupSelector: string | null;
+  stackedSelectors: string[] | null;
 }): RawFinding[] {
   const findings: RawFinding[] = [];
   const seen = new Set<string>();
@@ -366,18 +377,67 @@ function collectDomFindings(options: {
   }
 
   // --- clipped-text -----------------------------------------------------------------------
+  // Text that an `overflow: hidden|clip` box really cuts. The box's scroll size alone proves
+  // nothing: a canvas, a panel with its own scroller or a collapsed <details> all have more
+  // content than fits, and none of it is cut text. So every visible text node under the box is
+  // measured with Range.getClientRects() and counts only when a line fragment lies outside the
+  // box on an axis that the box itself clips. Three kinds of text are not cut by this box:
+  // - text behind an inner overflow box on that axis (that box is judged on its own),
+  // - text on a pan/zoom layer (an ancestor below the box has a CSS transform): a canvas shows
+  //   a window onto it by design,
+  // - text of a position:fixed layer, which is not clipped by the box at all.
+  const clipsOverflow = (value: string) => value === "hidden" || value === "clip";
+  const ownsOverflow = (value: string) => value !== "visible";
   for (const element of rendered) {
     if (element === document.body) continue;
     const style = getComputedStyle(element);
-    const clipsX = style.overflowX === "hidden" || style.overflowX === "clip";
-    const clipsY = style.overflowY === "hidden" || style.overflowY === "clip";
+    const clipsX = clipsOverflow(style.overflowX);
+    const clipsY = clipsOverflow(style.overflowY);
     if (!clipsX && !clipsY) continue;
     const cutX = clipsX && element.scrollWidth > element.clientWidth + 1;
     const cutY = clipsY && element.scrollHeight > element.clientHeight + 1;
     if (!cutX && !cutY) continue;
-    const text = (element.textContent ?? "").trim();
-    if (text === "") continue;
     if (isVisuallyHidden(element)) continue;
+    const area = element.getBoundingClientRect();
+    const inner = {
+      left: area.left + element.clientLeft,
+      top: area.top + element.clientTop,
+      right: area.left + element.clientLeft + element.clientWidth,
+      bottom: area.top + element.clientTop + element.clientHeight,
+    };
+    let cutText = "";
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node && cutText === ""; node = walker.nextNode()) {
+      const text = (node.textContent ?? "").trim();
+      const parent = node.parentElement;
+      if (text === "" || !parent || !isRendered(parent)) continue;
+      let blockedX = false;
+      let blockedY = false;
+      let elsewhere = false;
+      for (
+        let layer: Element | null = parent;
+        layer && layer !== element;
+        layer = layer.parentElement
+      ) {
+        const layerStyle = getComputedStyle(layer);
+        if (ownsOverflow(layerStyle.overflowX)) blockedX = true;
+        if (ownsOverflow(layerStyle.overflowY)) blockedY = true;
+        if (layerStyle.transform !== "none" || layerStyle.position === "fixed") elsewhere = true;
+      }
+      if (elsewhere || (blockedX && blockedY)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const rect of Array.from(range.getClientRects())) {
+        if (rect.width < 0.5 || rect.height < 0.5) continue;
+        const outX = rect.left < inner.left - 1 || rect.right > inner.right + 1;
+        const outY = rect.top < inner.top - 1 || rect.bottom > inner.bottom + 1;
+        if ((clipsX && !blockedX && outX) || (clipsY && !blockedY && outY)) {
+          cutText = text;
+          break;
+        }
+      }
+    }
+    if (cutText === "") continue;
     const ellipsis =
       style.textOverflow === "ellipsis" ||
       (style.getPropertyValue("-webkit-line-clamp") !== "" &&
@@ -388,7 +448,6 @@ function collectDomFindings(options: {
       element.hasAttribute("aria-labelledby") ||
       element.closest("[title]") !== null;
     const severity: Severity = ellipsis ? (fullTextReachable ? "low" : "medium") : "high";
-    const box = element.getBoundingClientRect();
     const how = ellipsis
       ? fullTextReachable
         ? "truncated with an ellipsis; the full text is available through title or ARIA"
@@ -398,9 +457,9 @@ function collectDomFindings(options: {
       {
         rule: "clipped-text",
         severity,
-        message: `Text is ${how} (content ${element.scrollWidth}x${element.scrollHeight}px in a ${element.clientWidth}x${element.clientHeight}px box): "${text.slice(0, 60)}".`,
+        message: `Text is ${how} (content ${element.scrollWidth}x${element.scrollHeight}px in a ${element.clientWidth}x${element.clientHeight}px box): "${cutText.slice(0, 60)}".`,
         selector: selectorOf(element),
-        rect: roundRect(box),
+        rect: roundRect(area),
       },
       selectorOf(element),
     );
@@ -530,6 +589,41 @@ function collectDomFindings(options: {
       },
       [first, second].sort().join("|"),
     );
+  }
+
+  // --- overlay-stack ---------------------------------------------------------------------
+  // The overlap rule above sees only a control covered by another control. A banner or a legend
+  // is no control, so a breadcrumb trail lying under a hint banner (T-109) slips through it. A
+  // state that stacks overlays names them, and any two that share area are reported. Elements
+  // of one selector are not compared with each other.
+  const stacked = options.stackedSelectors ?? [];
+  const stackedBoxes = stacked.map((selector) =>
+    Array.from(document.querySelectorAll(selector))
+      .filter((element) => isRendered(element) && !isHiddenFromUsers(element))
+      .map((element) => ({ selector, element, box: element.getBoundingClientRect() })),
+  );
+  for (let a = 0; a < stackedBoxes.length; a += 1) {
+    for (let b = a + 1; b < stackedBoxes.length; b += 1) {
+      for (const first of stackedBoxes[a] ?? []) {
+        for (const second of stackedBoxes[b] ?? []) {
+          const width =
+            Math.min(first.box.right, second.box.right) - Math.max(first.box.left, second.box.left);
+          const height =
+            Math.min(first.box.bottom, second.box.bottom) - Math.max(first.box.top, second.box.top);
+          if (width <= 1 || height <= 1) continue;
+          push(
+            {
+              rule: "overlap",
+              severity: "high",
+              message: `Overlay ${first.selector} lies over overlay ${second.selector} (${Math.round(width)}x${Math.round(height)}px shared).`,
+              selector: selectorOf(first.element),
+              rect: roundRect(first.box),
+            },
+            `stack|${first.selector}|${second.selector}`,
+          );
+        }
+      }
+    }
   }
 
   // --- touch-target -----------------------------------------------------------------------

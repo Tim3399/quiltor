@@ -1,27 +1,28 @@
 import { ReactFlowProvider } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog, Sheet, SidePanel, Toast } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage, quiltorClient, type StoredMapImage } from "../../../platform";
 import type { Workspace } from "../../../shared";
+import { useLatest } from "../../../shared/hooks/useLatest";
+import { prunePresence } from "../figures/presence";
 import type { FigureNode, FigureState } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
-import { prunePresence } from "../figures/presence";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
-import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
-import { DEFAULT_MAP_WIDTH, isExpandedMap, mapBoxPatch } from "./placeCanvasModel";
 import type { MapBox } from "./PlaceMapNode";
-import { formatDistance, formatScale } from "./placeMap";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
+import { PlaceToolbar } from "./PlaceToolbar";
+import { DEFAULT_MAP_WIDTH, isExpandedMap, mapBoxPatch } from "./placeCanvasModel";
+import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
+import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
+import { formatDistance, formatScale } from "./placeMap";
 import {
+  type ActivePlaceMap,
   activePlaceMapForSelection,
   resolveActivePlaceMap,
-  type ActivePlaceMap,
 } from "./placeMapChromeModel";
-import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
 import { askForMapImage, preparedMapImageIssue, prepareMapImage } from "./placeMapUpload";
-import { PlaceToolbar } from "./PlaceToolbar";
 import { usePlaceCanvas } from "./usePlaceCanvas";
 import "./PlacesWorkspace.css";
 
@@ -87,22 +88,19 @@ function PlacesWorkspaceInner({
   const [compact, setCompact] = useState(
     () => typeof matchMedia === "function" && matchMedia(PLACE_COMPACT_MEDIA_QUERY).matches,
   );
-  const latestState = useRef(state);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestState.current = state;
+  // Written by patchPlace and removePlace too: each moves it ahead to the state it passes on.
+  const latestStateRef = useLatest(state);
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
   const activeMap = resolveActivePlaceMap(state.nodes, levelId, activeMapState);
-  useEffect(() => {
-    // Clear invalid identities as state changes, so undo cannot resurrect a
-    // stale activation when several maps later reappear on this level.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setActiveMapState((current) => {
-      if (!activeMap) return undefined;
-      if (current && current.levelId === levelId && current.mapId === activeMap.id) return current;
-      return { levelId, mapId: activeMap.id };
-    });
-  }, [activeMap, levelId]);
+  // Clear invalid identities as state changes, so undo cannot resurrect a
+  // stale activation when several maps later reappear on this level.
+  const activeMapIdentity = !activeMap
+    ? undefined
+    : activeMapState && activeMapState.levelId === levelId && activeMapState.mapId === activeMap.id
+      ? activeMapState
+      : { levelId, mapId: activeMap.id };
+  if (activeMapIdentity !== activeMapState) setActiveMapState(activeMapIdentity);
   // With nothing selected there is nothing to control; the column then belongs to the map.
   const trail = useMemo(() => levelTrail(state.nodes, levelId), [state.nodes, levelId]);
   const levelScale = useMemo(
@@ -125,12 +123,8 @@ function PlacesWorkspaceInner({
   }, []);
   // A level that vanished -- undone, or deleted with its contents -- would leave
   // the surface showing nothing and no way back. Fall out to the root instead.
-  useEffect(() => {
-    if (!levelId) return;
-    if (!state.nodes.some((node) => node.id === levelId && node.type === "ort"))
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-      setLevelId(undefined);
-  }, [state.nodes, levelId]);
+  if (levelId && !state.nodes.some((node) => node.id === levelId && node.type === "ort"))
+    setLevelId(undefined);
   // Looked up across the world rather than in the level's own list: a place
   // standing on a laid-out map belongs to that map's level, but it is drawn
   // here, on the map, and clicking something that is drawn has to select it.
@@ -141,14 +135,11 @@ function PlacesWorkspaceInner({
   // Either state: a card still needs somewhere to be opened out from.
   const selectedMap = selected?.mapImageId ? selected : null;
   // Crop belongs to the active surface, including while a child is selected.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    if (adjustingId && adjustingId !== activeMap?.id) setAdjustingId(undefined);
-  }, [adjustingId, activeMap]);
+  if (adjustingId && adjustingId !== activeMap?.id) setAdjustingId(undefined);
   const selectPlace = useCallback(
     (id: string) => {
       setSelectedId(id);
-      const map = activePlaceMapForSelection(latestState.current.nodes, levelId, id);
+      const map = activePlaceMapForSelection(latestStateRef.current.nodes, levelId, id);
       if (map) setActiveMapState({ levelId, mapId: map.id });
       if (!measuring) return;
       setMeasureSelection((current) =>
@@ -163,12 +154,12 @@ function PlacesWorkspaceInner({
   );
   const patchPlace = useCallback(
     (placeId: string, patch: Partial<FigureNode>) => {
-      const current = latestState.current;
+      const current = latestStateRef.current;
       const next = {
         ...current,
         nodes: current.nodes.map((node) => (node.id === placeId ? { ...node, ...patch } : node)),
       };
-      latestState.current = next;
+      latestStateRef.current = next;
       onChange(next);
     },
     [onChange],
@@ -321,16 +312,14 @@ function PlacesWorkspaceInner({
     setActiveMapState({ levelId, mapId: created.id });
   }, [canvas, levelId, pickStoredImage, t]);
 
-  const centerOnPlace = useRef(canvas.centerOnPlace);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  centerOnPlace.current = canvas.centerOnPlace;
+  const centerOnPlaceRef = useLatest(canvas.centerOnPlace);
 
   useEffect(() => {
     // The ID is an event identity: a newer request must replay selection even when its target is
     // textually identical to the previous request.
     void targetRequestId;
     if (!targetId) return;
-    const item = latestState.current.nodes.find(
+    const item = latestStateRef.current.nodes.find(
       (node) => node.id === targetId && node.type === "ort",
     );
     if (!item) return;
@@ -339,7 +328,7 @@ function PlacesWorkspaceInner({
     setActiveMapState(undefined);
     setExpandRequest(undefined);
     setSelectedId(targetId);
-    centerOnPlace.current(item);
+    centerOnPlaceRef.current(item);
   }, [targetId, targetRequestId]);
   useEffect(() => {
     if (typeof matchMedia !== "function") return;
@@ -388,7 +377,7 @@ function PlacesWorkspaceInner({
       mapScale: { unitsPer100px: 1, unitLabel: t("unitsDefault"), ...state.mapScale, ...patch },
     });
   const blockDeletionWithContents = (place: FigureNode): boolean => {
-    const current = latestState.current;
+    const current = latestStateRef.current;
     const childCount = placesOnLevel(current.nodes, place.id).length;
     if (!childCount) return false;
     const currentPlace = current.nodes.find((node) => node.id === place.id);
@@ -405,7 +394,7 @@ function PlacesWorkspaceInner({
   };
   const removePlace = () => {
     if (!deletePlace || blockDeletionWithContents(deletePlace)) return;
-    const current = latestState.current;
+    const current = latestStateRef.current;
     const remainingNodes = current.nodes.filter((node) => node.id !== deletePlace.id);
     const next = {
       ...current,
@@ -424,7 +413,7 @@ function PlacesWorkspaceInner({
         ),
       presence: prunePresence(current.presence ?? [], remainingNodes, current.timeline ?? []),
     };
-    latestState.current = next;
+    latestStateRef.current = next;
     onChange(next);
     setSelectedId(null);
     setDeletePlace(null);
@@ -580,7 +569,7 @@ function PlacesWorkspaceInner({
           onGoToLevel={goToLevel}
           onSelectPlace={selectPlace}
           onEnterPlace={(id) => {
-            const place = latestState.current.nodes.find((node) => node.id === id);
+            const place = latestStateRef.current.nodes.find((node) => node.id === id);
             if (place) openLevel(place);
           }}
           onClearSelection={() => setSelectedId(null)}

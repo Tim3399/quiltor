@@ -58,6 +58,13 @@ KNOWN_KEYS: dict[str, str] = {
         "Public OIDC client this machine signs in to the backup endpoint as (default "
         "quiltor-desktop). Must match the client registered in the endpoint's realm."
     ),
+    "QUILTOR_LANGUAGETOOL_URL": (
+        "Base URL of a LanguageTool server (e.g. http://languagetool:8010) used instead of a "
+        "local install. Needs QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1, since chapter text is sent there."
+    ),
+    "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": (
+        "Set to 1 to allow sending chapter text to QUILTOR_LANGUAGETOOL_URL for grammar checks."
+    ),
     "QUILTOR_LOG_LEVEL": "Server log level: DEBUG, INFO (default), WARNING or ERROR. Anything else stops the start.",
     "QUILTOR_LOG_FILE": (
         "Also write the server log to this file (rotates at 10 MiB, 5 backups). "

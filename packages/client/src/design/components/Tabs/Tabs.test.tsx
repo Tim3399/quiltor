@@ -78,4 +78,30 @@ describe("Tabs", () => {
     fireEvent.click(profile);
     expect(profile).toHaveAttribute("aria-selected", "true");
   });
+
+  it("moves the tab stop along when the value changes from outside", () => {
+    const tabs = (value: string) => (
+      <Tabs value={value} onValueChange={() => undefined} activationMode="manual">
+        <TabList label="Figurbereiche">
+          <Tab value="card">Karte</Tab>
+          <Tab value="profile">Profil</Tab>
+          <Tab value="notes">Notizen</Tab>
+        </TabList>
+        <TabPanel value="card">Karteninhalt</TabPanel>
+        <TabPanel value="profile">Profilinhalt</TabPanel>
+        <TabPanel value="notes">Notizen</TabPanel>
+      </Tabs>
+    );
+    const { rerender } = render(tabs("card"));
+    const card = screen.getByRole("tab", { name: "Karte" });
+    // Focus has wandered to "Profil" without committing, so the tab stop is there ...
+    card.focus();
+    fireEvent.keyDown(card, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "Profil" })).toHaveAttribute("tabindex", "0");
+
+    // ... until the owner sets another value: the tab stop goes to the selected tab.
+    rerender(tabs("notes"));
+    expect(screen.getByRole("tab", { name: "Notizen" })).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("tab", { name: "Profil" })).toHaveAttribute("tabindex", "-1");
+  });
 });

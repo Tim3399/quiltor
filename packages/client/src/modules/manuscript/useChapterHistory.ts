@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { quiltorClient, type SnapshotChapterRecord } from "../../platform";
 import { diffVersion, type SnapshotInfo } from "../history";
 import type { Chapter } from "./model";
@@ -14,7 +14,6 @@ export function useChapterHistory(current: Chapter | undefined) {
   const [previous, setPrevious] = useState<SnapshotChapterRecord | null>(null);
   const [comparisonKey, setComparisonKey] = useState("");
   const [loadedChapterId, setLoadedChapterId] = useState("");
-  const loadedChapterIdRef = useRef("");
   const [state, setState] = useState<ChapterHistoryState>("idle");
   const requestedKey = selectedRef && currentId ? `${selectedRef}\u0000${currentId}` : "";
   const snapshotReady = Boolean(
@@ -29,7 +28,6 @@ export function useChapterHistory(current: Chapter | undefined) {
       setSelected(null);
       setPrevious(null);
       setComparisonKey("");
-      loadedChapterIdRef.current = "";
       setLoadedChapterId("");
       setState("loading");
     }
@@ -39,15 +37,7 @@ export function useChapterHistory(current: Chapter | undefined) {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setCommits([]);
-    setSelectedRef("");
-    setSelected(null);
-    setPrevious(null);
-    setComparisonKey("");
-    loadedChapterIdRef.current = "";
-    setLoadedChapterId("");
-    setState("loading");
+    // The reset belongs to opening and lives in setHistoryOpen; this effect only fetches the log.
     void quiltorClient.application.history
       .log()
       .then((result) => {
@@ -64,16 +54,25 @@ export function useChapterHistory(current: Chapter | undefined) {
     };
   }, [open]);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // A new snapshot, chapter or open state invalidates the loaded comparison. Adjusted during
+  // render, so no frame shows the previous chapter's comparison under the new one: the key is
+  // cleared, a comparison of another chapter is dropped, and a load that is about to start
+  // reads as loading.
+  const comparisonSource = `${open}\u0000${selectedRef}\u0000${currentId ?? ""}`;
+  const [syncedSource, setSyncedSource] = useState(comparisonSource);
+  if (syncedSource !== comparisonSource) {
+    setSyncedSource(comparisonSource);
     setComparisonKey("");
-    if (loadedChapterIdRef.current !== currentId) {
+    if (loadedChapterId !== currentId) {
       setSelected(null);
       setPrevious(null);
       setLoadedChapterId("");
     }
+    if (open && selectedRef && currentId !== undefined) setState("loading");
+  }
+
+  useEffect(() => {
     if (!open || !selectedRef || currentId === undefined) return;
-    setState("loading");
     let cancelled = false;
     const requestKey = `${selectedRef}\u0000${currentId}`;
     const timeout = window.setTimeout(() => {
@@ -85,7 +84,6 @@ export function useChapterHistory(current: Chapter | undefined) {
           setSelected(result.selected);
           setPrevious(result.previous);
           setComparisonKey(requestKey);
-          loadedChapterIdRef.current = currentId;
           setLoadedChapterId(currentId);
           setState("idle");
         })

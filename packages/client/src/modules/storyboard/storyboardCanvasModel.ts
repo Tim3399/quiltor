@@ -161,6 +161,24 @@ export function storyboardFlowNode(
   };
 }
 
+/**
+ * Carries the measured size of the nodes on screen over to their replacements.
+ *
+ * The size is set through `style` only, so React Flow cannot tell a node's dimensions until it
+ * has measured it, and renders an unmeasured node with `visibility: hidden`. Without this, every
+ * selection change hid all cards for a frame — and with them their commands (T-149).
+ */
+export function keepMeasuredFlowNodes(
+  next: StoryboardFlowNode[],
+  current: readonly StoryboardFlowNode[],
+): StoryboardFlowNode[] {
+  const measured = new Map(current.map((node) => [node.id, node.measured] as const));
+  return next.map((node) => {
+    const size = measured.get(node.id);
+    return size && !node.measured ? { ...node, measured: size } : node;
+  });
+}
+
 /** Resolves persisted references against the live world index so type changes recolor immediately. */
 export function storyboardCardKind(
   item: StoryboardNode,

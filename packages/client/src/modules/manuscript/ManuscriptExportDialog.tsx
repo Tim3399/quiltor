@@ -94,7 +94,7 @@ export function ManuscriptExportDialog({
   }, [messageFor, onSave, preset]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads the preview on mount and when its inputs change; setState runs after the async request
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the effect starts the preview request on mount and when the preset or the loader changes; loadPreview first resets preview, acknowledgement, download and error state synchronously (not only after the await) because a new request invalidates all of them, and it needs the cleanup below to cancel the request it started. Mount has no event to hang the load on, and the preset is fixed per dialog instance (the parent keys it), so the request cannot move into a handler.
     void loadPreview();
     return () => {
       requestGeneration.current += 1;

@@ -106,6 +106,22 @@ async function establishKeyboardSelection(
   return expected;
 }
 
+/**
+ * The line at the top edge of the editor viewport and how far that edge lies into it. A
+ * remounted editor estimates the lines it has not measured, so the same view can sit at a
+ * different scrollTop; what the author sees is the line (T-149b).
+ */
+async function viewportTopLine(scroller: Locator) {
+  return scroller.evaluate((element) => {
+    const edge = element.getBoundingClientRect().top;
+    for (const line of element.querySelectorAll<HTMLElement>(".cm-line")) {
+      const box = line.getBoundingClientRect();
+      if (box.bottom > edge) return { text: line.textContent, offset: Math.round(edge - box.top) };
+    }
+    return null;
+  });
+}
+
 async function pressRepeatedly(page: Page, key: string, count: number) {
   for (let index = 0; index < count; index += 1) {
     await page.keyboard.press(key, { delay: 20 });
@@ -144,9 +160,7 @@ async function returnToWorldSelection(page: Page) {
   await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
 }
 
-test("Returning to Text restores the edited chapter, cursor, scroll and input focus", async ({
-  page,
-}) => {
+async function expectReturnToTextRestoresSession(page: Page, scrollRatio: number) {
   await openWorld(page, "Editor-Sitzung Cursor");
   const nextChapter = page.getByRole("button", {
     name: /^Nächstes Kapitel: Kapitel 2 · Zweites Kapitel/,
@@ -177,8 +191,10 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
   await page.keyboard.type("X");
   await expect.poll(() => editorText(editor)).toContain("Am Ende wartet der ZielXpunkt.");
 
-  const savedScrollTop = await settleEditorScroll(scroller, 0.58);
+  const savedScrollTop = await settleEditorScroll(scroller, scrollRatio);
   expect(savedScrollTop).toBeGreaterThan(0);
+  const savedTopLine = await viewportTopLine(scroller);
+  expect(savedTopLine?.text).toMatch(/^Absatz \d+:/);
 
   await switchWorkspace(page, "Figuren");
   await switchWorkspace(page, "Storyboard");
@@ -186,7 +202,17 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
 
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Zweites Kapitel");
   await expect(editor).toBeFocused();
-  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(savedScrollTop);
+  // Within a pixel: line tops are fractional and the estimate rounds differently.
+  await expect
+    .poll(async () => {
+      const restored = await viewportTopLine(scroller);
+      return {
+        text: restored?.text,
+        offsetWithinAPixel:
+          Math.abs((restored?.offset ?? Number.NaN) - (savedTopLine?.offset ?? 0)) <= 1,
+      };
+    })
+    .toEqual({ text: savedTopLine?.text, offsetWithinAPixel: true });
 
   await page.keyboard.type("Y");
   await scroller.evaluate((element) => {
@@ -194,6 +220,45 @@ test("Returning to Text restores the edited chapter, cursor, scroll and input fo
   });
   await expect.poll(() => editorText(editor)).toContain("Am Ende wartet der ZielXYpunkt.");
   await openChapterDetails(page);
+}
+
+test("Returning to Text restores the edited chapter, cursor, scroll and input focus", async ({
+  page,
+}) => {
+  await expectReturnToTextRestoresSession(page, 0.58);
+});
+
+test("Returning to Text restores the scrolled line when the remounted editor underestimates the lines above it", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "wide",
+    "The height estimate is a property of the editor, covered in the wide viewport.",
+  );
+  // Wide glyphs wrap more often than CodeMirror's per-character estimate assumes, so after the
+  // remount the scrollable height is too short for a target near the end. That is the macOS
+  // failure (T-149b: held at 3455 for 3622), reproduced with any font.
+  await mockRequiredWorldDocuments(page, {
+    manuscript: {
+      chapters: manuscript.chapters.map((chapter) =>
+        chapter.id === "c2"
+          ? {
+              ...chapter,
+              body: chapter.body
+                .split("\n")
+                .map((line, index) =>
+                  index >= 15 && index < 40
+                    ? `Absatz ${index + 1}: ${"WMWMWMWMWM ".repeat(9)}`
+                    : line,
+                )
+                .join("\n"),
+            }
+          : chapter,
+      ),
+    },
+    storyWorld: { nodes: [], edges: [] },
+  });
+  await expectReturnToTextRestoresSession(page, 0.99);
 });
 
 test("Returning to Text restores a reversed selection for exact replacement", async ({

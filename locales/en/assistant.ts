@@ -20,6 +20,7 @@ export const assistant = {
   localModelUnavailable: "Local model unreachable",
   retry: "Try again",
   installAssistant: "Set up now",
+  assistantInstalledByOperator: "Set up by the operator",
   installingAssistant: "Setting up … {percent}%",
   installingAssistantStep: "{phase} … {percent}%",
   installPhaseRuntime: "Downloading the runtime",

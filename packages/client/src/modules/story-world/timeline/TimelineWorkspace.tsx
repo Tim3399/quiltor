@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ConfirmDialog } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { type Chapter, type Manuscript, orderedChapters } from "../../manuscript";
 import type { FigureState, TimelineMoment, TimeSystem, TimeSystemKind } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
@@ -86,12 +87,14 @@ export function TimelineWorkspace({
 }) {
   const { locale, t } = useI18n();
   const timeline = state.timeline || [];
-  const latestTimeline = useRef(timeline);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestTimeline.current = timeline;
-  const [selectedId, setSelectedId] = useState<string | null>(
+  // Read only, by the navigation-target effect.
+  const latestTimelineRef = useLatest(timeline);
+  // State holds only what the user (or a navigation target) chose; without a choice the first
+  // moment is selected, derived here rather than written back by an effect.
+  const [chosenId, setSelectedId] = useState<string | null>(
     () => targetId || timeline[0]?.id || null,
   );
+  const selectedId = chosenId || timeline[0]?.id || null;
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [rangeConflict, setRangeConflict] = useState<TimelineChapterReference | null>(null);
   const [relativeAmount, setRelativeAmount] = useState(1);
@@ -108,23 +111,33 @@ export function TimelineWorkspace({
     // The ID is an event identity: a newer request must replay selection even when its target is
     // textually identical to the previous request.
     void targetRequestId;
-    if (targetId && latestTimeline.current.some((moment) => moment.id === targetId))
+    if (targetId && latestTimelineRef.current.some((moment) => moment.id === targetId))
       setSelectedId(targetId);
   }, [targetId, targetRequestId]);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    if (!selectedId && timeline.length) setSelectedId(timeline[0].id);
-  }, [selectedId, timeline]);
-  useEffect(() => {
-    if (!selected) return;
-    const base = timeline[selectedIndex - 1] || timeline[selectedIndex + 1];
-    if (!base) return;
-    const delta = timeOfMoment(selected, selectedIndex) - timeOfMoment(base);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setRelativeBaseId(base.id);
-    setRelativeDirection(delta < 0 ? "before" : "after");
-    setRelativeAmount(Math.abs(delta));
-  }, [selected, selectedIndex, timeline]);
+  // The placement fields start from the selected moment's neighbour and are refilled whenever
+  // the selection or the timeline changes; the user edits them in between. Adjusted during
+  // render, so the form never paints the previous moment's values. The timeline is compared as
+  // state.timeline, which is stable, not as the `[]` fallback, which is new on every render.
+  const [placementSource, setPlacementSource] = useState<{
+    selected: TimelineMoment | null;
+    selectedIndex: number;
+    timeline: TimelineMoment[] | undefined;
+  } | null>(null);
+  if (
+    !placementSource ||
+    placementSource.selected !== selected ||
+    placementSource.selectedIndex !== selectedIndex ||
+    placementSource.timeline !== state.timeline
+  ) {
+    setPlacementSource({ selected, selectedIndex, timeline: state.timeline });
+    const base = selected ? timeline[selectedIndex - 1] || timeline[selectedIndex + 1] : undefined;
+    if (selected && base) {
+      const delta = timeOfMoment(selected, selectedIndex) - timeOfMoment(base);
+      setRelativeBaseId(base.id);
+      setRelativeDirection(delta < 0 ? "before" : "after");
+      setRelativeAmount(Math.abs(delta));
+    }
+  }
 
   const addMomentAt = (index: number, preferredTime?: number) => {
     const moment: TimelineMoment = { id: uid("t"), title: t("newMoment") };

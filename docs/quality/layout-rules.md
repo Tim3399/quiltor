@@ -47,6 +47,23 @@ visible "Maßstab" label as "Maßst" / "ab" in every `popover.massstab-…` stat
 measuring tool's scale legend ("Maßs" / "tab"), which T-91 fixes; since T-81 the audit run
 opens the measuring tool (see "Map coverage").
 
+## `overlap` of stacked overlays
+
+**Finds** overlays that lie over each other where they must stack: the breadcrumb trail under
+the measuring hint, a legend on top of the banner. The general `overlap` rule counts only a
+control covered by another control, and a banner or a legend is no control, so T-109 could be
+undone without the audit noticing (F-109-2).
+
+**How:** a state names the overlays that must stack, `s.view(state, kind, viewportSpecific,
+[selectors])`. Every pair from two different selectors that shares more than 1 px in both
+directions is one finding, rule `overlap`, severity `high`, message `Overlay A lies over overlay
+B (WxH px shared)`. Elements of the same selector are not compared with each other. A state that
+names no stack is not checked.
+
+**Used by:** `workspace.places/level-measuring` (trail, hint banner, scale legend inside an
+opened level). The top level has no trail, which is why the older `workspace.places/measuring`
+state could never show it.
+
 ## Map coverage
 
 Since T-81 the capture run opens, on every layout in both themes (the first two in the

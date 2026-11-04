@@ -17,6 +17,12 @@ otherwise sit far from the route they govern are stated with it:
     JSON object, because pretending to have an account system is worse than not
     having one. It is pinned by
     tests/python/test_server_auth.py::LocalIdentityServerTest.
+  - **`operator_only=True`** means the route installs software on the server
+    (a runtime, a model, a dictionary). In the `hosted` operation profile that
+    is the operator's job, not a user's: the dispatch answers
+    `403 install.forbidden_hosted` before the route runs. Every route whose path
+    contains `install` carries it; tests/python/test_operator_only_routes.py
+    holds the table.
 
 The `app` argument is the concrete WebApplication owned by the HTTP server
 instance. Routes never import a composition root or process-global store.
@@ -37,6 +43,7 @@ class Registration:
     world: bool = False
     anonymous: bool = False
     auth_only: bool = False
+    operator_only: bool = False
 
 
 @dataclass

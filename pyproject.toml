@@ -189,10 +189,15 @@ ignore = [
 include = ["src/quiltor", "apps/web", "tools", "services/backup-server", "distribution/tooling", "tests/python"]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
-# strict where the code is new and small enough to hold to it. src/quiltor/domain and
-# application would add ~1,200 findings in strict mode, almost all untyped JSON dicts;
-# that is a migration of its own, not part of introducing the gate.
-strict = ["tests/python/narrowing.py", "tests/python/module_loader.py"]
+# strict for the domain and application layers, where decoded JSON is narrowed through
+# quiltor.domain.json_values, and for the two test helpers that were typed first. A new file
+# under these directories is held to strict without a header of its own.
+strict = [
+    "src/quiltor/domain",
+    "src/quiltor/application",
+    "tests/python/narrowing.py",
+    "tests/python/module_loader.py",
+]
 # Analyse this checkout's sources rather than the editable install (which points at the
 # main checkout from a worktree), and resolve the release tooling the tests put on
 # sys.path at runtime.

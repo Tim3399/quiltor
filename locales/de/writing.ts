@@ -46,6 +46,7 @@ export const writing = {
   writingAttribution: "Quellen und Lizenzen",
   writingDataMissing: "Sprachdaten sind nicht installiert.",
   writingDataInstall: "Sprachdaten installieren",
+  writingInstalledByOperator: "Wird vom Betreiber eingerichtet",
   writingDataInstalling: "Sprachdaten werden installiert …",
   writingRequestError: "Die Anfrage konnte nicht ausgeführt werden.",
   writingStatusError: "Der Zustand der Schreibhilfe konnte nicht geladen werden.",
