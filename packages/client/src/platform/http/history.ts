@@ -1,5 +1,5 @@
-import type { ChapterComparisonResult, HistoryGateway } from "../application";
-import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
+import type { ChapterComparisonResult, HistoryGateway, SnapshotKindWire } from "../application";
+import { type HttpApplicationState, postJson, requestJson, withWorldQuery } from "./request";
 
 export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGateway {
   return {
@@ -11,9 +11,12 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           shortHash: string;
           date: string;
           subject: string;
-          kind?: "automatic" | "manual" | "before-restore";
+          kind?: SnapshotKindWire;
         }>;
       }>(withWorldQuery(state, "/api/history")),
+    restore: async (id: string) => {
+      await postJson<{ ok: true }>(withWorldQuery(state, "/api/history/restore"), { id });
+    },
     diff: (ref = "WORK", word = true, all = false) =>
       requestJson<{ ok: boolean; diff: string; newFiles: string[]; mode: "word" | "line" }>(
         withWorldQuery(
@@ -35,11 +38,5 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           `/api/history/chapter-comparison?ref=${encodeURIComponent(ref)}&chapterId=${encodeURIComponent(chapterId)}`,
         ),
       ),
-    restore: async (id: string) => {
-      await requestJson<{ ok: boolean }>(withWorldQuery(state, "/api/history/restore"), {
-        method: "POST",
-        body: JSON.stringify({ id }),
-      });
-    },
   };
 }
