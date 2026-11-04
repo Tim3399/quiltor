@@ -23,6 +23,7 @@ import {
 } from "../../platform";
 import type { AssistancePhase, WritingLocale } from "./WritingAidInspector.types";
 import { WritingTabScroller } from "./WritingTabScroller";
+import { partOfSpeechLabel } from "./partOfSpeech";
 import type { WritingTool } from "./workspaceTypes";
 
 const WRITING_TOOLS: WritingTool[] = ["lookup", "synonyms", "translate"];
@@ -231,7 +232,9 @@ export function WritingLookupPanel({
                   <header>
                     <strong>{result.lemma}</strong>
                     {result.partOfSpeech && (
-                      <span className="writing-result__part-of-speech">{result.partOfSpeech}</span>
+                      <span className="writing-result__part-of-speech">
+                        {partOfSpeechLabel(result.partOfSpeech, t)}
+                      </span>
                     )}
                     <IconButton
                       className="writing-result__copy"

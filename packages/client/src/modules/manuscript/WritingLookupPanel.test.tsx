@@ -6,6 +6,53 @@ import type { WritingAssistanceStatus } from "../../platform";
 
 describe("WritingLookupPanel", () => {
   afterEach(cleanup);
+  it("names the part of speech in German and shows an unknown key as it stands", () => {
+    render(
+      <TestProviders>
+        <WritingLookupPanel
+          selectionTool="lookup"
+          writingLocale="de-DE"
+          writingQuery="Haus"
+          status={{
+            ok: true,
+            installed: true,
+            stale: false,
+            version: "test",
+            installedSources: [],
+          }}
+          results={[
+            {
+              lemma: "Haus",
+              partOfSpeech: "noun",
+              meaning: "Gebäude",
+              values: [],
+              source: "wiktionary",
+            },
+            {
+              lemma: "hausen",
+              partOfSpeech: "novel-pos",
+              meaning: "wohnen",
+              values: [],
+              source: "wiktionary",
+            },
+          ]}
+          phase="idle"
+          replaceTarget={false}
+          onWritingQuery={vi.fn()}
+          onRunLookup={vi.fn()}
+          onChooseTool={vi.fn()}
+          onLocale={vi.fn()}
+          onInstallData={vi.fn()}
+          onApplyValue={vi.fn()}
+        />
+      </TestProviders>,
+    );
+
+    expect(screen.getByText("Substantiv")).toHaveClass("writing-result__part-of-speech");
+    expect(screen.queryByText("noun")).toBeNull();
+    expect(screen.getByText("novel-pos")).toHaveClass("writing-result__part-of-speech");
+  });
+
   it("keeps source selection, lookup results and apply actions inside the lookup panel", () => {
     const onChooseTool = vi.fn();
     const onApplyValue = vi.fn();
