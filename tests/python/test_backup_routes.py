@@ -338,31 +338,23 @@ class HostedTokenTests(BackupRouteTestCase):
         self.app.identity.auth.store_session_tokens(session_id, {"access_token": token})
         return session_id
 
-    def test_the_status_route_reports_signed_in_without_any_local_login(self):
+    def test_the_login_routes_are_refused_on_a_hosted_server(self):
+        """A hosted server is the shared storage and offers no device sync (D-61),
+        so there is no endpoint login to report or start (T-87)."""
         cookie = {identity.SESSION_COOKIE: self.session_for("session-token")}
-        answer = self.json_of("GET", "/api/backup/login", cookies=cookie)
-        self.assertTrue(answer["signedIn"])
-        self.assertTrue(answer["hosted"])
-        self.assertEqual(answer["account"], "hosted-person")
+        for method, body in (("GET", None), ("POST", {})):
+            with self.subTest(method=method):
+                status, _, raw = self.request(
+                    method, "/api/backup/login", body=body, cookies=cookie
+                )
+                self.assertEqual(status, 403)
+                answer = json.loads(raw)
+                self.assertFalse(answer["ok"])
+                self.assertEqual(answer["error"]["code"], "sync.forbidden_hosted")
+                self.assertFalse(answer["error"]["retryable"])
         self.assertFalse(
             backup_login.path().exists(),
-            "nothing was stored on disk -- the session is the credential",
-        )
-
-    def test_a_session_without_a_usable_token_is_not_called_signed_in(self):
-        """A session can carry no credential at all -- one minted by a render
-        token never had provider tokens. Claiming "signed in" for it meant the
-        dialog offered an upload that could only 401, with nothing on screen
-        saying why."""
-        session_id = self.app.identity.auth.create_session("hosted-person", "", "")  # no tokens
-        answer = self.json_of(
-            "GET", "/api/backup/login", cookies={identity.SESSION_COOKIE: session_id}
-        )
-        self.assertFalse(answer["signedIn"])
-        self.assertTrue(answer["hosted"])
-        self.assertEqual(
-            answer.get("reasonCode"),
-            "backup.session_token_unavailable",
+            "nothing was stored on disk",
         )
 
     def test_a_lapsed_session_token_is_renewed_before_the_upload(self):
@@ -402,43 +394,17 @@ class HostedTokenTests(BackupRouteTestCase):
             "",
             "a token known to be stale must not be sent anyway",
         )
-        answer = self.json_of(
-            "GET", "/api/backup/login", cookies={identity.SESSION_COOKIE: session_id}
-        )
-        self.assertFalse(answer["signedIn"], "and the dialog is told the same thing")
-
-    def test_there_is_no_browser_flow_to_start(self):
-        """A rejected operation always crosses the HTTP error boundary."""
-        status, _, raw = self.request(
-            "POST",
-            "/api/backup/login",
-            body={},
-            cookies={identity.SESSION_COOKIE: self.session_for("t")},
-        )
-        self.assertEqual(status, 409)
-        answer = json.loads(raw)
-        self.assertFalse(answer["ok"])
-        self.assertEqual(answer["error"]["code"], "backup.login_not_applicable")
-        self.assertFalse(answer["error"]["retryable"])
 
     def test_a_request_carries_its_own_sessions_token_to_the_endpoint(self):
         """The explicit request capability never inherits another session."""
-        self.json_of(
-            "GET",
-            "/api/backup/remote",
-            cookies={identity.SESSION_COOKIE: self.session_for("alice-token", "alice")},
-        )
-        self.assertEqual(self.endpoint.header_for("/v1/worlds"), "Bearer alice-token")
-
-        self.json_of(
-            "GET",
-            "/api/backup/remote",
-            cookies={identity.SESSION_COOKIE: self.session_for("bob-token", "bob")},
-        )
-        headers = [header for path, header in self.endpoint.seen if path == "/v1/worlds"]
+        alice = self.app.identity.auth.get_session(self.session_for("alice-token", "alice"))
+        bob = self.app.identity.auth.get_session(self.session_for("bob-token", "bob"))
         self.assertEqual(
-            headers[-1],
-            "Bearer bob-token",
+            self.app.backup_authorization(self.base, alice).bearer_token, "alice-token"
+        )
+        self.assertEqual(
+            self.app.backup_authorization(self.base, bob).bearer_token,
+            "bob-token",
             "the second request must not have inherited the first one's token",
         )
 

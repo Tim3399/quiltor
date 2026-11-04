@@ -312,12 +312,15 @@ class _PrivacyServer(_LiveServer):
             self.assertIn(self.request("GET", "/api/test-sqlite-text")[0], {500, 503})
 
     def scenario_operator_only(self):
-        # A hosted server refuses an install; its line names the route, not the body.
+        # A hosted server refuses an install and a device sync; each line names the
+        # route, not the body.
         self.application.operation_profile = "hosted"
         try:
             status, _, _ = self.request(
                 "POST", "/api/writing-assistance/grammar/install", {"x": CANARIES["prose"]}
             )
+            self.assertEqual(status, 403)
+            status, _, _ = self.request("POST", "/api/sync", {"x": CANARIES["prose"]})
             self.assertEqual(status, 403)
         finally:
             self.application.operation_profile = "local"

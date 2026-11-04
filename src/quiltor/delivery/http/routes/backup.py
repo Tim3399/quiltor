@@ -76,7 +76,7 @@ def preview_local_backup(handler, request: Request, app) -> None:
         handler.send_api_error(400, error_code="backup.preview_failed", retryable=False)
 
 
-@get("/api/backup/remote")
+@get("/api/backup/remote", device_sync=True)
 def remote_worlds(handler, request: Request, app) -> None:
     """Deliberately not world-scoped: this is what a fresh install calls before
     it has any world at all, to find out what can be restored."""
@@ -113,6 +113,11 @@ def snapshot(handler, request: Request, app) -> None:
         return
     message = (payload.get("message") or "").strip()
     push = bool(payload.get("push"))
+    if push and not app.syncable:
+        # Keeping a version stays open; uploading it to an endpoint is device sync,
+        # refused on a hosted server like the routes marked `device_sync` (D-61).
+        # Decided here because only the body says so.
+        return handler.send_api_error(403, error_code="sync.forbidden_hosted", retryable=False)
 
     try:
         authorization = (
@@ -134,7 +139,7 @@ def snapshot(handler, request: Request, app) -> None:
     handler.send_json(result)
 
 
-@save("/api/backup/restore")
+@save("/api/backup/restore", device_sync=True)
 def restore_from_endpoint(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()
@@ -274,16 +279,14 @@ def _endpoint_for(request: Request, app) -> str:
     return app.backups.default_endpoint()
 
 
-@get("/api/backup/login")
+@get("/api/backup/login", device_sync=True)
 def login_status(handler, request: Request, app) -> None:
     """Where this instance stands with the backup endpoint's login.
 
-    Two deployments, two truthful answers. Hosted, the session already holds an
-    access token from the very issuer that guards the endpoint, so there is
-    nothing to sign in to: the answer is "signed in" without a single network
-    call, and `hosted` tells the dialog to offer no button. Locally the answer
+    Only reachable outside the `hosted` profile (`device_sync`), so the answer
     comes from the stored login, where `issuerReachable` separates "you are not
-    signed in" from "nobody could sign in right now".
+    signed in" from "nobody could sign in right now". `hosted` stays in the
+    answer as `false` until the client stops reading it (T-87 part C).
     """
     endpoint = _endpoint_for(request, app)
     if not endpoint:
@@ -293,38 +296,9 @@ def login_status(handler, request: Request, app) -> None:
             {
                 "ok": True,
                 "configured": False,
-                "hosted": app.identity.multi_user,
+                "hosted": False,
                 "endpoint": "",
                 "signedIn": False,
-            }
-        )
-    if app.identity.multi_user:
-        session = request.session
-        # Checked, not claimed. The session is what carries the credential here,
-        # and it can carry none: one minted by a render token never had provider
-        # tokens, and a refresh that failed clears them. Answering "signed in"
-        # for those meant the dialog offered an upload that could only 401, with
-        # nothing on screen admitting why. app.session_backup_token also renews
-        # a token that has simply lapsed, so asking is what keeps the answer
-        # true rather than merely once-true.
-        usable = bool(app.session_backup_token(session))
-        return handler.send_json(
-            {
-                "ok": True,
-                "configured": True,
-                "hosted": True,
-                "endpoint": endpoint,
-                "signedIn": usable,
-                "account": session.sub,
-                "email": session.email,
-                "name": session.name,
-                "issuer": app.identity.auth.issuer,
-                "scope": "",
-                # Asserted rather than probed: the login that produced this session
-                # went through that issuer, and a "no" here would be actionable by
-                # nobody, since this deployment has no second login to offer.
-                "issuerReachable": True,
-                **({} if usable else {"reasonCode": "backup.session_token_unavailable"}),
             }
         )
     handler.send_json(
@@ -337,7 +311,7 @@ def login_status(handler, request: Request, app) -> None:
     )
 
 
-@save("/api/backup/login")
+@save("/api/backup/login", device_sync=True)
 def login_begin(handler, request: Request, app) -> None:
     """Start the browser flow and hand back the URL to open.
 
@@ -347,15 +321,6 @@ def login_begin(handler, request: Request, app) -> None:
     The dialog opens the returned URL in a real browser window, which is the
     only place a login form belongs.
     """
-    if app.identity.multi_user:
-        # There is no browser flow here to start -- see login_status.  This is a
-        # rejected operation, so it uses the same structured non-2xx boundary as
-        # every other application failure.
-        return handler.send_api_error(
-            409,
-            error_code="backup.login_not_applicable",
-            retryable=False,
-        )
     endpoint = _endpoint_for(request, app)
     if not endpoint:
         return handler.send_exception(BackupEndpointNotConfigured())
@@ -376,18 +341,17 @@ def login_begin(handler, request: Request, app) -> None:
     )
 
 
-@save("/api/backup/logout")
+@save("/api/backup/logout", device_sync=True)
 def login_end(handler, request: Request, app) -> None:
-    """Drop the stored credential. Local in both senses: the token stays valid at
-    the issuer until it expires or is revoked there, and a hosted session has
-    nothing of its own to drop -- signing that one out is `/logout`."""
+    """Drop the stored credential. Local: the token stays valid at the issuer
+    until it expires or is revoked there."""
     endpoint = _endpoint_for(request, app)
-    if endpoint and not app.identity.multi_user:
+    if endpoint:
         app.backups.end_login(endpoint)
     handler.send_json({"ok": True, "signedIn": False})
 
 
-@get("/backup/callback")
+@get("/backup/callback", device_sync=True)
 def login_callback(handler, request: Request, app) -> None:
     """Where the issuer sends the browser back with the authorization code.
 

@@ -195,6 +195,7 @@ describe("HTTP application errors", () => {
     ["storage.full", "Nicht genug Speicherplatz."],
     ["storage.locked", "Das Projekt ist gerade für Schreibzugriffe gesperrt."],
     ["backup.preview_failed", "Die Sicherung konnte nicht für die Vorschau geöffnet werden."],
+    ["sync.forbidden_hosted", "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten."],
     ["project_transfer.invalid_archive", "Die Projektdatei ist ungültig oder beschädigt."],
     [
       "project_transfer.unsupported_version",

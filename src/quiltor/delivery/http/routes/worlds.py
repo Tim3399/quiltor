@@ -72,6 +72,9 @@ def _open_or_create(handler, request: Request, app, *, creating: bool) -> None:
     """
     try:
         payload = handler._read_json_body()
+        if creating and str(payload.get("backupUrl", "")).strip() and not app.syncable:
+            # A sync target is device sync, which a hosted server refuses (D-61).
+            return handler.send_api_error(403, error_code="sync.forbidden_hosted", retryable=False)
         owner = request.session.sub
         with app.lock:
             if creating:

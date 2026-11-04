@@ -68,6 +68,7 @@ class WebWorldContext:
 class WorldRouteServices:
     worlds: Any
     lock: threading.Lock
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +105,7 @@ class BackupRouteServices:
     observability: ObservabilityServices
     lock: threading.Lock
     backup_authorization: Callable[[str, SessionData | None], BackupAuthorization]
-    session_backup_token: Callable[[SessionData | None], str]
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +145,7 @@ class IdentityRouteServices:
     identity: Identity
     observability: ObservabilityServices
     version: str
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +197,15 @@ class WebApplication:
     @property
     def installable(self) -> bool:
         """Whether a request may install software on this server."""
+        return self.operation_profile != HOSTED
+
+    @property
+    def syncable(self) -> bool:
+        """Whether worlds on this server may sync with another device (D-61).
+
+        A hosted server is the shared storage itself. Routes ask this, never
+        `multi_user`, so the rule lives in one place.
+        """
         return self.operation_profile != HOSTED
 
     @property
@@ -256,7 +267,7 @@ class WebApplication:
         """Expose only the capabilities owned by the selected route context."""
 
         if path.startswith("/api/worlds"):
-            return WorldRouteServices(self.application.worlds, self.lock)
+            return WorldRouteServices(self.application.worlds, self.lock, self.syncable)
         if path in {"/api/state", "/api/manuscript", "/api/storyboards", "/api/book.pdf"}:
             return DocumentRouteServices(
                 self.application.documents,
@@ -289,7 +300,7 @@ class WebApplication:
                 self.observability,
                 self.lock,
                 self.backup_authorization,
-                self.session_backup_token,
+                self.syncable,
             )
         if path.startswith("/api/place-map"):
             return PlaceMapRouteServices(self.application.place_maps, self.observability, self.lock)
@@ -303,7 +314,7 @@ class WebApplication:
             return HistoryRouteServices(self.application.history, self.lock)
         if path.startswith("/api/writing-assistance"):
             return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
-        return IdentityRouteServices(self.identity, self.observability, self.version)
+        return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
 
 def _validated_public_url(identity: Identity) -> str:

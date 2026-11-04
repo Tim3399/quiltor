@@ -145,6 +145,7 @@ EVENTS: dict[str, frozenset[str]] = {
     ),
     "logging.configured": frozenset({"log_level", "file"}),
     "install.forbidden_hosted": frozenset({"request_id", "route"}),
+    "sync.forbidden_hosted": frozenset({"request_id", "route"}),
     # routes/backup.py reports these through _observe_failure: the exception's type only,
     # never its text, which can carry a path, an endpoint's answer or a world's name (T-122).
     **dict.fromkeys(

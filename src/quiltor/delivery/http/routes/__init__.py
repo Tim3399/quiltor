@@ -23,6 +23,14 @@ otherwise sit far from the route they govern are stated with it:
     `403 install.forbidden_hosted` before the route runs. Every route whose path
     contains `install` carries it; tests/python/test_operator_only_routes.py
     holds the table.
+  - **`device_sync=True`** means the route syncs worlds with another device
+    through a backup endpoint: the sync itself, the endpoint's remote worlds and
+    remote restore, and signing in to that endpoint. A hosted server already is
+    the shared storage for everyone on it (D-61), so in the `hosted` operation
+    profile the dispatch answers `403 sync.forbidden_hosted` before the route
+    runs. Two routes decide it from their body instead: `POST /api/backup` with
+    `push` and `POST /api/worlds/create` with a `backupUrl`.
+    tests/python/test_device_sync_routes.py holds the table.
 
 The `app` argument is the concrete WebApplication owned by the HTTP server
 instance. Routes never import a composition root or process-global store.
@@ -44,6 +52,7 @@ class Registration:
     anonymous: bool = False
     auth_only: bool = False
     operator_only: bool = False
+    device_sync: bool = False
 
 
 @dataclass

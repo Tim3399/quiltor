@@ -26,7 +26,7 @@ def _send_failure(handler, error: SyncGatewayFailure) -> None:
     )
 
 
-@get("/api/sync", world=True)
+@get("/api/sync", world=True, device_sync=True)
 def sync_status(handler, request: Request, app) -> None:
     context = request.world.backup
     if not context.endpoint_url:
@@ -59,7 +59,7 @@ def sync_status(handler, request: Request, app) -> None:
         _send_failure(handler, SyncGatewayFailure("sync.authorization_unavailable", status=403))
 
 
-@get("/api/sync/preview", world=True)
+@get("/api/sync/preview", world=True, device_sync=True)
 def sync_preview(handler, request: Request, app) -> None:
     if not request.world.backup.endpoint_url:
         return _send_failure(handler, SyncGatewayFailure("sync.unconfigured", status=409))
@@ -82,7 +82,7 @@ def sync_preview(handler, request: Request, app) -> None:
         _send_failure(handler, SyncGatewayFailure("sync.authorization_unavailable", status=403))
 
 
-@save("/api/sync")
+@save("/api/sync", device_sync=True)
 def synchronize(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()
