@@ -14,7 +14,7 @@ class HistoryUseCases:
         self._history = history
         self._sanitize_filename = sanitize_filename
 
-    def entries(self, context: HistoryContext) -> list[dict[str, str]]:
+    def entries(self, context: HistoryContext) -> list[dict[str, Any]]:
         return self._history.history(context)
 
     def diff(

@@ -8,7 +8,7 @@ from quiltor.application.history.types import HistoryContext
 
 
 class HistoryReader(Protocol):
-    def history(self, context: HistoryContext, /, limit: int = 40) -> list[dict[str, str]]: ...
+    def history(self, context: HistoryContext, /, limit: int = 40) -> list[dict[str, Any]]: ...
 
     def diff(
         self,

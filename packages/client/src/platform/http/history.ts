@@ -1,4 +1,9 @@
-import type { ChapterComparisonResult, HistoryGateway, SnapshotKindWire } from "../application";
+import type {
+  ChapterComparisonResult,
+  HistoryGateway,
+  SnapshotChangesWire,
+  SnapshotKindWire,
+} from "../application";
 import { type HttpApplicationState, postJson, requestJson, withWorldQuery } from "./request";
 
 export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGateway {
@@ -12,6 +17,7 @@ export function createHistoryHttpGateway(state: HttpApplicationState): HistoryGa
           date: string;
           subject: string;
           kind?: SnapshotKindWire;
+          changes?: SnapshotChangesWire;
         }>;
       }>(withWorldQuery(state, "/api/history")),
     restore: async (id: string) => {

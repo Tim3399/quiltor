@@ -146,7 +146,9 @@ class BackupUseCases:
         )
         previous_revisions = self._documents.revision_checkpoint(location.database)
         if self._documents.exists(location.database):
-            self._history.commit(context, "Before restore", push=False, authorization=None)
+            self._history.commit(
+                context, "Before restore", push=False, authorization=None, kind="before-restore"
+            )
         available = self._remote.snapshots(context, authorization)
         if not available:
             raise BackupSnapshotNotFound(params={"operation": "restore"})

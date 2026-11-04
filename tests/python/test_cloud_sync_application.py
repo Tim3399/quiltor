@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import threading
@@ -281,6 +282,38 @@ class CloudSyncApplicationTest(unittest.TestCase):
             history.entries(self.devices["b"][0])[-1]["message"],
             "Cloud sync conflict (local)",
         )
+
+    def test_sync_snapshots_carry_their_kind_on_both_devices(self):
+        """Each device labels what it writes itself. A snapshot that arrives from the
+        other device has no label here and reads as its kind through its name."""
+        self.test_initial_push_and_explicit_fresh_device_pull_link_both_devices()
+        self._save("a", "Remote edit")
+        self._sync("a")
+        self._sync("b")
+        self._save("a", "", chapters=False)
+        self._sync("a")
+        self._save("b", "Edited offline")
+        self.devices["b"][1].status(self.devices["b"][0], "owner", self.authorization)
+
+        def kinds(device):
+            context = self.devices[device][0]
+            history = SnapshotStore(context.root.parent, self.remote)
+            labels_path = context.root / "labels.jsonl"
+            labelled = {
+                json.loads(line)["id"]
+                for line in labels_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            }
+            return [
+                (entry["subject"], entry["kind"], entry["hash"] in labelled)
+                for entry in reversed(history.history(context))
+            ]
+
+        self.assertIn(("Cloud sync", "cloud-sync", True), kinds("a"))
+        on_b = kinds("b")
+        self.assertIn(("Before cloud sync", "before-cloud-sync", True), on_b)
+        self.assertIn(("Cloud sync conflict (local)", "cloud-sync-conflict", True), on_b)
+        self.assertIn(("Cloud sync", "cloud-sync", False), on_b)
 
     def test_lost_compare_and_set_response_is_acknowledged_safely_on_retry(self):
         self.remote.lose_next_cas_response = True

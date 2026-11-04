@@ -49,6 +49,7 @@ export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
 export type {
   ChapterComparisonResult,
   HistoryGateway,
+  SnapshotChangesWire,
   SnapshotChapterRecord,
   SnapshotKindWire,
 } from "./history";

@@ -1,9 +1,9 @@
 import type { FileGateway, SaveFileResult } from "../PlatformGateway";
 import {
   fileSaveRequest,
+  type NativeBridgeV1,
   nextNativeRequestId,
   parseFileSaveResponse,
-  type NativeBridgeV1,
 } from "./nativeBridgeV1";
 
 declare global {

@@ -69,8 +69,18 @@ class _Snapshots:
         self.restored = (context, entry, fetch)
         return {"snapshot": entry["id"]}
 
-    def commit(self, context, message, push, authorization=None):
+    def commit(self, context, message, push, authorization=None, *, kind="manual") -> dict:
         raise AssertionError("a fresh world must not create a pre-restore snapshot")
+
+
+class _RecordingSnapshots(_Snapshots):
+    def __init__(self) -> None:
+        super().__init__()
+        self.commits: list[tuple[str, str]] = []
+
+    def commit(self, context, message, push, authorization=None, *, kind="manual") -> dict:
+        self.commits.append((message, kind))
+        return {"ok": True}
 
 
 class ApplicationBackupOperationTests(unittest.TestCase):
@@ -121,6 +131,33 @@ class ApplicationBackupOperationTests(unittest.TestCase):
             context, _, fetch = present(snapshots.restored)
             self.assertEqual(context.endpoint_url, "https://backup.test")
             self.assertEqual(present(fetch)("digest"), b"blob")
+
+    def test_restoring_over_an_existing_world_labels_the_safety_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            worlds = _FreshWorlds(Path(directory))
+            snapshots = _RecordingSnapshots()
+            remote = MagicMock()
+            remote.snapshots.return_value = [
+                {"id": "snapshot-1", "title": "Remote title", "created": "now"}
+            ]
+            documents = MagicMock()
+            documents.exists.return_value = True
+            documents.revision_checkpoint.return_value = {"manuscript": 0}
+            backups = BackupUseCases(
+                cast(WorldRepository, worlds),
+                documents,
+                MagicMock(),
+                cast(SnapshotHistory, snapshots),
+                remote,
+                MagicMock(),
+                UseCaseObserver(MagicMock(), MagicMock()),
+            )
+
+            backups.restore_remote(
+                "remote-world", "owner", "snapshot", "https://backup.test", MagicMock()
+            )
+
+            self.assertEqual(snapshots.commits, [("Before restore", "before-restore")])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import errorFixture from "../../../../../contracts/fixtures/native-bridge/error.v1.json";
 import requestFixture from "../../../../../contracts/fixtures/native-bridge/request.v1.json";
 import successFixture from "../../../../../contracts/fixtures/native-bridge/success.v1.json";
-import errorFixture from "../../../../../contracts/fixtures/native-bridge/error.v1.json";
 import manifest from "../../../../../contracts/manifest.json";
 import schema from "../../../../../contracts/native-bridge/v1.schema.json";
 import { desktopFileGateway } from "./desktopFileGateway";

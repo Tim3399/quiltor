@@ -1,7 +1,7 @@
 import type { MessageKey } from "../../i18n";
 import type { AssistantGateway } from "../application";
 import { createAssistantJobsHttpGateway } from "./assistantJobs";
-import { requestJson, withWorldQuery, type HttpApplicationState } from "./request";
+import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
 
 export function createAssistantHttpGateway(state: HttpApplicationState): AssistantGateway {
   return {

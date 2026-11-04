@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeAssistantReplyV1, type AssistantReplyWireV1 } from "./assistant";
+import { type AssistantReplyWireV1, decodeAssistantReplyV1 } from "./assistant";
 
 describe("assistant wire v1", () => {
   it("preserves Storyboard planning provenance and its card target", () => {
