@@ -274,6 +274,29 @@ class SnapshotStoreTest(unittest.TestCase):
         self.store.commit(ctx, "", push=False)
         self.assertEqual(self.store.history(ctx)[0]["kind"], "changes")
 
+    def test_an_empty_labels_file_reads_every_entry_by_its_stored_name(self):
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "Before restore", push=False, kind="before-restore")
+        self._labels_file(ctx).write_bytes(b"")
+
+        (entry,) = self.store.history(ctx)
+        self.assertEqual(entry["kind"], "before-restore")
+
+    def test_unreadable_bytes_in_the_labels_file_never_fail_the_history(self):
+        """Only the line with bad bytes is lost; the labels around it still count."""
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "Vor dem Umbau", push=False)
+        self._write(ctx, "Weiter.\n")
+        self.store.commit(ctx, "", push=False)
+        labels = self._labels_file(ctx).read_bytes().splitlines(keepends=True)
+        self._labels_file(ctx).write_bytes(
+            labels[0] + b"\xff\xfe{\x00 not utf-8\n" + b"\x00" * 2048 + b"\n" + labels[1]
+        )
+
+        self.assertEqual(
+            [entry["kind"] for entry in self.store.history(ctx)], ["changes", "manual"]
+        )
+
     def test_changes_are_left_out_when_the_parent_is_not_in_the_history(self):
         """An entry restored from an endpoint can name a parent this machine never
         had; the client then words it without names."""

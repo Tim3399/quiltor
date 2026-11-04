@@ -90,6 +90,10 @@ SNAPSHOT_KINDS: frozenset[str] = frozenset(get_args(SnapshotKind))
 LABELS_NAME = "labels.jsonl"
 _MAX_LABEL_LINE_BYTES = 1024
 
+# The name a restore gives the state it is about to replace (D-57 F3). Persisted
+# as written, like every generated name; its label says "before-restore".
+BEFORE_RESTORE_MESSAGE = "Before restore"
+
 # The names the server writes itself. Read only for snapshots without a label:
 # those written before 3.25, restored from an endpoint, or whose label append was
 # interrupted.
@@ -97,7 +101,7 @@ _GENERATED_MESSAGES: tuple[tuple[re.Pattern[str], SnapshotKind], ...] = (
     (re.compile(r"Writing backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}"), "automatic"),
     (re.compile(r'(?:Chapter|Profile) ".*" edited', re.DOTALL), "changes"),
     (re.compile(r"\d+ chapters?(?:, \d+ profiles?)? edited|\d+ profiles? edited"), "changes"),
-    (re.compile(r"Before restore"), "before-restore"),
+    (re.compile(re.escape(BEFORE_RESTORE_MESSAGE)), "before-restore"),
     (re.compile(r"Cloud sync"), "cloud-sync"),
     (re.compile(r"Before cloud sync"), "before-cloud-sync"),
     (re.compile(r"Cloud sync conflict \(local\)"), "cloud-sync-conflict"),
@@ -108,8 +112,9 @@ def _automatic_message(moment: datetime) -> str:
     return f"Writing backup {moment:%Y-%m-%d %H:%M}"
 
 
-def kind_from_message(message: str) -> SnapshotKind:
-    """The kind of a snapshot that carries no label, read from its stored name."""
+def message_kind(message: str) -> SnapshotKind:
+    """The kind the history reports for a snapshot without a label, read from its
+    stored name: every name the server ever generated, anything else is manual."""
     for pattern, kind in _GENERATED_MESSAGES:
         if pattern.fullmatch(message):
             return kind
@@ -927,7 +932,7 @@ class SnapshotStore:
         listed = []
         for entry in reversed(everything[-limit:]):
             message = entry.get("message", "")
-            kind = labels.get(entry["id"]) or kind_from_message(message)
+            kind = labels.get(entry["id"]) or message_kind(message)
             item: dict[str, Any] = {
                 "hash": entry["id"],
                 "shortHash": entry["id"][:8],
