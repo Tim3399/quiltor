@@ -225,15 +225,11 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
     "figures.edge/listbox.linienart",
     { role: "listbox", name: "Linienart" },
   ),
-  component("HistoryDialog", "modules/history/HistoryDialog.tsx", "overlay.versions.versions", {
-    role: "dialog",
-    name: "Versionen & Sicherungen",
-  }),
-  component("SnapshotDialog", "modules/history/SnapshotDialog.tsx", "overlay.versions.versions", {
-    role: "dialog",
-    name: "Versionen & Sicherungen",
-  }),
   component("VersionsDialog", "modules/history/VersionsDialog.tsx", "overlay.versions.versions", {
+    role: "dialog",
+    name: "Versionen & Sicherungen",
+  }),
+  component("VersionsPanel", "modules/history/VersionsPanel.tsx", "overlay.versions.versions", {
     role: "dialog",
     name: "Versionen & Sicherungen",
   }),
