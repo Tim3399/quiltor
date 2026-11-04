@@ -319,6 +319,75 @@ describe("CloudDialog", () => {
     expect(quiltorClient.application.synchronization.synchronize).not.toHaveBeenCalled();
   });
 
+  describe("signing out", () => {
+    const openDetails = async () => fireEvent.click(await screen.findByText("Technische Details"));
+
+    it("offers it only while signed in, then asks again for the sign-in status", async () => {
+      const signOut = vi
+        .spyOn(quiltorClient.application.backup, "signOut")
+        .mockResolvedValue({ ok: true } as Awaited<
+          ReturnType<typeof quiltorClient.application.backup.signOut>
+        >);
+      renderDialog();
+      await openDetails();
+      const loginStatus = vi.mocked(quiltorClient.application.backup.loginStatus);
+      const loadsBefore = loginStatus.mock.calls.length;
+      loginStatus.mockResolvedValue({
+        ok: true,
+        configured: true,
+        endpoint: "https://cloud.example.test",
+        signedIn: false,
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+      await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+      await waitFor(() => expect(loginStatus.mock.calls.length).toBeGreaterThan(loadsBefore));
+      // The tab now asks for the sign-in instead.
+      expect(
+        await screen.findByRole("button", { name: "Bei der Sicherung anmelden" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Technische Details")).not.toBeInTheDocument();
+    });
+
+    it("is not offered when signed out", async () => {
+      vi.mocked(quiltorClient.application.backup.loginStatus).mockResolvedValue({
+        ok: true,
+        configured: true,
+        endpoint: "https://cloud.example.test",
+        signedIn: false,
+      });
+      renderDialog();
+      await screen.findByRole("button", { name: "Bei der Sicherung anmelden" });
+      expect(screen.queryByRole("button", { name: "Abmelden" })).not.toBeInTheDocument();
+    });
+
+    it("shows a failed sign-out and keeps the details", async () => {
+      vi.spyOn(quiltorClient.application.backup, "signOut").mockRejectedValue(
+        new Error("Endpoint not reachable"),
+      );
+      renderDialog();
+      await openDetails();
+      fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+      expect(await screen.findByText("Endpoint not reachable")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Abmelden" })).toBeEnabled();
+    });
+
+    it("signs out once however often it is pressed", async () => {
+      const pending = deferred<{ ok: true }>();
+      const signOut = vi
+        .spyOn(quiltorClient.application.backup, "signOut")
+        .mockReturnValue(
+          pending.promise as ReturnType<typeof quiltorClient.application.backup.signOut>,
+        );
+      renderDialog();
+      await openDetails();
+      const button = screen.getByRole("button", { name: "Abmelden" });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+      pending.resolve({ ok: true });
+    });
+  });
+
   it("cannot resolve a conflict until a preview matches the current remote head", async () => {
     vi.mocked(quiltorClient.application.synchronization.preview).mockResolvedValue(
       remotePreview({ generation: 3, snapshotId: "c".repeat(64) }),

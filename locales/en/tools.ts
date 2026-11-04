@@ -72,6 +72,7 @@ export const tools = {
   files: "files",
   notConfigured: "Not configured",
   snapshotMessage: "What changed?",
+  technicalDetails: "Technical details",
   loadingBackupStatus: "Loading status …",
   done: "Done.",
   backupSignIn: "Sign in for backups",
