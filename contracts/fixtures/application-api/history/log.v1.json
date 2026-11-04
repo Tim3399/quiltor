@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "commits": [
+    {
+      "hash": "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
+      "shortHash": "9a8b7c6d",
+      "date": "2026-11-04T10:15:00+01:00",
+      "subject": "Before restore",
+      "kind": "before-restore"
+    },
+    {
+      "hash": "7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d",
+      "shortHash": "7e6d5c4b",
+      "date": "2026-11-04T10:10:00+01:00",
+      "subject": "Chapter \"Der Hafen\" edited",
+      "kind": "changes",
+      "changes": {
+        "chapters": ["Der Hafen"],
+        "profiles": []
+      }
+    },
+    {
+      "hash": "5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a",
+      "shortHash": "5b4a3f2e",
+      "date": "2026-11-04T10:05:00+01:00",
+      "subject": "Cloud sync",
+      "kind": "cloud-sync"
+    },
+    {
+      "hash": "1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
+      "shortHash": "1c2d3e4f",
+      "date": "2026-11-04T10:00:00+01:00",
+      "subject": "Writing backup 2026-11-04 10:00",
+      "kind": "automatic"
+    },
+    {
+      "hash": "3f6c2a9d8e1b4c7a5d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c",
+      "shortHash": "3f6c2a9d",
+      "date": "2026-11-04T09:40:00+01:00",
+      "subject": "Erste Fassung",
+      "kind": "manual"
+    }
+  ]
+}

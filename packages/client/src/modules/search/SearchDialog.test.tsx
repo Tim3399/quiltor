@@ -24,8 +24,10 @@ function renderSearch(
   sourceManuscript: Manuscript = manuscript,
   onShowSetAside = vi.fn(),
   onOpenChapterTrash = vi.fn(),
+  syncAvailable?: boolean,
 ) {
   const onWorkspace = vi.fn();
+  const onCommand = vi.fn();
   render(
     <I18nProvider>
       <SearchDialog
@@ -35,13 +37,14 @@ function renderSearch(
         onClose={vi.fn()}
         onWorkspace={onWorkspace}
         onSelect={onSelect}
-        onCommand={vi.fn()}
+        onCommand={onCommand}
         onShowSetAside={onShowSetAside}
         onOpenChapterTrash={onOpenChapterTrash}
+        syncAvailable={syncAvailable}
       />
     </I18nProvider>,
   );
-  return { onSelect, onWorkspace, onShowSetAside, onOpenChapterTrash };
+  return { onSelect, onWorkspace, onCommand, onShowSetAside, onOpenChapterTrash };
 }
 
 describe("SearchDialog manuscript results", () => {
@@ -122,13 +125,42 @@ describe("SearchDialog command rows", () => {
 
     // Nine rows all used to carry the same second line. Only this one command really has
     // a keyboard shortcut today -- none is invented here.
-    const gesichert = screen.getByRole("option", { name: /Sicherung öffnen/ });
+    const gesichert = screen.getByRole("option", { name: /Version festhalten/ });
     expect(gesichert.textContent).toMatch(/⇧⌘S|Strg\+Umschalt\+S/);
 
     const manuskript = screen.getByRole("option", { name: /Zum Manuskript wechseln/ });
     expect(manuskript.textContent).toContain("Ansicht");
 
-    const verlauf = screen.getByRole("option", { name: /Verlauf öffnen/ });
+    const verlauf = screen.getByRole("option", { name: /Versionen öffnen/ });
     expect(verlauf.textContent).toContain("Aktion");
+  });
+});
+
+describe("SearchDialog entries for the versions dialog", () => {
+  it("keeps the three command ids, one per way into the versions dialog", () => {
+    const { onCommand } = renderSearch();
+    for (const [name, id] of [
+      [/Versionen öffnen/, "history"],
+      [/Version festhalten/, "snapshot"],
+      [/Automatische Sicherungen öffnen/, "backups"],
+    ] as const) {
+      fireEvent.click(screen.getByRole("option", { name }));
+      expect(onCommand).toHaveBeenLastCalledWith(id);
+    }
+    // The dialogs they replaced are no longer named anywhere in the palette.
+    expect(screen.queryByRole("option", { name: /Verlauf öffnen|Sicherung öffnen/ })).toBeNull();
+  });
+
+  it("offers the sync command only where the server syncs with other devices", () => {
+    const { onCommand } = renderSearch(vi.fn(), manuscript, vi.fn(), vi.fn(), true);
+    fireEvent.click(screen.getByRole("option", { name: /Mit anderen Geräten abgleichen/ }));
+    expect(onCommand).toHaveBeenLastCalledWith("sync");
+    cleanup();
+
+    for (const syncAvailable of [false, undefined]) {
+      renderSearch(vi.fn(), manuscript, vi.fn(), vi.fn(), syncAvailable);
+      expect(screen.queryByRole("option", { name: /Mit anderen Geräten abgleichen/ })).toBeNull();
+      cleanup();
+    }
   });
 });

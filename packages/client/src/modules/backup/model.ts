@@ -18,6 +18,9 @@ export interface BackupStorageLocation {
   lastSuccessfulBackup: string | null;
   scope: "application-host";
   canOpenFolder: false;
+  /** Absent when the server predates the field; the explanatory sentence then stays out. */
+  intervalSeconds?: number;
+  keep?: number;
 }
 
 export interface BackupPreviewDocuments {

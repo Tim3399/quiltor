@@ -22,9 +22,7 @@ describe("AppShell", () => {
           theme="light"
           onTheme={() => undefined}
           onSearch={() => undefined}
-          onHistory={() => undefined}
-          onSnapshot={() => undefined}
-          onBackups={() => undefined}
+          onVersions={() => undefined}
           onAssistant={() => undefined}
           onExitWorld={() => undefined}
         >
@@ -39,9 +37,7 @@ describe("AppShell", () => {
   });
 
   it("keeps secondary tools in a keyboard-accessible overflow menu", () => {
-    const history = vi.fn(),
-      snapshot = vi.fn(),
-      backups = vi.fn(),
+    const versions = vi.fn(),
       exportProject = vi.fn(),
       gettingStarted = vi.fn(),
       exitWorld = vi.fn();
@@ -56,9 +52,7 @@ describe("AppShell", () => {
           theme="light"
           onTheme={() => undefined}
           onSearch={() => undefined}
-          onHistory={history}
-          onSnapshot={snapshot}
-          onBackups={backups}
+          onVersions={versions}
           onExportProject={exportProject}
           onGettingStarted={gettingStarted}
           onAssistant={() => undefined}
@@ -76,8 +70,16 @@ describe("AppShell", () => {
     expect(more).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("menuitem", { name: "Projekt exportieren" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Erste Schritte" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Verlauf" }));
-    expect(history).toHaveBeenCalledOnce();
+    // One entry leads to versions, backups and sync alike; the four it replaced are gone.
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Zur Weltauswahl",
+      "Versionen & Sicherungen",
+      "Projekt exportieren",
+      "Erste Schritte",
+      "Dunkel",
+    ]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Versionen & Sicherungen" }));
+    expect(versions).toHaveBeenCalledOnce();
     expect(more).toHaveFocus();
 
     fireEvent.click(more);
@@ -101,9 +103,7 @@ describe("AppShell", () => {
           theme="light"
           onTheme={() => undefined}
           onSearch={() => undefined}
-          onHistory={() => undefined}
-          onSnapshot={() => undefined}
-          onBackups={() => undefined}
+          onVersions={() => undefined}
           onAssistant={() => undefined}
           onExitWorld={() => undefined}
         >
@@ -137,9 +137,7 @@ describe("AppShell", () => {
             theme="light"
             onTheme={() => undefined}
             onSearch={() => undefined}
-            onHistory={() => undefined}
-            onSnapshot={() => undefined}
-            onBackups={() => undefined}
+            onVersions={() => undefined}
             onAssistant={() => undefined}
             onExitWorld={() => undefined}
           >
@@ -181,9 +179,7 @@ describe("AppShell", () => {
           theme="light"
           onTheme={() => undefined}
           onSearch={() => undefined}
-          onHistory={() => undefined}
-          onSnapshot={() => undefined}
-          onBackups={() => undefined}
+          onVersions={() => undefined}
           onAssistant={() => undefined}
           onExitWorld={() => undefined}
           summary={<span>4 Kapitel</span>}
@@ -225,9 +221,7 @@ describe("AppShell", () => {
           theme="light"
           onTheme={() => undefined}
           onSearch={search}
-          onHistory={() => undefined}
-          onSnapshot={() => undefined}
-          onBackups={() => undefined}
+          onVersions={() => undefined}
           onAssistant={assistant}
           onExitWorld={() => undefined}
         >

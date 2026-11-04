@@ -103,24 +103,6 @@
   top: 28px;
   max-height: calc(100vh - var(--bar) - var(--context) - var(--space-48) - var(--space-8));
   overflow: auto;
-  padding: var(--space-16);
-  border-left: 1px solid var(--line);
-  background: var(--paper);
-}
-.chapter-history__header {
-  margin-bottom: var(--space-16);
-}
-.chapter-history__title {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-.chapter-history__title > span {
-  font: 600 var(--font-size-section-title-medium) var(--prose);
-}
-.chapter-history__title > small {
-  color: var(--muted);
-  font-size: var(--font-size-metadata-legacy-compact);
 }
 .chapter-history-state {
   margin-bottom: var(--space-12);
@@ -322,9 +304,8 @@
     position: static;
     grid-row: 1;
     max-height: 44vh;
-    padding: var(--space-12) 0 var(--space-18);
     border-bottom: 1px solid var(--line);
-    border-left: 0;
+    border-inline-start: 0;
   }
 }
 

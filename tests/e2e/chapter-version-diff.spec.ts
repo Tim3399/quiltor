@@ -93,8 +93,8 @@ for (const theme of ["light", "dark"] as const) {
     const editor = page.getByLabel("Kapiteltext");
     await expect(editor.locator(".text-bold")).toHaveText("Fabien");
     await expect(editor.locator(".entity-mention")).toHaveText("Fabien");
-    await openToolbarOverflow(page, "Manuskript", "Fassungen");
-    const panel = page.getByRole("complementary", { name: "Fassungen" });
+    await openToolbarOverflow(page, "Manuskript", "Versionen");
+    const panel = page.getByRole("complementary", { name: "Versionen" });
     await expect(editor.locator(".version-diff-added")).toHaveText("junge");
     await expect(editor.locator(".version-diff-removed")).toHaveText("alte");
     await expect(editor).toHaveAttribute("aria-readonly", "true");
@@ -124,7 +124,7 @@ for (const theme of ["light", "dark"] as const) {
     await panel.getByRole("combobox").selectOption("alt");
     await expect(editor).toContainText("Frühere Fassung.");
     await expect(editor.locator(".version-diff-removed")).toHaveCount(0);
-    await panel.getByRole("button", { name: "Kapitelfassungen schließen" }).click();
+    await panel.getByRole("button", { name: "Kapitelversionen schließen" }).click();
     await expect(editor).toHaveText(initial.chapters[0].body);
     await expect(editor).toHaveAttribute("contenteditable", "true");
     await expect(editor.locator(".text-bold")).toHaveText("Fabien");
@@ -157,9 +157,9 @@ test("Formatting-only revisions have no text additions or deletions", async ({
     kursiv: { selected: record(text, italic), previous: record(text) },
     normal: { selected: record(text), previous: record(text, italic) },
   });
-  await openToolbarOverflow(page, "Manuskript", "Fassungen");
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
   const editor = page.getByLabel("Kapiteltext");
-  const panel = page.getByRole("complementary", { name: "Fassungen" });
+  const panel = page.getByRole("complementary", { name: "Versionen" });
   await expect(editor.locator(".version-diff-format-added")).toHaveText("stille");
   await expect(editor.locator(".text-italic")).toHaveText("stille");
   await expect(editor.locator(".version-diff-added, .version-diff-removed")).toHaveCount(0);
@@ -179,12 +179,12 @@ test("Viewing revisions leaves the live undo and redo history intact", async ({ 
   const editor = page.getByLabel("Kapiteltext");
   await editor.fill("Die aktuelle Bearbeitung.");
   await expect.poll(() => saves.length).toBe(1);
-  await openToolbarOverflow(page, "Manuskript", "Fassungen");
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
   await expect(editor.locator(".version-diff-added")).toHaveText("frühere");
   await editor.click();
   await page.keyboard.press("ControlOrMeta+z");
   await page.keyboard.press("ControlOrMeta+Shift+z");
-  await page.getByRole("button", { name: "Kapitelfassungen schließen" }).click();
+  await page.getByRole("button", { name: "Kapitelversionen schließen" }).click();
   await expect(editor).toHaveText("Die aktuelle Bearbeitung.");
   expect(saves).toHaveLength(1);
   await editor.click();
@@ -213,10 +213,10 @@ test("Paragraph changes stay local and loading keeps the current text visible", 
     await route.fallback();
   });
   const editor = page.getByLabel("Kapiteltext");
-  const panel = page.getByRole("complementary", { name: "Fassungen" });
-  const loading = panel.getByRole("progressbar", { name: "Fassung wird geladen …" });
+  const panel = page.getByRole("complementary", { name: "Versionen" });
+  const loading = panel.getByRole("progressbar", { name: "Version wird geladen …" });
   const requested = page.waitForRequest("**/api/history/chapter-comparison*");
-  await openToolbarOverflow(page, "Manuskript", "Fassungen");
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
   await requested;
   await expect(editor).toHaveText("Fabien wartet am Hafen.");
   await expect(editor).toHaveAttribute("aria-readonly", "true");
@@ -247,9 +247,9 @@ test("Unavailable predecessors and empty or missing chapters do not show stale c
     leer: { selected: record(""), previous: record("") },
     fehlt: { selected: { ...record(""), exists: false }, previous: record("") },
   });
-  await openToolbarOverflow(page, "Manuskript", "Fassungen");
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
   const editor = page.getByLabel("Kapiteltext");
-  const panel = page.getByRole("complementary", { name: "Fassungen" });
+  const panel = page.getByRole("complementary", { name: "Versionen" });
   await expect(editor).toHaveText("Ein lesbarer historischer Text.");
   await expect(editor.locator(".version-diff-added, .version-diff-removed")).toHaveCount(0);
   await panel.getByRole("combobox").selectOption("leer");
@@ -311,12 +311,12 @@ test("Real snapshots carry formatting from SQLite through the API into the edito
   });
   await page.goto(`/?world=${world.id}`);
   await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
-  await openToolbarOverflow(page, "Manuskript", "Fassungen");
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
   const editor = page.getByLabel("Kapiteltext");
   await expect(editor).toHaveText(body);
   await expect(editor.locator(".text-italic")).toHaveText("Séraphine");
   await expect(editor.locator(".version-diff-format-added")).toHaveText("Séraphine");
   await expect(editor.locator(".version-diff-added, .version-diff-removed")).toHaveCount(0);
-  await page.getByRole("button", { name: "Kapitelfassungen schließen" }).click();
+  await page.getByRole("button", { name: "Kapitelversionen schließen" }).click();
   await expect(editor).toHaveText("Die aktuelle Arbeitsfassung.");
 });

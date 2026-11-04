@@ -60,6 +60,9 @@ class SQLiteWorldRepository:
             world_catalog.create_world(title, backup_url, owner_sub=owner_sub, paths=self.paths)
         )
 
+    def set_backup_url(self, world_id: str, backup_url: str) -> str:
+        return world_catalog.set_backup_url(world_id, backup_url, paths=self.paths)
+
     def open(self, world_id: str, owner_sub: str | None = None) -> OpenedWorld:
         if not self.is_valid_id(world_id):
             raise ValueError("Invalid world id.")

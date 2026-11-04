@@ -27,5 +27,13 @@ export const common = {
     "Das Projekt ist gerade für Schreibzugriffe gesperrt. Dein Entwurf bleibt erhalten. Versuche es erneut oder rette den Entwurf.",
   errorBackupPreviewFailed:
     "Die Sicherung konnte nicht für die Vorschau geöffnet werden. Sie wurde möglicherweise beschädigt.",
+  errorBackupContentIntegrity:
+    "Diese Version ist beschädigt und lässt sich nicht wiederherstellen. Dein aktueller Stand ist unverändert.",
+  errorBackupContentUnavailable:
+    "Der Inhalt dieser Version konnte nicht abgerufen werden. Dein aktueller Stand ist unverändert.",
+  errorSyncForbiddenHosted:
+    "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten. Deine Versionen liegen bereits auf dem Server.",
+  errorSyncTargetInvalid:
+    "Diese Adresse passt nicht. Gib eine Adresse mit https:// ein, zum Beispiel https://abgleich.example.org.",
   errorUnknown: "Die Aktion konnte nicht abgeschlossen werden.",
 } as const;

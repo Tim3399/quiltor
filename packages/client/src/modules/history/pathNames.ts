@@ -18,10 +18,3 @@ export function describePath(path: string): DescribedPath {
   if (path === "world.sqlite3") return { kind: "database", title: path };
   return { kind: "other", title: path };
 }
-
-// Parses a change entry ("XY path", see src/quiltor/infrastructure/backup/snapshots.py's _changes()) into the path.
-export function changedPath(line: string): string {
-  const path = line.slice(3).trim();
-  const arrow = path.indexOf(" -> ");
-  return arrow === -1 ? path : path.slice(arrow + 4);
-}

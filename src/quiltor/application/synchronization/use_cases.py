@@ -104,7 +104,13 @@ class SynchronizationUseCases:
             raise SyncConflict(params={"reason": "configuration_changed"})
 
     def _preserve_local_conflict(self, context: WorldBackupContext) -> None:
-        self._history.commit(context, "Cloud sync conflict (local)", push=False, authorization=None)
+        self._history.commit(
+            context,
+            "Cloud sync conflict (local)",
+            push=False,
+            authorization=None,
+            kind="cloud-sync-conflict",
+        )
 
     def fingerprint(self, context: WorldBackupContext) -> str:
         material = {
@@ -423,7 +429,9 @@ class SynchronizationUseCases:
             if self.fingerprint(current) != local:
                 raise SyncConflict(params={"reason": "local_changed"})
             context = current
-            self._history.commit(context, "Cloud sync", push=False, authorization=None)
+            self._history.commit(
+                context, "Cloud sync", push=False, authorization=None, kind="cloud-sync"
+            )
             entries = self._history.entries(context)
             if not entries:
                 raise SyncGatewayFailure("sync.snapshot_failed", status=502)
@@ -520,7 +528,13 @@ class SynchronizationUseCases:
             previous_revisions = self._documents.revision_checkpoint(context.database)
             safety_entry: dict[str, Any] | None = None
             if self._documents.exists(context.database):
-                self._history.commit(context, "Before cloud sync", push=False, authorization=None)
+                self._history.commit(
+                    context,
+                    "Before cloud sync",
+                    push=False,
+                    authorization=None,
+                    kind="before-cloud-sync",
+                )
                 safety_entries = self._history.entries(context)
                 safety_entry = safety_entries[-1] if safety_entries else None
             if safety_entry is None:

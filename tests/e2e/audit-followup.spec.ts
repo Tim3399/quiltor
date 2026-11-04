@@ -274,8 +274,8 @@ async function openEpubPreview(page: Page) {
 
 async function openHistory(page: Page) {
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Verlauf", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Verlauf", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog.locator("ins").first()).toBeVisible();
   return dialog;
 }

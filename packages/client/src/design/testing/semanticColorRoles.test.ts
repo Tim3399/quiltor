@@ -8,7 +8,7 @@ function source(path: string) {
 
 describe("semantic color roles", () => {
   it("uses the readable primary-accent role for compact text and icons", () => {
-    const history = source("modules/history/HistoryDialog.css");
+    const history = source("modules/history/VersionsPanel.css");
     expect(history).toMatch(/\.diff-kind\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s);
     expect(history).toMatch(/\.diff-segment h3\s*\{[^}]*color:\s*var\(--accent-primary-text\);/s);
 
@@ -92,7 +92,7 @@ describe("semantic color roles", () => {
       /\.binder-folder-row\.is-drop-target\s*\{[^}]*border-color:\s*var\(--drop-target-border\);[^}]*background:\s*var\(--drop-target-surface\);/s,
     );
 
-    const history = source("modules/history/HistoryDialog.css");
+    const history = source("modules/history/VersionsPanel.css");
     expect(history).toMatch(
       /\.diff-summary-button\[aria-expanded="true"\]\s*\{[^}]*border-color:\s*var\(--selection-border\);/s,
     );

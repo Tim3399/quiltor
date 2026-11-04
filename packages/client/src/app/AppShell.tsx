@@ -1,8 +1,6 @@
 import {
   ArchiveRestore,
   ArrowLeft,
-  Cloud,
-  DatabaseBackup,
   Download,
   HelpCircle,
   History,
@@ -10,7 +8,6 @@ import {
   Moon,
   MoreHorizontal,
   PanelLeft,
-  Save,
   Search,
   Sparkles,
   Sun,
@@ -90,10 +87,7 @@ export function AppShell({
   theme,
   onTheme,
   onSearch,
-  onHistory,
-  onSnapshot,
-  onBackups,
-  onCloud,
+  onVersions,
   onExportProject,
   onGettingStarted,
   onAssistant,
@@ -121,10 +115,7 @@ export function AppShell({
   navigationOpen?: boolean;
   onNavigation?: () => void;
   onSearch: () => void;
-  onHistory: () => void;
-  onSnapshot: () => void;
-  onBackups: () => void;
-  onCloud?: () => void;
+  onVersions: () => void;
   onExportProject?: () => void;
   onGettingStarted?: () => void;
   onAssistant: () => void;
@@ -232,16 +223,7 @@ export function AppShell({
               onSelect={onExitWorld}
             />
             <MenuSeparator />
-            <MenuItem icon={<History />} label={t("history")} onSelect={onHistory} />
-            {onGettingStarted && (
-              <MenuItem
-                icon={<HelpCircle />}
-                label={t("gettingStartedTitle")}
-                onSelect={onGettingStarted}
-              />
-            )}
-            <MenuItem icon={<DatabaseBackup />} label={t("backups")} onSelect={onBackups} />
-            {onCloud && <MenuItem icon={<Cloud />} label={t("cloudTitle")} onSelect={onCloud} />}
+            <MenuItem icon={<History />} label={t("versionsAndBackups")} onSelect={onVersions} />
             {onExportProject && (
               <MenuItem
                 icon={<Download />}
@@ -250,8 +232,13 @@ export function AppShell({
               />
             )}
             <MenuSeparator />
-            <MenuItem icon={<Save />} label={t("snapshotSave")} onSelect={onSnapshot} />
-            <MenuSeparator />
+            {onGettingStarted && (
+              <MenuItem
+                icon={<HelpCircle />}
+                label={t("gettingStartedTitle")}
+                onSelect={onGettingStarted}
+              />
+            )}
             <MenuItem
               icon={theme === "dark" ? <Sun /> : <Moon />}
               label={theme === "dark" ? t("themeLight") : t("themeDark")}

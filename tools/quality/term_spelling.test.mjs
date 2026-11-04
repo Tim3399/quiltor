@@ -35,6 +35,7 @@ const EXAMPLES = [
   ["Location anlegen", "Ort anlegen"],
   ["Characters", "Figuren"],
   ["Inspektor", "Figuren-Inspector"],
+  ["Frühere Fassung", "Frühere Version, gespeicherte Fassung, Manuskriptfassung"],
 ];
 
 test("every forbidden spelling is exercised by an example", () => {
