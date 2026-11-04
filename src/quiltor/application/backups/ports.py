@@ -53,6 +53,8 @@ class SnapshotHistory(Protocol):
         message: str,
         push: bool,
         authorization: BackupAuthorization | None = None,
+        *,
+        kind: str = "manual",
     ) -> dict[str, Any]: ...
     def restore(
         self,

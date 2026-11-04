@@ -8,9 +8,14 @@ import unittest
 from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
-from quiltor.application.backup_manifest import BackupContractError
+from quiltor.application.backup_manifest import (
+    MANIFEST_FIELDS,
+    BackupContractError,
+    manifest_identifier,
+)
 from quiltor.application.backups import (
     BackupAuthorization,
     BackupAuthorizationUnavailable,
@@ -19,7 +24,7 @@ from quiltor.application.backups import (
     BackupSnapshotNotFound,
 )
 from quiltor.infrastructure.backup import SnapshotStore
-from quiltor.infrastructure.backup.snapshots import BackupContext
+from quiltor.infrastructure.backup.snapshots import SNAPSHOT_KINDS, BackupContext
 
 
 class SnapshotStoreTest(unittest.TestCase):
@@ -129,12 +134,189 @@ class SnapshotStoreTest(unittest.TestCase):
         self.assertEqual(oldest["kind"], "automatic")
         self.assertEqual(newest["kind"], "manual")
 
-    def test_an_accepted_suggested_name_counts_as_automatic(self):
-        """The snapshot dialog pre-fills the suggested name; an author who keeps it
-        did not write it, and snapshots made before the flag existed look the same."""
+    def test_a_typed_name_is_the_authors_even_when_it_reads_like_a_generated_one(self):
+        """The dialog sends an empty message for an unchanged suggestion; text that
+        arrives was typed, and its label says so whatever it looks like."""
         ctx = self._world("world-a")
         self.store.commit(ctx, "Writing backup 2026-10-28 12:20", push=False)
-        self.assertEqual(self.store.history(ctx)[0]["kind"], "automatic")
+        self.assertEqual(self.store.history(ctx)[0]["kind"], "manual")
+
+    # ------------------------------------------------------------ kinds (T-85)
+
+    def _labels_file(self, ctx: BackupContext) -> Path:
+        return ctx.root / "labels.jsonl"
+
+    def _index_lines(self, ctx: BackupContext) -> list[dict]:
+        return [
+            json.loads(line)
+            for line in (ctx.root / "index.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def test_an_empty_message_after_a_chapter_edit_is_labelled_changes_with_its_name(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "Text.\n", "01 - Der Hafen.md")
+        self.store.commit(ctx, "", push=False)
+
+        (entry,) = self.store.history(ctx)
+        self.assertEqual(entry["kind"], "changes")
+        self.assertEqual(entry["subject"], 'Chapter "Der Hafen" edited')
+        self.assertEqual(entry["changes"], {"chapters": ["Der Hafen"], "profiles": []})
+
+    def test_changes_name_every_chapter_and_profile_against_the_parent(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "Eins.\n", "01 - Der Hafen.md")
+        self.store.commit(ctx, "Anfang", push=False)
+        self._write(ctx, "Eins, neu.\n", "01 - Der Hafen.md")
+        self._write(ctx, "Zwei.\n", "02 - Die Flut.md")
+        (ctx.profiles / "01 - Mara Venn.md").write_text("Profil.\n", encoding="utf-8")
+        self.store.commit(ctx, "", push=False)
+
+        newest = self.store.history(ctx)[0]
+        self.assertEqual(newest["subject"], "2 chapters, 1 profile edited")
+        self.assertEqual(newest["kind"], "changes")
+        self.assertEqual(
+            newest["changes"],
+            {"chapters": ["Der Hafen", "Die Flut"], "profiles": ["Mara Venn"]},
+        )
+
+    def test_an_empty_message_without_a_text_change_is_labelled_automatic(self):
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "", push=False)
+        (entry,) = self.store.history(ctx)
+        self.assertEqual(entry["kind"], "automatic")
+        self.assertNotIn("changes", entry)
+
+    def test_each_use_case_kind_is_persisted_as_written(self):
+        ctx = self._world("world-a")
+        cases = (
+            ("Before restore", "before-restore"),
+            ("Cloud sync", "cloud-sync"),
+            ("Before cloud sync", "before-cloud-sync"),
+            ("Cloud sync conflict (local)", "cloud-sync-conflict"),
+        )
+        for position, (message, kind) in enumerate(cases):
+            self._write(ctx, f"Stand {position}.\n")
+            self.store.commit(ctx, message, push=False, kind=kind)
+        self.assertEqual(
+            [entry["kind"] for entry in reversed(self.store.history(ctx))],
+            [kind for _, kind in cases],
+        )
+        labels = [
+            json.loads(line)
+            for line in self._labels_file(ctx).read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual([label["kind"] for label in labels], [kind for _, kind in cases])
+
+    def test_an_unknown_kind_is_refused_before_anything_is_written(self):
+        ctx = self._world("world-a")
+        with self.assertRaises(ValueError):
+            self.store.commit(ctx, "Stand", push=False, kind=cast(Any, "nightly"))
+        self.assertFalse((ctx.root / "index.jsonl").exists())
+
+    def test_entries_without_a_label_fall_back_to_their_stored_name(self):
+        """Snapshots written before 3.25, or restored from an endpoint, carry no
+        label; every name the server ever generated still reads as its kind."""
+        ctx = self._world("world-a")
+        cases = (
+            ("Writing backup 2026-10-28 12:20", "automatic"),
+            ('Chapter "Der Hafen" edited', "changes"),
+            ('Profile "Mara Venn" edited', "changes"),
+            ("2 chapters, 1 profile edited", "changes"),
+            ("1 chapter edited", "changes"),
+            ("3 profiles edited", "changes"),
+            ("Before restore", "before-restore"),
+            ("Cloud sync", "cloud-sync"),
+            ("Before cloud sync", "before-cloud-sync"),
+            ("Cloud sync conflict (local)", "cloud-sync-conflict"),
+            ("Vor dem Umbau", "manual"),
+            ("Cloud sync, aber von Hand", "manual"),
+        )
+        for position, (message, _) in enumerate(cases):
+            self._write(ctx, f"Stand {position}.\n")
+            self.store.commit(ctx, message, push=False)
+        self._labels_file(ctx).unlink()
+
+        self.assertEqual(
+            [(entry["subject"], entry["kind"]) for entry in reversed(self.store.history(ctx))],
+            list(cases),
+        )
+
+    def test_an_interruption_between_index_and_label_reads_as_the_fallback(self):
+        ctx = self._world("world-a")
+        with patch.object(SnapshotStore, "_append_label", side_effect=OSError("power cut")):
+            with self.assertRaises(OSError):
+                self.store.commit(ctx, "", push=False)
+
+        (entry,) = self.store.history(ctx)
+        self.assertEqual(entry["kind"], "automatic")
+        self._write(ctx, "Weiter.\n")
+        self.store.commit(ctx, "Weiter", push=False)
+        self.assertEqual(
+            [item["kind"] for item in self.store.history(ctx)], ["manual", "automatic"]
+        )
+
+    def test_label_lines_for_unknown_ids_or_in_bad_shape_are_ignored(self):
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "Vor dem Umbau", push=False)
+        snapshot_id = self.store.history(ctx)[0]["hash"]
+        with self._labels_file(ctx).open("ab") as labels:
+            labels.write(b'{"id": "' + b"0" * 64 + b'", "kind": "cloud-sync"}\n')
+            labels.write(b"not json\n")
+            labels.write(b'{"id": "' + snapshot_id.encode() + b'", "kind": "nightly"}\n')
+            labels.write(b'["list"]\n')
+            labels.write(b'{"id": "' + snapshot_id.encode() + b'", "kind": "changes"')
+
+        (entry,) = self.store.history(ctx)
+        self.assertEqual(entry["kind"], "manual")
+        # A torn last line does not swallow the next label.
+        self._write(ctx, "Weiter.\n")
+        self.store.commit(ctx, "", push=False)
+        self.assertEqual(self.store.history(ctx)[0]["kind"], "changes")
+
+    def test_changes_are_left_out_when_the_parent_is_not_in_the_history(self):
+        """An entry restored from an endpoint can name a parent this machine never
+        had; the client then words it without names."""
+        ctx = self._world("world-a")
+        self._write(ctx, "Eins.\n", "01 - Der Hafen.md")
+        self.store.commit(ctx, "Anfang", push=False)
+        self._write(ctx, "Zwei.\n", "01 - Der Hafen.md")
+        self.store.commit(ctx, "", push=False)
+        index = ctx.root / "index.jsonl"
+        lines = index.read_text(encoding="utf-8").splitlines(keepends=True)
+        index.write_text("".join(lines[1:]), encoding="utf-8")
+
+        (entry,) = self.store.history(ctx)
+        self.assertEqual(entry["kind"], "changes")
+        self.assertNotIn("changes", entry)
+
+    def test_the_kind_stays_out_of_the_hashed_manifest(self):
+        """Snapshot ids and the endpoint contract are unchanged: the manifest keeps
+        exactly its v2 fields, and its id still verifies."""
+        ctx = self._world("world-a")
+        self._write(ctx, "Text.\n", "01 - Der Hafen.md")
+        self.store.commit(ctx, "", push=False)
+        (line,) = self._index_lines(ctx)
+        self.assertEqual(set(line), set(MANIFEST_FIELDS))
+        body = {key: value for key, value in line.items() if key != "id"}
+        self.assertEqual(manifest_identifier(body, line["format"]), line["id"])
+
+    def test_the_kinds_match_the_history_labels_contract(self):
+        schema = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "contracts/persistence/history-labels/v1.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(schema["properties"]["kind"]["enum"]), set(SNAPSHOT_KINDS))
+
+    def test_labels_live_in_the_history_directory_of_their_world(self):
+        """purge_world removes data/history/{id} as a whole; the labels go with it
+        only because they sit there."""
+        ctx = self._world("world-a")
+        self.store.commit(ctx, "", push=False)
+        self.assertEqual(self._labels_file(ctx).parent, ctx.root)
+        self.assertEqual(ctx.root, self.root / "history" / "world-a")
 
     def test_a_name_that_only_starts_like_the_generated_one_is_the_authors(self):
         ctx = self._world("world-a")

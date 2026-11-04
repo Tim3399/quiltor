@@ -34,7 +34,7 @@ from collections.abc import Callable, Iterable
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast, get_args
 
 from quiltor.application.backup_manifest import (
     CURRENT_FORMAT_VERSION,
@@ -71,19 +71,49 @@ TEXT_DIRS = ("manuscripts", "profiles")
 # Manuscript/profile mirrors are always written as "{index:02d} - {title}.md"
 # (see src/quiltor/infrastructure/persistence/mirror.py's MIRROR_RE) -- this recovers the human title from that.
 _MIRROR_TITLE_RE = re.compile(r"^\d{2,} - (.+)\.md$")
-# The name the server gives a snapshot nobody named. Persisted as written; the
-# history reports kind "automatic" so the client can show its own wording.
-_AUTOMATIC_MESSAGE_RE = re.compile(r"Writing backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}")
+# Who named a snapshot, so the client can word it in the reader's language. The
+# message itself stays as written (English for generated names), because older
+# builds show it as is and the fallback below reads it.
+SnapshotKind = Literal[
+    "manual",
+    "automatic",
+    "changes",
+    "before-restore",
+    "cloud-sync",
+    "before-cloud-sync",
+    "cloud-sync-conflict",
+]
+SNAPSHOT_KINDS: frozenset[str] = frozenset(get_args(SnapshotKind))
+
+# The kind of each snapshot lives beside index.jsonl, not in the manifest: the
+# manifest is hashed into the snapshot id and fail-closed for every older build.
+LABELS_NAME = "labels.jsonl"
+_MAX_LABEL_LINE_BYTES = 1024
+
+# The names the server writes itself. Read only for snapshots without a label:
+# those written before 3.25, restored from an endpoint, or whose label append was
+# interrupted.
+_GENERATED_MESSAGES: tuple[tuple[re.Pattern[str], SnapshotKind], ...] = (
+    (re.compile(r"Writing backup \d{4}-\d{2}-\d{2} \d{2}:\d{2}"), "automatic"),
+    (re.compile(r'(?:Chapter|Profile) ".*" edited', re.DOTALL), "changes"),
+    (re.compile(r"\d+ chapters?(?:, \d+ profiles?)? edited|\d+ profiles? edited"), "changes"),
+    (re.compile(r"Before restore"), "before-restore"),
+    (re.compile(r"Cloud sync"), "cloud-sync"),
+    (re.compile(r"Before cloud sync"), "before-cloud-sync"),
+    (re.compile(r"Cloud sync conflict \(local\)"), "cloud-sync-conflict"),
+)
 
 
 def _automatic_message(moment: datetime) -> str:
     return f"Writing backup {moment:%Y-%m-%d %H:%M}"
 
 
-def is_automatic_message(message: str) -> bool:
-    """True for a name the server generated, including one an author accepted
-    unchanged from the suggestion and every snapshot written before 3.25."""
-    return _AUTOMATIC_MESSAGE_RE.fullmatch(message) is not None
+def kind_from_message(message: str) -> SnapshotKind:
+    """The kind of a snapshot that carries no label, read from its stored name."""
+    for pattern, kind in _GENERATED_MESSAGES:
+        if pattern.fullmatch(message):
+            return kind
+    return "manual"
 
 
 # Word-diff tokens: runs of non-space, single newlines, and runs of blanks kept
@@ -324,10 +354,8 @@ def _replace_world_atomically(ctx: BackupContext, payloads: dict[str, bytes]) ->
             _remove_staged_path(staged)
 
 
-def _describe_changes(changes: list[str]) -> str | None:
-    """Turn change entries into an author-facing summary, e.g. 'Chapter "The Storm"
-    edited' or '2 chapters, 1 profile edited'. Returns None when nothing under
-    manuscripts/ or profiles/ changed (e.g. only the database)."""
+def _changed_names(changes: list[str]) -> tuple[list[str], list[str]]:
+    """Chapter and profile titles behind change entries ("M  manuscripts/01 - X.md")."""
     chapters: list[str] = []
     profiles: list[str] = []
     for line in changes:
@@ -339,6 +367,26 @@ def _describe_changes(changes: list[str]) -> str | None:
             chapters.append(match.group(1))
         elif directory == "profiles":
             profiles.append(match.group(1))
+    return chapters, profiles
+
+
+def _manifest_changes(current: dict[str, str], previous: dict[str, str]) -> list[str]:
+    """The change entries between two manifests, in the shape SnapshotStore._changes
+    produces from file contents."""
+    changes = [
+        f"{'A' if path not in previous else 'M'}  {path}"
+        for path, digest in sorted(current.items())
+        if previous.get(path) != digest
+    ]
+    changes.extend(f"D  {path}" for path in sorted(previous) if path not in current)
+    return changes
+
+
+def _describe_changes(changes: list[str]) -> str | None:
+    """Turn change entries into an author-facing summary, e.g. 'Chapter "The Storm"
+    edited' or '2 chapters, 1 profile edited'. Returns None when nothing under
+    manuscripts/ or profiles/ changed (e.g. only the database)."""
+    chapters, profiles = _changed_names(changes)
     if not chapters and not profiles:
         return None
     if len(chapters) == 1 and not profiles:
@@ -488,6 +536,45 @@ class SnapshotStore:
         path = ctx.root / "index.jsonl"
         _assert_contained(ctx.root, path)
         return path
+
+    def _labels_path(self, ctx: HistoryContext) -> Path:
+        return ctx.root / LABELS_NAME
+
+    def _append_label(self, ctx: BackupContext, snapshot_id: str, kind: SnapshotKind) -> None:
+        """Record who named a snapshot. Written after its index entry, by the same
+        caller under the same lock: an interruption in between leaves the entry
+        unlabelled, and reading falls back to its stored name."""
+        path = self._labels_path(ctx)
+        with path.open("a+b") as labels:
+            labels.seek(0, os.SEEK_END)
+            if labels.tell():
+                labels.seek(-1, os.SEEK_END)
+                if labels.read(1) not in {b"\n", b"\r"}:
+                    labels.write(b"\n")
+            labels.write((json.dumps({"id": snapshot_id, "kind": kind}) + "\n").encode("utf-8"))
+            labels.flush()
+            os.fsync(labels.fileno())
+
+    def _labels(self, ctx: HistoryContext) -> dict[str, SnapshotKind]:
+        """Kinds by snapshot id. The file only words the display, so a line that is
+        torn, unknown or oversized is skipped rather than failing the history."""
+        path = self._labels_path(ctx)
+        if not path.exists():
+            return {}
+        found: dict[str, SnapshotKind] = {}
+        for line in path.read_bytes().splitlines():
+            if not line.strip() or len(line) > _MAX_LABEL_LINE_BYTES:
+                continue
+            try:
+                parsed = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(parsed, dict):
+                continue
+            snapshot_id, kind = parsed.get("id"), parsed.get("kind")
+            if isinstance(snapshot_id, str) and isinstance(kind, str) and kind in SNAPSHOT_KINDS:
+                found[snapshot_id] = cast(SnapshotKind, kind)
+        return found
 
     def _transfer_status_path(self, ctx: BackupContext) -> Path:
         path = ctx.root / "remote-transfer.json"
@@ -726,7 +813,13 @@ class SnapshotStore:
         message: str,
         push: bool,
         authorization: BackupAuthorization | None = None,
+        *,
+        kind: SnapshotKind = "manual",
     ) -> dict[str, Any]:
+        """Record the world. An empty message lets the server name the snapshot,
+        labelled "changes" or "automatic"; a written one is labelled `kind`."""
+        if kind not in SNAPSHOT_KINDS:
+            raise ValueError(f"Unknown snapshot kind: {kind!r}")
         current = self._collect(ctx)
         previous_entry = self._resolve(ctx, "HEAD")
         changes = self._changes(current, self._manifest_of(previous_entry))
@@ -755,6 +848,10 @@ class SnapshotStore:
         for payload in current.values():
             self._write_blob(ctx, payload)
         created = datetime.now()  # local and naive: preserves the released timestamp format
+        if not message:
+            described = _describe_changes(changes)
+            kind = "changes" if described else "automatic"
+            message = described or _automatic_message(created)
         entry = {
             "format": FORMAT_VERSION,
             "encryption": ENCRYPTION_NONE,
@@ -764,7 +861,7 @@ class SnapshotStore:
             # the hex ids the storage layout happens to use as directories.
             "world": ctx.root.name,
             "title": ctx.title,
-            "message": message or _describe_changes(changes) or _automatic_message(created),
+            "message": message,
             "parent": previous_entry["id"] if previous_entry else "",
             "files": manifest,
         }
@@ -773,6 +870,7 @@ class SnapshotStore:
         entry["id"] = manifest_identifier(entry, FORMAT_VERSION)
         entry = validate_manifest(entry, expected_world=ctx.root.name).document
         self._append_entry(ctx, entry)
+        self._append_label(ctx, entry["id"], kind)
         log.append("Snapshot created.")
 
         warning = None
@@ -823,17 +921,43 @@ class SnapshotStore:
         return self._push(ctx, entry, authorization, snapshot_created=False)
 
     def history(self, ctx: HistoryContext, limit: int = 40) -> list[dict[str, Any]]:
-        entries = self.entries(ctx)[-limit:]
-        return [
-            {
+        everything = self.entries(ctx)
+        by_id = {entry["id"]: entry for entry in everything}
+        labels = self._labels(ctx)
+        listed = []
+        for entry in reversed(everything[-limit:]):
+            message = entry.get("message", "")
+            kind = labels.get(entry["id"]) or kind_from_message(message)
+            item: dict[str, Any] = {
                 "hash": entry["id"],
                 "shortHash": entry["id"][:8],
                 "date": datetime.fromisoformat(entry["created"]).isoformat(timespec="seconds"),
-                "subject": entry.get("message", ""),
-                "kind": "automatic" if is_automatic_message(entry.get("message", "")) else "manual",
+                "subject": message,
+                "kind": kind,
             }
-            for entry in reversed(entries)
-        ]
+            if kind == "changes":
+                names = self._changed_titles(entry, by_id)
+                if names is not None:
+                    item["changes"] = names
+            listed.append(item)
+        return listed
+
+    def _changed_titles(
+        self, entry: dict[str, Any], by_id: dict[str, dict[str, Any]]
+    ) -> dict[str, list[str]] | None:
+        """Chapter and profile titles a snapshot changed against its parent, taken
+        from the file names both manifests record. None when the parent is missing
+        or unreadable: the client then words the entry without names."""
+        parent_id = entry.get("parent", "")
+        parent = by_id.get(parent_id) if parent_id else None
+        if parent_id and parent is None:
+            return None
+        try:
+            changes = _manifest_changes(self._manifest_of(entry), self._manifest_of(parent))
+        except BackupContractError:
+            return None
+        chapters, profiles = _changed_names(changes)
+        return {"chapters": chapters, "profiles": profiles}
 
     def diff(
         self, ctx: HistoryContext, ref: str, text_only: bool = True, word_diff: bool = True

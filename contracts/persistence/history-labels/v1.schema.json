@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/persistence/history-labels/v1.schema.json",
+  "title": "Quiltor history label line v1",
+  "description": "One line of data/history/{world}/labels.jsonl: who named a snapshot.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "kind"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "kind": {
+      "enum": [
+        "manual",
+        "automatic",
+        "changes",
+        "before-restore",
+        "cloud-sync",
+        "before-cloud-sync",
+        "cloud-sync-conflict"
+      ]
+    }
+  }
+}

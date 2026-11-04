@@ -296,6 +296,24 @@
       ]
     },
     {
+      "name": "persistence.history-labels",
+      "version": 1,
+      "owner": "quiltor/persistence",
+      "compatibility": {
+        "policy": "additive",
+        "rule": "New kinds may be added; a reader ignores a kind it does not know, and existing kinds keep their meaning."
+      },
+      "schema": "persistence/history-labels/v1.schema.json",
+      "reference": "persistence/history-labels/v1.md",
+      "fixtures": [
+        {
+          "path": "fixtures/persistence/history-label.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "persistence.sqlite-migrations",
       "version": 1,
       "owner": "quiltor/persistence",
