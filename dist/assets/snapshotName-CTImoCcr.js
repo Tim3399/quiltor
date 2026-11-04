@@ -1,0 +1,1 @@
+function e(e,t){let n=new Date(e);return Number.isNaN(n.getTime())?e:n.toLocaleString(t,{dateStyle:`medium`,timeStyle:`short`})}function t(t,n,r){let i=e(t.date,r);return t.kind===`before-restore`?n(`beforeRestoreName`,{date:i}):t.kind===`automatic`||!t.subject?n(`automaticBackupName`,{date:i}):`${i} · ${t.subject}`}export{t};
