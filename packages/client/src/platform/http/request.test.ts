@@ -142,6 +142,26 @@ describe("HTTP application errors", () => {
     });
   });
 
+  it.each([
+    ["backup_content_integrity", "Diese Version ist beschädigt"],
+    ["backup_content_unavailable", "Der Inhalt dieser Version konnte nicht abgerufen werden"],
+  ])("gives %s a text of its own instead of the document conflict", async (code, text) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ ok: false, error: { code, params: {}, retryable: false } }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const request = requestJson("/api/history/restore");
+    await expect(request).rejects.toMatchObject({ code, category: "conflict" });
+    await expect(request).rejects.toThrow(text);
+    await expect(request).rejects.toThrow("Dein aktueller Stand ist unverändert.");
+    await expect(request).rejects.not.toThrow("Fassung");
+  });
+
   function failing(body: unknown, headers: Record<string, string> = {}) {
     vi.stubGlobal(
       "fetch",

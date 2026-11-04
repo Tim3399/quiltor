@@ -78,6 +78,14 @@ test("A held version restores the exact earlier text and keeps the state it repl
   const states = dialog.getByRole("navigation", { name: "Stände" });
   const held = states.getByRole("button", { name: /· Hafen am Morgen/ });
   await expect(held).toHaveCount(1);
+  // Holding on again without a change records nothing, says so and keeps the note.
+  const stateCount = await states.getByRole("button").count();
+  await dialog.getByLabel("Was hat sich geändert?").fill("Nochmal");
+  await dialog.getByRole("button", { name: "Version festhalten", exact: true }).click();
+  await expect(dialog).toContainText("Seit der letzten Version hat sich nichts geändert.");
+  await expect(dialog.getByLabel("Was hat sich geändert?")).toHaveValue("Nochmal");
+  await expect(states.getByRole("button")).toHaveCount(stateCount);
+  await dialog.getByLabel("Was hat sich geändert?").fill("");
   await dialog.getByRole("button", { name: "Dialog schließen", exact: true }).click();
   await expect(dialog).toHaveCount(0);
 

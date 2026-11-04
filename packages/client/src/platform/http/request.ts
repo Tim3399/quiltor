@@ -101,6 +101,8 @@ function localizedStructuredErrorMessage(code: string | undefined): string | und
   if (code === "storage.full") return messages.errorStorageFull;
   if (code === "storage.locked") return messages.errorStorageLocked;
   if (code === "backup.preview_failed") return messages.errorBackupPreviewFailed;
+  if (code === "backup_content_integrity") return messages.errorBackupContentIntegrity;
+  if (code === "backup_content_unavailable") return messages.errorBackupContentUnavailable;
   if (code === "sync.forbidden_hosted") return messages.errorSyncForbiddenHosted;
   if (code === "sync.target_invalid") return messages.errorSyncTargetInvalid;
   if (code === "project_transfer.invalid_archive")

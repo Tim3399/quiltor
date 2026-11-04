@@ -197,6 +197,33 @@ describe("VersionsDialog, holding on to a version", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Version festgehalten.");
   });
 
+  it("says so when nothing changed, keeps the note and selects nothing", async () => {
+    // The server records no version without changes; its answer carries no hint, the log does not move.
+    const save = vi
+      .spyOn(quiltorClient.application.backup, "saveSnapshot")
+      .mockResolvedValue(
+        {} as Awaited<ReturnType<typeof quiltorClient.application.backup.saveSnapshot>>,
+      );
+    renderDialog();
+    await within(states()).findByRole("button", { name: /Vor dem Umbau/ });
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+    fireEvent.change(noteField(), { target: { value: "Vor dem Umbau" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(save).toHaveBeenCalledWith("Vor dem Umbau", false));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Seit der letzten Version hat sich nichts geändert.",
+      ),
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent("festgehalten");
+    expect(noteField()).toHaveValue("Vor dem Umbau");
+    expect(within(states()).getAllByRole("button", { pressed: true })).toHaveLength(1);
+    expect(within(states()).getByRole("button", { name: /Aktueller Stand/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("keeps the server's suggestion out of the note and sends an empty note so the server names it", async () => {
     const save = vi
       .spyOn(quiltorClient.application.backup, "saveSnapshot")

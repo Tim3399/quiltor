@@ -94,6 +94,7 @@ export const tools = {
   versionNotePlaceholder: "Leer lassen, dann beschreibt Quiltor die Änderung selbst.",
   holdVersion: "Version festhalten",
   versionHeld: "Version festgehalten.",
+  versionUnchanged: "Seit der letzten Version hat sich nichts geändert.",
   restoreVersion: "Diese Version wiederherstellen",
   restoreVersionTitle: "Version wiederherstellen",
   restoreVersionDescription:

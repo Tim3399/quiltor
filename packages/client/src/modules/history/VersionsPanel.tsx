@@ -116,7 +116,10 @@ export function VersionsPanel({
   // suggestion, so the author never edits server wording (T-85 turns it into a flag).
   const [suggestion, setSuggestion] = useState("");
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    tone: "success" | "info" | "danger";
+    text: string;
+  } | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<SnapshotInfo | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restored, setRestored] = useState(false);
@@ -193,8 +196,15 @@ export function VersionsPanel({
     setNotice(null);
     try {
       await flush();
+      const headBefore = commits[0]?.hash;
       await quiltorClient.application.backup.saveSnapshot(note.trim(), false);
       const latest = await loadLog();
+      // Without changes the server records nothing and says so only in English prose. The answer's
+      // status cannot tell either (it reads zero changes after a real save, too): the new head can.
+      if (latest[0]?.hash === headBefore) {
+        setNotice({ tone: "info", text: t("versionUnchanged") });
+        return;
+      }
       if (latest[0]) setSelected(latest[0].hash);
       setNote("");
       setNotice({ tone: "success", text: t("versionHeld") });
