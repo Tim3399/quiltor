@@ -96,14 +96,21 @@ describe("history HTTP port", () => {
     );
   });
 
-  it("passes the before-restore kind of the history contract through", async () => {
+  it("passes the kinds and changed names of the history contract through", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(historyLog)));
     const state = createHttpApplicationState();
     state.activeWorldId = WORLD_ID;
 
     const { commits } = await createHistoryHttpGateway(state).log();
 
-    expect(commits.map((commit) => commit.kind)).toEqual(["before-restore", "automatic", "manual"]);
+    expect(commits.map((commit) => commit.kind)).toEqual([
+      "before-restore",
+      "changes",
+      "cloud-sync",
+      "automatic",
+      "manual",
+    ]);
+    expect(commits[1]?.changes).toEqual({ chapters: ["Der Hafen"], profiles: [] });
   });
 
   it("uses the public diff defaults without inventing world scope", async () => {

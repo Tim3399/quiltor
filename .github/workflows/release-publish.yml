@@ -181,8 +181,15 @@ jobs:
               || { echo "::error::existing draft points at another revision"; exit 1; }
             gh release upload "v$VERSION" --clobber "${ASSETS[@]}"
           else
+            # Notes start at the previous app tag; left to GitHub they would start at the
+            # latest release, which may be a writing-data release.
+            START="$(python distribution/tooling/previous_release.py \
+              --notes-start-tag --current-version "$VERSION")"
+            START="${START#NOTES_START_TAG=}"
+            NOTES=(--generate-notes)
+            [ -z "$START" ] || NOTES+=(--notes-start-tag "$START")
             gh release create "v$VERSION" --target "$BUILD_SHA" \
-              --title "v$VERSION" --generate-notes --draft "${ASSETS[@]}"
+              --title "v$VERSION" "${NOTES[@]}" --draft "${ASSETS[@]}"
           fi
       - name: Promote immutable images and publish the draft
         env:

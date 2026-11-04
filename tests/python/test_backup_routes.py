@@ -41,6 +41,7 @@ from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.platform.adapters.credentials import InMemoryCredentialVault
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity import service as identity
+from tests.python import late_body
 from tests.python.fake_issuer import FakeIssuer
 from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
@@ -394,6 +395,23 @@ class HostedTokenTests(BackupRouteTestCase):
             "",
             "a token known to be stale must not be sent anyway",
         )
+
+    def test_a_refusal_by_the_dispatch_arrives_whole(self):
+        """A hosted server refuses the login route before reading the body (T-87 S);
+        the server must still drain it, or closing the socket resets the connection
+        on Windows (T-103)."""
+        cookie = f"{identity.SESSION_COOKIE}={self.session_for('t')}"
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/backup/login",
+                    headers={"Content-Type": "application/json", "Cookie": cookie},
+                    body=b"{}",
+                )
+                self.assertEqual(answer.status, 403, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "sync.forbidden_hosted")
 
     def test_a_request_carries_its_own_sessions_token_to_the_endpoint(self):
         """The explicit request capability never inherits another session."""

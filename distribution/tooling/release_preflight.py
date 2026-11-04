@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 import platform
@@ -26,7 +27,9 @@ import uuid
 from importlib import metadata
 from pathlib import Path
 from tempfile import TemporaryDirectory, mkdtemp
+from typing import Any
 
+import release_manifest
 from container_contract import reference as container_base_image
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -97,6 +100,54 @@ def _require_release_workflow() -> None:
 
 def _skip(label: str) -> None:
     print(f"\n==> Skipped (covered by the called full test matrix): {label}", flush=True)
+
+
+WRITING_DATA_LABEL = "Pinned writing data asset is published and matches"
+
+
+def _check_pinned_writing_data(data: Any = release_manifest._UNSET, timeout: float = 60.0) -> None:
+    """The asset the registry pins must be downloadable and carry the pinned bytes and digest.
+
+    Not covered by the test matrix, so it runs in every scope. Without a pin there is nothing
+    to fetch, and the check says so instead of touching the network.
+    """
+
+    try:
+        assets = release_manifest.data_asset_records(data)
+    except release_manifest.ManifestError as error:
+        raise PreflightError(f"{WRITING_DATA_LABEL}: {error}") from error
+    print(f"\n==> {WRITING_DATA_LABEL}", flush=True)
+    if not assets:
+        print("no writing data pinned (registry DATA is None); nothing to fetch", flush=True)
+        return
+    for asset in assets:
+        url, expected_bytes = str(asset["url"]), asset["bytes"]
+        try:
+            with urllib.request.urlopen(
+                urllib.request.Request(url, method="HEAD"), timeout=timeout
+            ) as response:
+                status = response.status
+                length = response.headers.get("Content-Length")
+            if status != 200:
+                raise PreflightError(f"{WRITING_DATA_LABEL}: HEAD {url} answered {status}")
+            if length is None or not length.isdigit() or int(length) != expected_bytes:
+                raise PreflightError(
+                    f"{WRITING_DATA_LABEL}: {url} has Content-Length {length}, "
+                    f"the registry pins {expected_bytes}"
+                )
+            digest = hashlib.sha256()
+            received = 0
+            with urllib.request.urlopen(url, timeout=timeout) as response:
+                for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                    received += len(chunk)
+                    digest.update(chunk)
+        except (urllib.error.URLError, OSError) as error:
+            raise PreflightError(f"{WRITING_DATA_LABEL}: cannot fetch {url}: {error}") from error
+        if received != expected_bytes or digest.hexdigest() != asset["sha256"]:
+            raise PreflightError(
+                f"{WRITING_DATA_LABEL}: {url} does not match the pinned bytes and sha256"
+            )
+        print(f"{asset['name']}: {received} bytes, sha256 matches", flush=True)
 
 
 def _npm_executable() -> str:
@@ -715,6 +766,8 @@ def run_preflight(repo_root: Path = REPO_ROOT, *, scope: str = "full") -> None:
             _skip(label)
             continue
         _run(label, command, repo_root, check_environment)
+
+    _check_pinned_writing_data()
 
     _run_portable_artifact_builds(
         repo_root,

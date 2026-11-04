@@ -184,15 +184,30 @@ Quiltor's `LICENSE`.
 
 - **LanguageTool 6.6** — LGPL-2.1-or-later, downloaded from
   <https://languagetool.org/>. Quiltor verifies the archive checksum before extraction.
-- **German Wiktionary data** — CC BY-SA 4.0 / GFDL; German-language Wiktionary,
-  machine-readable extraction by Wiktextract/Kaikki.org.
-- **OpenThesaurus** — CC BY-SA 4.0, <https://www.openthesaurus.de/>.
-- **FreeDict deu-eng and eng-deu dictionaries** — GPL according to the respective
-  dictionary TEI header, <https://freedict.org/>.
 
-The exact upstream version, URL, checksum, license label, and attribution used by
-the installer are recorded in `src/quiltor/modules/writing_assistance/registry.py`. These datasets are
-not committed to Git and are not covered by Quiltor's own license.
+The dictionary, synonym, and translation data is a prebuilt SQLite database. It is built
+once by `tools/writing-data/build.py` from the two sources below, published as a separate
+data release, and downloaded on demand instead of being shipped with Quiltor. It is a
+derivative of those sources and is licensed as a whole under the Creative Commons
+Attribution-ShareAlike 4.0 International license (CC BY-SA 4.0),
+<https://creativecommons.org/licenses/by-sa/4.0/>.
+
+- **German Wiktionary** — Wiktionary contributors, <https://de.wiktionary.org/>,
+  CC BY-SA 4.0 (the GFDL option is not used). Machine-readable extraction by
+  Wiktextract, published by Kaikki.org (<https://kaikki.org/dewiktionary/>).
+  Changes: excerpt only. Definitions, inflected forms, synonyms, and English
+  translations are selected, shortened, and reformatted into database tables.
+- **OpenThesaurus** — OpenThesaurus.de, Daniel Naber, <https://www.openthesaurus.de/>.
+  Offered under CC BY-SA 4.0 or LGPL; Quiltor uses it under CC BY-SA 4.0. Changes:
+  the synonym groups are reformatted into one database row per word and group.
+
+The FreeDict dictionaries (GPL) are no longer used.
+
+The data release carries the full attribution, the license text, and the exact source
+versions and checksums in its manifest (`contracts/writing-data/`); the same notice is
+stored in the database's `metadata` table. Version 3.25.0 is released without a published
+data release, so no dictionary data is downloaded or distributed with it yet. The data is
+not committed to Git and is not covered by Quiltor's own license.
 
 ## A note on `libomp140.x86_64.dll`
 

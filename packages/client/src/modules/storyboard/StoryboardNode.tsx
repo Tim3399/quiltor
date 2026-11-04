@@ -213,8 +213,8 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
         owner={{ kind: "storyboard", id: item.id }}
         label={editorLabel}
         value={item.text ?? ""}
-        references={item.noteReferences ?? []}
-        marks={item.noteMarks ?? []}
+        references={item.noteReferences}
+        marks={item.noteMarks}
         placeholder={
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }

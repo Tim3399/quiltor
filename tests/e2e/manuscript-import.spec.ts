@@ -16,7 +16,8 @@ for (const theme of ["light", "dark"] as const) {
       await page.request.get(`/api/manuscript?world=${existing.id}`)
     ).json();
     await page.goto("/");
-    await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Manuskript", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
     const confirm = dialog.getByRole("button", {
       name: "Als neues Projekt importieren",
@@ -157,7 +158,8 @@ test("DOCX import retries a lost committed response without creating a second pr
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "Network retry is covered once at desktop width.");
   await page.goto("/");
-  await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Manuskript", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
   await dialog.locator('input[type="file"]').setInputFiles({
     name: "Hafenroman.docx",

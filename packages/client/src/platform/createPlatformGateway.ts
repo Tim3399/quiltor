@@ -1,4 +1,3 @@
-import type { FileGateway, PlatformGateway } from "./PlatformGateway";
 import {
   browserClipboard,
   browserExternalNavigation,
@@ -6,6 +5,7 @@ import {
   browserPreferences,
 } from "./browser/browserPlatformGateway";
 import { desktopFileGateway } from "./desktop/desktopFileGateway";
+import type { FileGateway, PlatformGateway } from "./PlatformGateway";
 import { safeFileName } from "./safeFileName";
 
 const hostFiles: FileGateway = {

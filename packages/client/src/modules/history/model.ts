@@ -1,11 +1,12 @@
+import type { SnapshotChangesWire, SnapshotKindWire } from "../../platform";
+
 export interface SnapshotInfo {
   hash: string;
   shortHash: string;
   date: string;
   subject: string;
-  /**
-   * Who named it. "automatic" and "before-restore": the server did, and the client shows its own
-   * wording. Open for further kinds.
-   */
-  kind?: "automatic" | "manual" | "before-restore";
+  /** Who named it. Every kind but "manual" is worded by the client; absent from an older server. */
+  kind?: SnapshotKindWire;
+  /** For "changes": the chapter and profile titles it touched, when the server knows them. */
+  changes?: SnapshotChangesWire;
 }

@@ -193,7 +193,7 @@ export function VersionsPanel({
     setNotice(null);
     try {
       await flush();
-      await quiltorClient.application.backup.saveSnapshot(note.trim() || suggestion, false);
+      await quiltorClient.application.backup.saveSnapshot(note.trim(), false);
       const latest = await loadLog();
       if (latest[0]) setSelected(latest[0].hash);
       setNote("");

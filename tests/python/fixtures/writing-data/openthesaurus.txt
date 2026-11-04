@@ -1,0 +1,18 @@
+# OpenThesaurus - German Thesaurus in text format
+# Automatically generated 2026-10-30 23:20
+# https://www.openthesaurus.de
+# Copyright (C) 2003-2025 Daniel Naber (naber at danielnaber de)
+#
+# This library is free software; excerpt for Quiltor's tests.
+Haus;Gebäude;Bau
+gehen;laufen;(sich) fortbewegen
+schnell;rasch;flink;zügig
+schön;hübsch;ansehnlich
+groß;riesig;(ugs.) mächtig
+klein;winzig;gering
+sagen;äußern;mitteilen
+Weg;Pfad;Strecke
+Freund;Kumpel (ugs.);Vertrauter
+hell;licht;strahlend
+dunkel;finster
+denken;überlegen;nachdenken

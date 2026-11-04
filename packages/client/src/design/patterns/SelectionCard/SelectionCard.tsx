@@ -21,6 +21,11 @@ export type SelectionCardProps = Omit<
   leading?: ReactNode;
   indicator?: ReactNode;
   selected?: boolean;
+  /**
+   * "wrap" lets the description break onto further lines instead of ending in an ellipsis.
+   * For cards whose description is the explanation the choice depends on.
+   */
+  descriptionLayout?: "single-line" | "wrap";
   className?: string;
   onSelect: MouseEventHandler<HTMLButtonElement>;
 } & SelectionCardActionSlotProps;
@@ -47,6 +52,7 @@ export const SelectionCard = forwardRef<HTMLButtonElement, SelectionCardProps>(
       actions,
       actionsLabel,
       selected = false,
+      descriptionLayout = "single-line",
       className,
       onSelect,
       disabled = false,
@@ -57,7 +63,12 @@ export const SelectionCard = forwardRef<HTMLButtonElement, SelectionCardProps>(
   ) {
     return (
       <div
-        className={classNames("selection-card", selected && "selection-card--selected", className)}
+        className={classNames(
+          "selection-card",
+          selected && "selection-card--selected",
+          descriptionLayout === "wrap" && "selection-card--wrap-description",
+          className,
+        )}
         data-disabled={disabled || undefined}
         data-selected={selected || undefined}
       >

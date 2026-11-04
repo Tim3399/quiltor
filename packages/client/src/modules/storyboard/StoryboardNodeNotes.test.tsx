@@ -293,3 +293,42 @@ describe("Note height on cards without a note of their own", () => {
     expect(tsx).not.toMatch(/rows=\{isNoteCard \? undefined : \d+\}/);
   });
 });
+
+// T-159 (F-159-1): a card without stored marks or references must not hand its note editor
+// a fresh array on every render, or each re-render sends CodeMirror a transaction.
+describe("Storyboard node note re-render", () => {
+  it("sends the note editor no transaction when the card re-renders unchanged", () => {
+    const item: StoryboardNode = {
+      id: "reference-ada",
+      boardId: "main-storyboard",
+      kind: "reference",
+      x: 20,
+      y: 40,
+      label: "Ada",
+      text: "Der Morgen lag still.",
+      target: { kind: "entity", id: "ada" },
+    };
+    const data: StoryboardFlowNodeData = {
+      item,
+      cardKind: "reference",
+      boardTitle: "Main Storyboard",
+      boardContext: "Main Storyboard",
+      onPatch: vi.fn(),
+      onNoteChange: vi.fn(),
+      onOpenReference: vi.fn(),
+      onOpenBoard: vi.fn(),
+    };
+    const card = () => (
+      <I18nProvider>
+        <CanvasNode id={item.id} data={{ ...data }} selected={false} />
+      </I18nProvider>
+    );
+    const view = render(card());
+    const update = vi.spyOn(editorView(screen.getByRole("textbox")), "update");
+
+    view.rerender(card());
+    view.rerender(card());
+
+    expect(update).toHaveBeenCalledTimes(0);
+  });
+});

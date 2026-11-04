@@ -10,6 +10,7 @@ versioned schema or reference, and the fixtures that pin its behaviour.
 - `mcp/`: the versioned MCP tool catalogue.
 - `backup/`: content-addressed remote-backup protocol.
 - `persistence/`: persisted schema and forward-migration contracts.
+- `writing-data/`: the release manifest of the prebuilt writing-assistance dictionary.
 - `semantics/`: schemas for cross-runtime golden semantic fixtures.
 - `fixtures/`: canonical examples consumed by every implementation.
 

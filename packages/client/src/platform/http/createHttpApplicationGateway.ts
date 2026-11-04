@@ -10,12 +10,12 @@ import {
 } from "./documents";
 import { createHistoryHttpGateway } from "./history";
 import { createIdentityHttpGateway } from "./identity";
-import { createMetadataHttpGateway } from "./metadata";
 import { createManuscriptImportHttpGateway } from "./manuscriptImport";
+import { createMetadataHttpGateway } from "./metadata";
 import { createPlaceMapsHttpGateway } from "./placeMaps";
 import { createProjectTransferHttpGateway } from "./projectTransfer";
-import { createSynchronizationHttpGateway } from "./synchronization";
 import { createHttpApplicationState } from "./request";
+import { createSynchronizationHttpGateway } from "./synchronization";
 import { createWorldsHttpGateway } from "./worlds";
 import { createWritingAssistanceHttpGateway } from "./writingAssistance";
 

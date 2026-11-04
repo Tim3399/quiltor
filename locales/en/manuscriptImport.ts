@@ -1,5 +1,4 @@
 export const manuscriptImport = {
-  manuscriptImportButton: "Import manuscript",
   manuscriptImportTitle: "Import manuscript",
   manuscriptImportIntro:
     "Choose a DOCX, Markdown, or text manuscript. Quiltor checks its text, chapters, and formatting before creating a new project.",

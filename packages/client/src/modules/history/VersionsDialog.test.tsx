@@ -197,7 +197,7 @@ describe("VersionsDialog, holding on to a version", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Version festgehalten.");
   });
 
-  it("keeps the server's suggestion out of the note and saves it when the note stays empty", async () => {
+  it("keeps the server's suggestion out of the note and sends an empty note so the server names it", async () => {
     const save = vi
       .spyOn(quiltorClient.application.backup, "saveSnapshot")
       .mockResolvedValue(
@@ -212,7 +212,8 @@ describe("VersionsDialog, holding on to a version", () => {
       "Leer lassen, dann beschreibt Quiltor die Änderung selbst.",
     );
     fireEvent.click(saveButton());
-    await waitFor(() => expect(save).toHaveBeenCalledWith('Chapter "Anfang" edited', false));
+    // An empty note is the flag: the server names the snapshot and records kind "changes" (T-85).
+    await waitFor(() => expect(save).toHaveBeenCalledWith("", false));
   });
 });
 
