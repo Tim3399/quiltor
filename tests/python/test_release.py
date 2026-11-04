@@ -2761,10 +2761,10 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
-                "pull request, untested screenshot only",
+                "pull request, a README screenshot only (check:readme-screenshots hashes it)",
                 pr,
                 ["docs/screenshots/places.png"],
-                set(),
+                {"backend", "frontend", "cross-platform-native"},
                 False,
             ),
         )
@@ -3201,7 +3201,7 @@ class PathFilterContractTests(unittest.TestCase):
 
         document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
         unjustified = json.loads(json.dumps(document))
-        del unjustified["untested"][0]["reason"]
+        unjustified["untested"] = [{"patterns": ["newdir/**"]}]
         groupless = json.loads(json.dumps(document))
         groupless["rules"].append(
             {"name": "new", "patterns": ["newdir/**"], "groups": [], "reason": "A new directory."}

@@ -39,6 +39,7 @@ export const CAPTURE_INPUTS = [
   "tools/documentation/capture_readme.mjs",
   "tools/documentation/readme_fixture.mjs",
   "tools/documentation/readme_screenshots.mjs",
+  "tools/documentation/settle.mjs",
 ];
 
 const IMAGE_LINK = /\]\((?:\.\/)?docs\/screenshots\/([^)\s]+\.png)\)/g;

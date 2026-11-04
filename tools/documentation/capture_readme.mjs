@@ -1,6 +1,6 @@
-import { chromium, expect } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { chromium, expect } from "@playwright/test";
 import { figures, manuscript, storyboards } from "./readme_fixture.mjs";
 import {
   buildManifest,
@@ -9,6 +9,7 @@ import {
   README_VIEWS,
   readVersion,
 } from "./readme_screenshots.mjs";
+import { settleUntilStable } from "./settle.mjs";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8125";
 const output = resolve(process.env.QUILTOR_SCREENSHOT_DIR || "docs/screenshots");
@@ -93,7 +94,7 @@ try {
 
   // Fit-view, the scrub drag and the panels settle over several frames; a frame taken
   // mid-way differs by a sub-pixel, which is what made two runs disagree.
-  async function settle() {
+  async function settle(view) {
     await page.evaluate(async () => {
       await document.fonts.ready;
       const finite = document
@@ -101,27 +102,25 @@ try {
         .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime));
       await Promise.all(finite.map((animation) => animation.finished.catch(() => {})));
     });
-    let previous = "";
-    for (let stable = 0; stable < 5; ) {
-      const state = await page.evaluate(
-        () =>
-          [...document.querySelectorAll(".react-flow__viewport")]
-            .map((element) => getComputedStyle(element).transform)
-            .join("|") +
-          [...document.querySelectorAll(".react-flow__minimap-mask")]
-            .map((element) => element.getAttribute("d"))
-            .join("|"),
-      );
-      stable = state === previous ? stable + 1 : 0;
-      previous = state;
-      await page.waitForTimeout(100);
-    }
+    await settleUntilStable(
+      () =>
+        page.evaluate(
+          () =>
+            [...document.querySelectorAll(".react-flow__viewport")]
+              .map((element) => getComputedStyle(element).transform)
+              .join("|") +
+            [...document.querySelectorAll(".react-flow__minimap-mask")]
+              .map((element) => element.getAttribute("d"))
+              .join("|"),
+        ),
+      { wait: (ms) => page.waitForTimeout(ms), label: `The ${view} view` },
+    );
   }
 
   async function capture(name) {
     if (!README_VIEWS.includes(name)) throw new Error(`"${name}" is not in README_VIEWS.`);
     await page.mouse.move(CAPTURE_VIEWPORT.width - 5, CAPTURE_VIEWPORT.height - 5);
-    await settle();
+    await settle(name);
     if (failures.length) throw new Error(failures.join("\n"));
     await page.screenshot({
       path: resolve(output, `${name}.png`),

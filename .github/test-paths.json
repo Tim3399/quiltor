@@ -202,9 +202,9 @@
     },
     {
       "name": "tools",
-      "patterns": ["tools/**", "docs/screenshots/manifest.json"],
+      "patterns": ["tools/**", "docs/screenshots/manifest.json", "docs/screenshots/*.png"],
       "groups": ["checks", "python"],
-      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README. The README screenshot manifest is read by check:readme-screenshots."
+      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README. The README screenshot manifest and the PNGs next to it are read by check:readme-screenshots, which hashes every image."
     },
     {
       "name": "architecture-docs",
@@ -234,10 +234,5 @@
       "reason": "Prose and team configuration: formatting, markdownlint and typos in npm run check, nothing that runs the product."
     }
   ],
-  "untested": [
-    {
-      "patterns": ["docs/screenshots/*.png"],
-      "reason": "README screenshots: binary images no gate reads; the manifest next to them is covered by the checks group (check:readme-screenshots)."
-    }
-  ]
+  "untested": []
 }
