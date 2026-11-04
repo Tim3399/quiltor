@@ -4096,6 +4096,11 @@ class PreflightCiScopeTests(unittest.TestCase):
             ),
             patch.object(
                 release_preflight,
+                "_check_pinned_writing_data",
+                side_effect=lambda *_args, **_kwargs: ran.append("<pinned writing data>"),
+            ),
+            patch.object(
+                release_preflight,
                 "_run_portable_artifact_builds",
                 side_effect=lambda *_args, **_kwargs: ran.append("<artifact builds>"),
             ),
@@ -4114,6 +4119,14 @@ class PreflightCiScopeTests(unittest.TestCase):
         self.assertNotIn("Skipped", output)
         self.assertLessEqual(release_preflight.COVERED_BY_FULL_MATRIX, set(ran))
         self.assertIn("<artifact builds>", ran)
+
+    def test_both_scopes_check_the_pinned_writing_data(self):
+        # The pin is the only thing tying a release to the writing data it ships with; a
+        # preflight that forgets to call the check releases whatever the manifest says.
+        for scope, environment in (("full", {}), ("ci", self.RELEASE_ENVIRONMENT)):
+            with self.subTest(scope=scope):
+                ran, _ = self.run_scope(scope, environment)
+                self.assertEqual(ran.count("<pinned writing data>"), 1)
 
     def test_ci_scope_skips_exactly_the_covered_steps(self):
         full, _ = self.run_scope("full", {})
