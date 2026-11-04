@@ -976,13 +976,13 @@ Für beispielsweise Spanisch kommt zum neuen Ordner genau ein gut sichtbarer Imp
 UI-Codeänderungen sind nicht nötig; der i18n-Check erzwingt automatisch die Übereinstimmung von
 Ordnern und Registry. Die genaue Anleitung steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Die sieben README-Screenshots gegen einen frisch gebauten Client und einen laufenden, isolierten Server erzeugen:
+Die sieben README-Screenshots entstehen aus einer festen Beispielwelt in 1440 × 900 Pixeln mit der deutschen Oberfläche. Sie werden bei jedem Release automatisch neu aufgenommen: `npm run set-version` startet dafür einen isolierten Server, schreibt `docs/screenshots/manifest.json` (Version, Prüfsumme je Bild, Prüfsumme von Skript und Demo-Daten) und der Release-Preflight sowie `npm run check` lehnen Bilder ab, die nicht zu `VERSION` passen. Von Hand:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
+npm run screenshots:readme
 ```
 
-Das Skript legt eine fiktive Demo-Welt an, prüft die API-Antworten und nimmt die echte Oberfläche in 1440 × 900 Pixeln auf. Es verwendet die deutschen Texte und löscht die Demo-Welt anschließend wieder. Die Demo-Daten liegen unter [`tools/documentation/`](tools/documentation/).
+Die Bilder gelten für Windows, wo Releases vorbereitet werden; die Schriftdarstellung unterscheidet sich je System, der Linux-Release-Job prüft nur das Manifest. Zwei Läufe derselben Version vergleicht `node tools/documentation/compare_readme_screenshots.mjs <Ordner-A> <Ordner-B>` (Ausgabeordner per `QUILTOR_SCREENSHOT_DIR`); es kann einzelne Kantenpixel geben, das Werkzeug erlaubt höchstens 0,05 % abweichende Pixel je Bild. Das Skript prüft die API-Antworten und löscht die Demo-Welt anschließend wieder. Die Demo-Daten liegen unter [`tools/documentation/`](tools/documentation/).
 
 ---
 

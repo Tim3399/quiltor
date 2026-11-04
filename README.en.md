@@ -984,13 +984,13 @@ entry in [`locales/index.ts`](locales/index.ts). No other registry or UI code ch
 the i18n check automatically enforces directory-to-registry parity. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Reproduce the seven README screenshots against a freshly built client and a running isolated server:
+The seven README screenshots come from a fixed example world at 1440 × 900 pixels with the German interface. They are retaken automatically with every release: `npm run set-version` starts an isolated server for it and writes `docs/screenshots/manifest.json` (version, a checksum per image, a checksum of the script and demo data); the release preflight and `npm run check` refuse images that do not match `VERSION`. By hand:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
+npm run screenshots:readme
 ```
 
-The script creates a fictional demo world, checks API responses, and captures the real interface at 1440 × 900 pixels using German text. It deletes the demo world afterward. The demo data lives under [`tools/documentation/`](tools/documentation/).
+The images are valid for Windows, where releases are prepared; font rendering differs per system, and the Linux release job only verifies the manifest. `node tools/documentation/compare_readme_screenshots.mjs <directory-a> <directory-b>` compares two runs of one version (output directory via `QUILTOR_SCREENSHOT_DIR`); a few edge pixels can differ, and the tool allows at most 0.05 % differing pixels per image. The script checks API responses and deletes the demo world afterward. The demo data lives under [`tools/documentation/`](tools/documentation/).
 
 ---
 

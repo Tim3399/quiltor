@@ -486,8 +486,9 @@ A path takes the union of every rule it matches. Three narrow rules add `python`
 suite reads a file of another group: the HTTP client in `packages/client/src/platform/http`
 (`test_routes.py`), one image and `dist/index.html`, and the Playwright configs.
 
-**Not tested** (with the reason the contract demands): `docs/screenshots/*.png` -- README images
-no gate reads. A path may not be both in a rule and on this list.
+**Not tested** (with the reason the contract demands): nothing is listed at present. The README images
+`docs/screenshots/*.png` used to be, but `check:readme-screenshots` hashes them against their manifest, so
+they sit in the `tools` rule with it. A path may not be both in a rule and on this list.
 
 ### Full mode bypasses the filter
 

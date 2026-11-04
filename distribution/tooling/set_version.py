@@ -28,6 +28,10 @@ worked and did not:
   production web build, its committed `dist/` output, browser suite, wheel,
   sdist and both container builds all run before any version file is touched.
 
+Once they pass and before any version file is touched, the README screenshots are retaken
+for the new version (`readme_screenshots.py`), so `docs/screenshots/manifest.json` names the
+version being released. The release preflight refuses pictures that name another one.
+
 All five target byte streams are calculated and validated before staged files
 replace any target; a failed replacement rolls the transaction back. Reviewing
 and committing the diff stays a deliberate act, and pushing it to main is what
@@ -48,6 +52,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+from readme_screenshots import refresh_readme_screenshots
 from release_preflight import PreflightError, run_preflight
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -394,6 +399,15 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        refresh_readme_screenshots(repo_root, target)
+    except PreflightError as error:
+        print(
+            f"error: version unchanged because the README screenshots could not be retaken: {error}",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
         written = apply_version(
             target,
             repo_root,
@@ -416,7 +430,8 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("Next: review the diff, commit it, and merge it to main.")
 
-    print(f"  git commit -m 'chore: release v{target}' -- {' '.join(written)}")
+    print("  git add docs/screenshots   # the README screenshots were retaken for this version")
+    print(f"  git commit -m 'chore: release v{target}' -- {' '.join(written)} docs/screenshots")
 
     print("Pushing that to main is what runs .github/workflows/release.yml.")
 

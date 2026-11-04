@@ -293,14 +293,17 @@ class VersionRepoTestCase(unittest.TestCase):
             .split('"', 1)[0],
         }
 
-    def run_bump(self, request, preflight_error=None):
+    def run_bump(self, request, preflight_error=None, screenshots_error=None):
         with patch.object(set_version, "REPO_ROOT", self.repo):
             with patch.object(set_version, "run_preflight") as preflight:
-                preflight.side_effect = preflight_error
-                with contextlib.redirect_stdout(io.StringIO()):
-                    with contextlib.redirect_stderr(io.StringIO()):
-                        status = set_version.main([request])
+                with patch.object(set_version, "refresh_readme_screenshots") as screenshots:
+                    preflight.side_effect = preflight_error
+                    screenshots.side_effect = screenshots_error
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        with contextlib.redirect_stderr(io.StringIO()):
+                            status = set_version.main([request])
         self.preflight = preflight
+        self.screenshots = screenshots
         return status
 
 
@@ -331,6 +334,33 @@ class ApplyVersionTests(VersionRepoTestCase):
         before = self.versions()
         error = release_preflight.PreflightError("cargo test failed")
         self.assertEqual(self.run_bump("minor", error), 1)
+        self.assertEqual(self.versions(), before)
+
+    def test_screenshots_are_retaken_for_the_new_version_before_any_file_moves(self):
+        seen = {}
+
+        def record(repo_root, version):
+            seen["version"] = version
+            seen["versions"] = self.versions()
+
+        before = self.versions()
+        expected = set_version.next_version(set_version.current_version(self.repo), "minor")
+        with patch.object(set_version, "REPO_ROOT", self.repo):
+            with patch.object(set_version, "run_preflight"):
+                with patch.object(
+                    set_version, "refresh_readme_screenshots", side_effect=record
+                ) as screenshots:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(set_version.main(["minor"]), 0)
+        screenshots.assert_called_once()
+        self.assertEqual(seen["version"], expected)
+        self.assertEqual(seen["versions"], before)
+        self.assertEqual(set(self.versions().values()), {seen["version"]})
+
+    def test_failed_screenshots_write_no_version(self):
+        before = self.versions()
+        error = release_preflight.PreflightError("the browser did not start")
+        self.assertEqual(self.run_bump("minor", screenshots_error=error), 1)
         self.assertEqual(self.versions(), before)
 
     def test_invalid_last_target_is_detected_before_any_file_is_replaced(self):
@@ -619,6 +649,7 @@ class PreflightContractTests(unittest.TestCase):
             "check-release",
         ]
         self.assertIn(["npm", "run", "check:contracts"], commands)
+        self.assertIn(["npm", "run", "check:readme-screenshots"], commands)
         self.assertIn(
             [sys.executable, "distribution/tooling/workflow_contract.py", "check"], commands
         )
@@ -2730,10 +2761,10 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
-                "pull request, untested screenshot only",
+                "pull request, a README screenshot only (check:readme-screenshots hashes it)",
                 pr,
                 ["docs/screenshots/places.png"],
-                set(),
+                {"backend", "frontend", "cross-platform-native"},
                 False,
             ),
         )
@@ -3170,7 +3201,7 @@ class PathFilterContractTests(unittest.TestCase):
 
         document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
         unjustified = json.loads(json.dumps(document))
-        del unjustified["untested"][0]["reason"]
+        unjustified["untested"] = [{"patterns": ["newdir/**"]}]
         groupless = json.loads(json.dumps(document))
         groupless["rules"].append(
             {"name": "new", "patterns": ["newdir/**"], "groups": [], "reason": "A new directory."}

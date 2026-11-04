@@ -20,13 +20,14 @@ const pkg = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
 );
 
-// The chain `check` was before it became a runner: v3.22.1, 17 links.
+// The chain `check` was before it became a runner: v3.22.1, 17 links; check:readme-screenshots joined in v3.25.0.
 const FORMER_CHAIN = [
   "check:contracts",
   "check:architecture",
   "check:design",
   "check:design-system",
   "check:i18n",
+  "check:readme-screenshots",
   "check:platform",
   "lint:biome",
   "lint:eslint",
