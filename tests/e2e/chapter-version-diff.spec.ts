@@ -214,7 +214,7 @@ test("Paragraph changes stay local and loading keeps the current text visible", 
   });
   const editor = page.getByLabel("Kapiteltext");
   const panel = page.getByRole("complementary", { name: "Versionen" });
-  const loading = panel.getByRole("progressbar", { name: "Fassung wird geladen …" });
+  const loading = panel.getByRole("progressbar", { name: "Version wird geladen …" });
   const requested = page.waitForRequest("**/api/history/chapter-comparison*");
   await openToolbarOverflow(page, "Manuskript", "Versionen");
   await requested;
