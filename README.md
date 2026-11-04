@@ -516,6 +516,14 @@ gilt sie als bereit, und der Hinweis „nicht freigegeben“ erscheint erst als 
 „Die Grammatikprüfung antwortet gerade nicht.“ (Fehlercode `writing_assistance.grammar_unavailable`).
 Quiltor schreibt dabei keinen Kapiteltext ins Log oder in Fehlermeldungen.
 
+#### Sprachdaten für Wörterbuch, Synonyme und Übersetzung
+
+Die Daten sind ein vorgebautes Datenpaket aus einem eigenen Daten-Release. Sie werden nachgeladen und nicht mit Quiltor ausgeliefert. Beim Installieren prüft Quiltor Größe und Prüfsumme, bevor es die Daten übernimmt. Sie stammen aus dem deutschen Wiktionary und aus OpenThesaurus und stehen als Ganzes unter CC BY-SA 4.0.
+
+Version 3.25.0 erscheint noch ohne veröffentlichtes Paket. Die Oberfläche zeigt dann „Die Sprachdaten folgen mit einem späteren Update.“, und `quiltor install` kann die Daten noch nicht laden. Die Rechtschreibprüfung des Browsers bleibt verfügbar.
+
+Wer Quiltor als Server betreibt, installiert die Daten selbst: einmal `quiltor install` auf dem Server, sobald ein Paket veröffentlicht ist. Die Datei liegt im Datenverzeichnis, beim Docker-Image also im Volume `/data`, und überlebt ein Image-Update. Ein Server lädt von sich aus nichts nach.
+
 Quellen, Versionen, Checksummen, Lizenzen und Attributionen stehen im Installationsmanifest und in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---

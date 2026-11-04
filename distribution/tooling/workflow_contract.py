@@ -2020,6 +2020,70 @@ def validate_security_events_scope(sources: dict[Path, str]) -> None:
             )
 
 
+WRITING_DATA_PUBLISH_INPUT = """    inputs:
+      publish:
+        description: Create the writing-data release and upload the database and its sources
+        required: true
+        type: boolean
+        default: false
+"""
+WRITING_DATA_TAG_GUARD = '[[ "$TAG" =~ ^writing-data-[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}$ ]]'
+
+
+def validate_writing_data(sources: dict[Path, str]) -> None:
+    """
+    The dictionary build publishes only on an explicit switch, and only as a data release.
+
+    A run without `publish` must not be able to write anything: the workflow grants
+    `contents: read`, and `contents: write` belongs to the publish job alone, which runs
+    only when the switch is on. The release it creates carries the `writing-data-` tag
+    prefix and is never marked latest, so app releases keep finding their predecessor
+    (plan T-88, F-88-5).
+    """
+
+    source = sources.get(WORKFLOW_ROOT / "writing-data.yml")
+    if source is None:
+        raise WorkflowContractError("writing-data.yml is missing")
+    header, _, _ = source.partition("\njobs:\n")
+    triggers = header.split("\non:\n", 1)[-1].split("\n\n", 1)[0] + "\n"
+    if re.findall(r"^  ([a-z_]+):", triggers, re.MULTILINE) != ["workflow_dispatch"]:
+        raise WorkflowContractError("writing-data.yml may only be started by hand")
+    if WRITING_DATA_PUBLISH_INPUT not in triggers:
+        raise WorkflowContractError(
+            "writing-data.yml needs a boolean publish input, off by default"
+        )
+    workflow_permissions = header.split("\npermissions:\n", 1)
+    if len(workflow_permissions) != 2 or workflow_permissions[1].strip() != "contents: read":
+        raise WorkflowContractError(
+            "writing-data.yml must grant only contents: read at workflow level"
+        )
+    if "secrets." in source:
+        raise WorkflowContractError("writing-data.yml may not read repository secrets")
+    build = _job_body(source, "build")
+    publish = _job_body(source, "publish")
+    for forbidden in ("contents: write", "gh release", "GH_TOKEN"):
+        if forbidden in build:
+            raise WorkflowContractError(f"the writing-data build job may not publish: {forbidden}")
+    if (
+        source.count("contents: write") != 1
+        or "\n    permissions:\n      contents: write\n" not in publish
+    ):
+        raise WorkflowContractError("only the writing-data publish job may write contents")
+    if "\n    needs: build\n    if: inputs.publish\n" not in publish:
+        raise WorkflowContractError("the writing-data publish job must wait for the publish switch")
+    if source.count("gh release create") != 1 or "gh release create" not in publish:
+        raise WorkflowContractError(
+            "writing-data.yml must create exactly one release, when publishing"
+        )
+    if "--latest=false" not in publish:
+        raise WorkflowContractError("a writing-data release must never be marked latest")
+    if 'TAG="writing-data-$VERSION"' not in publish or WRITING_DATA_TAG_GUARD not in publish:
+        raise WorkflowContractError("a writing-data release tag must be writing-data-<YYYY.MM.DD>")
+    for path, other in sources.items():
+        if path.name != "writing-data.yml" and "writing-data-" in other:
+            raise WorkflowContractError(f"{path.name} may not create writing-data releases")
+
+
 def _runs_line(job: str, evidence: str) -> bool:
     """A line of the job is the evidence, or the evidence followed by further arguments."""
 
@@ -2740,6 +2804,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_type_check_extras(sources)
         validate_native_release_targets(sources)
         validate_security_events_scope(sources)
+        validate_writing_data(sources)
     finally:
         REPO_ROOT, WORKFLOW_ROOT, ACTION_LOCK, TOOLCHAIN_LOCK = original
 

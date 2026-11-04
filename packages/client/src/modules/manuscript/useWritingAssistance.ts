@@ -399,7 +399,6 @@ export function useWritingAssistance({
     lookupError,
     statusFailed,
     retryStatus,
-    lookupSources: [...new Set(results.map((result) => result.source))],
     grammarIssues,
     selectedIssue,
     setSelectedIssue,

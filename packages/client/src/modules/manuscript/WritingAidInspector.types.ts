@@ -30,7 +30,6 @@ export interface WritingAidInspectorProps {
   statusFailed: boolean;
   onRetryStatus: () => void;
   replaceTarget: boolean;
-  lookupSources: string[];
   grammarIssues: WritingIssue[];
   selectedIssue: WritingIssue | null;
   grammarPhase: GrammarPhase;

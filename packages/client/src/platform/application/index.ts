@@ -83,4 +83,6 @@ export type {
   WritingAssistanceGateway,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
+  WritingDataRelease,
+  WritingInstalledSource,
 } from "./writingAssistance";
