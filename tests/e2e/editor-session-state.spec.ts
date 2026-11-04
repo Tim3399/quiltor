@@ -208,7 +208,8 @@ async function expectReturnToTextRestoresSession(page: Page, scrollRatio: number
       const restored = await viewportTopLine(scroller);
       return {
         text: restored?.text,
-        offsetWithinAPixel: Math.abs((restored?.offset ?? Number.NaN) - (savedTopLine?.offset ?? 0)) <= 1,
+        offsetWithinAPixel:
+          Math.abs((restored?.offset ?? Number.NaN) - (savedTopLine?.offset ?? 0)) <= 1,
       };
     })
     .toEqual({ text: savedTopLine?.text, offsetWithinAPixel: true });
@@ -246,7 +247,9 @@ test("Returning to Text restores the scrolled line when the remounted editor und
               body: chapter.body
                 .split("\n")
                 .map((line, index) =>
-                  index >= 15 && index < 40 ? `Absatz ${index + 1}: ${"WMWMWMWMWM ".repeat(9)}` : line,
+                  index >= 15 && index < 40
+                    ? `Absatz ${index + 1}: ${"WMWMWMWMWM ".repeat(9)}`
+                    : line,
                 )
                 .join("\n"),
             }

@@ -169,15 +169,16 @@ export function EditorSurface({
     const scrollTop = historical
       ? (historyScrollRef.current?.top ?? 0)
       : (restoring?.scrollTop ?? scroller.scrollTop);
+    const scrollAnchor = historical
+      ? null
+      : restoring
+        ? restoring.scrollAnchor
+        : editorRef.current?.scrollAnchorAt?.(scroller, scrollTop);
     sessionCallbackRef.current?.({
       chapterId: view.chapterId,
       selection: view.selection,
       scrollTop,
-      scrollAnchor: historical
-        ? null
-        : restoring
-          ? (restoring.scrollAnchor ?? null)
-          : (editorRef.current?.scrollAnchorAt?.(scroller, scrollTop) ?? null),
+      ...(scrollAnchor ? { scrollAnchor } : {}),
     });
   }, [current?.id, editorRef, historyOpen]);
   const pendingLandingRef = useRef<{
@@ -370,7 +371,7 @@ export function EditorSurface({
         sessionCallbackRef.current?.({
           ...view,
           scrollTop: scroller.scrollTop,
-          scrollAnchor: saved.scrollAnchor ?? null,
+          ...(saved.scrollAnchor ? { scrollAnchor: saved.scrollAnchor } : {}),
         });
       }
     };

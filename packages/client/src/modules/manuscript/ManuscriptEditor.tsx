@@ -492,7 +492,11 @@ export function ManuscriptEditor({
       },
       scrollTopForAnchor: (scroller, anchor) => {
         if (anchor.pos > instance.state.doc.length) return null;
-        return documentOffsetIn(instance, scroller) + instance.lineBlockAt(anchor.pos).top + anchor.offset;
+        return (
+          documentOffsetIn(instance, scroller) +
+          instance.lineBlockAt(anchor.pos).top +
+          anchor.offset
+        );
       },
       afterMeasure: (callback) => {
         let cancelled = false;
