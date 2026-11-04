@@ -55,7 +55,17 @@ test("Backup preview exposes storage and restore preserves the newer saved conte
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
   await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+  // The tab flushes, then asks for the list and the storage location. On a loaded server
+  // those round trips alone can outlast the 5 s expect budget, so wait for them (T-172).
+  const backupsLoaded = Promise.all(
+    ["/api/backups?", "/api/backups/location?"].map((path) =>
+      page.waitForResponse(
+        (response) => response.url().includes(path) && response.request().method() === "GET",
+      ),
+    ),
+  );
   await sheet.getByRole("tab", { name: "Automatische Sicherungen", exact: true }).click();
+  for (const response of await backupsLoaded) expect(response.ok()).toBeTruthy();
   await expect(sheet).toContainText("Datenbankdatei");
   await expect(sheet).toContainText("Letzte erfolgreiche Sicherung");
   await expect(sheet).toContainText(
@@ -64,7 +74,11 @@ test("Backup preview exposes storage and restore preserves the newer saved conte
   await expect(
     sheet.getByRole("button", { name: "Sicherung wiederherstellen", exact: true }),
   ).toHaveCount(0);
+  const previewLoaded = page.waitForResponse((response) =>
+    response.url().includes("/api/backups/preview?"),
+  );
   await sheet.locator(".backup-list-item").first().click();
+  expect((await previewLoaded).ok()).toBeTruthy();
   await expect(
     sheet.getByRole("button", { name: "Sicherung wiederherstellen", exact: true }),
   ).toBeEnabled();
