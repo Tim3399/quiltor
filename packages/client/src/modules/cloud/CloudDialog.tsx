@@ -51,6 +51,9 @@ export function CloudDialog({
   const [preview, setPreview] = useState<CloudSyncPreview | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
+  // Only a sync or a target change in flight holds the dialog open. The first load is just
+  // reading, and swallowing a close until it ends left the close button doing nothing.
+  const [operating, setOperating] = useState(false);
   const [reloadRequired, setReloadRequired] = useState(false);
   const [recoveryRequired, setRecoveryRequired] = useState(false);
   const [stateWarning, setStateWarning] = useState(false);
@@ -91,6 +94,7 @@ export function CloudDialog({
     if (operation.current || reloadRequired) return;
     operation.current = true;
     setBusy(true);
+    setOperating(true);
     setError("");
     try {
       if (saveFirst) await flush();
@@ -106,6 +110,7 @@ export function CloudDialog({
     } finally {
       operation.current = false;
       setBusy(false);
+      setOperating(false);
     }
   };
   const synchronize = (action: CloudSyncAction) =>
@@ -196,7 +201,7 @@ export function CloudDialog({
       ))}
     </div>
   );
-  const hostBusy = busy || reloadRequired;
+  const hostBusy = operating || reloadRequired;
   // biome-ignore lint/correctness/useExhaustiveDependencies: Only the value is reported.
   useEffect(() => onBusyChange?.(hostBusy), [hostBusy]);
   const footer = reloadRequired ? (
@@ -422,7 +427,7 @@ export function CloudDialog({
           title={t("cloudTitle")}
           closeLabel={t("close")}
           onClose={() => {
-            if (!busy && !reloadRequired) onClose();
+            if (!hostBusy) onClose();
           }}
           size="wide"
           footer={footer}
