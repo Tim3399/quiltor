@@ -22,8 +22,26 @@
           "type": "string"
         },
         "kind": {
-          "description": "automatic: a name the server generated. before-restore: the state a restore replaced, persisted as \"Before restore\". manual: everything else.",
-          "enum": ["automatic", "manual", "before-restore"]
+          "description": "Who named the version (contracts/persistence/history-labels). manual: typed by the author. automatic: named by the server, nothing but the database changed. changes: named by the server after chapters or profiles changed. before-restore, cloud-sync, before-cloud-sync, cloud-sync-conflict: written by those operations. The client words every kind but manual itself.",
+          "enum": [
+            "manual",
+            "automatic",
+            "changes",
+            "before-restore",
+            "cloud-sync",
+            "before-cloud-sync",
+            "cloud-sync-conflict"
+          ]
+        },
+        "changes": {
+          "description": "Only for kind changes: the titles of the chapters and profiles the version changed against its parent. Absent when the parent is not in this history.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chapters", "profiles"],
+          "properties": {
+            "chapters": { "type": "array", "items": { "type": "string" } },
+            "profiles": { "type": "array", "items": { "type": "string" } }
+          }
         }
       }
     },
