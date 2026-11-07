@@ -68,11 +68,14 @@ import "./StoryboardWorkspace.css";
 
 export type StoryboardWorkspaceProps = {
   state: StoryboardState;
+  /** The open world: the element library remembers its folded groups per world. */
+  worldId?: string;
   onChange: (value: StoryboardState, options?: { separateHistoryStep?: boolean }) => void;
   candidates: readonly WorldReferenceCandidate[];
   onOpenReference: (target: WorldReferenceTarget) => void;
   /** The one note of the element a reference card shows; null once it is deleted. */
   elementNote?: (target: ElementNoteTarget) => ElementNote | null;
+  elementInTrash?: (target: ElementNoteTarget) => boolean;
   onElementNoteChange?: (
     target: ElementNoteTarget,
     text: string,
@@ -97,10 +100,12 @@ export function StoryboardWorkspace(props: StoryboardWorkspaceProps) {
 
 function StoryboardWorkspaceInner({
   state,
+  worldId,
   onChange,
   candidates,
   onOpenReference,
   elementNote,
+  elementInTrash,
   onElementNoteChange,
   targetId,
   targetRequestId,
@@ -294,6 +299,8 @@ function StoryboardWorkspaceInner({
             onElementNoteChange,
             elementNote:
               item.kind === "reference" && elementNote ? elementNote(item.target) : undefined,
+            elementInTrash:
+              item.kind === "reference" && elementInTrash ? elementInTrash(item.target) : undefined,
             onOpenReference: openReference,
             onOpenBoard: openBoard,
           },
@@ -306,6 +313,7 @@ function StoryboardWorkspaceInner({
       allCandidates,
       boards,
       changeNote,
+      elementInTrash,
       elementNote,
       noteBoardContext,
       onElementNoteChange,
@@ -766,6 +774,7 @@ function StoryboardWorkspaceInner({
       <div className={`storyboard-layout ${libraryOpen ? "has-library" : ""}`.trim()}>
         {libraryOpen && (
           <StoryboardSearchPanel
+            worldId={worldId}
             candidates={allCandidates}
             query={query}
             onQueryChange={setQuery}

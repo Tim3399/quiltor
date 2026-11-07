@@ -4,7 +4,7 @@ import {
   type Manuscript,
   type ManuscriptEditorSessionState,
 } from "../../modules/manuscript";
-import { type ElementNoteTarget, resolveElementNote } from "../../modules/notes";
+import { type ElementNoteTarget, isChapterInTrash, resolveElementNote } from "../../modules/notes";
 import {
   type FigureState,
   loadFigureWorkspace,
@@ -118,6 +118,10 @@ export function WorkspaceSurface({
     (noteTarget: ElementNoteTarget) => resolveElementNote(noteTarget, manuscript, figures),
     [figures, manuscript],
   );
+  const elementInTrash = useCallback(
+    (noteTarget: ElementNoteTarget) => isChapterInTrash(noteTarget, manuscript),
+    [manuscript],
+  );
   const layout = useWorkspaceLayout(worldId, workspace);
   const manuscriptSession = useRef<StoredSession | null>(null);
   const captureManuscriptSession = useCallback(
@@ -215,11 +219,13 @@ export function WorkspaceSurface({
     );
   return (
     <StoryboardWorkspace
+      worldId={worldId}
       state={storyboards}
       onChange={storyboardHistory.change}
       candidates={referenceCandidates}
       onOpenReference={openStoryboardReference}
       elementNote={elementNote}
+      elementInTrash={elementInTrash}
       onElementNoteChange={onElementNoteChange}
       targetId={target?.workspace === "storyboard" ? target.id : undefined}
       targetRequestId={target?.workspace === "storyboard" ? target.requestId : undefined}

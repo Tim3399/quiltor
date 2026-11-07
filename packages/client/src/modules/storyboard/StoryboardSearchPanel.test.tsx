@@ -9,7 +9,10 @@ import {
   storyboardNodeDragValue,
 } from "./storyboardCanvasModel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 const candidates: WorldReferenceCandidate[] = [
   {
@@ -122,5 +125,79 @@ describe("StoryboardSearchPanel", () => {
 
     fireEvent.click(note);
     expect(onAddNote).toHaveBeenCalledOnce();
+  });
+
+  describe("groups by kind", () => {
+    const collapsedKey = (worldId: string) =>
+      `quiltor:collapsed-groups:storyboard-library:${worldId}`;
+    const renderPanel = (worldId: string, onPlace = vi.fn(), query = "") =>
+      render(
+        <I18nProvider>
+          <StoryboardSearchPanel
+            worldId={worldId}
+            candidates={candidates}
+            query={query}
+            onQueryChange={vi.fn()}
+            onAddNote={vi.fn()}
+            onPlace={onPlace}
+          />
+        </I18nProvider>,
+      );
+
+    it("lists the entries under one foldable heading per kind", () => {
+      renderPanel("welt-a");
+      expect(screen.getByRole("button", { name: /^Figur/ })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(screen.getByRole("button", { name: /^Ort/ })).toBeInTheDocument();
+    });
+
+    it("keeps dragging and clicking working from a group after it was folded and opened again", () => {
+      const onPlace = vi.fn();
+      const dataTransfer = transfer();
+      renderPanel("welt-a", onPlace);
+      const heading = screen.getByRole("button", { name: /^Figur/ });
+      fireEvent.click(heading);
+      expect(heading).toHaveAttribute("aria-expanded", "false");
+      expect(
+        screen.queryByRole("button", { name: "Ada Lovelace auf dem Storyboard platzieren" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(heading);
+      const entry = screen.getByRole("button", {
+        name: "Ada Lovelace auf dem Storyboard platzieren",
+      });
+      fireEvent.dragStart(entry, { dataTransfer });
+      expect(dataTransfer.setData).toHaveBeenCalledWith(
+        STORYBOARD_REFERENCE_DRAG_MIME,
+        "entity:ada",
+      );
+      fireEvent.click(entry);
+      expect(onPlace).toHaveBeenCalledWith(candidates[0]);
+    });
+
+    it("remembers a folded kind per world", () => {
+      const first = renderPanel("welt-a");
+      fireEvent.click(screen.getByRole("button", { name: /^Ort/ }));
+      expect(localStorage.getItem(collapsedKey("welt-a"))).toBe(`["ort"]`);
+      first.unmount();
+      renderPanel("welt-a");
+      expect(screen.getByRole("button", { name: /^Ort/ })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      cleanup();
+      renderPanel("welt-b");
+      expect(screen.getByRole("button", { name: /^Ort/ })).toHaveAttribute("aria-expanded", "true");
+      expect(localStorage.getItem(collapsedKey("welt-b"))).toBeNull();
+    });
+
+    it("does not hide a hit of the search behind a folded kind", () => {
+      localStorage.setItem(collapsedKey("welt-a"), `["person"]`);
+      renderPanel("welt-a", vi.fn(), "Ada");
+      expect(
+        screen.getByRole("button", { name: "Ada Lovelace auf dem Storyboard platzieren" }),
+      ).toBeVisible();
+    });
   });
 });

@@ -25,6 +25,8 @@ export const common = {
     "Nicht genug Speicherplatz. Rette den Entwurf, schaffe Platz und versuche es erneut.",
   errorStorageLocked:
     "Das Projekt ist gerade für Schreibzugriffe gesperrt. Dein Entwurf bleibt erhalten. Versuche es erneut oder rette den Entwurf.",
+  errorStorageSchemaNewer:
+    "Diese Daten stammen aus einer neueren Quiltor-Version. Aktualisiere Quiltor und versuche es erneut. Dein aktueller Stand bleibt unverändert.",
   errorBackupPreviewFailed:
     "Die Sicherung konnte nicht für die Vorschau geöffnet werden. Sie wurde möglicherweise beschädigt.",
   errorBackupContentIntegrity:

@@ -32,6 +32,7 @@ export const storyboard = {
   storyboardNodeNoteEditorLabel: "Note for {name}",
   storyboardNodeNotePlaceholder: "Note",
   storyboardElementDeleted: "Element deleted",
+  storyboardElementInTrash: "Chapter in the trash",
   storyboardNodeNoteFocusTitle: "Note for {name} · {context}",
   storyboardNoteFocusOpen: "Open note in focus mode",
   storyboardNoteFocusClose: "Back to storyboard",
@@ -57,6 +58,5 @@ export const storyboard = {
   storyboardDeleteNode: "Delete item",
   storyboardResizeNode: "Resize item",
   storyboardPlaceReference: "Place {name} on the storyboard",
-  storyboardResultDetailFallback: "World content",
   storyboardNodeCount: "{count} items",
 } as const;
