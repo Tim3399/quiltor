@@ -117,6 +117,19 @@
   mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 2lh), var(--transparent));
 }
 
+/* A note that opens with its card's own title as a heading leaves that line out while nobody
+   writes (T-185): the title stands in the card's head already. Display only -- the line is in
+   the editor, so focusing it shows the line again and nothing can be lost by editing. The
+   attribute counts the lines to leave out: the heading, and the empty line after it. */
+.storyboard-node__note[data-title-heading-lines]:not(:focus-within)
+  .cm-content
+  > .cm-line:first-child,
+.storyboard-node__note[data-title-heading-lines="2"]:not(:focus-within)
+  .cm-content
+  > .cm-line:nth-child(2) {
+  display: none;
+}
+
 /* The card is the frame already. A second one inside turns a note into a form -- frame
    and surface therefore stay quiet until somebody writes in it. The border width remains,
    so that nothing shifts when it is clicked into. */

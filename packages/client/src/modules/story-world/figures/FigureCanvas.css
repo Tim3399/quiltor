@@ -38,6 +38,15 @@
   opacity: 1;
 }
 
+/* The overview hides the handles, as StoryGraph.css says for every story graph; the rule
+   above has the same weight and comes later, so it used to leave them at a fifth here.
+   Small, translucent and on fractional positions, they lay across the seams of overlapping
+   circles and were not rasterised the same way twice (T-129 F3). Pointing at a marker,
+   selecting it or connecting still shows them. */
+.figure-workspace .story-node.zoom-overview:not(:hover, .selected) .react-flow__handle {
+  opacity: 0;
+}
+
 .figure-workspace .story-node .directed-handle {
   border-radius: 50%;
   background: var(--gold);
