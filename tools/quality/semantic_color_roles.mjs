@@ -36,6 +36,12 @@ export const directPaletteRoleAllowlist = Object.freeze([
     rationale: "Important-node graph encoding",
   },
   {
+    path: "packages/client/src/modules/story-world/StoryGraph.css",
+    selector: ".story-node.zoom-overview.is-important",
+    variables: ["--gold"],
+    rationale: "Important-node graph encoding",
+  },
+  {
     path: "packages/client/src/modules/story-world/figures/FigureCanvas.css",
     selector: ".figure-workspace .flow-area .react-flow__connection-path",
     variables: ["--gold"],

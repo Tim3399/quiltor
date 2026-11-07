@@ -364,18 +364,26 @@ function PlacesWorkspaceInner({
     setMeasuring(false);
     setMeasureSelection([]);
   };
+  // From the latest state, not the render-time prop: two patches in one batch must both land.
   const patchSelected = (patch: Partial<FigureNode>) => {
     if (!selected) return;
-    onChange({
-      ...state,
-      nodes: state.nodes.map((node) => (node.id === selected.id ? { ...node, ...patch } : node)),
-    });
+    const current = latestStateRef.current;
+    const next = {
+      ...current,
+      nodes: current.nodes.map((node) => (node.id === selected.id ? { ...node, ...patch } : node)),
+    };
+    latestStateRef.current = next;
+    onChange(next);
   };
-  const patchScale = (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) =>
-    onChange({
-      ...state,
-      mapScale: { unitsPer100px: 1, unitLabel: t("unitsDefault"), ...state.mapScale, ...patch },
-    });
+  const patchScale = (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => {
+    const current = latestStateRef.current;
+    const next = {
+      ...current,
+      mapScale: { unitsPer100px: 1, unitLabel: t("unitsDefault"), ...current.mapScale, ...patch },
+    };
+    latestStateRef.current = next;
+    onChange(next);
+  };
   const blockDeletionWithContents = (place: FigureNode): boolean => {
     const current = latestStateRef.current;
     const childCount = placesOnLevel(current.nodes, place.id).length;

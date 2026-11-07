@@ -17,9 +17,9 @@ class AssistantPlanningContextTests(unittest.TestCase):
             ],
             "nodes": [
                 {
-                    "id": "reference-mara",
+                    "id": "note-mara",
                     "boardId": "main",
-                    "kind": "reference",
+                    "kind": "note",
                     "text": "  Mara bewacht das Archiv.  ",
                 },
                 {
@@ -42,7 +42,7 @@ class AssistantPlanningContextTests(unittest.TestCase):
         chunks = build_storyboard_knowledge(storyboards)
 
         self.assertEqual(
-            [chunk.id for chunk in chunks], ["storyboard:group-finale", "storyboard:reference-mara"]
+            [chunk.id for chunk in chunks], ["storyboard:group-finale", "storyboard:note-mara"]
         )
         finale, mara = chunks
         self.assertEqual(finale.title, "Akt II · Finale")

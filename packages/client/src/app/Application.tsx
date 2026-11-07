@@ -4,7 +4,12 @@ import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
 import { GettingStartedDialog } from "../modules/getting-started";
 import { chaptersInBook, type Manuscript, wordCount } from "../modules/manuscript";
-import { NoteReferenceProvider } from "../modules/notes";
+import {
+  type ElementNoteTarget,
+  NoteReferenceProvider,
+  withChapterNote,
+  withFigureNote,
+} from "../modules/notes";
 import { ProjectExportDialog } from "../modules/project-transfer";
 import {
   type PersistedRecoveryDocuments,
@@ -23,6 +28,8 @@ import {
   workspaceTargetForReference,
 } from "../modules/world-references";
 import { ApplicationGatewayError, quiltorClient } from "../platform";
+import type { NoteMark, NoteReference } from "../shared";
+import { useLatest } from "../shared/hooks/useLatest";
 import { AppShell } from "./AppShell";
 import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
 import { useOverlayController, versionsOptionsForCommand } from "./overlays/useOverlayController";
@@ -84,6 +91,37 @@ export function App() {
   const manuscript = manuscriptHistory.value;
   const figures = figureHistory.value;
   const storyboards = storyboardHistory.value;
+  // The note of an element has one home, its own document; a Storyboard reference card
+  // writes there too (T-177). From the latest state, not the render's: two edits in one
+  // batch must both land (T-180).
+  const latestManuscriptRef = useLatest(manuscript);
+  const latestFiguresRef = useLatest(figures);
+  const changeManuscriptHistory = manuscriptHistory.change;
+  const changeFigureHistory = figureHistory.change;
+  const updateElementNote = useCallback(
+    (
+      target: ElementNoteTarget,
+      text: string,
+      noteReferences: NoteReference[],
+      noteMarks: NoteMark[],
+    ) => {
+      const note = { text, noteReferences, noteMarks };
+      if (target.kind === "chapter") {
+        const current = latestManuscriptRef.current;
+        const next = current && withChapterNote(current, target.id, note);
+        if (!next) return;
+        latestManuscriptRef.current = next;
+        changeManuscriptHistory(next);
+        return;
+      }
+      const current = latestFiguresRef.current;
+      const next = current && withFigureNote(current, target, note);
+      if (!next) return;
+      latestFiguresRef.current = next;
+      changeFigureHistory(next);
+    },
+    [changeFigureHistory, changeManuscriptHistory],
+  );
   const [orphanedMentions, setOrphanedMentions] = useState(0);
   const [pendingRename, setPendingRename] = useState<PendingEntityRename | null>(null);
   const [currentChapterId, setCurrentChapterId] = useState("");
@@ -850,6 +888,7 @@ export function App() {
                 storyboardHistory={storyboardHistory}
                 referenceCandidates={noteReferenceCandidates}
                 onFiguresChange={changeFigures}
+                onElementNoteChange={updateElementNote}
                 target={workspace.target}
                 onNavigate={workspace.navigate}
                 focus={workspace.focus}

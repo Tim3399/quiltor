@@ -12,6 +12,7 @@ from quiltor.infrastructure.persistence.sqlite import (
     manuscript,
     place_map_images,
     revisions,
+    schema,
     story_world,
     storyboards,
 )
@@ -20,6 +21,9 @@ from quiltor.infrastructure.persistence.sqlite import (
 class SQLiteDocumentRepository:
     def exists(self, database: Path) -> bool:
         return database.is_file()
+
+    def migrate(self, database: Path) -> None:
+        schema.initialize(database)
 
     def revision_checkpoint(self, database: Path) -> dict[str, int]:
         if not database.is_file():

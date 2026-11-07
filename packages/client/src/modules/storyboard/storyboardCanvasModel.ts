@@ -1,4 +1,5 @@
 import type { Connection, Edge, Node } from "@xyflow/react";
+import type { NoteMark, NoteReference } from "../../shared";
 import { uid } from "../../shared/id";
 import {
   type CardKind,
@@ -7,6 +8,7 @@ import {
   graphConnectionKind,
   graphRelationshipEdgePresentation,
 } from "../graph";
+import type { ElementNote, ElementNoteTarget } from "../notes";
 import {
   resolveWorldReferenceCandidate,
   type WorldReferenceCandidate,
@@ -50,6 +52,15 @@ export type StoryboardFlowNodeContext = {
   ) => void;
   onOpenReference: (node: StoryboardReferenceNode) => void;
   onOpenBoard: (node: StoryboardBoardNode) => void;
+  /** A reference card edits its element's note through this, never its own (T-177). */
+  onElementNoteChange?: (
+    target: ElementNoteTarget,
+    text: string,
+    noteReferences: NoteReference[],
+    noteMarks: NoteMark[],
+  ) => void;
+  /** The element's note on a reference card: null when the element is gone. */
+  elementNote?: ElementNote | null;
 };
 
 export type StoryboardFlowNodeData = StoryboardFlowNodeContext & {
@@ -125,7 +136,9 @@ export function candidateNode(
   if (candidate.target.kind === "storyboard") {
     return { ...base, kind: "storyboard", target: candidate.target };
   }
-  return { ...base, kind: "reference", target: candidate.target };
+  // A reference card carries no note: it shows the one note of its element (T-177).
+  const { text: _text, noteReferences: _references, noteMarks: _marks, ...card } = base;
+  return { ...card, kind: "reference", target: candidate.target };
 }
 
 function storyboardNodeSize(node: StoryboardNode) {

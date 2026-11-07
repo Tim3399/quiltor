@@ -11,7 +11,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
 
 from quiltor.application.document_wire_v1 import (
     InvalidDocumentWireV1,
@@ -30,6 +30,7 @@ from quiltor.application.project_transfer import (
 from quiltor.application.worlds import WorldSummary
 from quiltor.domain.manuscript import story_time_anchor_issue
 from quiltor.domain.story_world.place_map_image import MAX_IMAGE_BYTES, UnsupportedImage, identify
+from quiltor.domain.storyboard.element_notes import move_reference_notes
 from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
 from quiltor.infrastructure.persistence.sqlite import (
     manuscript,
@@ -70,6 +71,30 @@ class ValidatedArchive:
             storyboards=len(self.storyboards.get("boards", [])),
             images=len(self.images),
         )
+
+
+def _with_reference_notes_moved(documents: dict[str, Any]) -> dict[str, Any]:
+    """An archive from 3.25 or earlier carries text on reference cards; move it first (T-177).
+
+    The same rule as the schema-15 migration, so an imported world matches one that was
+    migrated. A malformed envelope is left alone for the decoder to reject.
+    """
+
+    payloads: list[dict[str, Any]] = []
+    for kind in ("manuscript", "figures", "storyboards"):
+        envelope = documents[kind]
+        payload = envelope.get("payload") if isinstance(envelope, dict) else None
+        if not isinstance(payload, dict):
+            return documents
+        payloads.append(cast(dict[str, Any], payload))
+    manuscript_payload, figures_payload, storyboards_payload, _ = move_reference_notes(
+        payloads[0], payloads[1], payloads[2]
+    )
+    return {
+        "manuscript": {**documents["manuscript"], "payload": manuscript_payload},
+        "figures": {**documents["figures"], "payload": figures_payload},
+        "storyboards": {**documents["storyboards"], "payload": storyboards_payload},
+    }
 
 
 class SQLiteProjectTransferRepository:
@@ -316,6 +341,7 @@ def _validate_manifest(value: Any) -> dict[str, Any]:
         "storyboards",
     }:
         raise InvalidProjectArchive("Project documents are incomplete.")
+    documents = _with_reference_notes_moved(documents)
     decoded: dict[str, dict[str, Any]] = {}
     try:
         for kind in ("manuscript", "figures", "storyboards"):

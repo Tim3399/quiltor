@@ -585,12 +585,11 @@ test("At overview LOD, places share markers and priority pills with figures", as
     monogramDisplay: "grid",
     nameDisplay: "none",
   });
+  // A favourite is a pill as tall as a marker with its name inside (D-101); its width is the name's.
   expect(priorityMarker).toMatchObject({
-    width: "116px",
-    height: "34px",
-    visualWidth: 116,
-    visualHeight: 34,
-    radius: "5px",
+    height: "32px",
+    visualHeight: 32,
+    radius: "16px",
     monogramDisplay: "none",
     nameDisplay: "flex",
   });

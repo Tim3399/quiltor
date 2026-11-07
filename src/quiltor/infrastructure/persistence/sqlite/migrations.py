@@ -13,9 +13,15 @@ from quiltor.domain.story_world.profile import (
     legacy_profile_field_id,
 )
 from quiltor.domain.storyboard import DEFAULT_STORYBOARD_ID, DEFAULT_STORYBOARD_TITLE
+from quiltor.domain.storyboard.element_notes import (
+    ElementKey,
+    ElementNote,
+    ReferenceCardNote,
+    append_reference_notes,
+)
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION
-from quiltor.infrastructure.persistence.sqlite.temporal import migrate_legacy_state
+from quiltor.infrastructure.persistence.sqlite.temporal import FIELDS_KEY, migrate_legacy_state
 from quiltor.infrastructure.persistence.sqlite.time_system import ensure_primary
 
 _GERMAN_KEYS = {"notizen": "notes", "gerichtet": "directed"}
@@ -43,6 +49,198 @@ def _rename_german_keys(value: object) -> bool:
         for item in value:
             changed = _rename_german_keys(item) or changed
     return changed
+
+
+# Where the step of schema 15 leaves its count of dropped card texts: per board and element,
+# never the text itself (D-100). The database is the world, so the world is implied.
+DISCARDED_NOTES_META_KEY = "migration_v15_discarded_notes"
+_CARD_NOTE_KEYS = ("text", "noteReferences", "noteMarks")
+
+
+def _table_exists(database: sqlite3.Connection, name: str) -> bool:
+    return (
+        database.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()
+        is not None
+    )
+
+
+def _json_object(raw: object) -> dict[str, Any]:
+    try:
+        value = json.loads(raw) if isinstance(raw, str) else None
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _rows(value: object) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, dict))
+
+
+def _with_note_ranges(extra: dict[str, Any], note: ElementNote) -> dict[str, Any]:
+    updated = dict(extra)
+    for key, rows in (("noteReferences", note.references), ("noteMarks", note.marks)):
+        if rows or key in updated:
+            updated[key] = list(rows)
+    return updated
+
+
+def _bump_revision(database: sqlite3.Connection, kind: str) -> None:
+    database.execute(
+        "UPDATE meta SET value=CAST(CAST(value AS INTEGER)+1 AS TEXT) WHERE key=?",
+        (f"{kind}_revision",),
+    )
+
+
+def _move_reference_card_notes(database: sqlite3.Connection) -> None:
+    """Schema 15: a reference card's text joins the one note of its element (T-177).
+
+    See domain/storyboard/element_notes.py for the format and the rules. Every reference
+    card leaves this step without text, references or marks; a card whose element is gone,
+    or whose block would break a limit, loses its text and is counted under
+    DISCARDED_NOTES_META_KEY. Deterministic: the cloud pull migrates a snapshot and compares
+    it with what the world became (F-177-1).
+    """
+
+    if not _table_exists(database, "storyboards") or not _table_exists(
+        database, "storyboard_nodes"
+    ):
+        return
+    boards = {
+        row[0]: (row[1], row[2])
+        for row in database.execute("SELECT id, position, title FROM storyboards")
+    }
+    cards: list[ReferenceCardNote] = []
+    cleaned: list[tuple[str, str]] = []
+    for node_id, board_id, position, column_text, target_kind, target_id, raw in database.execute(
+        "SELECT id, board_id, position, text, target_kind, target_id, extra_json"
+        " FROM storyboard_nodes WHERE kind='reference' ORDER BY id"
+    ):
+        extra = _json_object(raw)
+        # The loader reads a card's text from extra_json; the column is a copy (storyboards.py).
+        stored_text = extra.get("text")
+        text = stored_text if isinstance(stored_text, str) else column_text or ""
+        position_on_board, title = boards.get(board_id, (0, ""))
+        cards.append(
+            ReferenceCardNote(
+                board_id=board_id,
+                board_title=title,
+                board_position=position_on_board,
+                card_id=node_id,
+                card_position=position,
+                target_kind=target_kind,
+                target_id=target_id,
+                text=text,
+                references=_rows(extra.get("noteReferences")),
+                marks=_rows(extra.get("noteMarks")),
+            )
+        )
+        # Only what holds something goes; an empty note is what the client writes anyway.
+        if column_text or any(extra.get(key) for key in _CARD_NOTE_KEYS):
+            for key in _CARD_NOTE_KEYS:
+                if extra.get(key):
+                    extra.pop(key)
+            cleaned.append((json.dumps(extra, ensure_ascii=False), node_id))
+
+    notes: dict[ElementKey, ElementNote] = {}
+    chapter_extra: dict[str, dict[str, Any]] = {}
+    if _table_exists(database, "chapters"):
+        for chapter_id, note, raw in database.execute("SELECT id, note, extra_json FROM chapters"):
+            extra = _json_object(raw)
+            chapter_extra[chapter_id] = extra
+            notes[("chapter", chapter_id)] = ElementNote(
+                note, _rows(extra.get("noteReferences")), _rows(extra.get("noteMarks"))
+            )
+    profile_extra: dict[str, dict[str, Any] | None] = {}
+    if _table_exists(database, "figures") and _table_exists(database, "profiles"):
+        profiles = {
+            row[0]: (row[1], _json_object(row[2]))
+            for row in database.execute("SELECT figure_id, notes, extra_json FROM profiles")
+        }
+        for (figure_id,) in database.execute("SELECT id FROM figures"):
+            note, extra = profiles.get(figure_id, ("", None))
+            profile_extra[figure_id] = extra
+            notes[("figure", figure_id)] = ElementNote(
+                note,
+                _rows((extra or {}).get("noteReferences")),
+                _rows((extra or {}).get("noteMarks")),
+            )
+    moment_extra: dict[str, dict[str, Any]] = {}
+    if _table_exists(database, "timeline_moments"):
+        for moment_id, note, raw in database.execute(
+            "SELECT id, note, extra_json FROM timeline_moments"
+        ):
+            extra = _json_object(raw)
+            fields = extra.get(FIELDS_KEY)
+            # A moment that never carried a note field shows none; its column is not its note.
+            shown = note if not isinstance(fields, list) or "note" in fields else ""
+            moment_extra[moment_id] = extra
+            notes[("moment", moment_id)] = ElementNote(
+                shown, _rows(extra.get("noteReferences")), _rows(extra.get("noteMarks"))
+            )
+
+    result = append_reference_notes(cards, notes)
+    changed_families: set[str] = set()
+    for (family, element_id), note in sorted(result.notes.items()):
+        if family == "chapter":
+            extra_json = json.dumps(
+                _with_note_ranges(chapter_extra[element_id], note), ensure_ascii=False
+            )
+            database.execute(
+                "UPDATE chapters SET note=?, extra_json=? WHERE id=?",
+                (note.text, extra_json, element_id),
+            )
+            changed_families.add("manuscript")
+        elif family == "figure":
+            stored = profile_extra[element_id]
+            extra_json = json.dumps(_with_note_ranges(stored or {}, note), ensure_ascii=False)
+            if stored is None:
+                # A figure without a profile row: create it the way story_world._sync does.
+                database.execute(
+                    "INSERT INTO profiles(figure_id, notes, extra_json) VALUES(?,?,?)",
+                    (element_id, note.text, extra_json),
+                )
+            else:
+                database.execute(
+                    "UPDATE profiles SET notes=?, extra_json=? WHERE figure_id=?",
+                    (note.text, extra_json, element_id),
+                )
+            changed_families.add("figures")
+        else:
+            extra = _with_note_ranges(moment_extra[element_id], note)
+            fields = extra.get(FIELDS_KEY)
+            if isinstance(fields, list) and "note" not in fields:
+                extra[FIELDS_KEY] = [*fields, "note"]
+            database.execute(
+                "UPDATE timeline_moments SET note=?, extra_json=? WHERE id=?",
+                (note.text, json.dumps(extra, ensure_ascii=False), element_id),
+            )
+            changed_families.add("figures")
+    if cleaned:
+        database.executemany(
+            "UPDATE storyboard_nodes SET text='', extra_json=? WHERE id=?", cleaned
+        )
+        changed_families.add("storyboards")
+    for family in sorted(changed_families):
+        _bump_revision(database, family)
+    if result.discarded:
+        protocol = [
+            {
+                "storyboard": entry.board_id,
+                "targetKind": entry.target_kind,
+                "targetId": entry.target_id,
+                "reason": entry.reason,
+                "count": entry.count,
+            }
+            for entry in result.discarded
+        ]
+        database.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+            (DISCARDED_NOTES_META_KEY, json.dumps(protocol, ensure_ascii=False)),
+        )
 
 
 def migrate(database: sqlite3.Connection, version: int) -> None:
@@ -358,10 +556,14 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
                 "UPDATE assistant_interactions SET response_json=? WHERE id=?",
                 (json.dumps(response, ensure_ascii=False), row[0]),
             )
+    if version < 15:
+        # A reference card stops carrying a note of its own: its text is appended to the one
+        # note of the chapter, figure, place or moment it shows (T-177, D-97, D-100).
+        _move_reference_card_notes(database)
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),
     )
 
 
-__all__ = ["migrate"]
+__all__ = ["DISCARDED_NOTES_META_KEY", "migrate"]

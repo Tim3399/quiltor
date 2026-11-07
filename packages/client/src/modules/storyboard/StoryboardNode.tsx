@@ -204,17 +204,37 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
     ? t("storyboardNoteEditorLabel")
     : t("storyboardNodeNoteEditorLabel", { name });
   const context = data.boardContext ?? data.boardTitle ?? t("storyboardTitle");
+  const className =
+    `storyboard-node__note ${isNoteCard ? "" : "storyboard-node__note--compact"}`.trim();
+  // A reference card shows the one note of its element and writes into the element's own
+  // document, so every view of the element and every board shows the same text (T-177).
+  const element =
+    item.kind === "reference" && data.elementNote !== undefined
+      ? { target: item.target, note: data.elementNote }
+      : null;
+  if (element && element.note === null) {
+    return (
+      <div className={className}>
+        <p className="storyboard-node__note-missing" role="note">
+          {t("storyboardElementDeleted")}
+        </p>
+      </div>
+    );
+  }
+  const note = element?.note ?? {
+    text: item.text ?? "",
+    noteReferences: item.noteReferences,
+    noteMarks: item.noteMarks,
+  };
 
   return (
-    <div
-      className={`storyboard-node__note ${isNoteCard ? "" : "storyboard-node__note--compact"}`.trim()}
-    >
+    <div className={className}>
       <NoteEditor
-        owner={{ kind: "storyboard", id: item.id }}
+        owner={element ? element.target : { kind: "storyboard", id: item.id }}
         label={editorLabel}
-        value={item.text ?? ""}
-        references={item.noteReferences}
-        marks={item.noteMarks}
+        value={note.text}
+        references={note.noteReferences}
+        marks={note.noteMarks}
         placeholder={
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
@@ -237,7 +257,11 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           editorLabel,
         }}
         focusButtonClassName="nodrag nopan"
-        onChange={(text, references, marks) => data.onNoteChange(item.id, text, references, marks)}
+        onChange={(text, references, marks) =>
+          element
+            ? data.onElementNoteChange?.(element.target, text, references, marks)
+            : data.onNoteChange(item.id, text, references, marks)
+        }
       />
     </div>
   );

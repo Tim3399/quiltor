@@ -1458,7 +1458,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "run: npx vitest run",
             "run: npm run check",
             "run: npx tsc -b && npx vite build",
-            "node tools/dev/test-shards.mjs select --os linux --slots 4",
+            "node tools/dev/test-shards.mjs select --os linux --slots 6",
             'npx playwright test --test-list "$lists/product.txt"',
             "npx playwright test --config playwright.design.config.ts",
             'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1',
@@ -1481,20 +1481,20 @@ class WorkflowBoundaryTests(unittest.TestCase):
         mutations = (
             (
                 "a slot fewer",
-                "slot: [1, 2, 3, 4]",
-                "slot: [1, 2, 3]",
-                "exactly four browser matrix slots",
+                "slot: [1, 2, 3, 4, 5, 6]",
+                "slot: [1, 2, 3, 4, 5]",
+                "exactly six browser matrix slots",
             ),
             (
                 "assignment for another slot count",
-                "--slots 4 --slot",
-                "--slots 3 --slot",
+                "--slots 6 --slot",
+                "--slots 5 --slot",
                 "missing fail-closed shard evidence",
             ),
             (
                 "back to cutting by count",
                 '--test-list "$lists/product.txt"',
-                '--shard="$SLOT/4"',
+                '--shard="$SLOT/6"',
                 "duration-assigned part of both suites",
             ),
             (
@@ -1575,8 +1575,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "macOS back to two slots",
-                "label: macos-15 / slot 3 of 3\n            slot: 3\n            slots: 3",
-                "label: macos-15 / slot 3 of 3\n            slot: 3\n            slots: 2",
+                "label: macos-15 / slot 4 of 4\n            slot: 4\n            slots: 4",
+                "label: macos-15 / slot 4 of 4\n            slot: 4\n            slots: 3",
                 "one entry per slot",
             ),
             (
@@ -3349,8 +3349,15 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         self.assertLessEqual(workflow_contract.REDUCED_ONLY, set(workflow_contract.FILTERED_JOBS))
         self.assertEqual(
             workflow_contract.FULL_MATRIX_EXPANSIONS,
-            {"browser-e2e-shards": 4, "cross-platform-native": 2, "cross-platform-browser": 11},
+            {"browser-e2e-shards": 6, "cross-platform-native": 2, "cross-platform-browser": 12},
         )
+
+    def test_full_mode_never_starts_more_macos_jobs_than_the_plan_runs(self):
+        validate = workflow_contract.validate_full_matrix_coverage
+        validate(self.sources)
+        with patch.object(workflow_contract, "MACOS_CONCURRENT_LIMIT", 4):
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "5 macOS jobs"):
+                validate(self.sources)
 
     def test_c1_coverage_mutations(self):
         validate = workflow_contract.validate_full_matrix_coverage
@@ -3371,21 +3378,21 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             ),
             (
                 "a Linux slot dropped",
-                "        slot: [1, 2, 3, 4]\n",
-                "        slot: [1, 2, 3]\n",
-                "browser-e2e-shards expands to 3 jobs",
+                "        slot: [1, 2, 3, 4, 5, 6]\n",
+                "        slot: [1, 2, 3, 4, 5]\n",
+                "browser-e2e-shards expands to 5 jobs",
             ),
             (
                 "an include row of the cross-platform matrix dropped",
                 "          - os: macos-15\n            system: macos\n"
-                "            label: macos-15 / slot 3 of 3\n            slot: 3\n"
-                "            slots: 3\n            diagnostics: macos-15-3-of-3\n",
+                "            label: macos-15 / slot 4 of 4\n            slot: 4\n"
+                "            slots: 4\n            diagnostics: macos-15-4-of-4\n",
                 "",
-                "cross-platform-browser expands to 10 jobs",
+                "cross-platform-browser expands to 11 jobs",
             ),
             (
                 "a matrix the contract cannot count",
-                "        slot: [1, 2, 3, 4]\n",
+                "        slot: [1, 2, 3, 4, 5, 6]\n",
                 "        slot: ${{ fromJSON(needs.plan.outputs.slots) }}\n",
                 "has a matrix the contract cannot count",
             ),
@@ -3625,7 +3632,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             ),
             (
                 "a status function on a test step",
-                "      - name: Layout audit rule tests\n        if: matrix.slot == 4\n",
+                "      - name: Layout audit rule tests\n        if: matrix.slot == 6\n",
                 "      - name: Layout audit rule tests\n        if: ${{ !cancelled() }}\n",
                 1,
             ),

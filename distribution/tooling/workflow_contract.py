@@ -535,10 +535,10 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
     shards = _job_body(workflow, "browser-e2e-shards")
     aggregator = _job_body(workflow, "browser-e2e")
 
-    if re.findall(r"^        slot: \[([^\]\n]*)\]$", shards, re.MULTILINE) != ["1, 2, 3, 4"]:
+    if re.findall(r"^        slot: \[([^\]\n]*)\]$", shards, re.MULTILINE) != ["1, 2, 3, 4, 5, 6"]:
         raise WorkflowContractError(
-            "normal CI must run the product and design suites across exactly four browser "
-            "matrix slots: slot: [1, 2, 3, 4]"
+            "normal CI must run the product and design suites across exactly six browser "
+            "matrix slots: slot: [1, 2, 3, 4, 5, 6]"
         )
     if "if: matrix.product_shard" in shards or "--shard=" in shards:
         raise WorkflowContractError(
@@ -550,16 +550,16 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         "fail-fast: false",
         "SLOT: ${{ matrix.slot }}",
         "set +e",
-        "node tools/dev/test-shards.mjs select --os linux --slots 4 "
-        '--slot "$SLOT" --offset 4=9000 --out-dir "$lists"',
+        "node tools/dev/test-shards.mjs select --os linux --slots 6 "
+        '--slot "$SLOT" --offset 6=9000 --out-dir "$lists"',
         *SLOT_RUN_EVIDENCE,
         'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 '
         "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
         'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" '
         "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "if: failure()",
-        "name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics",
-        "name: browser-durations-linux-slot-${{ matrix.slot }}-of-4",
+        "name: browser-e2e-slot-${{ matrix.slot }}-of-6-diagnostics",
+        "name: browser-durations-linux-slot-${{ matrix.slot }}-of-6",
         "test-results/**",
     )
     for evidence in required_shard_evidence:
@@ -708,7 +708,7 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     }
     if len(entries) != len(expected) or set(entries) != expected:
         raise WorkflowContractError(
-            "the full cross-platform matrix must run slots 1..3 on macOS and 1..8 on Windows, "
+            "the full cross-platform matrix must run slots 1..4 on macOS and 1..8 on Windows, "
             "each with both suites, one entry per slot, with unique diagnostics"
         )
     if "--shard=" in browser:
@@ -949,7 +949,7 @@ SLOT_RUN_EVIDENCE = (
     "path: test-results/reports/*.json",
 )
 # (runner, the system name tools/dev/test-shards.mjs takes, slots)
-CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 3), ("windows-2025", "windows", 8))
+CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 4), ("windows-2025", "windows", 8))
 LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
 FULL_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"
@@ -1512,10 +1512,13 @@ def validate_test_caches(sources: dict[Path, str]) -> None:
 REDUCED_ONLY = frozenset({"cross-platform-smoke"})
 # Matrix expansions per job in full mode. A job not listed here has no matrix.
 FULL_MATRIX_EXPANSIONS = {
-    "browser-e2e-shards": 4,
+    "browser-e2e-shards": 6,
     "cross-platform-native": 2,
     "cross-platform-browser": sum(count for _, _, count in CROSS_PLATFORM_SLOTS),
 }
+# The free plan runs five macOS jobs at once (T-160). In full mode test.yml starts Core on
+# macos-15 and every macOS browser slot together; Release Build's macos-direct needs the tests.
+MACOS_CONCURRENT_LIMIT = 5
 TEST_TRIGGERS = ("pull_request", "workflow_dispatch", "workflow_call")
 VERDICT_OUTPUT = (
     "    outputs:\n"
@@ -1613,6 +1616,12 @@ def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
                 f"test.yml:{name} expands to {count} jobs in full mode; the contract expects "
                 f"{expected}"
             )
+    macos_jobs = 1 + sum(count for os, _, count in CROSS_PLATFORM_SLOTS if os == "macos-15")
+    if macos_jobs > MACOS_CONCURRENT_LIMIT:
+        raise WorkflowContractError(
+            f"test.yml starts {macos_jobs} macOS jobs at once in full mode; the free plan runs "
+            f"{MACOS_CONCURRENT_LIMIT} (Core on macos-15 plus the browser slots)"
+        )
 
 
 def validate_full_matrix_verdict(sources: dict[Path, str]) -> None:

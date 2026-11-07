@@ -74,7 +74,10 @@ describe("PlaceNode overview marker", () => {
       /\.story-node\.zoom-overview \.node-monogram\s*\{[^}]*display:\s*grid;/s,
     );
     expect(sharedCss).toMatch(
-      /\.story-node\.zoom-overview\.is-important\s*\{[^}]*width:\s*116px;[^}]*height:\s*34px;/s,
+      /\.story-node\.zoom-overview\.is-important\s*\{[^}]*--favourite-height:\s*32px;[^}]*height:\s*var\(--favourite-height\);/s,
+    );
+    expect(sharedCss).toMatch(
+      /@media \(max-width: 640px\), \(pointer: coarse\)[\s\S]*?\.story-node\.zoom-overview\.is-important\s*\{[^}]*--favourite-height:\s*44px;/,
     );
     expect(sharedCss).toMatch(
       /@media \(max-width: 640px\), \(pointer: coarse\)[\s\S]*?\.story-node\.zoom-overview:not\(\.is-important\)\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/,
@@ -121,7 +124,9 @@ describe("PlaceNode overview marker", () => {
 
     expect(container.querySelector(".story-node.zoom-overview.is-important")).toBeInTheDocument();
     expect(screen.getByText("D", { selector: ".node-monogram-letter" })).toBeInTheDocument();
-    expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Dämmerhafen", { selector: ".node-name" }).closest("strong"),
+    ).toBeInTheDocument();
   });
 
   it("counter-scales compact layout height to a real 44px mobile hit target", () => {

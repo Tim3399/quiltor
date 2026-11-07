@@ -160,12 +160,16 @@ export function TextWorkspace({
     onChange({ ...manuscript, chapters: ordered, structure: nextStructure });
   };
   const setChapters = (nextChapters: Chapter[]) => commitManuscript(nextChapters);
-  const updateCurrent = (patch: Partial<Chapter>) =>
+  const patchCurrent = (patch: Partial<Chapter>) =>
     current &&
-    !history.open &&
     setChapters(
       chapters.map((chapter) => (chapter.id === current.id ? { ...chapter, ...patch } : chapter)),
     );
+  // While the versions panel is open the editor shows a historical text, so only the writing
+  // paths (body, title, writing aid) are held back. The chapter's metadata -- note, story time,
+  // "in the book" -- is not part of that comparison and stays editable; dropping it here would
+  // lose what the author typed without a word (T-180).
+  const updateCurrent = (patch: Partial<Chapter>) => !history.open && patchCurrent(patch);
   const writing = useWritingAssistance({
     selectionKey: currentId,
     current,
@@ -325,7 +329,7 @@ ${markdownBody(current.body, current.marks)}
         },
         onExport: exportCurrent,
         inBook: isChapterInBook(current),
-        onToggleInBook: () => updateCurrent({ inBook: !isChapterInBook(current) }),
+        onToggleInBook: () => patchCurrent({ inBook: !isChapterInBook(current) }),
         onDelete: () => setDeleteOpen(true),
       }
     : undefined;
@@ -425,7 +429,7 @@ ${markdownBody(current.body, current.marks)}
           timeline={figures.timeline}
           timeSystem={figures.timeSystem}
           actions={chapterActions}
-          onUpdateCurrent={updateCurrent}
+          onUpdateCurrent={patchCurrent}
         />
       }
       writingAid={writingAid}

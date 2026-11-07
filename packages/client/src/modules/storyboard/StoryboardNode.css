@@ -98,10 +98,23 @@
 
 /* Held the note of a reference or storyboard card to its single line while the rest of the
    210px-tall card stayed empty. It now grows as it does on a note card -- whatever height
-   the card affords belongs to the text. */
+   the card affords belongs to the text.
+
+   A reference card shows its element's note (T-177), which is often far longer than the card.
+   The note keeps to its own area: the text, its marks and the reference list below the editor
+   are clipped here, so nothing reaches into the card's "Original öffnen" or takes its clicks.
+   At rest the last visible line fades out instead of ending cut in half; while somebody writes,
+   the fade steps aside and the editor scrolls. */
 .storyboard-node__note--compact {
   min-height: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.storyboard-node__note--compact:not(:focus-within) {
+  mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 2lh), var(--transparent));
 }
 
 /* The card is the frame already. A second one inside turns a note into a form -- frame
