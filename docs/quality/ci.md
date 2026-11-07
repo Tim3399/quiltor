@@ -332,8 +332,9 @@ cuts the suites finer:
   step on `matrix.slot == 6`, and `release_preflight.py`'s coverage line.
 - **Every test exactly once** still holds per system: `test-shards.mjs plan` refuses an
   assignment that loses or repeats one, and `select` has Playwright confirm each slot's lists.
-- **Still to come:** the `browser-e2e-oidc` group of T-58 (D-103) is not on this base. It joins
-  with the T-58 merge, with its own slot count and a share of the same limits.
+- **The OIDC group** (`browser-e2e-oidc`, T-58 P7b, D-103) is one more Linux job, not a slot of
+  the matrix: it runs only when the plan sets `run_oidc`, uses no macOS runner and so leaves the
+  macOS limit at five. In full mode Linux runs 6 browser slots, the aggregator and this job.
 
 #### Duration and wait per job (to fill from the first full run)
 

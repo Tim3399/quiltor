@@ -15,10 +15,12 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
-from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
+from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway, TokenEndpointRejected
+from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
-from quiltor.modules.identity.service import LocalIdentity
+from quiltor.modules.identity.auth import MAX_ROLES, extract_roles
+from quiltor.modules.identity.service import DEFAULT_PREMIUM_ROLE, LocalIdentity
 from tests.python import late_body
 from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
@@ -162,7 +164,18 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         conn.close()
         return resp.status, dict(response_headers), raw, set_cookies
 
-    def _login(self, sub: str, email: str = "user@example.com", name: str = "Tester") -> str:
+    def _login(
+        self,
+        sub: str,
+        email: str = "user@example.com",
+        name: str = "Tester",
+        *,
+        roles: tuple[str, ...] | None = (DEFAULT_PREMIUM_ROLE,),
+        extra_claims: dict[str, Any] | None = None,
+    ) -> str:
+        """Log in through the callback. `roles=None` sends an ID token that
+        carries no `roles` claim at all; any tuple goes into `roles`.
+        `extra_claims` are merged into the ID-token claims as they are."""
         status, headers, _, set_cookies = self._request("GET", "/login")
         self.assertEqual(status, 302)
         login_state_cookie = next(c for c in set_cookies if c.startswith("quiltor_login_state="))
@@ -179,6 +192,9 @@ class _LiveAuthServerTestCase(unittest.TestCase):
             "aud": self.auth.client_id,
             "exp": time.time() + 300,
         }
+        if roles is not None:
+            claims["roles"] = list(roles)
+        claims.update(extra_claims or {})
         # Cryptographic verification is covered with real signed JWTs in
         # test_auth.py and fake_issuer.py. This HTTP-route test replaces the
         # verifier at its injected boundary, so use an explicitly opaque marker
@@ -416,6 +432,203 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertEqual(manuscript["payload"]["chapters"][0]["body"], "Alice's own text")
 
 
+def _assistant_fakes() -> AssistantServices:
+    """A runtime whose status serialises and a job store that accepts one job."""
+    runtime = MagicMock()
+    runtime.status.return_value = {"available": False, "reason": ""}
+    jobs = MagicMock()
+    jobs.submit.return_value = ({"id": "job-1", "status": "queued"}, True)
+    return AssistantServices(runtime, jobs)
+
+
+def _job_body(world_id: str) -> dict[str, Any]:
+    return {"worldId": world_id, "question": "Wer ist Tarek?"}
+
+
+class PremiumGateTests(_LiveAuthServerTestCase):
+    """Under OIDC the assistant's job routes need the premium role; status does not."""
+
+    def setUp(self):
+        super().setUp()
+        self.application.assistant_services = _assistant_fakes()
+
+    def _create_world(self, session: str) -> str:
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+        return json.loads(body)["world"]["id"]
+
+    def _post_job(self, session: str, world_id: str):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=_job_body(world_id),
+            headers={"Idempotency-Key": "key-1"},
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def test_a_user_without_the_role_gets_403_premium_required_on_jobs(self):
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        status, body = self._post_job(session, world_id)
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        self.assertFalse(body["error"]["retryable"])
+        self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
+
+    def test_the_gate_answers_before_the_world_is_resolved(self):
+        session = self._login("user-free", roles=())
+        status, _, body, _ = self._request(
+            "GET",
+            "/api/assistant/job?id=x&world=no-such-world",
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 403, body)
+        self.assertEqual(json.loads(body)["error"]["code"], "assistant.premium_required")
+
+    def test_a_role_only_in_realm_access_grants_nothing(self):
+        """Fallback guard (D-96): Keycloak's nested role claims are never read."""
+        session = self._login(
+            "user-nested",
+            roles=None,
+            extra_claims={
+                "realm_access": {"roles": [DEFAULT_PREMIUM_ROLE]},
+                "resource_access": {"quiltor-demo": {"roles": [DEFAULT_PREMIUM_ROLE]}},
+            },
+        )
+        world_id = self._create_world(session)
+        status, body = self._post_job(session, world_id)
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+
+    def test_the_refusal_arrives_whole_when_the_body_comes_late(self):
+        """The 403 discards the unread body first (D-38); see tests/python/late_body.py."""
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        headers = {
+            "Content-Type": "application/json",
+            "Idempotency-Key": "key-late",
+            "Cookie": f"quiltor_session={session}",
+        }
+        body = json.dumps(_job_body(world_id)).encode("utf-8")
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port, "POST", "/api/assistant/jobs", headers=headers, body=body
+                )
+                self.assertEqual(answer.status, 403, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "assistant.premium_required")
+
+    def test_a_user_with_the_role_gets_202_on_jobs(self):
+        session = self._login("user-paid")
+        world_id = self._create_world(session)
+        status, body = self._post_job(session, world_id)
+        self.assertEqual(status, 202, body)
+        self.assertEqual(body["job"]["id"], "job-1")
+
+    def test_status_without_the_role_still_answers_200(self):
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        status, _, body, _ = self._request(
+            "GET",
+            f"/api/assistant/status?world={world_id}",
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+
+    def test_a_login_without_role_claims_logs_a_hint(self):
+        with self.assertLogs("quiltor", level="WARNING") as captured:
+            self._login("user-unmapped", roles=None)
+        line = self._login_hint(captured)
+        self.assertEqual(line["sub"], "user-unmapped")
+        self.assertIs(line["roles_claim_present"], False)
+        self.assertNotIn("dropped_fields", line)
+        self.assertNotIn("email", line)
+        self.assertNotIn("@", json.dumps(line))
+
+    def test_a_login_with_an_empty_role_claim_says_the_claim_was_there(self):
+        with self.assertLogs("quiltor", level="WARNING") as captured:
+            self._login("user-empty", roles=())
+        line = self._login_hint(captured)
+        self.assertEqual(line["sub"], "user-empty")
+        self.assertIs(line["roles_claim_present"], True)
+
+    def _login_hint(self, captured) -> dict[str, Any]:
+        hints = [
+            record.structured_fields
+            for record in captured.records
+            if record.getMessage() == "identity.login_without_roles"
+        ]
+        self.assertEqual(len(hints), 1, [r.getMessage() for r in captured.records])
+        return hints[0]
+
+    def test_a_login_with_roles_logs_no_hint(self):
+        with self.assertNoLogs("quiltor", level="WARNING"):
+            self._login("user-paid")
+
+
+class ExtractRolesTests(unittest.TestCase):
+    def test_the_flat_roles_claim_is_read_without_duplicates(self):
+        claims = {"roles": ["premium", "offline_access", "premium"]}
+        self.assertEqual(extract_roles(claims), ("premium", "offline_access"))
+
+    def test_nested_keycloak_role_claims_are_ignored(self):
+        """Fallback guard (D-96): only the flat `roles` claim counts."""
+        claims = {
+            "realm_access": {"roles": ["premium"]},
+            "resource_access": {"quiltor-demo": {"roles": ["premium"]}},
+        }
+        self.assertEqual(extract_roles(claims), ())
+
+    def test_missing_claims_give_no_roles(self):
+        self.assertEqual(extract_roles({"sub": "x"}), ())
+
+    def test_non_string_entries_give_no_roles(self):
+        self.assertEqual(extract_roles({"roles": ["premium", 7]}), ())
+
+    def test_a_roles_value_that_is_not_a_list_gives_no_roles(self):
+        for value in ("premium", {"premium": True}, None, 1, ("premium",)):
+            with self.subTest(value=value):
+                self.assertEqual(extract_roles({"roles": value}), ())
+
+    def test_more_than_the_maximum_gives_no_roles(self):
+        roles = [f"role-{index}" for index in range(MAX_ROLES)]
+        self.assertEqual(len(extract_roles({"roles": roles})), MAX_ROLES)
+        self.assertEqual(extract_roles({"roles": [*roles, "one-more"]}), ())
+
+
+class PremiumRoleConfigurationTests(unittest.TestCase):
+    def _identity(self, role: str | None):
+        environment = {} if role is None else {"QUILTOR_PREMIUM_ROLE": role}
+        with patch.dict(os.environ, environment):
+            if role is None:
+                os.environ.pop("QUILTOR_PREMIUM_ROLE", None)
+            return build_identity(
+                True,
+                issuer="https://kc.example.com/realms/quiltor",
+                client_id="quiltor-demo",
+                client_secret="s3cret",
+            )
+
+    def test_the_default_role(self):
+        self.assertEqual(DEFAULT_PREMIUM_ROLE, "premium")
+        self.assertEqual(self._identity(None).premium_role, "premium")
+
+    def test_a_configured_role(self):
+        self.assertEqual(self._identity("writers").premium_role, "writers")
+
+    def test_an_invalid_role_is_a_startup_error_without_the_value(self):
+        for value in ("has space", "x" * 256):
+            with self.assertRaises(RuntimeError) as raised:
+                self._identity(value)
+            self.assertNotIn(value, str(raised.exception))
+
+
 class RenderTokenTests(unittest.TestCase):
     """The PDF export's headless-browser subprocess can't do an interactive
     Keycloak login, so it's handed a short-lived token that redeems into a real
@@ -543,6 +756,30 @@ class LocalIdentityServerTest(unittest.TestCase):
             return status, json.loads(raw)
         except ValueError:
             return status, {}  # a 404 comes from the static fallback as HTML
+
+    def test_the_local_user_needs_no_role_for_assistant_jobs(self):
+        self.application.assistant_services = _assistant_fakes()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
+        conn.request(
+            "POST",
+            "/api/worlds/create",
+            body=json.dumps({"title": "Welt", "backupUrl": ""}),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        world_id = json.loads(resp.read())["world"]["id"]
+        conn.close()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
+        conn.request(
+            "POST",
+            "/api/assistant/jobs",
+            body=json.dumps(_job_body(world_id)),
+            headers={"Content-Type": "application/json", "Idempotency-Key": "key-1"},
+        )
+        resp = conn.getresponse()
+        status, body = resp.status, json.loads(resp.read())
+        conn.close()
+        self.assertEqual(status, 202, body)
 
     def test_a_loopback_request_needs_no_header_at_all(self):
         """The everyday desktop case: whoever reaches the port is the user."""
@@ -683,6 +920,357 @@ class RefusedRequestBodyAuthTests(_LiveAuthServerTestCase):
                 answer = self._send(f"/api/manuscript-export/preview?world={'0' * 32}", alice)
                 self.assertEqual(answer.status, 404, answer.body[:200])
                 self.assertFalse(answer.json()["ok"])
+
+
+class RefreshFollowsTheProviderTests(_LiveAuthServerTestCase):
+    """End to end (T-58 P2): once the access token has run out, the next request
+    refreshes it, and the provider's answer decides roles and session."""
+
+    def setUp(self):
+        super().setUp()
+        self.application.assistant_services = _assistant_fakes()
+        self.session = self._login("user-paid")
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": self.session},
+        )
+        self.assertEqual(status, 200, body)
+        self.world_id = json.loads(body)["world"]["id"]
+        self.refresh_calls = 0
+
+    def _lapse(self):
+        """The access token has run out; the next request has to refresh."""
+        self.auth.store_session_tokens(
+            self.session, {"access_token": "at", "refresh_token": "rt", "expires_in": 0}
+        )
+
+    def _provider(self, *, roles=None, failure: Exception | None = None):
+        def refresh_tokens(refresh_token, **_):
+            self.refresh_calls += 1
+            if failure is not None:
+                raise failure
+            claims: dict[str, Any] = {"sub": "user-paid"}
+            if roles is not None:
+                claims["roles"] = list(roles)
+            return {
+                "access_token": "at-new",
+                "refresh_token": "rt-new",
+                "expires_in": 300,
+                "id_token": json.dumps(claims),
+            }
+
+        for name, replacement in (
+            ("refresh_tokens", refresh_tokens),
+            ("verify_id_token", lambda token, nonce, **_: json.loads(token)),
+        ):
+            patcher = patch.object(self.auth, name, side_effect=replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _post_job(self):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=_job_body(self.world_id),
+            headers={"Idempotency-Key": f"key-{self.refresh_calls}"},
+            cookies={"quiltor_session": self.session},
+        )
+        return status, json.loads(body)
+
+    def _whoami(self):
+        status, _, body, _ = self._request(
+            "GET", "/api/whoami", cookies={"quiltor_session": self.session}
+        )
+        return status, json.loads(body)
+
+    def test_a_withdrawn_role_refuses_the_next_job(self):
+        self._provider(roles=[])
+        self._lapse()
+        status, body = self._post_job()
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        self.assertEqual(self.refresh_calls, 1)
+
+    def test_a_granted_role_admits_the_next_job_without_a_new_login(self):
+        self.session = self._login("user-paid", roles=())
+        self._provider(roles=[DEFAULT_PREMIUM_ROLE])
+        status, body = self._post_job()
+        self.assertEqual(status, 403, body)
+        self._lapse()
+        status, body = self._post_job()
+        self.assertEqual(status, 202, body)
+
+    def test_invalid_grant_answers_401_and_the_cookie_is_dead(self):
+        self._provider(failure=TokenEndpointRejected("invalid_grant"))
+        self._lapse()
+        for _ in range(2):
+            status, body = self._whoami()
+            self.assertEqual(status, 401, body)
+            self.assertEqual(body["error"]["code"], "auth.unauthenticated")
+        self.assertIsNone(self.auth.get_session(self.session))
+        self.assertEqual(self.refresh_calls, 1)
+
+    def test_a_network_error_keeps_the_old_roles(self):
+        self._provider(failure=ValueError("OIDC provider returned an invalid response."))
+        self._lapse()
+        status, body = self._whoami()
+        self.assertEqual(status, 200, body)
+        status, body = self._post_job()
+        self.assertEqual(status, 202, body)
+        self.assertEqual(self.refresh_calls, 1, "the second request falls in the backoff")
+
+    def test_invalid_client_keeps_the_session(self):
+        self._provider(failure=TokenEndpointRejected("invalid_client"))
+        self._lapse()
+        status, body = self._whoami()
+        self.assertEqual(status, 200, body)
+        self.assertIsNotNone(self.auth.get_session(self.session))
+
+
+class AssistantLimitsHostedTests(_LiveAuthServerTestCase):
+    """What a shared server limits (T-58 P6): open jobs per account, what the status
+    tells an account without the premium role, and who may install."""
+
+    def setUp(self):
+        super().setUp()
+        runtime = MagicMock()
+        runtime.status.return_value = {
+            "available": True,
+            "mode": "local",
+            "reason": "",
+            "backend": "llama",
+            "model": "secret-model",
+        }
+        self.store = AssistantJobStore(Path(self.temp.name) / "limit-jobs.sqlite3")
+        jobs = MagicMock()
+        jobs.submit.side_effect = lambda **kwargs: self.store.submit(**kwargs)
+        self.application.assistant_services = AssistantServices(runtime, jobs)
+
+    def _world(self, session: str) -> str:
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+        return json.loads(body)["world"]["id"]
+
+    def _job(self, session: str, world_id: str, key: str):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=_job_body(world_id),
+            headers={"Idempotency-Key": key},
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def _status(self, session: str, world_id: str):
+        status, _, body, _ = self._request(
+            "GET",
+            f"/api/assistant/status?world={world_id}",
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def test_the_fourth_open_job_gets_429_with_the_limit(self):
+        session = self._login("user-paid")
+        world_id = self._world(session)
+        for index in range(3):
+            status, body = self._job(session, world_id, f"key-{index}")
+            self.assertEqual(status, 202, body)
+        status, body = self._job(session, world_id, "key-3")
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["code"], "assistant.too_many_jobs")
+        self.assertEqual(body["error"]["params"], {"limit": 3})
+        self.assertTrue(body["error"]["retryable"])
+
+    def test_a_retry_of_an_accepted_job_is_no_429_at_the_limit(self):
+        session = self._login("user-paid")
+        world_id = self._world(session)
+        for index in range(3):
+            self._job(session, world_id, f"key-{index}")
+        status, body = self._job(session, world_id, "key-0")
+        self.assertEqual(status, 200, body)
+        self.assertFalse(body["created"])
+
+    def test_the_limit_is_the_configured_one_and_per_account(self):
+        self.application.assistant_max_open_jobs = 1
+        first = self._login("user-one")
+        second = self._login("user-two")
+        first_world = self._world(first)
+        second_world = self._world(second)
+        self.assertEqual(self._job(first, first_world, "key-a")[0], 202)
+        status, body = self._job(first, first_world, "key-b")
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["params"], {"limit": 1})
+        self.assertEqual(self._job(second, second_world, "key-a")[0], 202)
+
+    def test_status_without_the_role_is_exactly_the_hint_payload(self):
+        session = self._login("user-free", roles=())
+        world_id = self._world(session)
+        status, body = self._status(session, world_id)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(
+            body,
+            {
+                "ok": True,
+                "available": False,
+                "premium": False,
+                "installed": False,
+                "reason": "",
+                "chunks": 0,
+            },
+        )
+
+    def test_status_with_the_role_has_the_runtime_fields_and_premium(self):
+        session = self._login("user-paid")
+        world_id = self._world(session)
+        status, body = self._status(session, world_id)
+        self.assertEqual(status, 200, body)
+        self.assertIs(body["premium"], True)
+        self.assertIs(body["available"], True)
+        self.assertEqual(body["backend"], "llama")
+
+    def test_installing_is_refused_on_a_hosted_server_for_everyone(self):
+        for roles in ((), (DEFAULT_PREMIUM_ROLE,)):
+            with self.subTest(roles=roles):
+                session = self._login("user-install", roles=roles)
+                status, _, body, _ = self._request(
+                    "POST",
+                    "/api/assistant/install",
+                    body={},
+                    cookies={"quiltor_session": session},
+                )
+                self.assertEqual(status, 403, body)
+                self.assertEqual(json.loads(body)["error"]["code"], "install.forbidden_hosted")
+
+
+class OneHostedAccountOverTimeTests(_LiveAuthServerTestCase):
+    """T-58 end to end: one OIDC account on a shared server, followed through every part.
+
+    The gate (G0), the status without the role and the open-job limit (P6), roles that follow
+    the provider at every refresh (P2) and a session the provider ended (P2) -- in one run
+    against one live server, the way they meet in operation.
+    """
+
+    def setUp(self):
+        super().setUp()
+        runtime = MagicMock()
+        runtime.status.return_value = {
+            "available": True,
+            "mode": "local",
+            "reason": "",
+            "backend": "llama",
+            "model": "secret-model",
+        }
+        self.store = AssistantJobStore(Path(self.temp.name) / "journey-jobs.sqlite3")
+        jobs = MagicMock()
+        jobs.submit.side_effect = lambda **kwargs: self.store.submit(**kwargs)
+        self.application.assistant_services = AssistantServices(runtime, jobs)
+        # What the provider answers at the next refresh; changed as the account's roles change.
+        self.provider: dict[str, Any] = {"roles": [], "failure": None}
+        self.refreshes = 0
+
+        def refresh_tokens(refresh_token, **_):
+            self.refreshes += 1
+            if self.provider["failure"] is not None:
+                raise self.provider["failure"]
+            claims = {"sub": "user-journey", "roles": list(self.provider["roles"])}
+            return {
+                "access_token": f"at-{self.refreshes}",
+                "refresh_token": f"rt-{self.refreshes}",
+                "expires_in": 300,
+                "id_token": json.dumps(claims),
+            }
+
+        for name, replacement in (
+            ("refresh_tokens", refresh_tokens),
+            ("verify_id_token", lambda token, nonce, **_: json.loads(token)),
+        ):
+            patcher = patch.object(self.auth, name, side_effect=replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _lapse(self, session: str) -> None:
+        """The access token has run out; the next request asks the provider again."""
+        self.auth.store_session_tokens(
+            session, {"access_token": "at", "refresh_token": "rt", "expires_in": 0}
+        )
+
+    def _call(self, method: str, path: str, session: str, body=None, key: str | None = None):
+        status, _, raw, _ = self._request(
+            method,
+            path,
+            body=body,
+            headers={"Idempotency-Key": key} if key else None,
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(raw)
+
+    def test_gate_status_refresh_and_limit_follow_the_account_through_one_session(self):
+        session = self._login("user-journey", roles=())
+        status, body = self._call(
+            "POST", "/api/worlds/create", session, body={"title": "Welt", "backupUrl": ""}
+        )
+        self.assertEqual(status, 200, body)
+        world_id = body["world"]["id"]
+
+        def job(key: str):
+            return self._call("POST", "/api/assistant/jobs", session, _job_body(world_id), key)
+
+        # Without the role: the gate refuses, the status only says so.
+        status, body = job("key-0")
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        status, body = self._call("GET", f"/api/assistant/status?world={world_id}", session)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(
+            body,
+            {
+                "ok": True,
+                "available": False,
+                "premium": False,
+                "installed": False,
+                "reason": "",
+                "chunks": 0,
+            },
+        )
+
+        # The role is granted in Keycloak; the next refresh brings it, no new login.
+        self.provider["roles"] = [DEFAULT_PREMIUM_ROLE]
+        self._lapse(session)
+        for index in range(1, 4):
+            status, body = job(f"key-{index}")
+            self.assertEqual(status, 202, body)
+        self.assertEqual(self.refreshes, 1)
+
+        # Three jobs are open: the fourth is refused with the limit.
+        status, body = job("key-4")
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["code"], "assistant.too_many_jobs")
+        self.assertEqual(body["error"]["params"], {"limit": 3})
+
+        # The role is withdrawn; the next refresh takes it away again.
+        self.provider["roles"] = []
+        self._lapse(session)
+        status, body = job("key-5")
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        self.assertEqual(self.refreshes, 2)
+
+        # Keycloak ends the session: invalid_grant, and every request is 401 from then on.
+        self.provider["failure"] = TokenEndpointRejected("invalid_grant")
+        self._lapse(session)
+        for path in ("/api/whoami", f"/api/assistant/status?world={world_id}"):
+            status, body = self._call("GET", path, session)
+            self.assertEqual(status, 401, body)
+            self.assertEqual(body["error"]["code"], "auth.unauthenticated")
+        self.assertIsNone(self.auth.get_session(session))
+        self.assertEqual(self.refreshes, 3)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,14 @@ one user, the person at this machine, recognised by a loopback connection, a
 `?token=` link or a Bearer token, and no login page at all. Each Server owns an
 explicitly composed WebApplication; importing this module creates no sessions,
 stores, assistant process, or other product state.
+
+With OIDC, the AI assistant is for accounts with the realm role QUILTOR_PREMIUM_ROLE
+(default `premium`), read from the ID token's flat `roles` claim at login and at every
+refresh; QUILTOR_ASSISTANT_MAX_OPEN_JOBS (default 3, 1-100) bounds the open jobs per
+account. A key in QUILTOR_AI_KEY or QUILTOR_AI_KEY_FILE sends inference to the
+OpenAI-compatible endpoint at QUILTOR_AI_URL instead of a local runtime, with
+QUILTOR_AI_MODEL_NAME as the model and QUILTOR_AI_JSON_MODE=json_object for providers
+that ignore json_schema. See the README for all of them.
 """
 
 import hmac
@@ -144,6 +152,36 @@ def authority_host(authority: str) -> str:
         closing = authority.find("]")
         return authority[1:closing] if closing > 0 else authority
     return authority.rsplit(":", 1)[0] if ":" in authority else authority
+
+
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin_of(url: str, *, allow_path: bool) -> str | None:
+    """`scheme://host[:port]` of a URL in one canonical form, or None when it is not one.
+
+    Scheme and host are lower-cased and the scheme's default port is dropped, so
+    `https://Example.com:443` and `https://example.com` are the same origin. An
+    Origin header carries nothing after the authority (`allow_path=False`); the
+    configured public URL may have a path when the app is served under one.
+    """
+    try:
+        parts = urlparse(url)
+        port = parts.port
+    except ValueError:
+        return None
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").lower()
+    if scheme not in _DEFAULT_PORTS or not host or parts.username is not None:
+        return None
+    if parts.password is not None or parts.query or parts.fragment:
+        return None
+    if not allow_path and parts.path:
+        return None
+    shown = f"[{host}]" if ":" in host else host
+    return f"{scheme}://{shown}" + (
+        f":{port}" if port not in (None, _DEFAULT_PORTS[scheme]) else ""
+    )
 
 
 LOGIN_STATE_COOKIE = "quiltor_login_state"
@@ -394,10 +432,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def reject_foreign_request(self) -> bool:
         """True -- with a 403 already written -- when this request's Host or
-        Origin says it did not come from the local app itself. No-op for the
-        proxied deployment, where the proxy owns Host and OIDC owns access."""
+        Origin says it did not come from the app itself.
+
+        Bound to loopback, Host and Origin must both be loopback. Behind a proxy
+        the proxy owns Host and OIDC owns access, so only one check remains: with
+        QUILTOR_PUBLIC_URL set, a write (anything but GET and HEAD) that carries an
+        Origin must carry exactly the public URL's scheme, host and port, with the
+        default port normalised; `null` is refused. A write without an Origin passes
+        -- curl and the CLI send none, and a browser always sends one cross-site --
+        and so does every read. Without QUILTOR_PUBLIC_URL there is nothing to
+        compare with and the proxied case stays a no-op."""
         if not self.application.bound_to_loopback:
-            return False
+            return self._reject_foreign_public_origin()
 
         host = authority_host(self.headers.get("Host", ""))
         if host and host not in LOOPBACK_HOSTS:
@@ -416,15 +462,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if origin and (
             origin == "null" or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS
         ):
-            self._discard_unread_body()
-            self.send_json(
-                http_errors.for_status(
-                    403, code="request.untrusted_origin", retryable=False
-                ).payload(),
-                403,
-            )
-            return True
+            return self._refuse_untrusted_origin()
         return False
+
+    def _reject_foreign_public_origin(self) -> bool:
+        """The proxied deployment's half of reject_foreign_request."""
+        public_origin = _origin_of(self.application.public_url, allow_path=True)
+        if public_origin is None or self.command in {"GET", "HEAD"}:
+            return False
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            return False
+        if origin == "null" or _origin_of(origin, allow_path=False) != public_origin:
+            return self._refuse_untrusted_origin()
+        return False
+
+    def _refuse_untrusted_origin(self) -> bool:
+        """Answer 403 `request.untrusted_origin`, after dropping the unread body (D-38)."""
+        self._discard_unread_body()
+        self.send_json(
+            http_errors.for_status(403, code="request.untrusted_origin", retryable=False).payload(),
+            403,
+        )
+        return True
 
     def read_request_body(self, length: int) -> bytes:
         """Read the request body. Every route that reads it goes through here, so
@@ -609,10 +669,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # Nobody else can reach the session yet; its cookie goes out below.
         session = self.application.identity.auth.get_session(session_id)
         if session is not None:
-            self.application.identity.auth.store_session_tokens(
+            session = self.application.identity.auth.store_session_tokens(
                 session.session_id,
                 tokens,
                 verified_id_token=str(tokens["id_token"]),
+                verified_claims=claims,
+            )
+        if session is not None and not session.roles:
+            # Roles come only from the flat `roles` claim of the ID token. Without
+            # it every account looks unentitled, so say so once per login. The fix
+            # is to assign the client scope `quiltor-roles` to the client;
+            # roles_claim_present tells that case apart from an account that
+            # simply has no roles.
+            self.application.observability.logger.event(
+                "warning",
+                "identity.login_without_roles",
+                sub=session.sub,
+                roles_claim_present="roles" in claims,
             )
         self._pending_cookies.append(
             self.cookie_header(
@@ -896,6 +969,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._discard_unread_body()
             self.log_rejection("sync.forbidden_hosted", route=path)
             return self.send_api_error(403, error_code="sync.forbidden_hosted", retryable=False)
+
+        if registration.premium and (
+            session is None or not self.application.identity.is_premium(session)
+        ):
+            # Same form as the two refusals above: the body stays unread (D-38).
+            self._discard_unread_body()
+            return self.send_api_error(
+                403, error_code="assistant.premium_required", retryable=False
+            )
 
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:

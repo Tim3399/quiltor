@@ -13,6 +13,7 @@ from quiltor.modules.assistant.jobs import (
     AssistantJobRunner,
     IdempotencyConflict,
 )
+from quiltor.modules.assistant.ports import TooManyOpenJobs
 from tests.python.narrowing import present
 
 WORLD_ID = "a" * 32
@@ -251,6 +252,70 @@ class AssistantJobStoreTests(unittest.TestCase):
                 "SELECT request_json FROM assistant_jobs WHERE id=?", (job["id"],)
             ).fetchone()[0]
         self.assertEqual(request_json, "{}")
+
+
+class AssistantJobLimitTests(unittest.TestCase):
+    """At most `max_open` queued or running jobs per owner (T-58 P6)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = AssistantJobStore(Path(self.tmp.name) / "assistant-jobs.sqlite3")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _submit(self, key: str, *, owner: str = "user", max_open: int | None = 2):
+        return self.store.submit(
+            owner_sub=owner,
+            world_id=WORLD_ID,
+            idempotency_key=key,
+            intent=intent("hello"),
+            execution=execution("hello"),
+            max_open=max_open,
+        )
+
+    def test_the_job_beyond_the_limit_is_refused(self):
+        self._submit("a")
+        self._submit("b")
+        with self.assertRaises(TooManyOpenJobs) as refused:
+            self._submit("c")
+        self.assertEqual(refused.exception.limit, 2)
+        with closing(sqlite3.connect(self.store.path)) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM assistant_jobs").fetchone()[0], 2)
+
+    def test_a_running_job_counts_as_open(self):
+        self._submit("a")
+        self._submit("b")
+        present(self.store.claim_next())
+        with self.assertRaises(TooManyOpenJobs):
+            self._submit("c")
+
+    def test_finished_jobs_do_not_count(self):
+        first, _ = self._submit("a")
+        self._submit("b")
+        self.store.cancel(first["id"], "user", WORLD_ID)
+        job, created = self._submit("c")
+        self.assertTrue(created)
+        self.assertEqual(job["status"], "queued")
+
+    def test_a_retry_with_the_old_key_is_no_refusal_at_the_limit(self):
+        first, _ = self._submit("a")
+        self._submit("b")
+        again, created = self._submit("a")
+        self.assertFalse(created)
+        self.assertEqual(again["id"], first["id"])
+
+    def test_the_limit_is_counted_per_owner(self):
+        self._submit("a")
+        self._submit("b")
+        job, created = self._submit("a", owner="someone-else")
+        self.assertTrue(created)
+        self.assertEqual(job["status"], "queued")
+
+    def test_without_a_limit_nothing_is_refused(self):
+        for index in range(10):
+            _, created = self._submit(f"key-{index}", max_open=None)
+            self.assertTrue(created)
 
 
 class AssistantJobRunnerTests(unittest.TestCase):

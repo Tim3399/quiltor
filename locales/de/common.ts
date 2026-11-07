@@ -33,6 +33,8 @@ export const common = {
     "Der Inhalt dieser Version konnte nicht abgerufen werden. Dein aktueller Stand ist unverändert.",
   errorSyncForbiddenHosted:
     "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten. Deine Versionen liegen bereits auf dem Server.",
+  errorInstallForbiddenHosted:
+    "Auf diesem Server richtet der Betreiber Erweiterungen ein. Hier lässt sich nichts nachinstallieren.",
   errorSyncTargetInvalid:
     "Diese Adresse passt nicht. Gib eine Adresse mit https:// ein, zum Beispiel https://abgleich.example.org.",
   errorUnknown: "Die Aktion konnte nicht abgeschlossen werden.",

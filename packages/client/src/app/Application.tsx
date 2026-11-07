@@ -36,7 +36,17 @@ import { useOverlayController, versionsOptionsForCommand } from "./overlays/useO
 import { useShellStatus } from "./shell/useShellStatus";
 import { useTheme } from "./shell/useTheme";
 import { useApplicationShortcuts } from "./shortcuts/useApplicationShortcuts";
-import { useAutosave } from "./workspace/useAutosave";
+import { DraftOfferDialog } from "./workspace/DraftOfferDialog";
+import {
+  type DraftOwner,
+  draftChanges,
+  readDraft,
+  removeAllDrafts,
+  removeDraft,
+  type StoredDraft,
+  writeDraft,
+} from "./workspace/draftStore";
+import { isSessionEnded, useAutosave } from "./workspace/useAutosave";
 import { useHistoryState } from "./workspace/useHistoryState";
 import { useWorkspaceController } from "./workspace/useWorkspaceController";
 import { WorkspaceSurface } from "./workspace/WorkspaceSurface";
@@ -48,6 +58,24 @@ import {
 import { WorldSessionBoundary } from "./world/WorldSessionBoundary";
 
 type DocumentFamily = "manuscript" | "figures" | "storyboards";
+
+const manuscriptRevision = () => quiltorClient.application.manuscript.revision();
+const figuresRevision = () => quiltorClient.application.storyWorld.revision();
+const storyboardsRevision = () => quiltorClient.application.storyboards.revision();
+
+/** Keeps the unsaved state of `family` on this device when its save meets an ended session. */
+function draftOptions<T>(
+  family: DocumentFamily,
+  owner: () => DraftOwner | null,
+  revision: () => number | undefined,
+) {
+  return {
+    onSessionEnded: (unsaved: T) => {
+      writeDraft(owner(), family, unsaved, revision());
+    },
+    onSaved: () => removeDraft(owner(), family),
+  };
+}
 type DocumentsLoad = { worldId: string; generation: number; state: "pending" | "loaded" };
 
 function documentsBindingLoad({ worldId, generation }: WorldBinding) {
@@ -200,6 +228,28 @@ export function App() {
   const workspace = useWorkspaceController();
   const overlays = useOverlayController();
   const shell = useShellStatus();
+  // Whose draft a refused save keeps: the signed-in user and the world the documents belong
+  // to. Local mode has no user and never ends a session, so nothing is kept there (T-58 P7b).
+  const accountSub = shell.account?.sub;
+  // The selected world: a save only ever leaves for documents bound to it (see `bound`).
+  const draftWorldId = session.world?.id;
+  const draftOwner = useCallback(
+    (): DraftOwner | null =>
+      accountSub && draftWorldId ? { sub: accountSub, worldId: draftWorldId } : null,
+    [accountSub, draftWorldId],
+  );
+  const manuscriptDraft = useMemo(
+    () => draftOptions<Manuscript>("manuscript", draftOwner, manuscriptRevision),
+    [draftOwner],
+  );
+  const figuresDraft = useMemo(
+    () => draftOptions<FigureState>("figures", draftOwner, figuresRevision),
+    [draftOwner],
+  );
+  const storyboardsDraft = useMemo(
+    () => draftOptions<StoryboardState>("storyboards", draftOwner, storyboardsRevision),
+    [draftOwner],
+  );
   const noteReferenceCandidates = useMemo(
     () =>
       manuscript && figures && storyboards
@@ -305,9 +355,9 @@ export function App() {
       ),
     [bound, rememberMirrorWarning],
   );
-  const manuscriptSave = useAutosave(manuscript, saveManuscript);
-  const figureSave = useAutosave(figures, saveFigures);
-  const storyboardSave = useAutosave(storyboards, saveStoryboards);
+  const manuscriptSave = useAutosave(manuscript, saveManuscript, undefined, manuscriptDraft);
+  const figureSave = useAutosave(figures, saveFigures, undefined, figuresDraft);
+  const storyboardSave = useAutosave(storyboards, saveStoryboards, undefined, storyboardsDraft);
   const { isDirty: isManuscriptDirty, discard: discardManuscript } = manuscriptSave;
   const { isDirty: isFiguresDirty, discard: discardFigures } = figureSave;
   const { isDirty: isStoryboardsDirty, discard: discardStoryboards } = storyboardSave;
@@ -464,9 +514,12 @@ export function App() {
         }
       }
       if (!replaced) throw new Error(t("recoveryDraftChanged"));
+      // Loading the server's version is discarding the local one, a kept draft included.
+      if (recoveryFamily) removeDraft(draftOwner(), recoveryFamily);
       if (recoveryFamily) settlePendingLoad(recoveryFamily);
     },
     [
+      draftOwner,
       settlePendingLoad,
       figureHistory.load,
       figureSave.replace,
@@ -478,6 +531,120 @@ export function App() {
       t,
     ],
   );
+  // A draft kept on this device when the session ended (T-58 P7b) is offered once the same
+  // user opens the same world again. Closing the offer decides nothing; it returns next time.
+  const [draftDecisions, setDraftDecisions] = useState(0);
+  const [draftOfferStatus, setDraftOfferStatus] = useState({ busy: false, error: "" });
+  const [postponedDrafts, setPostponedDrafts] = useState<readonly string[]>([]);
+  const offerWorldId = documentsReady ? session.world?.id : undefined;
+  const busyPhases = new Set(["dirty", "saving", "error"]);
+  const unsavedHere = {
+    manuscript: busyPhases.has(manuscriptSave.phase),
+    figures: busyPhases.has(figureSave.phase),
+    storyboards: busyPhases.has(storyboardSave.phase),
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: draftDecisions re-reads the device's store after a decision, the flags compare the unsaved state by value.
+  const draftOffer = useMemo((): { family: DocumentFamily; draft: StoredDraft } | null => {
+    if (!offerWorldId || !accountSub || recoveryFamily) return null;
+    const owner = { sub: accountSub, worldId: offerWorldId };
+    for (const family of ["manuscript", "figures", "storyboards"] as const) {
+      if (postponedDrafts.includes(`${offerWorldId}:${family}`)) continue;
+      // Unsaved work of this very page comes first; its draft is the same text.
+      if (unsavedHere[family]) continue;
+      const draft = readDraft(owner, family);
+      if (draft) return { family, draft };
+    }
+    return null;
+  }, [
+    offerWorldId,
+    accountSub,
+    recoveryFamily,
+    postponedDrafts,
+    draftDecisions,
+    unsavedHere.manuscript,
+    unsavedHere.figures,
+    unsavedHere.storyboards,
+  ]);
+  const draftGateway = (family: DocumentFamily) =>
+    (family === "manuscript"
+      ? quiltorClient.application.manuscript
+      : family === "figures"
+        ? quiltorClient.application.storyWorld
+        : quiltorClient.application.storyboards) as unknown as {
+      saveExpected: (
+        data: unknown,
+        expectedRevision: number,
+      ) => Promise<{ warnings?: readonly string[] }>;
+    };
+  const draftHistory = (family: DocumentFamily) =>
+    (family === "manuscript"
+      ? manuscriptHistory
+      : family === "figures"
+        ? figureHistory
+        : storyboardHistory) as unknown as {
+      load: (value: unknown) => void;
+      change: (value: unknown) => void;
+    };
+  const adoptDraft = async () => {
+    if (!draftOffer) return;
+    const { family, draft } = draftOffer;
+    const history = draftHistory(family);
+    // The server holds another version than the one the draft was written on, or it cannot
+    // be told which that was: the draft stands as the unsaved local version and the recovery
+    // dialog compares -- the existing conflict path, never a silent overwrite.
+    const holdForDecision = () => {
+      setPendingLoads([...pendingLoadsRef.current, family]);
+      setDocumentsLoad((load) => load && { ...load, state: "pending" });
+      history.change(draft.value);
+      setRecoveryFamily(family);
+      setDraftOfferStatus({ busy: false, error: "" });
+    };
+    if (draft.baseRevision === undefined) {
+      holdForDecision();
+      return;
+    }
+    const baseRevision = draft.baseRevision;
+    setDraftOfferStatus({ busy: true, error: "" });
+    try {
+      const result = await bound(
+        family,
+        () => draftGateway(family).saveExpected(draft.value, baseRevision),
+        true,
+      );
+      rememberMirrorWarning(family, result);
+      // Saved: shown as the persisted state, not counted as an edit to save again.
+      saveByFamily[family].accept(draft.value as never);
+      history.load(draft.value);
+      removeDraft(draftOwner(), family);
+      setDraftDecisions((count) => count + 1);
+    } catch (reason) {
+      if (reason instanceof ApplicationGatewayError && reason.category === "conflict") {
+        holdForDecision();
+        return;
+      }
+      setDraftOfferStatus({
+        busy: false,
+        error: isSessionEnded(reason)
+          ? t("saveSessionEnded")
+          : reason instanceof Error
+            ? reason.message
+            : t("saveFailed"),
+      });
+      return;
+    }
+    setDraftOfferStatus({ busy: false, error: "" });
+  };
+  const discardDraft = () => {
+    if (!draftOffer) return;
+    removeDraft(draftOwner(), draftOffer.family);
+    setDraftOfferStatus({ busy: false, error: "" });
+    setDraftDecisions((count) => count + 1);
+  };
+  const postponeDraft = () => {
+    if (!draftOffer || !offerWorldId) return;
+    setPostponedDrafts((current) => [...current, `${offerWorldId}:${draftOffer.family}`]);
+    setDraftOfferStatus({ busy: false, error: "" });
+  };
   // What is open belongs in the status line. The numbers are here anyway; every workspace
   // counts the thing it can give an account of.
   const summary = useMemo(() => {
@@ -599,8 +766,10 @@ export function App() {
       return;
     }
     if (!releaseDocuments({ clear: false })) return;
+    // Drafts belong to the person signed in on this device; signing out leaves none behind.
+    removeAllDrafts(shell.account?.sub);
     shell.logout();
-  }, [flushAll, releaseDocuments, shell.logout]);
+  }, [flushAll, releaseDocuments, shell.account?.sub, shell.logout]);
 
   const changeFigures = useCallback(
     (next: FigureState) => {
@@ -682,6 +851,8 @@ export function App() {
             errorId={activeSave.errorId}
             warning={mirrorWarnings[activeSaveFamily] ? t("backupMirrorFailed") : undefined}
             retry={activeSave.retry}
+            signInRequired={activeSave.signInRequired}
+            onSignIn={() => quiltorClient.platform.externalNavigation.open("/login")}
             onRecover={() => setRecoveryFamily(activeSaveFamily)}
             theme={theme}
             onTheme={toggleTheme}
@@ -748,6 +919,29 @@ export function App() {
                 if (pending.includes(recoveryFamily)) return;
                 setRecoveryFamily(pending[0] ?? null);
               }}
+            />
+          )}
+          {draftOffer && !recoveryFamily && (
+            <DraftOfferDialog
+              familyLabel={t(
+                draftOffer.family === "manuscript"
+                  ? "draftFamilyManuscript"
+                  : draftOffer.family === "figures"
+                    ? "draftFamilyFigures"
+                    : "draftFamilyStoryboards",
+              )}
+              savedAt={draftOffer.draft.savedAt}
+              items={draftChanges(
+                draftOffer.family,
+                draftOffer.draft.value,
+                { manuscript, figures, storyboards }[draftOffer.family],
+                t("untitled"),
+              )}
+              busy={draftOfferStatus.busy}
+              error={draftOfferStatus.error}
+              onAdopt={() => void adoptDraft()}
+              onDiscard={discardDraft}
+              onClose={postponeDraft}
             />
           )}
           {projectExportOpen && (

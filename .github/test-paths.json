@@ -7,19 +7,20 @@
     "rust": "portable-core, and cargo test in cross-platform-native",
     "client": "frontend job after npm run check: unit tests, type check, build, dist/ comparison",
     "browser": "browser-e2e-shards, visual-baseline-reach, cross-platform-browser or cross-platform-smoke",
-    "lint": "workflow-docker-shell-lint: actionlint, hadolint, shellcheck, osv-scanner"
+    "lint": "workflow-docker-shell-lint: actionlint, hadolint, shellcheck, osv-scanner",
+    "oidc": "browser-e2e-oidc: the OIDC browser suite, a fake Keycloak and the real server, Linux only"
   },
   "rules": [
     {
       "name": "filter",
       "patterns": [".github/test-paths.json", "distribution/tooling/path_filter.py"],
-      "groups": ["checks", "python", "rust", "client", "browser", "lint"],
+      "groups": ["checks", "python", "rust", "client", "browser", "lint", "oidc"],
       "reason": "A change to the filter itself is checked by running everything it could switch off. The plan job evaluates the base's copy of both files, so these are the rules that judge such a change, whatever the pull request writes into them."
     },
     {
       "name": "test-workflow",
       "patterns": [".github/workflows/test.yml"],
-      "groups": ["checks", "python", "rust", "client", "browser", "lint"],
+      "groups": ["checks", "python", "rust", "client", "browser", "lint", "oidc"],
       "reason": "A changed job is only proven by running it."
     },
     {
@@ -39,7 +40,7 @@
         ".env.example"
       ],
       "reason": "Versions, dependencies and toolchains every job installs or compares.",
-      "groups": ["checks", "python", "rust", "client", "browser", "lint"]
+      "groups": ["checks", "python", "rust", "client", "browser", "lint", "oidc"]
     },
     {
       "name": "server",
@@ -137,6 +138,32 @@
       ],
       "groups": ["checks", "browser"],
       "reason": "The browser suites, their configuration, the layout-audit rules slot 4 runs, the program that assigns every slot its tests from tests/playwright/durations.json, and the Linux Chromium install the slots run. workflow_contract.py derives the programs the browser jobs run and requires browser for each."
+    },
+    {
+      "name": "oidc-session",
+      "patterns": [
+        "src/quiltor/infrastructure/identity/**",
+        "src/quiltor/modules/identity/**",
+        "src/quiltor/delivery/http/routes/identity.py",
+        "src/quiltor/bootstrap/**",
+        "src/quiltor/hosts/web/server.py",
+        "apps/web/server.py",
+        "packages/client/src/app/Application.tsx",
+        "packages/client/src/app/AppShell.tsx",
+        "packages/client/src/app/workspace/useAutosave.ts",
+        "packages/client/src/app/workspace/draftStore.ts",
+        "packages/client/src/app/workspace/DraftOfferDialog.tsx",
+        "packages/client/src/design/components/SaveStatus/**",
+        "packages/client/src/modules/identity/**",
+        "packages/client/src/platform/http/**",
+        "tests/e2e-oidc/**",
+        "tests/python/fake_issuer.py",
+        "playwright.oidc.config.ts",
+        "tools/dev/python.mjs",
+        "tools/dev/playwright-linux.sh"
+      ],
+      "groups": ["checks", "oidc"],
+      "reason": "Sign-in, sessions and the autosave that must survive an ended session (T-58 P7b, D-103), and the OIDC browser suite with its stack: the fake issuer, its Playwright config and the programs the job runs. The full matrix always runs it."
     },
     {
       "name": "playwright-config-read-by-backend",

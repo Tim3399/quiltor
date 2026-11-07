@@ -6,6 +6,14 @@ from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 
 
+class TooManyOpenJobs(RuntimeError):
+    """The account already has as many queued or running jobs as it may."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(f"At most {limit} open assistant jobs are allowed.")
+        self.limit = limit
+
+
 class IdempotencyConflict(RuntimeError):
     """One idempotency key was reused for a different logical request."""
 
@@ -82,6 +90,7 @@ class AssistantJobStore(Protocol):
         intent: dict[str, Any],
         execution: dict[str, Any],
         progress_id: str | None = None,
+        max_open: int | None = None,
     ) -> tuple[dict[str, Any], bool]: ...
 
     def get(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None: ...
@@ -190,4 +199,5 @@ __all__ = [
     "InferenceUnavailableError",
     "JobStoreFactory",
     "TokenCountCache",
+    "TooManyOpenJobs",
 ]

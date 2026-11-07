@@ -116,6 +116,7 @@ FIELD_RULES: dict[str, Callable[[Any], Any | None]] = {
     "log_level": _level,
     "file": _text(),
     "transfer_encoding_present": _boolean,
+    "roles_claim_present": _boolean,
 }
 
 _REQUEST = frozenset({"request_id", "method", "route"})
@@ -166,6 +167,8 @@ EVENTS: dict[str, frozenset[str]] = {
     # call and the exception's type. The endpoint, the credentials and the exception's
     # text stay out (T-123).
     "backup.remote_request_failed": frozenset({"request_id", "operation", "error_type"}),
+    # Never email or name: `sub` is the one identifier an operator needs (D-49).
+    "identity.login_without_roles": frozenset({"request_id", "sub", "roles_claim_present"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their

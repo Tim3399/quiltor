@@ -169,4 +169,7 @@ export const assistant = {
   chapterGroupLabel: "Kapitel {index}/{total}: {titles}",
   extractionEmpty:
     "In der gewählten Kapitelauswahl wurde kein neuer prüfbarer Weltzustand gefunden.",
+  errorAssistantPremiumRequired:
+    "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+  errorAssistantTooManyJobs: "Du hast schon {limit} offene Aufträge. Warte, bis einer fertig ist.",
 } as const;

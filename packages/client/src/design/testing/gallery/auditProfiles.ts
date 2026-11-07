@@ -188,7 +188,7 @@ export const designAuditProfiles = {
     coverage: {
       default: ["Phases"],
       variants: ["AttentionOnlyLabel"],
-      error: ["LongError", "ErrorWithId"],
+      error: ["LongError", "ErrorWithId", "SessionEnded"],
       longContent: ["LongError"],
     },
   },
