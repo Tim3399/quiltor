@@ -152,6 +152,7 @@ export function createDocumentTransport<TModel extends object>(
       return versioned.document;
     },
     save: (data) => saveExpected(data, state.revisions[kind]),
+    revision: () => state.revisions[kind],
     saveExpected,
   };
 }

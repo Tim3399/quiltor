@@ -16,6 +16,12 @@ export interface SaveStatusProps extends Omit<HTMLAttributes<HTMLDivElement>, "t
   errorIdLabel?: string;
   retryLabel?: string;
   onRetry?: () => void;
+  /**
+   * The save failed because the session ended. Shown in the error phase before retry: signing
+   * in again somewhere else keeps the unsaved text on this page, and retry saves it.
+   */
+  signInLabel?: string;
+  onSignIn?: () => void;
 }
 
 export function SaveStatus({
@@ -27,6 +33,8 @@ export function SaveStatus({
   errorIdLabel,
   retryLabel,
   onRetry,
+  signInLabel,
+  onSignIn,
   className = "",
   ...props
 }: SaveStatusProps) {
@@ -74,6 +82,16 @@ export function SaveStatus({
             </>
           )}
         </span>
+      )}
+      {phase === "error" && onSignIn && signInLabel && (
+        <Button
+          className="save-status-component__sign-in"
+          appearance="secondary"
+          size="compact"
+          onClick={onSignIn}
+        >
+          {signInLabel}
+        </Button>
       )}
       {phase === "error" && onRetry && retryLabel && (
         <Button

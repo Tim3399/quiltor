@@ -158,7 +158,8 @@ class FakeIssuer:
             ),
         }
 
-    def start(self) -> FakeIssuer:
+    def start(self, port: int = 0) -> FakeIssuer:
+        """Serve on 127.0.0.1 only -- on `port`, or on a free one when it is 0."""
         issuer = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -221,6 +222,17 @@ class FakeIssuer:
                     return self._introspect(fields)
                 if self.path == "/token":
                     return self._token(fields)
+                if self.path == "/test/end-sessions":
+                    # Test-only, and only here: what Keycloak does when an administrator ends
+                    # every session. No refresh token works any more, so the next refresh of a
+                    # Quiltor session answers invalid_grant (T-58 P7b e2e). The fake binds to
+                    # loopback, and nothing in the product knows this path.
+                    issuer.refresh_tokens.clear()
+                    issuer.tokens.clear()
+                    self.send_response(204)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return None
                 self.send_error(404)
 
             def _introspect(self, fields: dict) -> None:
@@ -264,7 +276,7 @@ class FakeIssuer:
             def log_message(self, format, *args) -> None:
                 pass
 
-        self._httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        self._httpd = http.server.HTTPServer(("127.0.0.1", port), Handler)
         self._thread = threading.Thread(
             target=self._httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
         )

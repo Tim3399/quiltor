@@ -44,6 +44,20 @@ export function ErrorWithId() {
   );
 }
 
+export function SessionEnded() {
+  return (
+    <SaveStatus
+      phase="error"
+      label="Nicht gespeichert"
+      error="Deine Anmeldung ist abgelaufen. Melde dich in einem neuen Tab an, dein Text bleibt hier erhalten."
+      signInLabel="In neuem Tab anmelden"
+      onSignIn={() => undefined}
+      retryLabel="Erneut versuchen"
+      onRetry={() => undefined}
+    />
+  );
+}
+
 export function AttentionOnlyLabel() {
   return <SaveStatus phase="saving" label="Wird gespeichert" labelVisibility="attention" />;
 }
