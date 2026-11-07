@@ -17,6 +17,41 @@ from quiltor.modules.assistant.ports import (
 DEFAULT_CHAT_TIMEOUT_SECONDS = 600
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+# A request carrying `Authorization` must never follow a redirect: urllib would resend the
+# header to wherever the Location points, and the sidecar key (or, from P5, the endpoint's) would
+# leave for a host nobody chose (F-58-3). Without a redirect handler a 3xx arrives as HTTPError.
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
+def open_without_redirects(request: urllib.request.Request, timeout: float):
+    """Open `request` without following any redirect; a 3xx raises RuntimeError.
+
+    The message names the status only: neither the headers nor the key appear in it.
+    """
+
+    try:
+        return _NO_REDIRECT_OPENER.open(request, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        if 300 <= exc.code < 400:
+            exc.close()
+            raise RuntimeError(
+                f"The local model answered with a redirect (HTTP {exc.code}); it is not followed."
+            ) from None
+        raise
+
+
+def _authorized_open(request: urllib.request.Request, timeout: float, api_key: str | None):
+    if not api_key:
+        return urllib.request.urlopen(request, timeout=timeout)
+    request.add_header("Authorization", f"Bearer {api_key}")
+    return open_without_redirects(request, timeout)
+
+
 def chat_timeout_seconds() -> int:
     """Return the configured inference timeout."""
 
@@ -59,6 +94,7 @@ def invoke_chat(
     payload: dict[str, Any],
     timeout: int | float | None = None,
     include_metadata: bool = False,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     """POST an OpenAI-compatible /v1/chat/completions request.
 
@@ -77,10 +113,7 @@ def invoke_chat(
     started = time.monotonic()
 
     try:
-        with urllib.request.urlopen(
-            request,
-            timeout=effective_timeout,
-        ) as response:
+        with _authorized_open(request, effective_timeout, api_key) as response:
             result = json.loads(response.read())
 
         choice = result["choices"][0]
@@ -163,6 +196,7 @@ def count_tokens(
     url: str,
     text: str,
     timeout: float = 10,
+    api_key: str | None = None,
 ) -> int:
     """Return the exact token count using the runtime's own tokenizer.
 
@@ -177,10 +211,7 @@ def count_tokens(
     )
 
     try:
-        with urllib.request.urlopen(
-            request,
-            timeout=timeout,
-        ) as response:
+        with _authorized_open(request, timeout, api_key) as response:
             result = json.loads(response.read())
 
         return len(result["tokens"])

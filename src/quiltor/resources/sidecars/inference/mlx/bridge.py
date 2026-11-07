@@ -31,8 +31,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import io
 import json
+import os
 import sys
 import threading
 from contextlib import suppress
@@ -218,9 +220,24 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._send_json(404, {"error": "not found"})
 
+    def _authorized(self) -> bool:
+        """Whether the request carries the key Quiltor started this bridge with (T-58 P4).
+
+        The key arrives in QUILTOR_SIDECAR_KEY, never in argv. A bridge started by hand without
+        one stays open, as llama-server does without --api-key. The comparison is constant-time.
+        """
+        expected = os.environ.get("QUILTOR_SIDECAR_KEY", "")
+        if not expected:
+            return True
+        supplied = self.headers.get("Authorization", "")
+        return hmac.compare_digest(supplied.encode(), f"Bearer {expected}".encode())
+
     def do_POST(self) -> None:
         if self.path not in {"/v1/chat/completions", "/tokenize"}:
             self._send_json(404, {"error": "not found"})
+            return
+        if not self._authorized():
+            self._send_json(401, {"error": "invalid api key"})
             return
         if not STATE["ready"]:
             self._send_json(503, {"error": "model not loaded yet"})

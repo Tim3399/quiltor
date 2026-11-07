@@ -9,7 +9,12 @@ from quiltor.infrastructure.inference.runtimes import resolve_port, spawn_logged
 
 
 def start(
-    base: Path, data: Path, url: str, binary_override: str | None, model_override: str | None
+    base: Path,
+    data: Path,
+    url: str,
+    binary_override: str | None,
+    model_override: str | None,
+    key: str | None = None,
 ) -> tuple[subprocess.Popen[str], Path] | None:
     """Spawn the MLX bridge server if a venv and a model are present.
 
@@ -55,4 +60,7 @@ def start(
         "--max-prompt-tokens",
         "8192",
     ]
-    return spawn_logged(argv, data, "mlx-server.log")
+    # The bridge reads the key from its environment and checks it on every request but
+    # /health. Never into argv (T-58 P4).
+    env = {"QUILTOR_SIDECAR_KEY": key} if key else None
+    return spawn_logged(argv, data, "mlx-server.log", env=env)
