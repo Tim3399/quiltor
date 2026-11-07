@@ -82,7 +82,12 @@ from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngi
 from quiltor.modules.commerce.contract import EntitlementProvider
 from quiltor.modules.identity.auth import IdentityConfiguration, validate_master_token
 from quiltor.modules.identity.ports import IdentityGateway, RenderTokenStore
-from quiltor.modules.identity.service import Identity, LocalIdentity, OidcIdentity
+from quiltor.modules.identity.service import (
+    DEFAULT_PREMIUM_ROLE,
+    Identity,
+    LocalIdentity,
+    OidcIdentity,
+)
 from quiltor.modules.writing_assistance import WritingAssistanceService
 
 
@@ -301,6 +306,15 @@ def build_feature_availability(
     )
 
 
+def _premium_role(configured: str) -> str:
+    """QUILTOR_PREMIUM_ROLE, or the default when unset or empty."""
+    if not configured:
+        return DEFAULT_PREMIUM_ROLE
+    if len(configured) > 255 or any(character.isspace() for character in configured):
+        raise RuntimeError("QUILTOR_PREMIUM_ROLE must be 1-255 characters without whitespace.")
+    return configured
+
+
 def build_identity(
     oidc_enabled: bool | None = None,
     *,
@@ -310,6 +324,7 @@ def build_identity(
     client_secret: str | None = None,
     master_token: str | None = None,
     render_tokens: RenderTokenStore | None = None,
+    premium_role: str | None = None,
 ) -> Identity:
     selected_gateway = gateway or StdlibIdentityGateway(
         IdentityConfiguration(
@@ -335,7 +350,15 @@ def build_identity(
     selected_render_tokens = render_tokens or InMemoryRenderTokenStore()
     enabled = selected_gateway.enabled if oidc_enabled is None else oidc_enabled
     if enabled:
-        return OidcIdentity(selected_gateway, selected_render_tokens)
+        return OidcIdentity(
+            selected_gateway,
+            selected_render_tokens,
+            premium_role=_premium_role(
+                premium_role
+                if premium_role is not None
+                else os.environ.get("QUILTOR_PREMIUM_ROLE", "")
+            ),
+        )
     configured_token = (
         master_token if master_token is not None else os.environ.get("QUILTOR_MASTER_TOKEN")
     )

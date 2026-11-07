@@ -10,6 +10,8 @@ export type AssistantAvailability = {
   installed: boolean;
   /** False when the server's operator installs the assistant; missing means true. */
   installable?: boolean;
+  /** False for a user without the premium role on a shared server; missing means true. */
+  premium?: boolean;
   chunks: number;
 };
 

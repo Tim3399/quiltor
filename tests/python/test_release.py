@@ -2522,6 +2522,7 @@ FULL_JOBS = {
     "visual-baseline-reach",
     "cross-platform-native",
     "cross-platform-browser",
+    "browser-e2e-oidc",
 }
 REDUCED_ALL_JOBS = (FULL_JOBS - {"cross-platform-browser"}) | {"cross-platform-smoke"}
 
@@ -2728,6 +2729,27 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
+                # Sign-in, sessions and autosave also run the OIDC browser suite (D-103).
+                "pull request, autosave",
+                pr,
+                ["packages/client/src/app/workspace/useAutosave.ts"],
+                {
+                    "frontend",
+                    "browser-e2e-shards",
+                    "visual-baseline-reach",
+                    "cross-platform-smoke",
+                    "browser-e2e-oidc",
+                },
+                True,
+            ),
+            (
+                "pull request, the OIDC browser suite",
+                pr,
+                ["tests/e2e-oidc/session-ended-autosave.spec.ts"],
+                {"frontend", "browser-e2e-oidc"},
+                False,
+            ),
+            (
                 "pull request, workflows only",
                 pr,
                 [".github/workflows/release.yml"],
@@ -2791,7 +2813,7 @@ class PathFilterContractTests(unittest.TestCase):
         outputs.update(
             {
                 f"needs.plan.outputs.run_{group}": "false"
-                for group in ("checks", "python", "rust", "client", "lint")
+                for group in ("checks", "python", "rust", "client", "lint", "oidc")
             }
         )
         outputs["needs.plan.outputs.run_browser"] = "true"
@@ -2892,8 +2914,8 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the crash fallback forgets a group",
+                "for group in checks python rust client browser lint oidc; do",
                 "for group in checks python rust client browser lint; do",
-                "for group in checks python rust client browser; do",
                 "path filter step is missing",
             ),
             (
@@ -2946,7 +2968,7 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the gate forgets a job",
-                "      - cross-platform-smoke\n    if: always()",
+                "      - browser-e2e-oidc\n    if: always()",
                 "    if: always()",
                 "must need the plan and every filtered job",
             ),

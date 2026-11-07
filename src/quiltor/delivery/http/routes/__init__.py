@@ -31,6 +31,9 @@ otherwise sit far from the route they govern are stated with it:
     runs. Two routes decide it from their body instead: `POST /api/backup` with
     `push` and `POST /api/worlds/create` with a `backupUrl`.
     tests/python/test_device_sync_routes.py holds the table.
+  - **`premium=True`** means the session must pass `app.identity.is_premium`.
+    The dispatch checks it before resolving any world, so an account without
+    the role cannot even probe which worlds exist. Locally it always passes.
 
 The `app` argument is the concrete WebApplication owned by the HTTP server
 instance. Routes never import a composition root or process-global store.
@@ -53,6 +56,7 @@ class Registration:
     auth_only: bool = False
     operator_only: bool = False
     device_sync: bool = False
+    premium: bool = False
 
 
 @dataclass

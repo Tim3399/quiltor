@@ -19,6 +19,7 @@ from quiltor.modules.assistant.ports import (
     InferenceUnavailableError,
     InferenceValidationError,
     JobStoreFactory,
+    TooManyOpenJobs,
 )
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
@@ -390,6 +391,7 @@ class AssistantJobRunner:
 __all__ = [
     "AssistantJobRunner",
     "IdempotencyConflict",
+    "TooManyOpenJobs",
     "assistant_error_status",
     "classify_assistant_error",
 ]

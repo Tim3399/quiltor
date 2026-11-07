@@ -94,6 +94,9 @@ class AssistantRouteServices:
     assistant_jobs: Any
     assistant_installation: AssistantInstallation
     lock: threading.Lock
+    identity: Identity
+    # None where one person owns the server: the limit only protects a shared one.
+    max_open_jobs: int | None
     installable: bool = True
 
 
@@ -159,6 +162,25 @@ class WritingAssistanceRouteServices:
     installable: bool = True
 
 
+DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
+MAX_ASSISTANT_MAX_OPEN_JOBS = 100
+
+
+def assistant_max_open_jobs(configured: str) -> int:
+    """QUILTOR_ASSISTANT_MAX_OPEN_JOBS, or the default when unset or empty."""
+    configured = configured.strip()
+    if not configured:
+        return DEFAULT_ASSISTANT_MAX_OPEN_JOBS
+    if not (configured.isascii() and configured.isdigit()) or not (
+        1 <= int(configured) <= MAX_ASSISTANT_MAX_OPEN_JOBS
+    ):
+        raise RuntimeError(
+            "QUILTOR_ASSISTANT_MAX_OPEN_JOBS must be a whole number from 1 to "
+            f"{MAX_ASSISTANT_MAX_OPEN_JOBS}."
+        )
+    return int(configured)
+
+
 HOSTED = "hosted"
 DESKTOP = "desktop"
 LOCAL = "local"
@@ -198,6 +220,8 @@ class WebApplication:
     bound_to_loopback: bool
     lock: threading.Lock
     operation_profile: str = LOCAL
+    # How many queued or running assistant jobs one account may have (OIDC only).
+    assistant_max_open_jobs: int = DEFAULT_ASSISTANT_MAX_OPEN_JOBS
 
     @property
     def installable(self) -> bool:
@@ -289,6 +313,8 @@ class WebApplication:
                 self.assistant_jobs,
                 self.assistant_installation,
                 self.lock,
+                self.identity,
+                self.assistant_max_open_jobs if self.identity.multi_user else None,
                 self.installable,
             )
         if path.startswith("/api/sync"):
@@ -423,6 +449,9 @@ def build_web_application(
         operation_profile=operation_profile_for(
             multi_user=selected_identity.multi_user,
             process_role=current_target().process_role,
+        ),
+        assistant_max_open_jobs=assistant_max_open_jobs(
+            os.environ.get("QUILTOR_ASSISTANT_MAX_OPEN_JOBS", "")
         ),
     )
 

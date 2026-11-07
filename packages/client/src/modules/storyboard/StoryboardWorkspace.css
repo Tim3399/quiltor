@@ -88,6 +88,8 @@
 .storyboard-search-results {
   min-height: 0;
   display: grid;
+  /* A track of its own: otherwise the longest name widens it past the panel. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--spacing-compact-tight);
   margin: 0;
@@ -107,38 +109,22 @@
 .storyboard-search-result {
   width: 100%;
   min-width: 0;
-  justify-content: flex-start;
+  /* Name at the start, grip at the end; a long name ends in the label's ellipsis. */
+  justify-content: space-between;
   text-align: start;
 }
 
-.storyboard-search-result__copy {
-  min-width: 0;
-  display: grid;
-  flex: 1;
-  gap: var(--spacing-optical-tight);
+/* The group keeps its entries in .collapsible-group__content, so a child selector such as
+   `.group > ul` no longer reaches the list: bullets and indent are reset on the list itself. */
+.storyboard-library__entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.storyboard-search-result__copy strong,
-.storyboard-search-result__copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.storyboard-search-result__copy small,
 .storyboard-search-empty {
   color: var(--muted);
   font-size: var(--font-size-metadata-legacy-compact);
-}
-
-.storyboard-search-result__grip {
-  width: var(--font-size-5);
-  height: var(--font-size-5);
-  flex: none;
-  color: var(--muted);
-}
-
-.storyboard-search-empty {
   padding: var(--spacing-regular-tight);
   text-align: center;
 }

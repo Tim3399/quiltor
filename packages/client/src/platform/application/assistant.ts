@@ -21,6 +21,8 @@ export interface AssistantGateway {
     installed: boolean;
     /** False when the server's operator installs the assistant; missing on older servers. */
     installable?: boolean;
+    /** False for a signed-in user without the premium role (T-58); missing means true. */
+    premium?: boolean;
     chunks: number;
     backend?: string;
     contextTokens?: number;

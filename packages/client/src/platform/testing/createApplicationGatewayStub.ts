@@ -70,6 +70,7 @@ export function createApplicationGatewayStub(
       adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("storyWorld.save"),
       saveExpected: () => notStubbed("storyWorld.saveExpected"),
+      revision: () => undefined,
       ...overrides.storyWorld,
     },
     storyboards: {
@@ -78,6 +79,7 @@ export function createApplicationGatewayStub(
       adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("storyboards.save"),
       saveExpected: () => notStubbed("storyboards.saveExpected"),
+      revision: () => undefined,
       ...overrides.storyboards,
     },
     manuscript: {
@@ -86,6 +88,7 @@ export function createApplicationGatewayStub(
       adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("manuscript.save"),
       saveExpected: () => notStubbed("manuscript.saveExpected"),
+      revision: () => undefined,
       ...overrides.manuscript,
     },
     manuscriptImport: {

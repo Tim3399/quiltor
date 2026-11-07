@@ -4,17 +4,32 @@ from __future__ import annotations
 
 from typing import Any
 
+from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http.routes import Request, get, save
 from quiltor.modules.assistant import (
     ASSISTANT_REPLY_LANGUAGES,
     DEFAULT_ASSISTANT_LANGUAGE,
 )
-from quiltor.modules.assistant.jobs import IdempotencyConflict
+from quiltor.modules.assistant.jobs import IdempotencyConflict, TooManyOpenJobs
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 
 
 @get("/api/assistant/status", world=True)
 def status(handler, request: Request, app) -> None:
+    if app.identity.multi_user and not app.identity.is_premium(request.session):
+        # Without the role there is no assistant to describe, so nothing of the
+        # runtime is reported: the client shows a hint instead of "offline" (F4).
+        return handler.send_json(
+            {
+                "ok": True,
+                "available": False,
+                "premium": False,
+                "installed": False,
+                "reason": "",
+                "chunks": 0,
+            }
+        )
+
     with app.lock:
         manuscript, figures = app.documents.load_pair(request.db_path)
         storyboards = app.documents.load("storyboards", request.db_path).state
@@ -28,6 +43,7 @@ def status(handler, request: Request, app) -> None:
         {
             "ok": True,
             **app.assistant.status(),
+            "premium": True,
             "installed": app.assistant_installation.is_configured(),
             # False on a hosted server: the operator installs, the client shows no button.
             "installable": app.installable,
@@ -48,7 +64,7 @@ def logs(handler, request: Request, app) -> None:
         )
 
 
-@get("/api/assistant/progress", world=True)
+@get("/api/assistant/progress", world=True, premium=True)
 def progress(handler, request: Request, app) -> None:
     identifier = request.param("id")
     state = (
@@ -180,7 +196,7 @@ def _send_direct_error(handler, exc: Exception) -> None:
     handler.send_exception(exc)
 
 
-@save("/api/assistant/jobs")
+@save("/api/assistant/jobs", premium=True)
 def create_job(handler, request: Request, app) -> None:
     """Create an idempotent assistant job and return without waiting for the model."""
 
@@ -200,6 +216,7 @@ def create_job(handler, request: Request, app) -> None:
             intent=intent,
             execution=execution,
             progress_id=execution.get("progressId"),
+            max_open=app.max_open_jobs,
         )
         handler.send_json(
             {
@@ -209,6 +226,14 @@ def create_job(handler, request: Request, app) -> None:
             },
             202 if created else 200,
         )
+    except TooManyOpenJobs as refused:
+        error = http_errors.for_status(
+            429,
+            code="assistant.too_many_jobs",
+            params={"limit": refused.limit},
+            retryable=True,
+        )
+        handler.send_json(error.payload(), error.status)
     except IdempotencyConflict:
         handler.send_api_error(
             409,
@@ -219,7 +244,7 @@ def create_job(handler, request: Request, app) -> None:
         _send_direct_error(handler, exc)
 
 
-@get("/api/assistant/job", world=True)
+@get("/api/assistant/job", world=True, premium=True)
 def job_status(handler, request: Request, app) -> None:
     """Read one job through the same world-ownership gate as other world data."""
 
@@ -233,7 +258,7 @@ def job_status(handler, request: Request, app) -> None:
     handler.send_json({"ok": True, "job": job})
 
 
-@save("/api/assistant/job/cancel")
+@save("/api/assistant/job/cancel", premium=True)
 def cancel_job(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()

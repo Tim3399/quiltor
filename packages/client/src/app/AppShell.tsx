@@ -83,6 +83,8 @@ export function AppShell({
   errorId,
   warning,
   retry,
+  signInRequired = false,
+  onSignIn,
   onRecover,
   theme,
   onTheme,
@@ -108,6 +110,9 @@ export function AppShell({
   errorId?: string;
   warning?: string;
   retry: () => void;
+  /** The last save failed because the session ended (T-58 P7b). */
+  signInRequired?: boolean;
+  onSignIn?: () => void;
   onRecover?: () => void;
   theme: Theme;
   onTheme: () => void;
@@ -255,11 +260,13 @@ export function AppShell({
             className="app-save-status"
             phase={phase}
             label={saveLabel}
-            error={error || warning}
+            error={signInRequired ? t("saveSessionEnded") : error || warning}
             errorId={phase === "error" ? errorId : undefined}
             errorIdLabel={errorId ? t("saveErrorId", { id: errorId }) : undefined}
             retryLabel={t("retry")}
             onRetry={retry}
+            signInLabel={signInRequired ? t("saveSignInNewTab") : undefined}
+            onSignIn={signInRequired ? onSignIn : undefined}
           />
           {phase === "error" && onRecover && (
             <Button

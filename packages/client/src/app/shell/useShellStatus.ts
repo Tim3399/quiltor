@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { quiltorClient, type IdentityLogoutResult } from "../../platform";
 
-type ShellAccount = { email?: string; name?: string };
+// `sub` keys the drafts a refused save keeps on this device (T-58 P7b).
+type ShellAccount = { sub?: string; email?: string; name?: string };
 
 export function logoutDestination(result: IdentityLogoutResult): string {
   return result.logoutUrl || "/login";

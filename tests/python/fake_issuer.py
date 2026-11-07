@@ -128,7 +128,7 @@ class FakeIssuer:
             "e": self._uint(numbers.e),
         }
 
-    def _grant(self, scope: str, *, nonce: str = "") -> dict:
+    def _grant(self, scope: str, *, nonce: str = "", audience: str = "quiltor-desktop") -> dict:
         """Mint an access/refresh/id-token triple for the current account."""
         access = secrets.token_urlsafe(16)
         refresh = secrets.token_urlsafe(16)
@@ -136,7 +136,7 @@ class FakeIssuer:
         self.refresh_tokens[refresh] = {"scope": scope, "account": dict(self.account)}
         claims = {
             "iss": self.url,
-            "aud": "quiltor-desktop",
+            "aud": audience,
             "exp": int(time.time()) + 3600,
             "iat": int(time.time()),
             **self.account,
@@ -158,7 +158,8 @@ class FakeIssuer:
             ),
         }
 
-    def start(self) -> FakeIssuer:
+    def start(self, port: int = 0) -> FakeIssuer:
+        """Serve on 127.0.0.1 only -- on `port`, or on a free one when it is 0."""
         issuer = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -221,6 +222,17 @@ class FakeIssuer:
                     return self._introspect(fields)
                 if self.path == "/token":
                     return self._token(fields)
+                if self.path == "/test/end-sessions":
+                    # Test-only, and only here: what Keycloak does when an administrator ends
+                    # every session. No refresh token works any more, so the next refresh of a
+                    # Quiltor session answers invalid_grant (T-58 P7b e2e). The fake binds to
+                    # loopback, and nothing in the product knows this path.
+                    issuer.refresh_tokens.clear()
+                    issuer.tokens.clear()
+                    self.send_response(204)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return None
                 self.send_error(404)
 
             def _introspect(self, fields: dict) -> None:
@@ -254,7 +266,9 @@ class FakeIssuer:
                         return self._json({"error": "invalid_grant"}, 400)
                     previous, issuer.account = issuer.account, old["account"]
                     try:
-                        return self._json(issuer._grant(old["scope"]))
+                        # Like a real provider, the refreshed ID token is for the asking client.
+                        audience = field("client_id") or "quiltor-desktop"
+                        return self._json(issuer._grant(old["scope"], audience=audience))
                     finally:
                         issuer.account = previous
                 return self._json({"error": "unsupported_grant_type"}, 400)
@@ -262,7 +276,7 @@ class FakeIssuer:
             def log_message(self, format, *args) -> None:
                 pass
 
-        self._httpd = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        self._httpd = http.server.HTTPServer(("127.0.0.1", port), Handler)
         self._thread = threading.Thread(
             target=self._httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
         )

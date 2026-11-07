@@ -60,6 +60,32 @@ class SessionData:
     access_expires_at: float = 0.0
     id_token: str = ""
     session_id: str = ""
+    # Roles from the verified ID token. Memory only, like the session itself.
+    roles: tuple[str, ...] = ()
+    # Gateway-clock time before which no token refresh is attempted again.
+    refresh_retry_at: float = 0.0
+
+
+MAX_ROLES = 256
+
+
+def extract_roles(claims: Mapping[str, Any]) -> tuple[str, ...]:
+    """Roles from the flat top-level `roles` claim of verified ID-token claims.
+
+    Only that claim is read. Keycloak's nested `realm_access` and
+    `resource_access` are ignored on purpose: the realm maps every role into
+    `roles`, and a second place to read them from would be a second way in.
+
+    The claim must be a list of strings with at most MAX_ROLES entries. Any
+    other shape yields no roles at all rather than a partial set: a role list
+    the provider did not mean to send grants nothing.
+    """
+    roles = claims.get("roles")
+    if not isinstance(roles, list) or len(roles) > MAX_ROLES:
+        return ()
+    if not all(isinstance(role, str) for role in roles):
+        return ()
+    return tuple(dict.fromkeys(roles))
 
 
 class InvalidTokenSignature(ValueError):
@@ -266,6 +292,7 @@ def validate_master_token(token: str) -> None:
 __all__ = [
     "ALLOWED_ID_TOKEN_ALGORITHMS",
     "MAX_CLOCK_SKEW_SECONDS",
+    "MAX_ROLES",
     "PENDING_LOGIN_TTL",
     "RESERVED_SUBJECT_PREFIX",
     "SESSION_TTL",
@@ -274,6 +301,7 @@ __all__ = [
     "SessionData",
     "decode_id_token_claims",
     "decode_id_token_header",
+    "extract_roles",
     "pkce_challenge",
     "validate_claims",
     "validate_master_token",

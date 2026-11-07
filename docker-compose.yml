@@ -44,6 +44,17 @@ services:
       QUILTOR_LOG_LEVEL: ${QUILTOR_LOG_LEVEL:-INFO}
       # Empty: stderr only, which `docker compose logs quiltor` shows.
       QUILTOR_LOG_FILE: ${QUILTOR_LOG_FILE:-}
+      # Empty: the defaults, role `premium` and three open assistant jobs per account.
+      QUILTOR_PREMIUM_ROLE: ${QUILTOR_PREMIUM_ROLE:-}
+      QUILTOR_ASSISTANT_MAX_OPEN_JOBS: ${QUILTOR_ASSISTANT_MAX_OPEN_JOBS:-}
+      # External OpenAI-compatible AI endpoint (see .env.example). Empty key = none.
+      QUILTOR_AI_KEY: ${QUILTOR_AI_KEY:-}
+      QUILTOR_AI_KEY_FILE: ${QUILTOR_AI_KEY_FILE:-}
+      QUILTOR_AI_JSON_MODE: ${QUILTOR_AI_JSON_MODE:-}
+      # Only together with a key, and uncommented: an empty URL or model name would
+      # count as set and break the local runtime or the start.
+      # QUILTOR_AI_URL: ${QUILTOR_AI_URL}
+      # QUILTOR_AI_MODEL_NAME: ${QUILTOR_AI_MODEL_NAME}
     logging:
       # Docker's default json-file driver never rotates; bound the container log.
       driver: json-file

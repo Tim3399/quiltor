@@ -33,6 +33,8 @@ export const common = {
     "The content of this version could not be retrieved. Your current state is unchanged.",
   errorSyncForbiddenHosted:
     "This server does not sync with other devices. Your versions are already stored on the server.",
+  errorInstallForbiddenHosted:
+    "On this server, the operator sets up extensions. Nothing can be installed from here.",
   errorSyncTargetInvalid:
     "This address does not work. Enter an address starting with https://, for example https://sync.example.org.",
   errorUnknown: "The action could not be completed.",

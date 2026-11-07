@@ -413,7 +413,7 @@ QUILTOR_AI_URL=http://127.0.0.1:11435 python3 apps/web/server.py
 
 #### Runtime-Vertrag
 
-`QUILTOR_AI_URL` ist **keine allgemeine OpenAI-Provider-Integration**. Die Runtime muss Quiltors stabilen lokalen Vertrag erfüllen:
+Ohne API-Schlüssel spricht Quiltor mit `QUILTOR_AI_URL` den lokalen Vertrag der mitgelieferten Runtime:
 
 ```text
 GET  /health
@@ -422,6 +422,41 @@ POST /v1/chat/completions
 ```
 
 `/v1/chat/completions` muss die von Quiltor angeforderten strikten JSON-Schemas tatsächlich erzwingen.
+
+Es gibt drei Fälle:
+
+- **Externer Endpunkt** (`QUILTOR_AI_URL` mit `QUILTOR_AI_KEY` oder `QUILTOR_AI_KEY_FILE`): Quiltor startet nichts und schickt den Schlüssel des Anbieters.
+- **`QUILTOR_AI_URL` ohne Schlüssel:** Die Adresse nennt eine Runtime, die schon läuft. Quiltor startet keine eigene und schickt keinen Schlüssel. Wer diese Runtime startet, sichert sie selbst ab, etwa mit `--api-key`.
+- **Ohne `QUILTOR_AI_URL`:** Quiltor startet die Runtime selbst (llama-server oder die MLX-Bridge). Sie bekommt bei jedem Start einen zufälligen Schlüssel über ihre Umgebung und beantwortet ohne ihn nur `/health`. Diesen Schlüssel erzeugt Quiltor intern; es gibt dafür keine Einstellung.
+
+#### Externer KI-Endpunkt (OpenAI-kompatibel)
+
+Mit einem API-Schlüssel spricht Quiltor einen OpenAI-kompatiblen Anbieter an, etwa OpenAI, OpenRouter oder Anthropics OpenAI-kompatiblen Endpunkt. Dann startet keine lokale Runtime.
+
+| Variable                | Zweck                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `QUILTOR_AI_URL`        | Basis-URL ohne `/v1`, z. B. `https://api.openai.com`. Mit Schlüssel Pflicht und nur `https` (oder `http` auf `127.0.0.1`/`localhost`), ohne Benutzerinfo, Query oder Fragment. |
+| `QUILTOR_AI_KEY`        | API-Schlüssel des Anbieters. Schaltet den externen Modus ein.                                                                                                                  |
+| `QUILTOR_AI_KEY_FILE`   | Alternativ: Datei, die den Schlüssel enthält (z. B. ein Docker-Secret). Nicht zusammen mit `QUILTOR_AI_KEY`.                                                                   |
+| `QUILTOR_AI_MODEL_NAME` | Feld `model` im Request, z. B. `gpt-4o-mini`. Standard `local`.                                                                                                                |
+| `QUILTOR_AI_JSON_MODE`  | `json_object`, wenn der Anbieter `response_format: json_schema` stillschweigend ignoriert (Anthropic).                                                                         |
+
+Im externen Modus gilt:
+
+- Jeder Aufruf trägt `Authorization: Bearer`, Weiterleitungen werden nicht verfolgt.
+- Die Verfügbarkeit prüft `GET /v1/models`, Token werden geschätzt (kein `/tokenize`).
+- Lehnt der Anbieter striktes `json_schema` ab, fragt Quiltor einmal mit `json_object` und dem Schema im Prompt nach und bleibt danach dabei. Die Antwort prüft Quiltor weiter gegen das Schema.
+- Der Schlüssel erscheint weder im Status noch im Log noch in Fehlermeldungen.
+- Ein Schlüssel ohne `QUILTOR_AI_URL`, eine `http`-URL zu einem fremden Host oder beide Schlüsselquellen zugleich verhindern den Start.
+
+Beispiel:
+
+```bash
+QUILTOR_AI_URL=https://api.openai.com \
+QUILTOR_AI_KEY_FILE=/run/secrets/quiltor_ai_key \
+QUILTOR_AI_MODEL_NAME=gpt-4o-mini \
+python3 apps/web/server.py
+```
 
 Die gebündelten Runtime-Backends verwenden aktuell ein Kontextfenster von 8192 Tokens. Anfragen an die gebündelte Runtime bleiben auf Loopback.
 
@@ -652,18 +687,27 @@ Empfohlene Einstellungen:
 - Redirect URI: `https://<deine-domain>/auth/callback`
 - PKCE: `S256`
 
+Realm, Rollen und Sitzung:
+
+- Realm `quiltor` mit dem Client-Scope `quiltor-roles`. Der Scope legt die Realm-Rollen in den flachen Claim `roles` des ID-Tokens; nur dieser Claim zählt, `realm_access` und `resource_access` liest Quiltor nicht.
+- Den KI-Assistenten nutzen nur Konten mit der Rolle `premium` (einstellbar über `QUILTOR_PREMIUM_ROLE`). Ohne sie antwortet der Server `403 assistant.premium_required`, und die Oberfläche zeigt einen Hinweis.
+- Rollen werden bei jedem Token-Refresh neu gelesen. Eine vergebene oder entzogene Rolle wirkt ohne neue Anmeldung.
+- Die Sitzungsdauer bestimmt das Realm (Leerlauf und Höchstdauer). Beendet Keycloak die Sitzung, antwortet Quiltor beim nächsten Refresh `401`. Ungespeicherter Text bleibt im Editor und als Entwurf auf dem Gerät, bis man sich in einem neuen Tab wieder anmeldet.
+
 Umgebungsvariablen:
 
-| Variable                     | Zweck                                                       |
-| ---------------------------- | ----------------------------------------------------------- |
-| `QUILTOR_OIDC_ISSUER`        | Realm-Issuer, z. B. `https://kc.example.com/realms/quiltor` |
-| `QUILTOR_OIDC_CLIENT_ID`     | Client-ID                                                   |
-| `QUILTOR_OIDC_CLIENT_SECRET` | Client-Secret                                               |
-| `QUILTOR_PUBLIC_URL`         | Öffentliche Quiltor-URL                                     |
-| `QUILTOR_COOKIE_SECURE`      | `auto` / `0` / `1`                                          |
-| `QUILTOR_HOST`               | Bind-Adresse                                                |
-| `QUILTOR_MASTER_TOKEN`       | Nur ohne OIDC relevant                                      |
-| `QUILTOR_DATA_DIR`           | Datenverzeichnis im Container                               |
+| Variable                          | Zweck                                                       |
+| --------------------------------- | ----------------------------------------------------------- |
+| `QUILTOR_OIDC_ISSUER`             | Realm-Issuer, z. B. `https://kc.example.com/realms/quiltor` |
+| `QUILTOR_OIDC_CLIENT_ID`          | Client-ID                                                   |
+| `QUILTOR_OIDC_CLIENT_SECRET`      | Client-Secret                                               |
+| `QUILTOR_PUBLIC_URL`              | Öffentliche Quiltor-URL                                     |
+| `QUILTOR_COOKIE_SECURE`           | `auto` / `0` / `1`                                          |
+| `QUILTOR_HOST`                    | Bind-Adresse                                                |
+| `QUILTOR_MASTER_TOKEN`            | Nur ohne OIDC relevant                                      |
+| `QUILTOR_DATA_DIR`                | Datenverzeichnis im Container                               |
+| `QUILTOR_PREMIUM_ROLE`            | Rolle für den KI-Assistenten; Standard `premium`            |
+| `QUILTOR_ASSISTANT_MAX_OPEN_JOBS` | Offene Assistenten-Aufträge je Konto (1–100); Standard `3`  |
 
 Start:
 

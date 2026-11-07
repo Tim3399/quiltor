@@ -20,12 +20,35 @@ function saveFailureRequestId(failure: unknown): string | undefined {
 
 const DEFAULT_AUTOSAVE_DELAY_MS = 800;
 
+/** The session ended while the page was open: the server answers every request with 401. */
+export function isSessionEnded(reason: unknown): boolean {
+  return (
+    reason instanceof ApplicationGatewayError &&
+    (reason.code === "auth.unauthenticated" || reason.category === "unauthorized")
+  );
+}
+
+export interface AutosaveOptions<T> {
+  /**
+   * A save was refused because the session ended. `unsaved` is the newest unsaved value; it
+   * stays in memory and dirty, and this is the moment to keep it on the device (T-58 P7b).
+   */
+  onSessionEnded?: (unsaved: T) => void;
+  /** Everything is saved: a draft kept on the device is no longer needed. */
+  onSaved?: () => void;
+}
+
 export function useAutosave<T>(
   value: T | null,
   save: (value: T) => Promise<unknown>,
   delay = DEFAULT_AUTOSAVE_DELAY_MS,
+  options: AutosaveOptions<T> = {},
 ) {
   const { t } = useI18n();
+  // Read only, inside the save drain: the newest callbacks without restarting it.
+  const optionsRef = useLatest(options);
+  // The last failure was the session ending; SaveStatus offers to sign in again.
+  const [signInRequired, setSignInRequired] = useState(false);
   const [phase, setPhase] = useState<SavePhase>("idle");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -46,6 +69,23 @@ export function useAutosave<T>(
   // eslint-disable-next-line react-hooks/refs -- two writers (render and replace) by design, F-17-2; see above
   latest.current = value;
 
+  const settled = useCallback(() => {
+    setSignInRequired(false);
+    optionsRef.current.onSaved?.();
+  }, []);
+  const failed = useCallback(
+    (reason: unknown) => {
+      reportSaveFailure(reason);
+      setError(reason instanceof Error ? reason.message : t("saveFailed"));
+      setFailure(reason);
+      setPhase("error");
+      const ended = isSessionEnded(reason);
+      setSignInRequired(ended);
+      if (ended && latest.current) optionsRef.current.onSessionEnded?.(latest.current);
+    },
+    [t],
+  );
+
   const flush = useCallback((): Promise<void> => {
     clearTimeout(timer.current);
     if (pending.current) return pending.current;
@@ -64,18 +104,16 @@ export function useAutosave<T>(
         }
         setSavedAt(Date.now());
         setPhase("saved");
+        settled();
       } catch (reason) {
-        reportSaveFailure(reason);
-        setError(reason instanceof Error ? reason.message : t("saveFailed"));
-        setFailure(reason);
-        setPhase("error");
+        failed(reason);
         throw reason;
       } finally {
         pending.current = null;
       }
     });
     return pending.current;
-  }, [save, t]);
+  }, [save, settled, failed]);
   // Read only, by the debounce timer, which must run the flush of the latest render.
   const flushRef = useLatest(flush);
 
@@ -126,11 +164,9 @@ export function useAutosave<T>(
           }
           setSavedAt(Date.now());
           setPhase("saved");
+          settled();
         } catch (reason) {
-          reportSaveFailure(reason);
-          setError(reason instanceof Error ? reason.message : t("saveFailed"));
-          setFailure(reason);
-          setPhase("error");
+          failed(reason);
           throw reason;
         } finally {
           pending.current = null;
@@ -138,7 +174,7 @@ export function useAutosave<T>(
       });
       return pending.current;
     },
-    [save, t],
+    [save, settled, failed, t],
   );
   const replace = useCallback((expected: T, persisted: T): boolean => {
     if (pending.current || latest.current !== expected) return false;
@@ -148,6 +184,7 @@ export function useAutosave<T>(
     dirty.current = false;
     setError("");
     setFailure(null);
+    setSignInRequired(false);
     setSavedAt(Date.now());
     setPhase("saved");
     return true;
@@ -168,6 +205,7 @@ export function useAutosave<T>(
     setPhase("idle");
     setError("");
     setFailure(null);
+    setSignInRequired(false);
     return true;
   }, []);
   const isDirty = useCallback(() => dirty.current, []);
@@ -177,6 +215,7 @@ export function useAutosave<T>(
     error,
     errorId,
     failure,
+    signInRequired,
     savedAt,
     flush,
     retry,

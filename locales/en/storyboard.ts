@@ -58,6 +58,5 @@ export const storyboard = {
   storyboardDeleteNode: "Delete item",
   storyboardResizeNode: "Resize item",
   storyboardPlaceReference: "Place {name} on the storyboard",
-  storyboardResultDetailFallback: "World content",
   storyboardNodeCount: "{count} items",
 } as const;

@@ -68,6 +68,8 @@ import "./StoryboardWorkspace.css";
 
 export type StoryboardWorkspaceProps = {
   state: StoryboardState;
+  /** The open world: the element library remembers its folded groups per world. */
+  worldId?: string;
   onChange: (value: StoryboardState, options?: { separateHistoryStep?: boolean }) => void;
   candidates: readonly WorldReferenceCandidate[];
   onOpenReference: (target: WorldReferenceTarget) => void;
@@ -98,6 +100,7 @@ export function StoryboardWorkspace(props: StoryboardWorkspaceProps) {
 
 function StoryboardWorkspaceInner({
   state,
+  worldId,
   onChange,
   candidates,
   onOpenReference,
@@ -771,6 +774,7 @@ function StoryboardWorkspaceInner({
       <div className={`storyboard-layout ${libraryOpen ? "has-library" : ""}`.trim()}>
         {libraryOpen && (
           <StoryboardSearchPanel
+            worldId={worldId}
             candidates={allCandidates}
             query={query}
             onQueryChange={setQuery}

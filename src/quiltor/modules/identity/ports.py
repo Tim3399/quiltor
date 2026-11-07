@@ -92,7 +92,10 @@ class IdentityGateway(Protocol):
         tokens: dict[str, Any],
         *,
         verified_id_token: str | None = None,
+        verified_claims: dict[str, Any] | None = None,
     ) -> SessionData | None: ...
+
+    def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None: ...
 
     def session_access_token(self, session_id: str, *, leeway: float = 30) -> str: ...
 

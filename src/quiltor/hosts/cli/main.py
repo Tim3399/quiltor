@@ -44,7 +44,22 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_OIDC_CLIENT_SECRET": "OIDC client secret.",
     "QUILTOR_PUBLIC_URL": "Public base URL Quiltor is reachable at (must match the OIDC redirect URI).",
     "QUILTOR_COOKIE_SECURE": "Session cookie Secure flag: auto (default), 0, or 1.",
-    "QUILTOR_AI_URL": "External OpenAI-compatible inference endpoint. Unset = spawn the bundled local runtime.",
+    "QUILTOR_AI_URL": (
+        "Inference endpoint: base URL without /v1. Unset = spawn the bundled local runtime. "
+        "With QUILTOR_AI_KEY it is an external OpenAI-compatible provider and must be https."
+    ),
+    "QUILTOR_AI_KEY": (
+        "API key of an external OpenAI-compatible provider at QUILTOR_AI_URL. Set = external mode, "
+        "no local runtime. Not together with QUILTOR_AI_KEY_FILE."
+    ),
+    "QUILTOR_AI_KEY_FILE": "File holding that API key instead (e.g. a Docker secret).",
+    "QUILTOR_AI_MODEL_NAME": "The request's model field for the endpoint, e.g. gpt-4o-mini. Default: local.",
+    "QUILTOR_AI_JSON_MODE": (
+        "json_object for providers that ignore response_format json_schema (Anthropic); the "
+        "schema then goes into the prompt."
+    ),
+    "QUILTOR_PREMIUM_ROLE": "Realm role an OIDC account needs for the AI assistant. Default: premium.",
+    "QUILTOR_ASSISTANT_MAX_OPEN_JOBS": "Open AI assistant jobs per OIDC account, 1-100. Default: 3.",
     "QUILTOR_AI_MODEL": "Path to a specific model file, overriding the bundled default.",
     "QUILTOR_AI_BINARY": "Path to a specific llama-server/MLX binary, overriding the bundled default.",
     "QUILTOR_AI_RUNTIME": "Force a specific local runtime: llamacpp or mlx.",
