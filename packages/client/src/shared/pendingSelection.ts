@@ -1,5 +1,64 @@
 import { EditorSelection, type TransactionSpec } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+
+/**
+ * How long a held key keeps the selection from being carried over when no document change
+ * follows: Backspace at the start of the document, or Enter in a read-only view. CodeMirror
+ * reads a held-back Android key within a few frames; this only ends a hold that nothing ends.
+ */
+const HOLD_TIMEOUT_MS = 250;
+
+/** The input types Android sends for the Enter and Backspace that CodeMirror holds back. */
+const HELD_INPUT_TYPES = new Set(["insertParagraph", "insertLineBreak", "deleteContentBackward"]);
+
+/**
+ * Marks the stretch between an Enter or Backspace and the document change it causes.
+ *
+ * On Android CodeMirror holds both keys back (`delayAndroidKey`) and reads the DOM change a
+ * moment later. A transaction that carries a selection in between makes the view drop that
+ * change, and the paragraph break or the deletion is lost (F-161-1). Comparing the DOM with the
+ * state cannot see every such change, since an empty line removed or added leaves every line's
+ * text alone, so the key itself is what counts.
+ *
+ * On desktop the change is read inside the same keydown, so the hold ends before anything
+ * else can run, and the selection is carried over as before.
+ */
+export const pendingSelection = ViewPlugin.fromClass(
+  class {
+    held = false;
+    timer: ReturnType<typeof setTimeout> | undefined;
+
+    hold() {
+      this.held = true;
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => this.release(), HOLD_TIMEOUT_MS);
+    }
+
+    release() {
+      this.held = false;
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged) this.release();
+    }
+
+    destroy() {
+      clearTimeout(this.timer);
+    }
+  },
+  {
+    eventHandlers: {
+      keydown(event) {
+        if (event.key === "Enter" || event.key === "Backspace") this.hold();
+      },
+      beforeinput(event) {
+        if (HELD_INPUT_TYPES.has(event.inputType)) this.hold();
+      },
+    },
+  },
+);
 
 /**
  * Carries a native selection CodeMirror has not read yet into a transaction from outside.
@@ -12,6 +71,7 @@ import type { EditorView } from "@codemirror/view";
  *
  * Only for transactions that leave the document alone: positions are read in the current
  * document, and a spec that sets its own selection already says where the cursor belongs.
+ * The view needs the `pendingSelection` extension; without it a held key goes unnoticed.
  */
 export function withPendingSelection(view: EditorView, spec: TransactionSpec): TransactionSpec {
   if (spec.selection || spec.changes || !view.hasFocus) return spec;
@@ -19,16 +79,13 @@ export function withPendingSelection(view: EditorView, spec: TransactionSpec): T
   // the character. `compositionStarted` is the public flag that also covers `composing`: it is
   // true from `compositionstart` on, before the first composed text arrives.
   if (view.compositionStarted) return spec;
+  // An Enter or Backspace whose DOM change has not been read yet would be dropped.
+  if (view.plugin(pendingSelection)?.held) return spec;
   const root = view.root as Document | (ShadowRoot & { getSelection?: () => Selection | null });
   const native = root.getSelection ? root.getSelection() : document.getSelection();
   const { anchorNode, focusNode } = native ?? {};
   if (!native || !anchorNode || !focusNode) return spec;
   if (!view.contentDOM.contains(anchorNode) || !view.contentDOM.contains(focusNode)) return spec;
-  // A DOM change CodeMirror has not read yet (Android holds Enter and Backspace back with
-  // `delayAndroidKey`) is dropped by a transaction that carries a selection, and the paragraph
-  // break or the deletion is lost. Leave the spec alone unless the DOM still shows what the
-  // state holds. Checked on the text, because no public flag tells Android apart.
-  if (!lineMatchesState(view, anchorNode) || !lineMatchesState(view, focusNode)) return spec;
   let anchor: number;
   let head: number;
   try {
@@ -40,16 +97,4 @@ export function withPendingSelection(view: EditorView, spec: TransactionSpec): T
   const current = view.state.selection.main;
   if (current.anchor === anchor && current.head === head) return spec;
   return { ...spec, selection: EditorSelection.single(anchor, head) };
-}
-
-/** Whether the line element holding `node` shows the same text as the state's line there. */
-function lineMatchesState(view: EditorView, node: Node): boolean {
-  let line: Node = node;
-  while (line.parentNode && line.parentNode !== view.contentDOM) line = line.parentNode;
-  if (line.parentNode !== view.contentDOM) return false;
-  try {
-    return line.textContent === view.state.doc.lineAt(view.posAtDOM(line, 0)).text;
-  } catch {
-    return false;
-  }
 }

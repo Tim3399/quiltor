@@ -14,7 +14,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLatest } from "../../shared/hooks/useLatest";
-import { withPendingSelection } from "../../shared/pendingSelection";
+import { pendingSelection, withPendingSelection } from "../../shared/pendingSelection";
 import type { VersionDiffProjection } from "../history";
 import type { FigureNode } from "../story-world";
 import { EntityMentionCard, type EntityMentionDescription } from "./EntityMentionCard";
@@ -287,6 +287,7 @@ export function ManuscriptEditor({
             )
           : undefined,
         extensions: [
+          pendingSelection,
           // Persisted offsets count every UTF-16 code unit. Treat only LF as CodeMirror's
           // structural separator so a CR in CRLF remains in the document and offsets stay exact.
           EditorState.lineSeparator.of("\n"),

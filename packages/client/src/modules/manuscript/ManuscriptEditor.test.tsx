@@ -611,44 +611,134 @@ describe("ManuscriptEditor selection", () => {
     expect(editor.state.doc.toString()).toBe("Anfang Ende");
   });
 
-  // F-161-1: Android holds Enter and Backspace back (`delayAndroidKey`); the DOM already shows
-  // the change, the state does not. A transaction with a selection would drop that change.
-  it("leaves the selection alone while a DOM change is still unread", () => {
-    const { editor, rerender, handle, onChange, onSelection } = renderEditor({
-      value: "Anfang Ende",
-    });
-    editor.focus();
-    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
-    // A Backspace the browser has applied and CodeMirror has not read yet.
-    text.nodeValue = "AnfangEnde";
-    document.getSelection()?.setBaseAndExtent(text, 0, text, 6);
-    // What `delayAndroidKey` leaves behind; the observer is internal, so set by hand.
-    const { observer } = editor as unknown as {
-      observer: { delayedAndroidKey: unknown; readChange: () => unknown };
-    };
-    observer.delayedAndroidKey = { key: "Backspace", keyCode: 8, force: false };
-    const readChange = vi.spyOn(observer, "readChange");
-    const update = vi.spyOn(editor, "update");
-
-    rerender(
+  // F-161: Android holds Enter and Backspace back (`delayAndroidKey`): the DOM already shows the
+  // change, the state does not yet. A transaction with a selection makes the view drop that
+  // change. `beforeinput` is what Android sends for these keys; jsdom's DOM reader cannot read
+  // the change, so the tests check the condition the view decides on: no selection.
+  const rerenderWithMarks = (r: ReturnType<typeof renderEditor>, value: string) =>
+    r.rerender(
       <ManuscriptEditor
-        value="Anfang Ende"
+        value={value}
         label="Kapiteltext"
         placeholder=""
         vocabulary={[]}
-        editorRef={handle}
-        onChange={onChange}
-        onSelection={onSelection}
-        marks={[{ from: 7, to: 11, kind: "bold" }]}
+        editorRef={r.handle}
+        onChange={r.onChange}
+        onSelection={r.onSelection}
+        marks={[{ from: 0, to: 6, kind: "bold" }]}
       />,
     );
+  const sendsSelection = (update: { mock: { calls: unknown[][] } }) =>
+    update.mock.calls.some((call) =>
+      (call[0] as readonly { selection?: unknown }[]).some((tr) => tr.selection),
+    );
+  const held = (inputType: string) =>
+    new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true });
 
-    expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0]?.[0].some((tr) => tr.selection)).toBe(false);
-    // The update reads the held-back change and keeps it, because the doc and the selection
-    // stay as they were (`EditorView.update`). jsdom's DOM reader yields no change without
-    // layout, so the document itself cannot show it here.
-    expect(readChange).toHaveBeenCalled();
+  it("leaves the selection alone while a held-back Backspace changes the text", () => {
+    const r = renderEditor({ value: "Anfang Ende" });
+    const { editor } = r;
+    editor.focus();
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    editor.contentDOM.dispatchEvent(held("deleteContentBackward"));
+    text.nodeValue = "AnfangEnde";
+    document.getSelection()?.setBaseAndExtent(text, 6, text, 6);
+    const update = vi.spyOn(editor, "update");
+
+    rerenderWithMarks(r, "Anfang Ende");
+
+    expect(update).toHaveBeenCalled();
+    expect(sendsSelection(update)).toBe(false);
+  });
+
+  // S1 (T-161-r2): Backspace on an empty line removes its div; the line above keeps its text.
+  it("leaves the selection alone while a held-back Backspace removes an empty line", () => {
+    const r = renderEditor({ value: "Anfang Ende\n\nEnde" });
+    const { editor } = r;
+    editor.focus();
+    editor.contentDOM.dispatchEvent(held("deleteContentBackward"));
+    const lines = editor.contentDOM.querySelectorAll(".cm-line");
+    requireValue(lines[1], "empty line").remove();
+    const text = requireValue(lines[0]?.firstChild, "text");
+    document.getSelection()?.setBaseAndExtent(text, 11, text, 11);
+    const update = vi.spyOn(editor, "update");
+
+    rerenderWithMarks(r, "Anfang Ende\n\nEnde");
+
+    expect(update).toHaveBeenCalled();
+    expect(sendsSelection(update)).toBe(false);
+  });
+
+  // S2 (T-161-r2): Enter behind an empty line at the end; the new empty line resolves to "".
+  it("leaves the selection alone while a held-back Enter adds an empty line", () => {
+    const r = renderEditor({ value: "Anfang Ende\n" });
+    const { editor } = r;
+    editor.focus();
+    editor.contentDOM.dispatchEvent(held("insertParagraph"));
+    const fresh = document.createElement("div");
+    fresh.className = "cm-line";
+    fresh.appendChild(document.createElement("br"));
+    editor.contentDOM.appendChild(fresh);
+    document.getSelection()?.setBaseAndExtent(fresh, 0, fresh, 0);
+    const update = vi.spyOn(editor, "update");
+
+    rerenderWithMarks(r, "Anfang Ende\n");
+
+    expect(update).toHaveBeenCalled();
+    expect(sendsSelection(update)).toBe(false);
+  });
+
+  // Android also sends a plain keydown for Enter and Backspace. Backspace at the very start
+  // changes nothing, so nothing ends the hold before the marks arrive.
+  it("leaves the selection alone after a Backspace keydown that changed nothing yet", () => {
+    const r = renderEditor({ value: "Anfang Ende" });
+    const { editor } = r;
+    editor.focus();
+    editor.dispatch({ selection: { anchor: 0 } });
+    editor.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Backspace", keyCode: 8, bubbles: true }),
+    );
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 11);
+    const update = vi.spyOn(editor, "update");
+
+    rerenderWithMarks(r, "Anfang Ende");
+
+    expect(editor.state.doc.toString()).toBe("Anfang Ende");
+    expect(update).toHaveBeenCalled();
+    expect(sendsSelection(update)).toBe(false);
+  });
+
+  it("carries the native selection over again once the held-back key has been read", () => {
+    const r = renderEditor({ value: "Anfang Ende" });
+    const { editor } = r;
+    editor.focus();
+    editor.contentDOM.dispatchEvent(held("insertParagraph"));
+    // The view reads the DOM change: it arrives as a transaction that changes the document.
+    editor.dispatch({ changes: { from: 11, insert: "\n" }, userEvent: "input" });
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 11);
+
+    rerenderWithMarks(r, "Anfang Ende\n");
+    document.dispatchEvent(new Event("selectionchange"));
+    editor.dispatch(editor.state.replaceSelection("Neu"));
+
+    expect(editor.state.doc.toString()).toBe("Neu\n");
+  });
+
+  // F-161-3: Firefox puts Ctrl+A on the editing host itself, offsets 0..childNodes.length.
+  it("carries over a native selection anchored on the editing host", () => {
+    const r = renderEditor({ value: "Anfang Ende" });
+    const { editor } = r;
+    editor.focus();
+    const host = editor.contentDOM;
+    document.getSelection()?.setBaseAndExtent(host, 0, host, host.childNodes.length);
+
+    rerenderWithMarks(r, "Anfang Ende");
+    document.dispatchEvent(new Event("selectionchange"));
+    editor.dispatch(editor.state.replaceSelection("Neu"));
+
+    expect(editor.state.doc.toString()).toBe("Neu");
   });
 
   it("maps marks and mentions through two edits that land before the next commit", () => {

@@ -22,7 +22,7 @@ import { Button, DropdownMenu, Field, IconButton, MenuItem, Popover } from "../.
 import { useI18n } from "../../i18n";
 import type { NoteHeadingLevel, NoteMark, NoteReference } from "../../shared";
 import { useLatest } from "../../shared/hooks/useLatest";
-import { withPendingSelection } from "../../shared/pendingSelection";
+import { pendingSelection, withPendingSelection } from "../../shared/pendingSelection";
 import {
   searchWorldReferences,
   type WorldReferenceCandidate,
@@ -405,6 +405,7 @@ export function ReferenceTextEditor({
       state: EditorState.create({
         doc: value,
         extensions: [
+          pendingSelection,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             "aria-label": ariaLabel,
