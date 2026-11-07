@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Button, IconButton, ScrollArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import { cardKindClassName, GRAPH_CONNECTION_HANDLES } from "../graph";
-import { NoteEditor } from "../notes";
+import { NoteEditor, titleHeadingLines } from "../notes";
 import type { StoryboardBoardNode, StoryboardReferenceNode } from "./model";
 import {
   STORYBOARD_NODE_SIZES,
@@ -227,8 +227,12 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
     noteMarks: item.noteMarks,
   };
 
+  // A note that opens with the card's own title as a heading does not repeat it on the card.
+  // Only while nobody writes: the card's CSS shows the line again once the editor has focus.
+  const hiddenLines = element ? titleHeadingLines(note, name) : 0;
+
   return (
-    <div className={className}>
+    <div className={className} data-title-heading-lines={hiddenLines || undefined}>
       <NoteEditor
         owner={element ? element.target : { kind: "storyboard", id: item.id }}
         label={editorLabel}

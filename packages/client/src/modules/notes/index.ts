@@ -3,6 +3,7 @@ export {
   type ElementNoteTarget,
   noteOwnerFamily,
   resolveElementNote,
+  titleHeadingLines,
   withChapterNote,
   withFigureNote,
 } from "./elementNotes";
