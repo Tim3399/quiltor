@@ -12,7 +12,17 @@ async function seededWorld(page: Page) {
   const world = await createTestWorld(page, `Eine Notiz ${crypto.randomUUID()}`);
   await putVersioned(page, `/api/manuscript?world=${world.id}`, (revision) =>
     encodeManuscriptV1(
-      { chapters: [{ id: "k1", title: "Ankunft", body: "Der Morgen.", note: "Alt." }] },
+      {
+        chapters: [{ id: "k1", title: "Ankunft", body: "Der Morgen.", note: "Alt." }],
+        trash: [
+          {
+            chapter: { id: "korb", title: "Verworfen", body: "Rettbar.", note: "Bleibt erhalten." },
+            deletedAt: "2026-09-19T08:00:00Z",
+            originalFolderPath: [],
+            treeItem: { id: "tree-korb", kind: "chapter" as const, chapterId: "korb", position: 1 },
+          },
+        ],
+      },
       revision,
     ),
   );
@@ -49,6 +59,7 @@ async function seededWorld(page: Page) {
           reference("Figurenkarte", "main-storyboard", "entity", "mira", 320),
           reference("Ortskarte", "main-storyboard", "place", "hafen", 600),
           reference("Verschwunden", "main-storyboard", "chapter", "gone", 880),
+          reference("Papierkorbkarte", "main-storyboard", "chapter", "korb", 1160),
           reference("Zweite Kapitelkarte", "second-board", "chapter", "k1", 40),
         ],
         edges: [],
@@ -206,6 +217,20 @@ test("a card whose element is gone says so and offers no editor", async ({ page 
     .locator('[data-storyboard-node-kind="reference"]')
     .filter({ hasText: "Verschwunden" });
   await expect(card.getByText("Element gelöscht")).toBeVisible();
+  await expect(card.getByRole("textbox")).toHaveCount(0);
+});
+
+test("a card whose chapter sits in the trash says so instead of 'deleted'", async ({ page }) => {
+  const world = await seededWorld(page);
+  await page.goto(`/?world=${world.id}`);
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  await openStoryboard(page);
+
+  const card = page
+    .locator('[data-storyboard-node-kind="reference"]')
+    .filter({ hasText: "Papierkorbkarte" });
+  await expect(card.getByText("Kapitel im Papierkorb")).toBeVisible();
+  await expect(card.getByText("Element gelöscht")).toHaveCount(0);
   await expect(card.getByRole("textbox")).toHaveCount(0);
 });
 

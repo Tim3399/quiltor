@@ -61,6 +61,8 @@ export type StoryboardFlowNodeContext = {
   ) => void;
   /** The element's note on a reference card: null when the element is gone. */
   elementNote?: ElementNote | null;
+  /** The element is a chapter in the trash: restorable, so the card does not call it deleted. */
+  elementInTrash?: boolean;
 };
 
 export type StoryboardFlowNodeData = StoryboardFlowNodeContext & {

@@ -702,6 +702,65 @@ for (const theme of ["light", "dark"] as const) {
 }
 
 /*
+ * In the overview a figure shows no connection handles until the pointer is on it.
+ *
+ * StoryGraph.css hides them there, but on the figure board a rule of the same weight from
+ * FigureCanvas.css came later and left them at a fifth of their colour. Small, translucent and
+ * on fractional positions, they lay across the seams of overlapping circles, and the runners did
+ * not draw them the same way twice: the favourites baseline moved by 27 pixels from one run to
+ * the next (T-129 F3). The place overview draws no handles at all.
+ */
+test("Figures: the overview shows no connection handles until a marker is pointed at", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockWorkshop(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+
+  const zoomOut = page.locator(".react-flow__controls-zoomout");
+  const circles = page.locator(".story-node.zoom-overview:not(.is-important)");
+  for (let step = 0; step < 12 && (step < 6 || (await circles.count()) === 0); step += 1) {
+    await zoomOut.click();
+    await page.waitForTimeout(120);
+  }
+  await expect(circles.first()).toBeVisible();
+  const handles = page.locator(".story-node.zoom-overview .react-flow__handle");
+  // Otherwise an empty list below would prove nothing.
+  expect(await handles.count()).toBeGreaterThan(0);
+
+  const shown = () =>
+    handles.evaluateAll((all) =>
+      all
+        .filter((handle) => getComputedStyle(handle).opacity !== "0")
+        .map((handle) => handle.closest(".react-flow__node")?.getAttribute("data-id") ?? "?"),
+    );
+  await expect.poll(shown).toEqual([]);
+
+  // The counter-check needs a circle the pointer can reach. On the narrow screen the open
+  // timeline strip covers the whole cluster, so it runs in the wider projects only.
+  if (test.info().project.name === "compact") return;
+  const free = await circles.evaluateAll((all) =>
+    all.findIndex((circle) => {
+      const box = circle.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit !== null && circle.contains(hit);
+    }),
+  );
+  expect(free).toBeGreaterThanOrEqual(0);
+  await circles.nth(free).hover();
+  const pointedAt = page.locator(".story-node:hover .directed-handle").first();
+  await expect
+    .poll(() => pointedAt.evaluate((handle) => getComputedStyle(handle).opacity))
+    .toBe("1");
+});
+
+/*
  * The minimap shows what stands on the canvas.
  *
  * It showed the opened-out map and left out everything standing on it. The reason is not in
