@@ -29,10 +29,12 @@ import {
 } from "../modules/world-references";
 import { ApplicationGatewayError, quiltorClient } from "../platform";
 import type { NoteMark, NoteReference } from "../shared";
+import { CapabilitiesProvider } from "../shared/capabilities";
 import { useLatest } from "../shared/hooks/useLatest";
 import { AppShell } from "./AppShell";
 import { OverlayHost, type PendingEntityRename } from "./overlays/OverlayHost";
 import { useOverlayController, versionsOptionsForCommand } from "./overlays/useOverlayController";
+import { useCapabilities } from "./shell/useCapabilities";
 import { useShellStatus } from "./shell/useShellStatus";
 import { useTheme } from "./shell/useTheme";
 import { useApplicationShortcuts } from "./shortcuts/useApplicationShortcuts";
@@ -228,6 +230,9 @@ export function App() {
   const workspace = useWorkspaceController();
   const overlays = useOverlayController();
   const shell = useShellStatus();
+  // What this server lets the client offer (T-102); null until known, so nothing
+  // sync-only or sign-out flashes up before the answer.
+  const capabilities = useCapabilities().instance;
   // Whose draft a refused save keeps: the signed-in user and the world the documents belong
   // to. Local mode has no user and never ends a session, so nothing is kept there (T-58 P7b).
   const accountSub = shell.account?.sub;
@@ -813,190 +818,192 @@ export function App() {
   });
 
   return (
-    <WorldSessionBoundary
-      worlds={session.worlds}
-      world={session.world}
-      needsSignIn={session.needsSignIn}
-      authError={session.authError}
-      loadError={session.loadError}
-      ready={Boolean(session.world && manuscript && figures && storyboards)}
-      theme={preference}
-      onTheme={setPreference}
-      onOpen={session.open}
-      onCreate={session.create}
-      onDelete={session.remove}
-      trash={session.trash}
-      trashError={session.trashError}
-      onLoadTrash={session.loadTrash}
-      onRestore={session.restore}
-      onPurge={session.purge}
-      onProjectImported={session.projectImported}
-      syncAvailable={shell.syncAvailable === true}
-    >
-      {session.world && manuscript && figures && storyboards && (
-        <Suspense
-          fallback={
-            <PageState kind="loading" mark={PRODUCT_MARK}>
-              <p>{t("openingWorkshop")}</p>
-            </PageState>
-          }
-        >
-          <AppShell
-            title={session.world.title}
-            workspace={workspace.workspace}
-            onWorkspace={workspace.selectWorkspace}
-            phase={activeSave.phase}
-            savedAt={activeSave.savedAt}
-            error={activeSave.error}
-            errorId={activeSave.errorId}
-            warning={mirrorWarnings[activeSaveFamily] ? t("backupMirrorFailed") : undefined}
-            retry={activeSave.retry}
-            signInRequired={activeSave.signInRequired}
-            onSignIn={() => quiltorClient.platform.externalNavigation.open("/login")}
-            onRecover={() => setRecoveryFamily(activeSaveFamily)}
-            theme={theme}
-            onTheme={toggleTheme}
-            onSearch={() => overlays.open("palette")}
-            onVersions={() => overlays.open("versions", { tab: "versions" })}
-            onExportProject={() => setProjectExportOpen(true)}
-            onGettingStarted={() => setGettingStartedOpen(true)}
-            onAssistant={overlays.toggleAssistant}
-            onExitWorld={returnToWorldSelection}
-            whoami={shell.account}
-            onLogout={logout}
-            version={shell.version}
-            summary={summary}
+    <CapabilitiesProvider value={capabilities}>
+      <WorldSessionBoundary
+        worlds={session.worlds}
+        world={session.world}
+        needsSignIn={session.needsSignIn}
+        authError={session.authError}
+        loadError={session.loadError}
+        ready={Boolean(session.world && manuscript && figures && storyboards)}
+        theme={preference}
+        onTheme={setPreference}
+        onOpen={session.open}
+        onCreate={session.create}
+        onDelete={session.remove}
+        trash={session.trash}
+        trashError={session.trashError}
+        onLoadTrash={session.loadTrash}
+        onRestore={session.restore}
+        onPurge={session.purge}
+        onProjectImported={session.projectImported}
+        syncAvailable={capabilities?.deviceSync === true}
+      >
+        {session.world && manuscript && figures && storyboards && (
+          <Suspense
+            fallback={
+              <PageState kind="loading" mark={PRODUCT_MARK}>
+                <p>{t("openingWorkshop")}</p>
+              </PageState>
+            }
           >
-            <NoteReferenceProvider
-              candidates={noteReferenceCandidates}
-              backlinks={noteReferenceBacklinks}
-              onOpenReference={openNoteReference}
-              onOpenBacklink={openNoteBacklink}
+            <AppShell
+              title={session.world.title}
+              workspace={workspace.workspace}
+              onWorkspace={workspace.selectWorkspace}
+              phase={activeSave.phase}
+              savedAt={activeSave.savedAt}
+              error={activeSave.error}
+              errorId={activeSave.errorId}
+              warning={mirrorWarnings[activeSaveFamily] ? t("backupMirrorFailed") : undefined}
+              retry={activeSave.retry}
+              signInRequired={activeSave.signInRequired}
+              onSignIn={() => quiltorClient.platform.externalNavigation.open("/login")}
+              onRecover={() => setRecoveryFamily(activeSaveFamily)}
+              theme={theme}
+              onTheme={toggleTheme}
+              onSearch={() => overlays.open("palette")}
+              onVersions={() => overlays.open("versions", { tab: "versions" })}
+              onExportProject={() => setProjectExportOpen(true)}
+              onGettingStarted={() => setGettingStartedOpen(true)}
+              onAssistant={overlays.toggleAssistant}
+              onExitWorld={returnToWorldSelection}
+              whoami={shell.account}
+              onLogout={capabilities?.signOut ? logout : undefined}
+              version={shell.version}
+              summary={summary}
             >
-              <WorkspaceSurface
-                key={session.world.id}
-                worldId={session.world.id}
-                worldTitle={session.world.title}
-                documentsReady={documentsReady}
-                workspace={workspace.workspace}
+              <NoteReferenceProvider
+                candidates={noteReferenceCandidates}
+                backlinks={noteReferenceBacklinks}
+                onOpenReference={openNoteReference}
+                onOpenBacklink={openNoteBacklink}
+              >
+                <WorkspaceSurface
+                  key={session.world.id}
+                  worldId={session.world.id}
+                  worldTitle={session.world.title}
+                  documentsReady={documentsReady}
+                  workspace={workspace.workspace}
+                  manuscript={manuscript}
+                  figures={figures}
+                  storyboards={storyboards}
+                  orphanedMentions={orphanedMentions}
+                  manuscriptHistory={manuscriptHistory}
+                  figureHistory={figureHistory}
+                  storyboardHistory={storyboardHistory}
+                  referenceCandidates={noteReferenceCandidates}
+                  onFiguresChange={changeFigures}
+                  onElementNoteChange={updateElementNote}
+                  target={workspace.target}
+                  onNavigate={workspace.navigate}
+                  focus={workspace.focus}
+                  onFocus={workspace.setFocus}
+                  onSave={flushAll}
+                  currentChapterId={currentChapterId}
+                  onCurrentChapterId={setCurrentChapterId}
+                  openChapterTrashToken={openChapterTrashToken}
+                  chapterFilter={chapterFilter}
+                  onChapterFilter={setChapterFilter}
+                />
+              </NoteReferenceProvider>
+            </AppShell>
+            {recoveryFamily && (
+              <RecoveryDialog
+                key={recoveryFamily}
                 manuscript={manuscript}
                 figures={figures}
                 storyboards={storyboards}
-                orphanedMentions={orphanedMentions}
-                manuscriptHistory={manuscriptHistory}
-                figureHistory={figureHistory}
-                storyboardHistory={storyboardHistory}
-                referenceCandidates={noteReferenceCandidates}
-                onFiguresChange={changeFigures}
-                onElementNoteChange={updateElementNote}
-                target={workspace.target}
-                onNavigate={workspace.navigate}
-                focus={workspace.focus}
-                onFocus={workspace.setFocus}
-                onSave={flushAll}
-                currentChapterId={currentChapterId}
-                onCurrentChapterId={setCurrentChapterId}
-                openChapterTrashToken={openChapterTrashToken}
-                chapterFilter={chapterFilter}
-                onChapterFilter={setChapterFilter}
+                conflictFamily={recoveryInConflictMode ? recoveryFamily : undefined}
+                onCompare={recoveryInConflictMode ? comparePersisted : undefined}
+                onKeepLocal={recoveryInConflictMode ? keepLocalDraft : undefined}
+                onLoadPersisted={recoveryInConflictMode ? loadPersistedDraft : undefined}
+                onClose={() => {
+                  // A held-back load needs a decision; closing would leave the workspace locked.
+                  // Once it is made, the next held-back family asks for its own.
+                  const pending = pendingLoadsRef.current;
+                  if (pending.includes(recoveryFamily)) return;
+                  setRecoveryFamily(pending[0] ?? null);
+                }}
               />
-            </NoteReferenceProvider>
-          </AppShell>
-          {recoveryFamily && (
-            <RecoveryDialog
-              key={recoveryFamily}
+            )}
+            {draftOffer && !recoveryFamily && (
+              <DraftOfferDialog
+                familyLabel={t(
+                  draftOffer.family === "manuscript"
+                    ? "draftFamilyManuscript"
+                    : draftOffer.family === "figures"
+                      ? "draftFamilyFigures"
+                      : "draftFamilyStoryboards",
+                )}
+                savedAt={draftOffer.draft.savedAt}
+                items={draftChanges(
+                  draftOffer.family,
+                  draftOffer.draft.value,
+                  { manuscript, figures, storyboards }[draftOffer.family],
+                  t("untitled"),
+                )}
+                busy={draftOfferStatus.busy}
+                error={draftOfferStatus.error}
+                onAdopt={() => void adoptDraft()}
+                onDiscard={discardDraft}
+                onClose={postponeDraft}
+              />
+            )}
+            {projectExportOpen && (
+              <ProjectExportDialog
+                worldId={session.world.id}
+                flush={flushAll}
+                onClose={() => setProjectExportOpen(false)}
+              />
+            )}
+            {gettingStartedOpen && (
+              <GettingStartedDialog
+                onWrite={() => workspace.selectWorkspace("text")}
+                onImportText={() => workspace.selectWorkspace("text")}
+                onSearch={() => overlays.open("palette")}
+                onAssistant={overlays.toggleAssistant}
+                onClose={() => setGettingStartedOpen(false)}
+              />
+            )}
+            <OverlayHost
+              overlay={overlays.overlay}
+              versions={overlays.versions}
+              onCloseOverlay={overlays.close}
+              assistantOpen={overlays.assistantOpen}
+              assistantEverOpened={overlays.assistantEverOpened}
+              onCloseAssistant={overlays.closeAssistant}
+              worldId={session.world.id}
               manuscript={manuscript}
+              currentChapterId={currentChapterId}
               figures={figures}
               storyboards={storyboards}
-              conflictFamily={recoveryInConflictMode ? recoveryFamily : undefined}
-              onCompare={recoveryInConflictMode ? comparePersisted : undefined}
-              onKeepLocal={recoveryInConflictMode ? keepLocalDraft : undefined}
-              onLoadPersisted={recoveryInConflictMode ? loadPersistedDraft : undefined}
-              onClose={() => {
-                // A held-back load needs a decision; closing would leave the workspace locked.
-                // Once it is made, the next held-back family asks for its own.
-                const pending = pendingLoadsRef.current;
-                if (pending.includes(recoveryFamily)) return;
-                setRecoveryFamily(pending[0] ?? null);
+              onAssistantFiguresChange={figureHistory.change}
+              onShowFigures={() => workspace.selectWorkspace("figures")}
+              onNavigate={workspace.navigate}
+              onWorkspace={workspace.setWorkspace}
+              onTarget={workspace.setTarget}
+              onCommand={executeCommand}
+              flushAll={flushAll}
+              onDocumentsReplaced={releaseReplacedDocuments}
+              syncAvailable={capabilities?.deviceSync === true}
+              pendingRename={pendingRename}
+              onManuscriptChange={manuscriptHistory.change}
+              onCloseRename={() => setPendingRename(null)}
+              onShowSetAside={() => {
+                overlays.close();
+                workspace.selectWorkspace("text");
+                setChapterFilter("set-aside");
+              }}
+              onOpenChapterTrash={() => {
+                overlays.close();
+                workspace.selectWorkspace("text");
+                setOpenChapterTrashToken((token) => token + 1);
               }}
             />
-          )}
-          {draftOffer && !recoveryFamily && (
-            <DraftOfferDialog
-              familyLabel={t(
-                draftOffer.family === "manuscript"
-                  ? "draftFamilyManuscript"
-                  : draftOffer.family === "figures"
-                    ? "draftFamilyFigures"
-                    : "draftFamilyStoryboards",
-              )}
-              savedAt={draftOffer.draft.savedAt}
-              items={draftChanges(
-                draftOffer.family,
-                draftOffer.draft.value,
-                { manuscript, figures, storyboards }[draftOffer.family],
-                t("untitled"),
-              )}
-              busy={draftOfferStatus.busy}
-              error={draftOfferStatus.error}
-              onAdopt={() => void adoptDraft()}
-              onDiscard={discardDraft}
-              onClose={postponeDraft}
-            />
-          )}
-          {projectExportOpen && (
-            <ProjectExportDialog
-              worldId={session.world.id}
-              flush={flushAll}
-              onClose={() => setProjectExportOpen(false)}
-            />
-          )}
-          {gettingStartedOpen && (
-            <GettingStartedDialog
-              onWrite={() => workspace.selectWorkspace("text")}
-              onImportText={() => workspace.selectWorkspace("text")}
-              onSearch={() => overlays.open("palette")}
-              onAssistant={overlays.toggleAssistant}
-              onClose={() => setGettingStartedOpen(false)}
-            />
-          )}
-          <OverlayHost
-            overlay={overlays.overlay}
-            versions={overlays.versions}
-            onCloseOverlay={overlays.close}
-            assistantOpen={overlays.assistantOpen}
-            assistantEverOpened={overlays.assistantEverOpened}
-            onCloseAssistant={overlays.closeAssistant}
-            worldId={session.world.id}
-            manuscript={manuscript}
-            currentChapterId={currentChapterId}
-            figures={figures}
-            storyboards={storyboards}
-            onAssistantFiguresChange={figureHistory.change}
-            onShowFigures={() => workspace.selectWorkspace("figures")}
-            onNavigate={workspace.navigate}
-            onWorkspace={workspace.setWorkspace}
-            onTarget={workspace.setTarget}
-            onCommand={executeCommand}
-            flushAll={flushAll}
-            onDocumentsReplaced={releaseReplacedDocuments}
-            syncAvailable={shell.syncAvailable === true}
-            pendingRename={pendingRename}
-            onManuscriptChange={manuscriptHistory.change}
-            onCloseRename={() => setPendingRename(null)}
-            onShowSetAside={() => {
-              overlays.close();
-              workspace.selectWorkspace("text");
-              setChapterFilter("set-aside");
-            }}
-            onOpenChapterTrash={() => {
-              overlays.close();
-              workspace.selectWorkspace("text");
-              setOpenChapterTrashToken((token) => token + 1);
-            }}
-          />
-        </Suspense>
-      )}
-    </WorldSessionBoundary>
+          </Suspense>
+        )}
+      </WorldSessionBoundary>
+    </CapabilitiesProvider>
   );
 }

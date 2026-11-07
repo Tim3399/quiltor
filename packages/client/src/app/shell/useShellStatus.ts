@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { quiltorClient, type IdentityLogoutResult } from "../../platform";
+import { type IdentityLogoutResult, quiltorClient } from "../../platform";
 
 // `sub` keys the drafts a refused save keeps on this device (T-58 P7b).
 type ShellAccount = { sub?: string; email?: string; name?: string };
@@ -11,22 +11,16 @@ export function logoutDestination(result: IdentityLogoutResult): string {
 export function useShellStatus() {
   const [account, setAccount] = useState<ShellAccount | null>(null);
   const [version, setVersion] = useState("");
-  // Whether this server syncs worlds with other devices (D-61). Unknown (null) until
-  // whoami answers, so nothing sync-only flashes up on a hosted server; a server
-  // that does not say (older) or cannot be asked keeps today's local behavior.
-  const [syncAvailable, setSyncAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     quiltorClient.application.identity
       .current()
       .then((result) => {
+        // The account keys drafts (T-58 P7b) and stays tied to a signed-in user of
+        // a shared server, not to whether signing out is offered (F-102-3).
         setAccount(result.ok && result.multiUser ? result : null);
-        setSyncAvailable(result.syncAvailable !== false);
       })
-      .catch(() => {
-        setAccount(null);
-        setSyncAvailable(true);
-      });
+      .catch(() => setAccount(null));
     quiltorClient.application.metadata
       .version()
       .then((result) => setVersion(result.version))
@@ -39,5 +33,5 @@ export function useShellStatus() {
     });
   }, []);
 
-  return { account, version, syncAvailable, logout };
+  return { account, version, logout };
 }

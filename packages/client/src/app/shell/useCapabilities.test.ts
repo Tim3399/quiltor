@@ -2,7 +2,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import hostedFixture from "../../../../../contracts/fixtures/application-api/capabilities/hosted.v1.json";
 import { ApplicationGatewayError, quiltorClient } from "../../platform";
-import { installAllowed, useCapabilities } from "./useCapabilities";
+import { installAllowed } from "../../shared/capabilities";
+import { useCapabilities } from "./useCapabilities";
 
 afterEach(() => vi.restoreAllMocks());
 

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WritingAssistanceStatus } from "../../platform";
+import { CapabilitiesProvider } from "../../shared/capabilities";
 import { GrammarInspectorPanel } from "./GrammarInspectorPanel";
 import type { Chapter, Manuscript, WritingIssue } from "./model";
 import { TestProviders } from "./TextWorkspace.testSupport";
@@ -180,5 +181,60 @@ describe("GrammarInspectorPanel", () => {
     );
 
     expect(screen.getByRole("progressbar", { name: /Prüfe/ })).toBeVisible();
+  });
+
+  // T-102: the server's capabilities decide; the status fields are only the fallback.
+  function renderWithCapabilities(grammarInstall: boolean, writingDataInstall: boolean) {
+    render(
+      <TestProviders>
+        <CapabilitiesProvider
+          value={{
+            multiUser: false,
+            signOut: false,
+            deviceSync: true,
+            grammarInstall,
+            writingDataInstall,
+          }}
+        >
+          <GrammarInspectorPanel
+            current={current}
+            manuscript={manuscript}
+            status={{
+              ...status,
+              installable: !writingDataInstall,
+              grammar: {
+                ...status.grammar!,
+                available: false,
+                installed: false,
+                installable: !grammarInstall,
+              },
+            }}
+            issues={[]}
+            selectedIssue={null}
+            phase="idle"
+            onCheck={vi.fn()}
+            onInstall={vi.fn()}
+            onSelectIssue={vi.fn()}
+            onApplyIssue={vi.fn()}
+            onGrammarMode={vi.fn()}
+          />
+        </CapabilitiesProvider>
+      </TestProviders>,
+    );
+  }
+
+  it.each([
+    ["grammarInstall", false, true],
+    ["writingDataInstall", true, false],
+  ])("offers no LanguageTool install when %s is off", (_, grammarInstall, writingDataInstall) => {
+    renderWithCapabilities(grammarInstall, writingDataInstall);
+    expect(screen.getByText("Wird vom Betreiber eingerichtet")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /installieren/i })).not.toBeInTheDocument();
+  });
+
+  it("offers the LanguageTool install when both flags allow it, whatever the status says", () => {
+    renderWithCapabilities(true, true);
+    expect(screen.queryByText("Wird vom Betreiber eingerichtet")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "LanguageTool lokal installieren" })).toBeVisible();
   });
 });

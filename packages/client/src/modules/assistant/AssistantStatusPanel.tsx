@@ -1,6 +1,7 @@
 import { Bot, Database, Download, RotateCw } from "lucide-react";
 import { Alert, Button, ProgressBar } from "../../design";
 import { useI18n } from "../../i18n";
+import { installAllowed, useInstanceCapabilities } from "../../shared/capabilities";
 import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
@@ -19,6 +20,7 @@ export function AssistantStatusPanel({
   onInstall: () => void;
 }) {
   const { t } = useI18n();
+  const capabilities = useInstanceCapabilities();
   return (
     <>
       <div className="assistant-scope">
@@ -60,7 +62,7 @@ export function AssistantStatusPanel({
             >
               {t("retry")}
             </Button>
-          ) : status.installable === false ? (
+          ) : !installAllowed(capabilities?.assistantInstall, status.installable) ? (
             <p className="assistant-offline-note">{t("assistantInstalledByOperator")}</p>
           ) : (
             <Button
