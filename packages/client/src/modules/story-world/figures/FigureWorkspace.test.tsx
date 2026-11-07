@@ -1,3 +1,4 @@
+import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { type ButtonHTMLAttributes, type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -485,5 +486,37 @@ describe("FigureWorkspace relationships", () => {
 
     const saved = JSON.parse(screen.getByLabelText("Beziehungszustand").textContent ?? "[]");
     expect(saved[0]).toMatchObject({ from: "b", to: "a", directed: false });
+  });
+});
+
+function ProfileHarness() {
+  const [state, setState] = useState(initialState);
+  return (
+    <I18nProvider>
+      <output aria-label="Figurenstand">{JSON.stringify(state.nodes[0])}</output>
+      <FigureWorkspace state={state} onChange={setState} />
+    </I18nProvider>
+  );
+}
+
+describe("figure patches against the latest state (T-180)", () => {
+  it("keeps a renamed figure and its note when both land in one batch", () => {
+    const { container } = render(<ProfileHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Testauswahl a" }));
+    const name = screen.getByDisplayValue("Ada");
+    fireEvent.change(name, { target: { value: "Adele" } });
+    const root = container.querySelector<HTMLElement>('[data-note-owner="entity:a"] .cm-editor');
+    if (!root) throw new Error("figure note editor missing");
+    const note = EditorView.findFromDOM(root);
+    if (!note) throw new Error("figure note view missing");
+    act(() => {
+      fireEvent.blur(name);
+      note.dispatch({ changes: { from: 0, insert: "Hafen" }, userEvent: "input" });
+    });
+    const stored = JSON.parse(screen.getByLabelText("Figurenstand").textContent || "{}");
+    expect(stored).toMatchObject({
+      name: "Adele",
+      profile: expect.objectContaining({ notes: "Hafen" }),
+    });
   });
 });
