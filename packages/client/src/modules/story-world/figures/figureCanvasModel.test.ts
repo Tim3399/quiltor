@@ -119,6 +119,19 @@ describe("belongsOnFigureBoard", () => {
     edges: [],
   };
 
+  it("stacks a favourite above ordinary elements, whatever order they were made in", () => {
+    const nodes = createFigureFlowNodes(
+      [
+        { id: "fav", x: 0, y: 0, name: "Libelle", type: "ort", important: true },
+        { id: "later", x: 0, y: 0, name: "Später", type: "ort" },
+      ],
+      "overview",
+      0.2,
+    );
+
+    expect(nodes.map((node) => node.zIndex)).toEqual([4, 0]);
+  });
+
   it("leaves a map out, because it is the sheet and not an element of the world", () => {
     expect(belongsOnFigureBoard(world.nodes[2])).toBe(false);
     expect(createFigureFlowNodes(world.nodes, "detail", 1).map((node) => node.id)).toEqual([

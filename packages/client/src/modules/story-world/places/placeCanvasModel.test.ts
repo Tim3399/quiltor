@@ -40,6 +40,8 @@ describe("place canvas model", () => {
       t,
     });
 
+    // A favourite is stacked above ordinary places, whatever order they were made in (T-129).
+    expect(nodes.map((node) => node.zIndex)).toEqual([0, 4]);
     expect(nodes[0]).toMatchObject({
       position: { x: 10, y: 20 },
       ariaLabel: "Ort: A",

@@ -7,6 +7,7 @@ import {
   graphRelationshipKind,
 } from "../../graph";
 import type { FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
+import { storyNodeZIndex } from "../storyNodeStacking";
 import type { FigureFlowNode } from "./FigureNode";
 import {
   figureJourney,
@@ -57,6 +58,7 @@ export function createFigureFlowNodes(
     id: figure.id,
     type: "story",
     position: { x: figure.x, y: figure.y },
+    zIndex: storyNodeZIndex(figure.important),
     // Only ever spelled out when it is false. A node saying it is
     // draggable overrides the surface's own interactivity switch, which
     // is why the dock's lock left everything as movable as before.

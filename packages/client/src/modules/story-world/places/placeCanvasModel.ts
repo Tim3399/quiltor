@@ -1,6 +1,7 @@
 import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
+import { storyNodeZIndex } from "../storyNodeStacking";
 import { cropOf, type ImageCrop } from "./placeImageCrop";
 import type { PlaceMeasurementPoint } from "./placeMeasurementGraph";
 import type { PlaceGroundNode } from "./PlaceGround";
@@ -73,6 +74,7 @@ export function createPlaceFlowNodes({
     return {
       id: place.id,
       type: "place",
+      zIndex: storyNodeZIndex(place.important),
       // The anchor says where the place stands -- not where the corner of its card lies. It
       // has always been stored from the card's centre but drawn as its top-left corner: every
       // drag therefore moved the place an extra half card down and to the right. With this

@@ -22,6 +22,7 @@ export {
 export { canonicalTimelineOrder, insertTimelineMoment } from "./timeline/order";
 export { momentBoundaryTimeLabel, momentTimeLabel } from "./timeline/timelinePresentation";
 export { normalizeTimeSystem } from "./timeline/timeSystem";
+export { StoryNodeFavouritesScene } from "./StoryNodeFavouritesScene";
 export { WorldGate } from "./worlds/WorldGate";
 
 export const loadFigureWorkspace = () =>

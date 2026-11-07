@@ -235,6 +235,9 @@
      stays below the toast, so that a message rises above a menu. */
   --z-popover: 75;
   --z-toast: 80;
+  /* Inside a graph canvas, which is a stacking context of its own: a hovered or focused node,
+     above the favourites (4, storyNodeStacking.ts) and below the selected one (React Flow's 1000). */
+  --z-graph-node-raised: 500;
   --z-modal: 100;
   --z-drawer-panel-mobile: 110;
   /* The design Popover (ListboxSelect, Menu, DropdownMenu) portals into the body, so it cannot

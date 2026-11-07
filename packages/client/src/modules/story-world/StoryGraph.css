@@ -229,23 +229,71 @@
 .story-node.zoom-overview:not(.is-important) strong {
   display: none;
 }
+/* A favourite in the overview (T-129, D-73): the round marker every element is, ringed in
+   gold, with its name beside it. The circle stays on the grid -- the transform origin is its
+   centre, so it lines up with ordinary markers at the same position -- and the name is always
+   there, at every zoom. Only the surfaces are 88% opaque, so what lies underneath still shows
+   through; text and borders stay solid. Hover, focus and selection make them solid again. */
 .story-node.zoom-overview.is-important {
-  width: 116px;
-  height: 34px;
-  min-height: 34px;
-  padding: var(--space-7) var(--space-9);
-  border-width: 1px;
-  border-left-width: 3px;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--elevation-1) var(--node-shadow);
+  --favourite-surface-opacity: 88%;
+  --favourite-circle: 32px;
+  width: auto;
+  height: var(--favourite-circle);
+  min-height: var(--favourite-circle);
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--transparent);
+  box-shadow: none;
+  transform-origin: calc(var(--favourite-circle) / 2) 50%;
+}
+.story-node.zoom-overview.is-important:is(:hover, :focus-within, .selected) {
+  --favourite-surface-opacity: 100%;
 }
 .story-node.zoom-overview.is-important .node-kind,
-.story-node.zoom-overview.is-important .node-monogram,
-.story-node.zoom-overview.is-important small {
+.story-node.zoom-overview.is-important small,
+.story-node.zoom-overview.is-important .node-monogram-letter {
   display: none;
 }
+.story-node.zoom-overview.is-important .node-monogram {
+  display: block;
+  flex: 0 0 auto;
+  width: var(--favourite-circle);
+  height: var(--favourite-circle);
+  border-radius: 50%;
+  background: color-mix(
+    in srgb,
+    var(--graph-card-kind-color, var(--card-kind-person)) var(--favourite-surface-opacity),
+    transparent
+  );
+  box-shadow: var(--ring-2) var(--gold);
+}
 .story-node.zoom-overview.is-important strong {
-  font: 600 var(--font-size-body-compact) var(--ui);
+  flex: 0 1 auto;
+  max-width: 96px;
+  padding: 0 var(--space-9);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--paper) var(--favourite-surface-opacity), transparent);
+  color: var(--ink);
+  font: 600 var(--font-size-label-compact) / 1.6 var(--ui);
+}
+/* The star sits in the circle, where the monogram of an ordinary marker would be. */
+.story-node.zoom-overview.is-important .importance-mark {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--favourite-circle) / 2);
+  width: 16px;
+  height: 16px;
+  color: var(--paper);
+  transform: translate(-50%, -50%);
+}
+[data-favourite-circle="empty"] .story-node.zoom-overview.is-important .importance-mark {
+  display: none;
 }
 .story-node.zoom-overview .node-guests {
   display: none;
@@ -271,8 +319,11 @@
   }
 
   .story-node.zoom-overview.is-important {
-    height: 44px;
-    min-height: 44px;
+    --favourite-circle: 44px;
+  }
+
+  .story-node.zoom-overview.is-important strong {
+    padding-block: var(--space-4);
   }
 }
 .flow-area.zoom-overview .react-flow__edge-path {
@@ -313,4 +364,14 @@
   .figure-layout > .world-overview {
     display: none;
   }
+}
+
+/* Hover and focus lift a node above the favourites (T-129). React Flow writes z-index inline on
+   the wrapper, so nothing but !important reaches it; a selected node keeps its own 1000. */
+.react-flow__node:is(.react-flow__node-story, .react-flow__node-place):not(.selected):is(
+  :hover,
+  :focus-within
+) {
+  /* biome-ignore lint/complexity/noImportantStyles: React Flow sets z-index inline on its node wrapper. */
+  z-index: var(--z-graph-node-raised) !important;
 }
