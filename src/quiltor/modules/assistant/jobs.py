@@ -19,17 +19,10 @@ from quiltor.modules.assistant.ports import (
     InferenceUnavailableError,
     InferenceValidationError,
     JobStoreFactory,
+    TooManyOpenJobs,
 )
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
-
-
-class TooManyOpenJobs(RuntimeError):
-    """The account already has as many queued or running jobs as it may."""
-
-    def __init__(self, limit: int) -> None:
-        super().__init__(f"At most {limit} open assistant jobs are allowed.")
-        self.limit = limit
 
 
 def _stale_world_result(
