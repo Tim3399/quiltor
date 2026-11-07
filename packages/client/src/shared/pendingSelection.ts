@@ -24,6 +24,11 @@ export function withPendingSelection(view: EditorView, spec: TransactionSpec): T
   const { anchorNode, focusNode } = native ?? {};
   if (!native || !anchorNode || !focusNode) return spec;
   if (!view.contentDOM.contains(anchorNode) || !view.contentDOM.contains(focusNode)) return spec;
+  // A DOM change CodeMirror has not read yet (Android holds Enter and Backspace back with
+  // `delayAndroidKey`) is dropped by a transaction that carries a selection, and the paragraph
+  // break or the deletion is lost. Leave the spec alone unless the DOM still shows what the
+  // state holds. Checked on the text, because no public flag tells Android apart.
+  if (!lineMatchesState(view, anchorNode) || !lineMatchesState(view, focusNode)) return spec;
   let anchor: number;
   let head: number;
   try {
@@ -35,4 +40,16 @@ export function withPendingSelection(view: EditorView, spec: TransactionSpec): T
   const current = view.state.selection.main;
   if (current.anchor === anchor && current.head === head) return spec;
   return { ...spec, selection: EditorSelection.single(anchor, head) };
+}
+
+/** Whether the line element holding `node` shows the same text as the state's line there. */
+function lineMatchesState(view: EditorView, node: Node): boolean {
+  let line: Node = node;
+  while (line.parentNode && line.parentNode !== view.contentDOM) line = line.parentNode;
+  if (line.parentNode !== view.contentDOM) return false;
+  try {
+    return line.textContent === view.state.doc.lineAt(view.posAtDOM(line, 0)).text;
+  } catch {
+    return false;
+  }
 }

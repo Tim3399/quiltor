@@ -611,6 +611,46 @@ describe("ManuscriptEditor selection", () => {
     expect(editor.state.doc.toString()).toBe("Anfang Ende");
   });
 
+  // F-161-1: Android holds Enter and Backspace back (`delayAndroidKey`); the DOM already shows
+  // the change, the state does not. A transaction with a selection would drop that change.
+  it("leaves the selection alone while a DOM change is still unread", () => {
+    const { editor, rerender, handle, onChange, onSelection } = renderEditor({
+      value: "Anfang Ende",
+    });
+    editor.focus();
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    // A Backspace the browser has applied and CodeMirror has not read yet.
+    text.nodeValue = "AnfangEnde";
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 6);
+    // What `delayAndroidKey` leaves behind; the observer is internal, so set by hand.
+    const { observer } = editor as unknown as {
+      observer: { delayedAndroidKey: unknown; readChange: () => unknown };
+    };
+    observer.delayedAndroidKey = { key: "Backspace", keyCode: 8, force: false };
+    const readChange = vi.spyOn(observer, "readChange");
+    const update = vi.spyOn(editor, "update");
+
+    rerender(
+      <ManuscriptEditor
+        value="Anfang Ende"
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={handle}
+        onChange={onChange}
+        onSelection={onSelection}
+        marks={[{ from: 7, to: 11, kind: "bold" }]}
+      />,
+    );
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0]?.[0].some((tr) => tr.selection)).toBe(false);
+    // The update reads the held-back change and keeps it, because the doc and the selection
+    // stay as they were (`EditorView.update`). jsdom's DOM reader yields no change without
+    // layout, so the document itself cannot show it here.
+    expect(readChange).toHaveBeenCalled();
+  });
+
   it("maps marks and mentions through two edits that land before the next commit", () => {
     const { editor, onChange } = renderEditor({
       marks: [{ from: 6, to: 10, kind: "italic" }],
