@@ -15,8 +15,8 @@ type InstanceCapabilityKey = (typeof INSTANCE_CAPABILITY_KEYS)[number];
 
 export type InstanceCapabilitiesV1 = Partial<Record<InstanceCapabilityKey, boolean>>;
 
-/** Empty in v1; the first per-session flag arrives with T-102 Teil D. */
-type UserCapabilitiesV1 = Record<string, never>;
+/** Flags of the asking session; they can change while it lasts (T-102 D). */
+type UserCapabilitiesV1 = { serverAi?: boolean };
 
 export type CapabilitiesV1 = {
   instance: InstanceCapabilitiesV1;
@@ -36,5 +36,8 @@ export function decodeCapabilitiesV1(value: unknown): CapabilitiesV1 | null {
     const flag = wire[key];
     if (typeof flag === "boolean") instance[key] = flag;
   }
-  return { instance, user: {} };
+  const user: UserCapabilitiesV1 = {};
+  const userWire = isRecord(value.user) ? value.user : {};
+  if (typeof userWire.serverAi === "boolean") user.serverAi = userWire.serverAi;
+  return { instance, user };
 }

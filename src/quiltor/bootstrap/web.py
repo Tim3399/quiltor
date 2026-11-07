@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from quiltor import resources
 from quiltor.application.backups import BackupAuthorization, WorldBackupContext
-from quiltor.application.capabilities import FeatureAvailability
+from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.application.documents import DocumentLocation
 from quiltor.bootstrap.application import (
     ApplicationServices,
@@ -172,6 +172,8 @@ class CapabilitiesRouteServices:
     assistant_install: bool
     writing_data_install: bool
     grammar_install: bool
+    # Per session: may this account use the server-side assistant (T-58).
+    is_premium: Callable[[SessionData], bool] = lambda session: True
 
 
 DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
@@ -218,8 +220,17 @@ def assistant_installable(app: WebApplication) -> bool:
 
     The status route and GET /api/capabilities both report this, so the two
     answers cannot drift apart (T-102).
+
+    Both axes count as well (T-102 D2, D-105 F7): without them the install
+    route starts nothing (`LocalAssistantInstallation.start_async` answers
+    False), so offering the button would be a promise the server cannot keep.
+    The Docker profile `web-self-hosted` is such a server (A-5 2.1).
     """
-    return app.installable
+    return (
+        app.installable
+        and app.capabilities.is_available(Feature.LOCAL_INFERENCE)
+        and app.capabilities.is_available(Feature.CODE_DOWNLOAD)
+    )
 
 
 def writing_data_installable(app: WebApplication) -> bool:
@@ -393,6 +404,7 @@ class WebApplication:
                 assistant_installable(self),
                 writing_data_installable(self),
                 grammar_installable(self),
+                self.identity.is_premium,
             )
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 

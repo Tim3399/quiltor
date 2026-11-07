@@ -1,1 +1,0 @@
-import{a as e}from"./rolldown-runtime-CNC7AqOf.js";import{_n as t,xn as n}from"./manuscript-C8N5BnIG.js";var r=e(n(),1),i=t();function a(e,t){return e??t??!0}var o=(0,r.createContext)(null);function s({value:e,children:t}){return(0,i.jsx)(o.Provider,{value:e,children:t})}function c(){return(0,r.useContext)(o)}export{a as n,c as r,s as t};

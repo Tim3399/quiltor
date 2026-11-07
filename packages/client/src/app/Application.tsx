@@ -232,7 +232,7 @@ export function App() {
   const shell = useShellStatus();
   // What this server lets the client offer (T-102); null until known, so nothing
   // sync-only or sign-out flashes up before the answer.
-  const capabilities = useCapabilities().instance;
+  const { instance: capabilities, user: userCapabilities } = useCapabilities();
   // Whose draft a refused save keeps: the signed-in user and the world the documents belong
   // to. Local mode has no user and never ends a session, so nothing is kept there (T-58 P7b).
   const accountSub = shell.account?.sub;
@@ -818,7 +818,7 @@ export function App() {
   });
 
   return (
-    <CapabilitiesProvider value={capabilities}>
+    <CapabilitiesProvider value={capabilities} user={userCapabilities}>
       <WorldSessionBoundary
         worlds={session.worlds}
         world={session.world}

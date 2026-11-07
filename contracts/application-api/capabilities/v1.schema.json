@@ -48,9 +48,15 @@
       }
     },
     "user": {
-      "description": "Flags of the asking session. Empty in v1 until the first one ships.",
+      "description": "Flags of the asking session; they can change with a token refresh, so the client re-reads them.",
       "type": "object",
-      "additionalProperties": { "type": "boolean" }
+      "additionalProperties": { "type": "boolean" },
+      "properties": {
+        "serverAi": {
+          "description": "This session may use the server-side assistant (the premium role on a shared server, always locally). Allowed, not reachable: reachability stays in /api/assistant/status.",
+          "type": "boolean"
+        }
+      }
     }
   }
 }

@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
-import { CapabilitiesProvider, type InstanceCapabilities } from "../../shared/capabilities";
+import {
+  CapabilitiesProvider,
+  type InstanceCapabilities,
+  type UserCapabilities,
+} from "../../shared/capabilities";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
 
 const NOT_INSTALLED = {
@@ -50,5 +54,40 @@ describe("assistant install on the server's capabilities (T-102)", () => {
   it("falls back to the status field while the server has not said", () => {
     renderPanel(caps(undefined), false);
     expect(screen.getByText("Wird vom Betreiber eingerichtet")).toBeInTheDocument();
+  });
+});
+
+describe("server AI on the session's capabilities (T-102 D)", () => {
+  const PREMIUM_HINT = /Premium/;
+  function panel(user: UserCapabilities, premium?: boolean) {
+    return (
+      <I18nProvider>
+        <CapabilitiesProvider value={caps(true)} user={user}>
+          <AssistantStatusPanel
+            status={{ ...NOT_INSTALLED, premium }}
+            installState={null}
+            installProgressId="progress"
+            onRetry={vi.fn()}
+            onInstall={vi.fn()}
+          />
+        </CapabilitiesProvider>
+      </I18nProvider>
+    );
+  }
+
+  it("shows the hint while the role is missing and drops it once granted, and back", () => {
+    const view = render(panel({ serverAi: false }, true));
+    expect(screen.getByText(PREMIUM_HINT)).toBeInTheDocument();
+    view.rerender(panel({ serverAi: true }, false));
+    expect(screen.queryByText(PREMIUM_HINT)).not.toBeInTheDocument();
+    view.rerender(panel({ serverAi: false }, true));
+    expect(screen.getByText(PREMIUM_HINT)).toBeInTheDocument();
+  });
+
+  it("falls back to the status field on a server that does not say", () => {
+    const view = render(panel({}, false));
+    expect(screen.getByText(PREMIUM_HINT)).toBeInTheDocument();
+    view.rerender(panel({}, undefined));
+    expect(screen.queryByText(PREMIUM_HINT)).not.toBeInTheDocument();
   });
 });

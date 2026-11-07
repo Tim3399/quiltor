@@ -24,19 +24,35 @@ export function installAllowed(
   return flag ?? legacyInstallable ?? true;
 }
 
+/** Flags of the signed-in session, re-read on the status tick (T-102 D). A flag
+ * the server did not send stays undefined; fall back to what the status says. */
+export type UserCapabilities = { serverAi?: boolean };
+
 const CapabilitiesContext = createContext<InstanceCapabilities | null>(null);
+const UserCapabilitiesContext = createContext<UserCapabilities>({});
 
 export function CapabilitiesProvider({
   value,
+  user = {},
   children,
 }: {
   value: InstanceCapabilities | null;
+  user?: UserCapabilities;
   children: ReactNode;
 }) {
-  return <CapabilitiesContext.Provider value={value}>{children}</CapabilitiesContext.Provider>;
+  return (
+    <CapabilitiesContext.Provider value={value}>
+      <UserCapabilitiesContext.Provider value={user}>{children}</UserCapabilitiesContext.Provider>
+    </CapabilitiesContext.Provider>
+  );
 }
 
 /** The instance flags, or null while they load (and outside a provider). */
 export function useInstanceCapabilities(): InstanceCapabilities | null {
   return useContext(CapabilitiesContext);
+}
+
+/** The session's flags; empty until known and outside a provider. */
+export function useUserCapabilities(): UserCapabilities {
+  return useContext(UserCapabilitiesContext);
 }

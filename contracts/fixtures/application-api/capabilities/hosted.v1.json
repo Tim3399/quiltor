@@ -9,5 +9,7 @@
     "writingDataInstall": false,
     "grammarInstall": false
   },
-  "user": {}
+  "user": {
+    "serverAi": false
+  }
 }

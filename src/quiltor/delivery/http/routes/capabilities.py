@@ -3,7 +3,7 @@
 One frontend serves every operation profile. The client branches on these flags
 and never on a profile name, which is why the profile is not on the wire.
 `instance` is the same for everyone on the server; `user` belongs to the asking
-session and stays empty until its first flag ships. The contract is
+session (`serverAi`), which the client re-reads on its status tick. The contract is
 contracts/application-api/capabilities/v1.schema.json.
 
 Authenticated like /api/whoami: the dispatch answers 401 without a session, and
@@ -30,6 +30,8 @@ def capabilities(handler, request: Request, app) -> None:
                 "writingDataInstall": app.writing_data_install,
                 "grammarInstall": app.grammar_install,
             },
-            "user": {},
+            # Allowed, not reachable: whether the model answers stays in
+            # /api/assistant/status, so this route never probes the network.
+            "user": {"serverAi": app.is_premium(request.session)},
         }
     )

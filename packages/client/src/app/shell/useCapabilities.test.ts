@@ -1,8 +1,9 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import hostedFixture from "../../../../../contracts/fixtures/application-api/capabilities/hosted.v1.json";
 import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { installAllowed } from "../../shared/capabilities";
+import { STATUS_POLL_MS } from "../../shared/hooks/useStatusTick";
 import { useCapabilities } from "./useCapabilities";
 
 afterEach(() => vi.restoreAllMocks());
@@ -68,6 +69,49 @@ describe("useCapabilities", () => {
         deviceSync: true,
       }),
     );
+  });
+});
+
+describe("useCapabilities user flags (T-102 D)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("re-reads serverAi on the status tick, so a granted or withdrawn role shows without a reload", async () => {
+    vi.useFakeTimers();
+    let serverAi = false;
+    const current = vi
+      .spyOn(quiltorClient.application.capabilities, "current")
+      .mockImplementation(async () => ({ instance: hostedFixture.instance, user: { serverAi } }));
+    const { result } = renderHook(() => useCapabilities());
+    await act(async () => {});
+    expect(result.current.user).toEqual({ serverAi: false });
+
+    serverAi = true;
+    await act(async () => {
+      vi.advanceTimersByTime(STATUS_POLL_MS);
+    });
+    expect(result.current.user).toEqual({ serverAi: true });
+
+    serverAi = false;
+    await act(async () => {
+      vi.advanceTimersByTime(STATUS_POLL_MS);
+    });
+    expect(result.current.user).toEqual({ serverAi: false });
+    expect(current).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the known user flags when a re-read fails", async () => {
+    vi.useFakeTimers();
+    const current = vi
+      .spyOn(quiltorClient.application.capabilities, "current")
+      .mockResolvedValueOnce({ instance: hostedFixture.instance, user: { serverAi: true } })
+      .mockRejectedValue(new TypeError("Failed to fetch"));
+    const { result } = renderHook(() => useCapabilities());
+    await act(async () => {});
+    await act(async () => {
+      vi.advanceTimersByTime(STATUS_POLL_MS);
+    });
+    expect(current).toHaveBeenCalledTimes(2);
+    expect(result.current.user).toEqual({ serverAi: true });
   });
 });
 

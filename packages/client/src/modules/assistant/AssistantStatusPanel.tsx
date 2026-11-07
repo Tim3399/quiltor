@@ -1,7 +1,11 @@
 import { Bot, Database, Download, RotateCw } from "lucide-react";
 import { Alert, Button, ProgressBar } from "../../design";
 import { useI18n } from "../../i18n";
-import { installAllowed, useInstanceCapabilities } from "../../shared/capabilities";
+import {
+  installAllowed,
+  useInstanceCapabilities,
+  useUserCapabilities,
+} from "../../shared/capabilities";
 import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
@@ -21,6 +25,9 @@ export function AssistantStatusPanel({
 }) {
   const { t } = useI18n();
   const capabilities = useInstanceCapabilities();
+  // The capabilities say whether this account may use the server's assistant; the
+  // status field is the fallback for an older server, and missing means allowed.
+  const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
   return (
     <>
       <div className="assistant-scope">
@@ -32,12 +39,12 @@ export function AssistantStatusPanel({
       </div>
       {/* Without the premium role nothing here can help: no model to reach, nothing to install
           (the install would answer 403). Only `false` counts -- older servers send no field. */}
-      {status?.premium === false && (
+      {status && !serverAi && (
         <Alert className="assistant-offline" tone="info" icon={<Bot />}>
           <p>{t("errorAssistantPremiumRequired")}</p>
         </Alert>
       )}
-      {status && status.premium !== false && !status.available && (
+      {status && serverAi && !status.available && (
         <Alert
           className="assistant-offline"
           tone="warning"
