@@ -464,3 +464,26 @@ function describeStoryboards(api) {
     ],
   };
 }
+
+/**
+ * What each element of the base world is there for, in the catalog (CATALOG.md). Developer
+ * text, so English; world.test.mjs requires one entry per element.
+ */
+export const PURPOSE = {
+  oda: "person with a role; leads the Harbour Council",
+  rat: "organisation; relationship with a time version (e8)",
+  gilde: "organisation; dashed relationships, one turning rose at t6",
+  atlas: "object, favourite (important)",
+  blatt: "object; target of a chain mara -> blatt -> atlas",
+  nordhafen: "root place with its own map picture and scale; city level of three places",
+  iven: "person; relationship with two time versions (e1); mentioned in chapter 1",
+  mara: "protagonist, favourite; note with headings and four references, alias, two fields",
+  lumen: "animal; undirected relationship",
+  leuchtturm: "root place on the world map, without a picture",
+  salzmarkt: "place shown as a pin inside Nordhafen",
+  archive: "place shown as a card inside Nordhafen; presence of two people",
+  tilo: "person who dies at t7",
+  faehrsteg: "place shown as a pin inside Nordhafen",
+  ada: "side character; directed relationship to Bela",
+  bela: "side character; undirected relationship to Ada",
+};

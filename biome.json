@@ -44,6 +44,7 @@
       "**/*.css",
       "!team/roles.json",
       "!src/quiltor/resources/example_world/*.json",
+      "!tests/world/world.lock.json",
       "!.claude/settings.json"
     ]
   },

@@ -112,3 +112,22 @@ export function describeEdge(api, world) {
 
   return world;
 }
+
+/** What each entry of the check part is there for, in the catalog (CATALOG.md). */
+export const PURPOSE = {
+  ...Object.fromEntries(
+    CLUSTER.map((spec) => [
+      spec.id,
+      `one of eight places stacked on one point (T-129)${spec.important ? "; the favourite" : ""}`,
+    ]),
+  ),
+  "x-long-name": "person whose name is one unbreakable word of 65 letters (T-129, T-183)",
+  "x-long-place": "long place name inside Nordhafen (cut as North Harb... in T-173 B)",
+  "x-long-org": "long organisation name with an apostrophe (cut in T-173 B)",
+  "x-empty-note": "element with an empty note",
+  "x-empty-chapter": "chapter without text and without a note",
+  "x-trash-orphan": "chapter in the bin whose folder no longer exists",
+  "x-board": "board holding every card of the check part",
+  "x-ref-deleted": "reference card to an element that does not exist (T-177)",
+  "x-ref-trashed": "reference card to a chapter in the bin (T-177)",
+};
