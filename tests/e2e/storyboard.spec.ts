@@ -1,5 +1,4 @@
 import type { Locator, Page, Response } from "@playwright/test";
-import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldDocument } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
