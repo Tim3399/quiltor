@@ -2785,7 +2785,7 @@ class PathFilterContractTests(unittest.TestCase):
             (
                 "pull request, a README screenshot only (check:readme-screenshots hashes it)",
                 pr,
-                ["docs/screenshots/places.png"],
+                ["docs/screenshots/de/places.png"],
                 {"backend", "frontend", "cross-platform-native"},
                 False,
             ),

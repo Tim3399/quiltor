@@ -50,7 +50,6 @@ extend-exclude = [
   # German dictionary excerpts (Wiktionary records, an OpenThesaurus file, a word list) the
   # writing-data build reads as its sources.
   "tests/python/fixtures/writing-data/**",
-  "tools/documentation/readme_fixture.mjs",
   "tools/documentation/example_world/texts.de.mjs",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 

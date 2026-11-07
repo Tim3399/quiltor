@@ -29,8 +29,8 @@ worked and did not:
   sdist and both container builds all run before any version file is touched.
 
 Once they pass and before any version file is touched, the README screenshots are retaken
-for the new version (`readme_screenshots.py`), so `docs/screenshots/manifest.json` names the
-version being released. The release preflight refuses pictures that name another one.
+for the new version (`readme_screenshots.py`), so `docs/screenshots/<language>/manifest.json`
+names the version being released. The release preflight refuses pictures that name another one.
 
 All five target byte streams are calculated and validated before staged files
 replace any target; a failed replacement rolls the transaction back. Reviewing

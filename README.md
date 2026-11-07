@@ -9,7 +9,7 @@
 
 **Lokal und kostenlos im Rahmen der [Lizenz](#status-und-lizenz). Kein Abo zum Schreiben.**
 
-![Quiltor Manuskriptansicht](docs/screenshots/manuscript.png)
+![Quiltor Manuskriptansicht](docs/screenshots/de/manuscript.png)
 
 Quiltor ist eine Schreibumgebung für Romane und andere lange fiktionale Projekte. Statt Manuskript, Figurenlisten, Timeline, Karten und Notizen über mehrere Anwendungen zu verteilen, verbindet Quiltor sie zu einer gemeinsamen Welt.
 
@@ -62,7 +62,7 @@ Das fertige Manuskript kann als lesbares Buch-PDF im 6 × 9-Zoll-Format ausgegeb
 
 Figuren und andere Weltelemente leben in einem visuellen Graphen. Beziehungen können gerichtet oder ungerichtet sein, ihre Bedeutung ändern, beginnen oder enden.
 
-![Quiltor Weltgraph](docs/screenshots/world-graph.png)
+![Quiltor Weltgraph](docs/screenshots/de/world-graph.png)
 
 Der Graph ist keine separate Kopie deiner Daten: Timeline, Beziehungen und Elemente greifen auf denselben Zustand zu.
 
@@ -74,7 +74,7 @@ Orte bekommen eine eigene Kartenansicht und können frei positioniert werden –
 
 Ein Lineal misst Distanzen zwischen Orten und rechnet sie über einen frei einstellbaren Maßstab in deine eigenen Einheiten um.
 
-![Quiltor Kartenansicht der Orte mit Distanzmessung](docs/screenshots/places.png)
+![Quiltor Kartenansicht der Orte mit Distanzmessung](docs/screenshots/de/places.png)
 
 Aus den Präsenzdaten der Timeline entstehen automatisch:
 
@@ -88,13 +88,13 @@ Geschichten sind nicht statisch. Eine Freundschaft kann zerbrechen, eine Figur k
 
 Quiltor modelliert solche Änderungen entlang der Timeline, statt nur den letzten Zustand zu speichern.
 
-![Figurenboard am ausgewählten Zeitpunkt der Geschichte](docs/screenshots/timeline-playback.png)
+![Figurenboard am ausgewählten Zeitpunkt der Geschichte](docs/screenshots/de/timeline-playback.png)
 
 Die eigenständige Timeline-Seite ist für die Pflege optimiert: Zeitpunkte sortieren, Notizen hinterlegen, Beziehungszustände verändern und Lebensereignisse markieren.
 
 Zeitpunkte liegen auf einer gemeinsamen relativen Zeitachse, auch vor dem Ursprung und gleichzeitig mit anderen Ereignissen. Die Anzeige unterstützt relative Zeit, gregorianische Daten und eigene Kalender mit benannten Monaten und Wochentagen. Ein Kalenderwechsel verändert die zugrunde liegende Chronologie nicht. Der Weltzustand zu einem Zeitpunkt wird deterministisch aus den hinterlegten Fakten berechnet.
 
-![Timeline-Verwaltung](docs/screenshots/timeline-manager.png)
+![Timeline-Verwaltung](docs/screenshots/de/timeline-manager.png)
 
 ### Storyboard: Ideen planen und miteinander verbinden
 
@@ -104,13 +104,13 @@ Die integrierte Weltsuche findet Figuren, Orte, Zeitpunkte, Kapitel und andere B
 
 **Planung bleibt Planung:** Eine Verbindung auf dem Storyboard erzeugt keine Beziehung in der erzählten Welt. Ideen und Notizen werden nicht automatisch zu gesicherten Weltfakten.
 
-![Quiltor Storyboard mit Notizen, Referenzkarten und Gruppen](docs/screenshots/storyboard.png)
+![Quiltor Storyboard mit Notizen, Referenzkarten und Gruppen](docs/screenshots/de/storyboard.png)
 
 ### Gemeinsame Notizen, Referenzen und Backlinks
 
 Kapitel, Weltelemente, Zeitpunkte und Storyboard-Karten verwenden denselben Notizeditor mit Formatierung und Fokusmodus. Mit `@` lassen sich bestehende Inhalte suchen und verlinken. Die Referenzen speichern stabile IDs und überstehen Umbenennungen; Backlinks zeigen, wo ein Inhalt bereits verwendet wird.
 
-![Formatierte Notizen mit verknüpften Figuren und Orten](docs/screenshots/shared-notes.png)
+![Formatierte Notizen mit verknüpften Figuren und Orten](docs/screenshots/de/shared-notes.png)
 
 ---
 
@@ -1021,7 +1021,7 @@ Für beispielsweise Spanisch kommt zum neuen Ordner genau ein gut sichtbarer Imp
 UI-Codeänderungen sind nicht nötig; der i18n-Check erzwingt automatisch die Übereinstimmung von
 Ordnern und Registry. Die genaue Anleitung steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Die sieben README-Screenshots entstehen aus einer festen Beispielwelt in 1440 × 900 Pixeln mit der deutschen Oberfläche. Sie werden bei jedem Release automatisch neu aufgenommen: `npm run set-version` startet dafür einen isolierten Server, schreibt `docs/screenshots/manifest.json` (Version, Prüfsumme je Bild, Prüfsumme von Skript und Demo-Daten) und der Release-Preflight sowie `npm run check` lehnen Bilder ab, die nicht zu `VERSION` passen. Von Hand:
+Die sieben README-Screenshots entstehen aus einer festen Beispielwelt in 1440 × 900 Pixeln mit der deutschen Oberfläche. Sie werden bei jedem Release automatisch neu aufgenommen: `npm run set-version` startet dafür einen isolierten Server, schreibt je Sprache `docs/screenshots/<Sprache>/manifest.json` (Version, Prüfsumme je Bild, Prüfsumme von Skript und Demo-Daten) und der Release-Preflight sowie `npm run check` lehnen Bilder ab, die nicht zu `VERSION` passen. Von Hand:
 
 ```bash
 npm run screenshots:readme

@@ -229,9 +229,9 @@
     },
     {
       "name": "tools",
-      "patterns": ["tools/**", "docs/screenshots/manifest.json", "docs/screenshots/*.png"],
+      "patterns": ["tools/**", "docs/screenshots/**"],
       "groups": ["checks", "python"],
-      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README. The README screenshot manifest and the PNGs next to it are read by check:readme-screenshots, which hashes every image."
+      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README. The README screenshots (one folder, manifest and set of PNGs per language) are read by check:readme-screenshots, which hashes every image."
     },
     {
       "name": "architecture-docs",

@@ -1,18 +1,95 @@
+import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parseArgs } from "node:util";
 import { chromium, expect } from "@playwright/test";
-import { figures, manuscript, storyboards } from "./readme_fixture.mjs";
+import {
+  buildExampleWorld,
+  DICTIONARIES,
+  exampleWorldTitle,
+  HARBOUR_MAP_FILE,
+  harbourMapId,
+} from "./example_world/index.mjs";
 import {
   buildManifest,
   CAPTURE_VIEWPORT,
   MANIFEST_NAME,
   README_VIEWS,
   readVersion,
+  SCREENSHOT_LANGUAGES,
 } from "./readme_screenshots.mjs";
 import { settleUntilStable } from "./settle.mjs";
 
+/*
+ *   node tools/documentation/capture_readme.mjs --lang de|en
+ *
+ * Takes the README pictures of one language into docs/screenshots/<lang>/ (or
+ * $QUILTOR_SCREENSHOT_DIR/<lang>/) from the example world in that language, with the
+ * interface in that language.
+ */
+
+/**
+ * Interface names the capture clicks and waits for, per language. They are the values of the
+ * locale keys named on the right; a renamed key fails the capture, never a wrong picture.
+ */
+const INTERFACE = {
+  de: {
+    browserLocale: "de-DE",
+    manuscriptToolbar: "Manuskript", // manuscript.manuscript
+    chapterText: "Kapiteltext", // manuscript.chapterText
+    figures: "Figuren", // shell.figures
+    figuresCanvas: "Figuren und Beziehungen", // figures.figuresAndRelationsLabel
+    viewMenu: "Ansicht", // figures.figureViewMenu
+    hideTime: "Zeit ausblenden", // figures.hideTimeline
+    showTime: "Zeit einblenden", // figures.showTimeline
+    timeline: "Timeline", // shared.timeline
+    places: "Orte", // shell.places
+    placesCanvas: "Orte verwalten", // places.placesLabel
+    measure: "Distanz messen", // places.measureDistance
+    placesInspector: "Orte-Inspector", // places.placesInspectorLabel
+    storyboard: "Storyboard", // storyboard.storyboard
+    storyboardCanvas: "Storyboard-Fläche", // storyboard.storyboardCanvasLabel
+    hideMinimap: "Übersichtskarte ausblenden", // tools.hideMinimap
+    figureInspector: "Figuren-Inspector", // figures.figureInspectorLabel
+    profile: "Steckbrief", // figures.profile
+    openNoteFocus: "Notiz im Fokus öffnen", // shared.noteFocusOpen
+    noteFor: (name) => `Notiz für ${name}`, // shared.noteFocusEditor
+  },
+  en: {
+    browserLocale: "en-US",
+    manuscriptToolbar: "Manuscript",
+    chapterText: "Chapter text",
+    figures: "Characters",
+    figuresCanvas: "Characters and relationships",
+    viewMenu: "View",
+    hideTime: "Hide timeline",
+    showTime: "Show timeline",
+    timeline: "Timeline",
+    places: "Places",
+    placesCanvas: "Manage places",
+    measure: "Measure distance",
+    placesInspector: "Place inspector",
+    storyboard: "Storyboard",
+    storyboardCanvas: "Storyboard canvas",
+    hideMinimap: "Hide overview map",
+    figureInspector: "Character inspector",
+    profile: "Profile",
+    openNoteFocus: "Open note in focus mode",
+    noteFor: (name) => `Note for ${name}`,
+  },
+};
+
+const { values } = parseArgs({ options: { lang: { type: "string" } } });
+const lang = values.lang;
+if (!SCREENSHOT_LANGUAGES.includes(lang)) {
+  throw new Error(`Pass --lang with one of: ${SCREENSHOT_LANGUAGES.join(", ")}.`);
+}
+const ui = INTERFACE[lang];
+const words = DICTIONARIES[lang];
+const { figures, manuscript, storyboards } = buildExampleWorld(lang);
+
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8125";
-const output = resolve(process.env.QUILTOR_SCREENSHOT_DIR || "docs/screenshots");
+const output = resolve(process.env.QUILTOR_SCREENSHOT_DIR || "docs/screenshots", lang);
 await mkdir(output, { recursive: true });
 
 async function checkedJson(response, operation) {
@@ -22,7 +99,7 @@ async function checkedJson(response, operation) {
   return response.json();
 }
 
-const browser = await chromium.launch({ args: ["--lang=de-DE"] });
+const browser = await chromium.launch({ args: [`--lang=${ui.browserLocale}`] });
 let context;
 let worldId;
 const failures = [];
@@ -32,7 +109,7 @@ try {
     baseURL: baseUrl,
     viewport: CAPTURE_VIEWPORT,
     deviceScaleFactor: 1,
-    locale: "de-DE",
+    locale: ui.browserLocale,
     timezoneId: "Europe/Berlin",
     colorScheme: "light",
     reducedMotion: "reduce",
@@ -45,14 +122,14 @@ try {
       failures.push(`API: HTTP ${response.status()} ${response.url()}`);
     }
   });
-  await page.addInitScript(() => {
+  await page.addInitScript((language) => {
     localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
+    localStorage.setItem("quiltor-interface-language", language);
+  }, lang);
 
   const created = await checkedJson(
     await context.request.post("/api/worlds/create", {
-      data: { title: "Der gläserne Atlas", backupUrl: "" },
+      data: { title: exampleWorldTitle(lang), backupUrl: "" },
       timeout: 10_000,
     }),
     "Create screenshot world",
@@ -61,7 +138,17 @@ try {
     throw new Error("World creation returned an invalid world ID.");
   }
   worldId = created.world.id;
-  console.log(`Created screenshot world ${worldId}.`);
+  console.log(`Created the ${lang} screenshot world ${worldId}.`);
+
+  // The city level is drawn on the harbour map; the world refers to it by its SHA-256.
+  const map = await checkedJson(
+    await context.request.post(`/api/place-maps?world=${encodeURIComponent(worldId)}`, {
+      data: { data: readFileSync(HARBOUR_MAP_FILE).toString("base64") },
+      timeout: 10_000,
+    }),
+    "Upload the harbour map",
+  );
+  if (map.id !== harbourMapId()) throw new Error("The harbour map was stored under another id.");
 
   for (const [endpoint, contract, payload] of [
     ["state", "quiltor.story-world", figures],
@@ -128,72 +215,84 @@ try {
       caret: "hide",
     });
     captures.push(name);
-    console.log(`Captured ${name}.png`);
+    console.log(`Captured ${lang}/${name}.png`);
   }
 
   await page.goto(`/?world=${encodeURIComponent(worldId)}`);
-  await page.getByRole("toolbar", { name: "Manuskript", exact: true }).waitFor();
-  await expect(page.getByLabel("Kapiteltext", { exact: true })).toContainText("Mara");
+  await page.getByRole("toolbar", { name: ui.manuscriptToolbar, exact: true }).waitFor();
+  await expect(page.getByLabel(ui.chapterText, { exact: true })).toContainText("Mara");
   await capture("manuscript");
 
-  await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await page.getByLabel("Figuren und Beziehungen", { exact: true }).waitFor();
-  await expect(page.locator(".story-node")).toHaveCount(figures.nodes.length);
-  const viewMenu = page.getByRole("button", { name: "Ansicht", exact: true });
+  await page.getByRole("button", { name: ui.figures, exact: true }).click();
+  await page.getByLabel(ui.figuresCanvas, { exact: true }).waitFor();
+  const viewMenu = page.getByRole("button", { name: ui.viewMenu, exact: true });
   await viewMenu.click();
-  const hideTime = page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true });
+  const hideTime = page.getByRole("menuitem", { name: ui.hideTime, exact: true });
   if (await hideTime.isVisible()) await hideTime.click();
   else await page.keyboard.press("Escape");
+  // A place drawn on its own map is a sheet, not a figure: the board leaves it out
+  // (belongsOnFigureBoard in figureCanvasModel.ts).
+  await expect(page.locator(".story-node")).toHaveCount(
+    figures.nodes.filter((node) => !node.mapImageId).length,
+  );
   await page.locator(".react-flow__controls-fitview").click();
   await capture("world-graph");
 
   await viewMenu.click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
-  await page.getByRole("button", { name: "Öffnung des Atlas", exact: true }).click();
+  await page.getByRole("menuitem", { name: ui.showTime, exact: true }).click();
+  await page.getByRole("button", { name: words["moment.t2.title"], exact: true }).click();
+  // The drag pans the empty board upward; it must never grab a card and move it.
+  const onCard = await page.evaluate(
+    ([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".react-flow__node")),
+    [1030, 650],
+  );
+  if (onCard) throw new Error("The pan gesture at (1030, 650) would drag a card.");
   await page.mouse.move(1030, 650);
   await page.mouse.down();
   await page.mouse.move(1030, 590, { steps: 12 });
   await page.mouse.up();
   await capture("timeline-playback");
 
-  await page.getByRole("button", { name: "Timeline", exact: true }).click();
-  await page.locator(".story-moment").filter({ hasText: "Bruch mit der Gilde" }).click();
+  await page.getByRole("button", { name: ui.timeline, exact: true }).click();
+  await page.locator(".story-moment").filter({ hasText: words["moment.t6.title"] }).click();
   await capture("timeline-manager");
 
-  await page.getByRole("button", { name: "Orte", exact: true }).click();
-  await page.getByLabel("Orte verwalten", { exact: true }).waitFor();
+  await page.getByRole("button", { name: ui.places, exact: true }).click();
+  await page.getByLabel(ui.placesCanvas, { exact: true }).waitFor();
   await page.locator(".react-flow__controls-fitview").click();
-  await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
-  await page.locator('.react-flow__node[data-id="archiv"] .story-node').click();
+  await page.getByRole("button", { name: ui.measure, exact: true }).click();
+  await page.locator('.react-flow__node[data-id="nordhafen"] .story-node').click();
   await page.locator('.react-flow__node[data-id="leuchtturm"] .story-node').click();
-  await page.getByRole("complementary", { name: "Orte-Inspector" }).waitFor();
+  await page.getByRole("complementary", { name: ui.placesInspector }).waitFor();
   await page.locator(".react-flow__controls-fitview").click();
   await capture("places");
 
-  await page.getByRole("button", { name: "Storyboard", exact: true }).click();
-  await page.getByLabel("Storyboard-Fläche", { exact: true }).waitFor();
+  await page.getByRole("button", { name: ui.storyboard, exact: true }).click();
+  await page.getByLabel(ui.storyboardCanvas, { exact: true }).waitFor();
   await expect(page.locator("[data-storyboard-node-kind]")).toHaveCount(
     storyboards.nodes.filter((node) => node.boardId === "main-storyboard").length,
   );
   await page.locator(".react-flow__controls-fitview").click();
-  await page.getByRole("button", { name: "Übersichtskarte ausblenden", exact: true }).click();
+  await page.getByRole("button", { name: ui.hideMinimap, exact: true }).click();
   await capture("storyboard");
 
-  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  await page.getByRole("button", { name: ui.figures, exact: true }).click();
   await page.locator('.react-flow__node[data-id="mara"] .story-node').click();
-  const inspector = page.getByRole("complementary", { name: "Figuren-Inspector" });
-  await inspector.getByRole("tab", { name: "Steckbrief", exact: true }).click();
-  await inspector.getByRole("button", { name: "Notiz im Fokus öffnen", exact: true }).click();
-  await page.getByRole("textbox", { name: "Notiz für Mara Venn", exact: true }).waitFor();
+  const inspector = page.getByRole("complementary", { name: ui.figureInspector });
+  await inspector.getByRole("tab", { name: ui.profile, exact: true }).click();
+  await inspector.getByRole("button", { name: ui.openNoteFocus, exact: true }).click();
+  await page
+    .getByRole("textbox", { name: ui.noteFor(words["el.mara.name"]), exact: true })
+    .waitFor();
   await capture("shared-notes");
   if (captures.join() !== README_VIEWS.join() || failures.length)
     throw new Error(`Incomplete capture: ${failures.join("\n")}`);
-  console.log(`Captured all ${captures.length} README screenshots.`);
+  console.log(`Captured all ${captures.length} ${lang} README screenshots.`);
   const version = process.env.QUILTOR_SCREENSHOT_VERSION || readVersion(resolve("."));
   const manifest = buildManifest({ root: resolve("."), directory: output, version });
   const manifestText = JSON.stringify(manifest, null, 2);
   await writeFile(resolve(output, MANIFEST_NAME), `${manifestText}\n`);
-  console.log(`Wrote ${MANIFEST_NAME} for version ${version}.`);
+  console.log(`Wrote ${lang}/${MANIFEST_NAME} for version ${version}.`);
 } finally {
   try {
     if (context && worldId) {

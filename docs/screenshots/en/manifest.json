@@ -1,0 +1,18 @@
+{
+  "version": "3.25.0",
+  "platform": "win32",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "inputs": "c9cf647cdf7856f8e6fea818b4a095add982504a9993109a190531890d990917",
+  "images": {
+    "manuscript.png": "c5c67cef800af8969634bbdb2e7f210f4bfc082c625dbe13d84e6b328c99ad09",
+    "world-graph.png": "39ac442c1fc9405535153b63808eb91d955ee7248fa93a14a839e018b264bbaf",
+    "timeline-playback.png": "0759fcd27ed474e5495e3ed4460518127fed8cac078634c4424a748cb179e6e5",
+    "timeline-manager.png": "65e9381611b5ab6255b699ab82d6dc5330c410e16a57c03ef2e3ee4db21aa388",
+    "places.png": "1f9e00fd6779cc5e30f2f8ca7780a41fbdbcc074600ee543a0e54c0da3eefc92",
+    "storyboard.png": "c464d900b51d7a4f98f66c15c10247804fe54f9294ea8eec000f508176b96c3d",
+    "shared-notes.png": "811afb472f077342504851a9b5f864156deb7d9b191c5aa894bbc7b946197cd6"
+  }
+}

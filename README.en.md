@@ -7,7 +7,7 @@
 > **A local-first writing workspace for people who actually want to write.**  
 > Manuscript, characters, relationships, places, timeline, and storyboards in one place — with local AI for the work **around** writing, never for the writing itself.
 
-![Quiltor manuscript workspace](docs/screenshots/manuscript.png)
+![Quiltor manuscript workspace](docs/screenshots/en/manuscript.png)
 
 Quiltor is a writing environment for novels and other long-form fiction. Instead of spreading your manuscript, character sheets, timeline, maps, and notes across several applications, Quiltor connects them into one shared fictional world.
 
@@ -61,7 +61,7 @@ A readable 6 × 9 inch book PDF can be exported from the manuscript.
 
 Characters and other world elements live in a visual graph. Relationships may be directed or undirected, change meaning, start, or end.
 
-![Quiltor world graph](docs/screenshots/world-graph.png)
+![Quiltor world graph](docs/screenshots/en/world-graph.png)
 
 The graph is not a second copy of your data: timeline, relationships, and elements use the same state.
 
@@ -71,7 +71,7 @@ Places have their own map and can be positioned freely, independently from their
 
 A ruler measures distances between places and converts them through an adjustable scale into your own units.
 
-![Quiltor map view with distance measurement](docs/screenshots/places.png)
+![Quiltor map view with distance measurement](docs/screenshots/en/places.png)
 
 Timeline presence data automatically produces:
 
@@ -85,11 +85,11 @@ Stories are not static. A friendship can break, a character can move, an object 
 
 Quiltor models those changes along the timeline instead of storing only the latest state.
 
-![World graph at a selected story-time moment](docs/screenshots/timeline-playback.png)
+![World graph at a selected story-time moment](docs/screenshots/en/timeline-playback.png)
 
 The dedicated timeline workspace is built for maintenance: order moments, add notes, change relationship states, and mark life events. Signed relative time supports events before and after a chosen origin, including simultaneous events. Gregorian and custom calendar projections give the same timeline readable dates without making chapter order its clock.
 
-![Timeline manager](docs/screenshots/timeline-manager.png)
+![Timeline manager](docs/screenshots/en/timeline-manager.png)
 
 ### Storyboard: room for unfinished ideas
 
@@ -99,7 +99,7 @@ Search for a figure, place, timeline moment, chapter, or board and drag the resu
 
 Storyboard text and connections are planning material. Saving an idea does not create a canonical relationship, presence assignment, or timeline fact.
 
-![Quiltor storyboard with notes, reference cards, and groups](docs/screenshots/storyboard.png)
+![Quiltor storyboard with notes, reference cards, and groups](docs/screenshots/en/storyboard.png)
 
 ### Shared notes and references
 
@@ -107,7 +107,7 @@ Chapter notes, world notes, and storyboard notes share bold, italic, headings, a
 
 Profiles and other reference targets show where they are mentioned, including the exact storyboard card. Search and assistant retrieval retain the underlying plain text alongside formatting and reference metadata.
 
-![Formatted notes with linked characters and places](docs/screenshots/shared-notes.png)
+![Formatted notes with linked characters and places](docs/screenshots/en/shared-notes.png)
 
 ---
 
@@ -1028,7 +1028,7 @@ entry in [`locales/index.ts`](locales/index.ts). No other registry or UI code ch
 the i18n check automatically enforces directory-to-registry parity. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-The seven README screenshots come from a fixed example world at 1440 × 900 pixels with the German interface. They are retaken automatically with every release: `npm run set-version` starts an isolated server for it and writes `docs/screenshots/manifest.json` (version, a checksum per image, a checksum of the script and demo data); the release preflight and `npm run check` refuse images that do not match `VERSION`. By hand:
+The seven README screenshots come from a fixed example world at 1440 × 900 pixels with the German interface. They are retaken automatically with every release: `npm run set-version` starts an isolated server for it and writes `docs/screenshots/<language>/manifest.json` per language (version, a checksum per image, a checksum of the script and demo data); the release preflight and `npm run check` refuse images that do not match `VERSION`. By hand:
 
 ```bash
 npm run screenshots:readme

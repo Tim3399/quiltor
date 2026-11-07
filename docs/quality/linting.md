@@ -666,7 +666,7 @@ through the English typo it resembles (a German "style" is one keystroke from "s
    `docs/design/FRONTEND_STYLEGUIDE.md`, `docs/plans/**`, `packages/client/src/design/README.md`),
    the German manuscripts under `tools/documentation` and `tools/evaluation`,
    `tests/fixtures/**`, and the two fixture scripts that are nothing but German sentences
-   (`tools/documentation/readme_fixture.mjs`,
+   (`tools/documentation/example_world/texts.de.mjs`,
    `tools/evaluation/assistant/seed_synthetic_world.py`).
 
 When a new German test string trips typos, add the word to `[type.germantest.extend-words]`.
