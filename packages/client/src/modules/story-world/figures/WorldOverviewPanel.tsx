@@ -109,7 +109,7 @@ export function WorldOverviewPanel({
               open={!isCollapsed(group.kind)}
               onOpenChange={(open) => setCollapsed(group.kind, !open)}
             >
-              <ul>
+              <ul className="world-overview__list">
                 {group.nodes.map((node) => (
                   <li key={node.id}>
                     <Button

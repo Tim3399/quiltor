@@ -10,7 +10,7 @@
   padding: var(--space-10) var(--space-8) var(--space-16);
 }
 
-.world-overview__group > ul {
+.world-overview__list {
   margin: 0;
   padding: 0;
   list-style: none;
