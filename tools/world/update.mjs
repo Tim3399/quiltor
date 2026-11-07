@@ -1,22 +1,39 @@
-// Rewrites every file generated from the test world (tests/world/).
+// Rewrites every file generated from the test world (tests/world/), the one command after any
+// change to the world:
 //
 //   npm run world:update
+//   npm run world:update -- --confirm-translation <key> [--confirm-translation <key> ...]
 //
-// Today that is the shipped example world under src/quiltor/resources/example_world/ and
-// the typed ids in tests/world/ids.generated.ts.
+// It writes the shipped example world (src/quiltor/resources/example_world/), the typed ids
+// (tests/world/ids.generated.ts), the lock (tests/world/world.lock.json) and the catalog
+// (tests/world/CATALOG.md). --confirm-translation records that an English text is still right
+// after its German source changed.
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { CATALOG_FILE, renderCatalog } from "../../tests/world/catalog.mjs";
 import { IDS_FILE, renderIdsFile } from "../../tests/world/ids.mjs";
+import { LOCK_FILE, lockBytes, renderLock } from "../../tests/world/lock.mjs";
 import { renderShipFiles } from "../../tests/world/ship.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const { values } = parseArgs({
+  options: { "confirm-translation": { type: "string", multiple: true, default: [] } },
+});
 
-for (const [path, bytes] of Object.entries({
+const lockPath = join(root, LOCK_FILE);
+const previous = existsSync(lockPath) ? JSON.parse(readFileSync(lockPath, "utf8")) : null;
+
+const files = {
   ...renderShipFiles(),
   [IDS_FILE]: renderIdsFile(),
-})) {
+  [LOCK_FILE]: lockBytes(renderLock(previous, new Set(values["confirm-translation"]))),
+  [CATALOG_FILE]: await renderCatalog(),
+};
+
+for (const [path, bytes] of Object.entries(files)) {
   const target = join(root, path);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, bytes);

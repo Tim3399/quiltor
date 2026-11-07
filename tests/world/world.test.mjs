@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { CATALOG_FILE, PURPOSES, partOfIds, renderCatalog } from "./catalog.mjs";
+import { IDS_FILE, renderIdsFile } from "./ids.mjs";
 import {
   buildExampleWorld,
   DICTIONARIES,
@@ -13,7 +15,7 @@ import {
   PARTS,
   structureKeys,
 } from "./index.mjs";
-import { IDS_FILE, renderIdsFile } from "./ids.mjs";
+import { LOCK_FILE, lockBytes, lockDifferences, renderLock } from "./lock.mjs";
 import { renderShipFiles, SHIP_DIRECTORY, SHIP_FORMAT } from "./ship.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -428,5 +430,62 @@ test("the typed ids are what the test world renders; run npm run world:update", 
   assert.ok(
     readFileSync(target).equals(renderIdsFile()),
     `${IDS_FILE} is stale; run npm run world:update`,
+  );
+});
+
+const readLock = () => JSON.parse(readFileSync(join(repositoryRoot, LOCK_FILE), "utf8"));
+
+test("nothing the lock knows has changed; the world only grows", () => {
+  const { changed } = lockDifferences(readLock());
+  assert.deepEqual(
+    changed,
+    [],
+    "the test world changed what exists. Take every affected test and baseline along in the " +
+      "same change, then run npm run world:update so the lock shows the change",
+  );
+});
+
+test("every German text change reached the English translation", () => {
+  const { stale } = lockDifferences(readLock());
+  assert.deepEqual(
+    stale,
+    [],
+    "the German text changed but its English translation did not. Update texts/*.en.mjs, or " +
+      "if the English is still right: npm run world:update -- --confirm-translation <key>",
+  );
+});
+
+test("the lock knows every entry of the world; run npm run world:update", () => {
+  const { added } = lockDifferences(readLock());
+  assert.deepEqual(added, [], "entries the lock does not know yet; run npm run world:update");
+  assert.ok(
+    readFileSync(join(repositoryRoot, LOCK_FILE)).equals(lockBytes(renderLock(readLock()))),
+    `${LOCK_FILE} is stale; run npm run world:update`,
+  );
+});
+
+test("every element and every entry of the check part says what it is for", () => {
+  const owner = partOfIds();
+  const world = buildExampleWorld("de", { include: PARTS });
+  const missing = world.figures.nodes
+    .map((node) => node.id)
+    .filter((id) => !PURPOSES[owner.get(id)]?.[id]);
+  for (const [id, part] of owner) {
+    if (part !== "base" && !PURPOSES[part]?.[id]) missing.push(id);
+  }
+  assert.deepEqual(missing, [], "entries without a purpose in their part's PURPOSE table");
+  for (const [part, table] of Object.entries(PURPOSES)) {
+    for (const id of Object.keys(table)) {
+      assert.equal(owner.get(id), part, `PURPOSE of ${part} names ${id}, which it does not hold`);
+    }
+  }
+});
+
+test("the catalog is what the test world renders; run npm run world:update", async () => {
+  const target = join(repositoryRoot, CATALOG_FILE);
+  assert.ok(existsSync(target), `${CATALOG_FILE} is missing; run npm run world:update`);
+  assert.ok(
+    readFileSync(target).equals(await renderCatalog()),
+    `${CATALOG_FILE} is stale; run npm run world:update`,
   );
 });

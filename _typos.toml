@@ -56,6 +56,8 @@ extend-exclude = [
   "tests/python/fixtures/writing-data/**",
   "tests/world/texts/*.de.mjs",
   "src/quiltor/resources/example_world/de.json",
+  "tests/world/world.lock.json",
+  "tests/world/CATALOG.md",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 
   # The browser-inference test page is German interface text for testers, and its prompt
