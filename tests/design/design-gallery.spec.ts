@@ -104,6 +104,11 @@ const intentionalTextTruncationOwners = [
     reason: "SelectableRow delegates its complete action name to SelectionCard's aria-label.",
   },
   {
+    selector: ".collapsible-group__title",
+    reason:
+      "The group header is one button whose accessible name carries the complete title; only the visible tail yields to the count and the chevron.",
+  },
+  {
     selector: ".design-chip, .design-chip__label",
     reason: "A chip is a compact token; its DOM text remains available to assistive technology.",
   },

@@ -27,6 +27,7 @@
       "design-chip",
       "design-chip-item",
       "design-chip-list",
+      "collapsible-group",
       "ui-command-palette",
       "ui-confirm-dialog",
       "ui-dialog",

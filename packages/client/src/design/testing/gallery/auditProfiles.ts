@@ -219,6 +219,14 @@ export const designAuditProfiles = {
       longContent: ["LongContent"],
     },
   },
+  CollapsibleGroup: {
+    priority: "P1",
+    coverage: {
+      default: ["Open"],
+      variants: ["Closed"],
+      longContent: ["LongContent"],
+    },
+  },
   SelectableRow: {
     priority: "P1",
     coverage: {

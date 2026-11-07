@@ -37,6 +37,7 @@ const EMPTY_PRESENCE: PresenceEntry[] = [];
 
 export type FigureWorkspaceProps = {
   state: FigureState;
+  worldId?: string;
   onChange: (value: FigureState) => void;
   targetId?: string;
   targetRequestId?: number;
@@ -56,6 +57,7 @@ export function FigureWorkspace(props: FigureWorkspaceProps) {
 
 function FigureWorkspaceInner({
   state,
+  worldId,
   onChange,
   targetId,
   targetRequestId,
@@ -244,6 +246,7 @@ function FigureWorkspaceInner({
       <div className={`figure-layout${inspectorOpen ? "" : " layout-without-inspector"}`}>
         <WorldOverviewPanel
           state={state}
+          worldId={worldId}
           selectedId={selectedId}
           onSelect={selectNode}
           onReveal={canvas.centerOnNode}

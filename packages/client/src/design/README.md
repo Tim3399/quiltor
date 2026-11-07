@@ -169,14 +169,15 @@ visuellen Zustände werden zusätzlich durch die maschinenlesbare Auditmatrix un
 
 ### Patterns
 
-| API              | Zweck                                                 |
-| ---------------- | ----------------------------------------------------- |
-| `CommandPalette` | Such- und Tastaturablauf für Kommandos                |
-| `ConfirmDialog`  | Bestätigung, optional mit Hold-to-confirm             |
-| `DropdownMenu`   | Trigger-, Open-/Close- und Fokuskomposition für Menüs |
-| `SelectableRow`  | Auswahlzeile mit Metadaten und Nebenaktion            |
-| `SelectionCard`  | Visuell stärkere auswählbare Karte                    |
-| `SelectionMenu`  | Auswahlablauf innerhalb eines Menüs                   |
+| API                | Zweck                                                                     |
+| ------------------ | ------------------------------------------------------------------------- |
+| `CommandPalette`   | Such- und Tastaturablauf für Kommandos                                    |
+| `ConfirmDialog`    | Bestätigung, optional mit Hold-to-confirm                                 |
+| `DropdownMenu`     | Trigger-, Open-/Close- und Fokuskomposition für Menüs                     |
+| `CollapsibleGroup` | Listengruppe mit Kopf zum Auf- und Zuklappen; Zustand liegt beim Aufrufer |
+| `SelectableRow`    | Auswahlzeile mit Metadaten und Nebenaktion                                |
+| `SelectionCard`    | Visuell stärkere auswählbare Karte                                        |
+| `SelectionMenu`    | Auswahlablauf innerhalb eines Menüs                                       |
 
 ## Verbindlicher Folder-Vertrag
 

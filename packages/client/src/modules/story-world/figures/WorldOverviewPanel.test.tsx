@@ -83,3 +83,90 @@ describe("WorldOverviewPanel and maps", () => {
     expect(within(panel).getByText("3 Elemente")).toBeVisible();
   });
 });
+
+describe("WorldOverviewPanel folding", () => {
+  const collapsedKey = (world: string) => `quiltor:collapsed-groups:figures-world:${world}`;
+
+  function panelFor(worldId: string, selectedId: string | null) {
+    return (
+      <I18nProvider>
+        <WorldOverviewPanel
+          state={state}
+          worldId={worldId}
+          selectedId={selectedId}
+          onSelect={vi.fn()}
+          onReveal={vi.fn()}
+        />
+      </I18nProvider>
+    );
+  }
+
+  afterEach(() => localStorage.clear());
+
+  it("folds a group by its header button and unfolds it again", () => {
+    render(panelFor("welt-a", null));
+    const trigger = screen.getByRole("button", { name: /^Figur/ });
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Mara Venn" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Gezeitenarchiv" })).toBeVisible();
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole("button", { name: "Mara Venn" })).toBeVisible();
+  });
+
+  it("keeps the fold across a reload, separately for each world", () => {
+    const first = render(panelFor("welt-a", null));
+    fireEvent.click(screen.getByRole("button", { name: /^Figur/ }));
+    expect(localStorage.getItem(collapsedKey("welt-a"))).toBe('["person"]');
+    first.unmount();
+
+    render(panelFor("welt-a", null));
+    expect(screen.getByRole("button", { name: /^Figur/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    cleanup();
+
+    render(panelFor("welt-b", null));
+    expect(screen.getByRole("button", { name: /^Figur/ })).toHaveAttribute("aria-expanded", "true");
+    expect(localStorage.getItem(collapsedKey("welt-b"))).toBeNull();
+  });
+
+  it("follows a change of world inside one mounted panel", () => {
+    localStorage.setItem(collapsedKey("welt-a"), '["ort"]');
+    const view = render(panelFor("welt-a", null));
+    expect(screen.getByRole("button", { name: /^Ort/ })).toHaveAttribute("aria-expanded", "false");
+    view.rerender(panelFor("welt-b", null));
+    expect(screen.getByRole("button", { name: /^Ort/ })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("opens the group of an element that gets selected from outside", () => {
+    localStorage.setItem(collapsedKey("welt-a"), '["person","ort"]');
+    const view = render(panelFor("welt-a", null));
+    expect(screen.getByRole("button", { name: /^Ort/ })).toHaveAttribute("aria-expanded", "false");
+
+    view.rerender(panelFor("welt-a", "archiv"));
+    expect(screen.getByRole("button", { name: /^Ort/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /^Figur/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(localStorage.getItem(collapsedKey("welt-a"))).toBe('["person"]');
+  });
+
+  it("lets the user fold the group of the current selection by hand", () => {
+    render(panelFor("welt-a", "mara"));
+    const trigger = screen.getByRole("button", { name: /^Figur/ });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("tolerates a damaged stored value", () => {
+    localStorage.setItem(collapsedKey("welt-a"), "{kaputt");
+    render(panelFor("welt-a", null));
+    expect(screen.getByRole("button", { name: /^Figur/ })).toHaveAttribute("aria-expanded", "true");
+  });
+});
