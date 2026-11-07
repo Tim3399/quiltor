@@ -37,7 +37,7 @@ export const directPaletteRoleAllowlist = Object.freeze([
   },
   {
     path: "packages/client/src/modules/story-world/StoryGraph.css",
-    selector: ".story-node.zoom-overview.is-important .node-monogram",
+    selector: ".story-node.zoom-overview.is-important",
     variables: ["--gold"],
     rationale: "Important-node graph encoding",
   },

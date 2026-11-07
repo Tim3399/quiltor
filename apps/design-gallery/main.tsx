@@ -10,15 +10,12 @@ if (!container) throw new Error("Design gallery root is missing");
 
 // A scene is a module component the design system's own catalogue may not import (its registry
 // is closed over the public design folders). It lives beside the gallery instead and is opened
-// by name: `/?scene=story-node-favourites&theme=dark&circle=empty`.
+// by name: `/?scene=story-node-favourites&theme=dark`.
 const params = new URLSearchParams(window.location.search);
 const theme = params.get("theme") === "dark" ? "dark" : "light";
 const page =
   params.get("scene") === "story-node-favourites" ? (
-    <StoryNodeFavouritesScene
-      theme={theme}
-      circle={params.get("circle") === "empty" ? "empty" : "star"}
-    />
+    <StoryNodeFavouritesScene theme={theme} />
   ) : (
     <DesignGallery />
   );

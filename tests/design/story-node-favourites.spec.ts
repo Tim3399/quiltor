@@ -28,61 +28,49 @@ test("a favourite lies on top and is not covered by ordinary markers", async ({ 
   await openScene(page);
 
   for (const id of favouriteIds) {
-    // Both parts: the ring that anchors it on the grid, and the name beside it.
-    const circle = await centreOf(page, `[data-id="${id}"] .node-monogram`);
-    const name = await centreOf(page, `[data-id="${id}"] strong`);
-    expect(await ownerAt(page, circle), `${id}: circle covered`).toBe(id);
-    expect(await ownerAt(page, name), `${id}: name covered`).toBe(id);
+    const middle = await centreOf(page, `[data-id="${id}"] .story-node`);
+    expect(await ownerAt(page, middle), `${id}: covered`).toBe(id);
   }
 });
 
 test("hovering a marker lifts it above a favourite that overlaps it", async ({ page }) => {
   await openScene(page);
 
-  // An ordinary marker that overlaps a favourite's circle, a point of it that no favourite
-  // reaches (to put the pointer there) and a point inside the overlap (to look at afterwards).
+  // An ordinary marker that overlaps a favourite, a point of it that no favourite reaches (to
+  // put the pointer there) and a point inside the overlap (to look at afterwards).
   const probe = await page.evaluate((favourites) => {
     const rectOf = (element: Element) => element.getBoundingClientRect();
-    const circles = favourites.map((id) => ({
+    const pills = favourites.map((id) => ({
       id,
-      rect: rectOf(document.querySelector(`[data-id="${id}"] .node-monogram`) as Element),
+      rect: rectOf(document.querySelector(`[data-id="${id}"] .story-node`) as Element),
     }));
     const inside = (rect: DOMRect, x: number, y: number) =>
       x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-    const everyFavouritePart = favourites.flatMap((id) =>
-      ["strong", ".node-monogram"].map((part) =>
-        rectOf(document.querySelector(`[data-id="${id}"] ${part}`) as Element),
-      ),
-    );
     for (const ordinary of document.querySelectorAll<HTMLElement>('[data-id^="ort-"]')) {
       const rect = rectOf(ordinary.querySelector(".story-node") as Element);
-      for (const circle of circles) {
-        // Both markers are round, so the middle of the two centres is the one point that
-        // is certain to lie inside both -- the corner of the boxes' overlap lies in neither.
-        const centreOf = (box: DOMRect) => ({
-          x: box.left + box.width / 2,
-          y: box.top + box.height / 2,
-          radius: Math.min(box.width, box.height) / 2,
-        });
-        const [mine, theirs] = [centreOf(rect), centreOf(circle.rect)];
-        const overlap = { x: (mine.x + theirs.x) / 2, y: (mine.y + theirs.y) / 2 };
-        const reach = (centre: typeof mine) =>
-          Math.hypot(overlap.x - centre.x, overlap.y - centre.y) < centre.radius * 0.85;
-        if (!reach(mine) || !reach(theirs)) continue;
+      const radius = Math.min(rect.width, rect.height) / 2;
+      const centre = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      for (const pill of pills) {
+        // The middle of the pill's box and the marker's centre: inside both shapes when the
+        // marker's centre lies within the pill and the marker's own disc reaches it.
+        const overlap = {
+          x: Math.min(Math.max(centre.x, pill.rect.left + 4), pill.rect.right - 4),
+          y: pill.rect.top + pill.rect.height / 2,
+        };
+        if (Math.hypot(overlap.x - centre.x, overlap.y - centre.y) > radius * 0.7) continue;
+        if (!inside(pill.rect, overlap.x, overlap.y)) continue;
         const free = [
-          [rect.left + 3, rect.top + rect.height / 2],
-          [rect.right - 3, rect.top + rect.height / 2],
-          [rect.left + rect.width / 2, rect.top + 3],
-          [rect.left + rect.width / 2, rect.bottom - 3],
+          [rect.left + 3, centre.y],
+          [rect.right - 3, centre.y],
+          [centre.x, rect.top + 3],
+          [centre.x, rect.bottom - 3],
         ].find(
           ([x, y]) =>
-            !everyFavouritePart.some((part) => inside(part, x, y)) &&
+            !pills.some((other) => inside(other.rect, x, y)) &&
             document.elementFromPoint(x, y)?.closest<HTMLElement>(".react-flow__node")?.dataset
               .id === ordinary.dataset.id,
         );
-        if (free) {
-          return { ordinary: ordinary.dataset.id, favourite: circle.id, overlap, free };
-        }
+        if (free) return { ordinary: ordinary.dataset.id, favourite: pill.id, overlap, free };
       }
     }
     return null;
@@ -106,48 +94,46 @@ test("only the surface of a favourite is translucent, and it turns solid on hove
         const channels = colour.match(/[\d.]+/g)?.map(Number) ?? [];
         return channels.length > 3 ? (channels[3] as number) : 1;
       };
+      const name = element.querySelector("strong");
       return {
         surface: alpha(style.backgroundColor),
-        text: alpha(style.color),
+        text: alpha(name ? getComputedStyle(name).color : style.color),
         border: alpha(style.borderTopColor),
       };
     });
+  const pill = '[data-id="fav-libelle"] .story-node';
 
-  const resting = await alphaOf('[data-id="fav-libelle"] strong');
+  const resting = await alphaOf(pill);
   expect(resting.surface).toBeCloseTo(0.88, 2);
   expect(resting.text).toBe(1);
   expect(resting.border).toBe(1);
-  expect((await alphaOf('[data-id="fav-libelle"] .node-monogram')).surface).toBeCloseTo(0.88, 2);
 
-  await page.locator('[data-id="fav-libelle"] strong').hover();
-  expect((await alphaOf('[data-id="fav-libelle"] strong')).surface).toBe(1);
-  expect((await alphaOf('[data-id="fav-libelle"] .node-monogram')).surface).toBe(1);
+  await page.locator(pill).hover();
+  expect((await alphaOf(pill)).surface).toBe(1);
 });
 
-test("a favourite shows its whole name beside a ring-gold circle on both themes", async ({
+test("a favourite is a gold-bordered pill holding its whole name, on both themes", async ({
   page,
 }) => {
   for (const theme of ["light", "dark"] as const) {
     await openScene(page, theme);
-    const circle = await page.locator('[data-id="fav-hafen"] .node-monogram').boundingBox();
-    const name = await page.locator('[data-id="fav-hafen"] strong').boundingBox();
-    if (!circle || !name) throw new Error("favourite parts have no box");
+    const pill = page.locator('[data-id="fav-hafen"] .story-node');
+    const box = await pill.boundingBox();
+    if (!box) throw new Error("favourite has no box");
     const coarse = await page.evaluate(
       () => matchMedia("(max-width: 640px), (pointer: coarse)").matches,
     );
-    // The circle is the anchor on the grid: as large as an ordinary marker, 44px to touch.
-    expect(circle.width).toBeCloseTo(coarse ? 44 : 32, 0);
-    expect(name.x).toBeGreaterThanOrEqual(circle.x + circle.width);
-    expect(await page.locator('[data-id="fav-hafen"] strong').innerText()).toBe("Hafenmeisterei");
-    const ring = await page
-      .locator('[data-id="fav-hafen"] .node-monogram')
-      .evaluate((element) => getComputedStyle(element).boxShadow);
+    // As tall as an ordinary marker: 32px, 44px to touch.
+    expect(box.height).toBeCloseTo(coarse ? 44 : 32, 0);
+    const name = pill.locator("strong");
+    expect(await name.innerText()).toBe("Hafenmeisterei");
+    expect(await name.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     const gold = await page.evaluate(() => {
       const probe = document.createElement("i");
       probe.style.color = "var(--gold)";
       document.body.append(probe);
       return getComputedStyle(probe).color;
     });
-    expect(ring).toContain(gold);
+    expect(await pill.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe(gold);
   }
 });

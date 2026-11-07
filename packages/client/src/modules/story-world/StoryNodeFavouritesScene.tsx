@@ -1,5 +1,4 @@
 import { Handle, type NodeProps, Position, ReactFlow, ReactFlowProvider } from "@xyflow/react";
-import { Star } from "lucide-react";
 import { useEffect } from "react";
 import { GRAPH_CONNECTION_HANDLES } from "../graph";
 import type { FigureFlowNode } from "./figures/FigureNode";
@@ -45,13 +44,7 @@ function SceneNode({ data }: NodeProps<FigureFlowNode>) {
       important={!!item.important}
     >
       <Handle id={GRAPH_CONNECTION_HANDLES.incoming} type="target" position={Position.Left} />
-      <StoryNodeIdentity
-        kindLabel={item.type}
-        name={item.name}
-        leading={
-          item.important ? <Star className="importance-mark" aria-hidden="true" /> : undefined
-        }
-      />
+      <StoryNodeIdentity kindLabel={item.type} name={item.name} />
       <Handle id={GRAPH_CONNECTION_HANDLES.outgoing} type="source" position={Position.Right} />
     </StoryNodeCard>
   );
@@ -59,13 +52,7 @@ function SceneNode({ data }: NodeProps<FigureFlowNode>) {
 
 const nodeTypes = { story: SceneNode };
 
-export function StoryNodeFavouritesScene({
-  theme,
-  circle,
-}: {
-  theme: "light" | "dark";
-  circle: "star" | "empty";
-}) {
+export function StoryNodeFavouritesScene({ theme }: { theme: "light" | "dark" }) {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
@@ -77,7 +64,6 @@ export function StoryNodeFavouritesScene({
       className="design-story-page"
       data-design-scene="story-node-favourites"
       data-design-theme={theme}
-      data-favourite-circle={circle}
     >
       <div
         className="story-node-favourites-scene"
