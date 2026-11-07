@@ -226,8 +226,8 @@ export function describeWorld(api, mapImageId) {
     mapImageZoom: 1,
     mapImageU: 0.5,
     mapImageV: 0.5,
-    mapWidth: 480,
-    mapHeight: 320,
+    mapWidth: 1500,
+    mapHeight: 1000,
     mapScale: { unitsPer100px: 0.15, unitLabel: "km" },
   });
 

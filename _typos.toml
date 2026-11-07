@@ -78,6 +78,9 @@ extend-ignore-re = [
   "`elementeVerborgen`",
   "mischt benannte und unbenannte Geometrie",
 
+  # The German search term the README "search" view types (tools/documentation/capture_readme.mjs).
+  "searchTerm: \"Archiv\"",
+
   # A SQL keyword in the plural: "UPDATEs" is split as UPDAT + Es.
   "\\bUPDATEs\\b",
   # "PNGs" is split as PN + Gs.

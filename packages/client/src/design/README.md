@@ -323,7 +323,7 @@ statischen Debt-Inventare stehen auf null. Dieser historische Nachweis ist ausdr
 vollständiger visueller Abschlussnachweis.
 
 Seit dem 26. August läuft deshalb das strengere
-[`Design-Component-Audit v2`](../../../../ai/design-component-audit-2026-08.md). Es prüft zusätzlich
+`Design-Component-Audit v2` (`ai/design-component-audit-2026-08.md`, ein lokales, nicht versioniertes Arbeitsdokument). Es prüft zusätzlich
 semantische Farbrollen, Spacing-Rhythmus, innere und Portal-Overflows, Narrow-Container,
 Hit-Targets sowie Produktkompositionen. Sein Definition-of-Done ersetzt für visuelle Konsistenz die
 frühere Aussage „alle Gallery-Tests sind grün“.

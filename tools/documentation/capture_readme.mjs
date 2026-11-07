@@ -49,6 +49,20 @@ const INTERFACE = {
     profile: "Steckbrief", // figures.profile
     openNoteFocus: "Notiz im Fokus öffnen", // shared.noteFocusOpen
     noteFor: (name) => `Notiz für ${name}`, // shared.noteFocusEditor
+    configureTimeSystem: "Zeitsystem konfigurieren", // timeline.timelineConfigureTime
+    overview: "Gesamtsicht", // timeline.overview
+    openLevel: (name) => `${name} öffnen`, // places.placeOpenLevel
+    text: "Text", // shell.text
+    more: "Mehr", // menus.menuMore
+    versionsAndBackups: "Versionen & Sicherungen", // shell.versionsAndBackups
+    versionNote: "Leer lassen, dann beschreibt Quiltor die Änderung selbst.", // tools.versionNotePlaceholder
+    holdVersion: "Version festhalten", // tools.holdVersion
+    searchPlaceholder: "Kapitel, Text, Figuren, Orte, Storyboards …", // tools.searchPlaceholder
+    // Author material for the search and versions views, in the world's language.
+    searchTerm: "Archiv",
+    firstVersion: "Erste vollständige Fassung",
+    secondVersion: "Ankunft überarbeitet",
+    addedSentence: " Mara zählte die Glockenschläge mit.",
   },
   en: {
     browserLocale: "en-US",
@@ -71,6 +85,19 @@ const INTERFACE = {
     profile: "Profile",
     openNoteFocus: "Open note in focus mode",
     noteFor: (name) => `Note for ${name}`,
+    configureTimeSystem: "Configure time system",
+    overview: "Overview",
+    openLevel: (name) => `Open ${name}`,
+    text: "Manuscript",
+    more: "More",
+    versionsAndBackups: "Versions & backups",
+    versionNote: "Leave empty and Quiltor describes the change itself.",
+    holdVersion: "Save version",
+    searchPlaceholder: "Chapters, text, characters, places, storyboards …",
+    searchTerm: "Archive",
+    firstVersion: "First complete draft",
+    secondVersion: "Arrival revised",
+    addedSentence: " Mara counted the strokes of the bell.",
   },
 };
 
@@ -207,6 +234,11 @@ try {
     );
   }
 
+  async function historyCommits() {
+    const response = await context.request.get(`/api/history?world=${encodeURIComponent(worldId)}`);
+    return (await checkedJson(response, "Read history")).commits;
+  }
+
   async function capture(name) {
     if (!README_VIEWS.includes(name)) throw new Error(`"${name}" is not in README_VIEWS.`);
     await page.mouse.move(CAPTURE_VIEWPORT.width - 5, CAPTURE_VIEWPORT.height - 5);
@@ -244,15 +276,47 @@ try {
   await viewMenu.click();
   await page.getByRole("menuitem", { name: ui.showTime, exact: true }).click();
   await page.getByRole("button", { name: momentTitle("t2"), exact: true }).click();
-  // The drag pans the empty board upward; it must never grab a card and move it.
-  const onCard = await page.evaluate(
-    ([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".react-flow__node")),
-    [1030, 650],
+  // Four rows of cards do not fit between the toolbar and the time panel at the detail tier
+  // (it would need a zoom of about 0.65; semanticZoomTier keeps details from 0.68). The view
+  // therefore frames what changes at t2 -- Iven and Mara working together, both present in the
+  // Tidal Archive -- and lets the bottom row, which has no state at t2, go under the panel whole
+  // instead of cut in half.
+  await page.locator(".react-flow__controls-fitview").click();
+  await settle("timeline-playback fit");
+  const box = async (id) => page.locator(`.react-flow__node[data-id="${id}"]`).boundingBox();
+  const [iven, mara, archive] = [await box("iven"), await box("mara"), await box("archive")];
+  const focus = {
+    x: (iven.x + mara.x + mara.width) / 2,
+    y: (Math.min(iven.y, mara.y) + archive.y + archive.height) / 2,
+  };
+  await page.mouse.move(focus.x, focus.y);
+  await page.mouse.wheel(0, -60);
+  await settle("timeline-playback zoom");
+  // Pan the focus to the middle of the band between toolbar and time panel. The drag starts on
+  // empty board; it must never grab a card and move it.
+  const panel = await page.getByRole("button", { name: ui.overview, exact: true }).boundingBox();
+  const target = { x: 815, y: (97 + panel.y - 20) / 2 };
+  const moved = await page.evaluate(
+    ([dx, dy]) => {
+      for (let y = 140; y < 700; y += 20) {
+        for (let x = 260; x < 1400; x += 20) {
+          const free = (px, py) => {
+            const hit = document.elementFromPoint(px, py);
+            return hit?.closest(".react-flow__pane") && !hit.closest(".react-flow__node");
+          };
+          if (free(x, y) && free(x + dx, y + dy)) return [x, y];
+        }
+      }
+      return null;
+    },
+    [target.x - focus.x, target.y - focus.y],
   );
-  if (onCard) throw new Error("The pan gesture at (1030, 650) would drag a card.");
-  await page.mouse.move(1030, 650);
+  if (!moved) throw new Error("No empty board to pan the timeline view from.");
+  await page.mouse.move(moved[0], moved[1]);
   await page.mouse.down();
-  await page.mouse.move(1030, 590, { steps: 12 });
+  await page.mouse.move(moved[0] + target.x - focus.x, moved[1] + target.y - focus.y, {
+    steps: 12,
+  });
   await page.mouse.up();
   await capture("timeline-playback");
 
@@ -263,6 +327,11 @@ try {
     .click();
   await capture("timeline-manager");
 
+  // The world's own calendar: months, weekdays and era of the Tide Reckoning.
+  await page.getByRole("button", { name: ui.configureTimeSystem }).click();
+  await capture("timeline-calendar");
+  await page.keyboard.press("Escape");
+
   await page.getByRole("button", { name: ui.places, exact: true }).click();
   await page.getByLabel(ui.placesCanvas, { exact: true }).waitFor();
   await page.locator(".react-flow__controls-fitview").click();
@@ -272,6 +341,16 @@ try {
   await page.getByRole("complementary", { name: ui.placesInspector }).waitFor();
   await page.locator(".react-flow__controls-fitview").click();
   await capture("places");
+
+  // The city level: the harbour map with the places pinned to it.
+  await page.getByRole("button", { name: ui.measure, exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page
+    .getByRole("button", { name: ui.openLevel(nameOf("nordhafen")) })
+    .first()
+    .click();
+  await page.locator(".react-flow__controls-fitview").click();
+  await capture("places-map");
 
   await page.getByRole("button", { name: ui.storyboard, exact: true }).click();
   await page.getByLabel(ui.storyboardCanvas, { exact: true }).waitFor();
@@ -289,6 +368,35 @@ try {
   await inspector.getByRole("button", { name: ui.openNoteFocus, exact: true }).click();
   await page.getByRole("textbox", { name: ui.noteFor(nameOf("mara")), exact: true }).waitFor();
   await capture("shared-notes");
+  await page.keyboard.press("Escape");
+
+  // One search across chapters, notes, places, moments and characters.
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder(ui.searchPlaceholder).fill(ui.searchTerm);
+  await capture("search");
+  await page.keyboard.press("Escape");
+
+  // Two versions, the second one after a sentence was added: the dialog compares them.
+  // Last, because it changes the manuscript the other views show.
+  async function holdVersion(note) {
+    await page.getByRole("button", { name: ui.more, exact: true }).first().click();
+    await page.getByRole("menuitem", { name: ui.versionsAndBackups }).click();
+    await page.getByPlaceholder(ui.versionNote).fill(note);
+    await page.getByRole("button", { name: ui.holdVersion, exact: true }).click();
+  }
+  await page.getByRole("button", { name: ui.text, exact: true }).click();
+  await holdVersion(ui.firstVersion);
+  await expect.poll(async () => (await historyCommits()).length).toBe(1);
+  await page.keyboard.press("Escape");
+  await page.getByLabel(ui.chapterText, { exact: true }).click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(ui.addedSentence);
+  await expect(page.getByLabel(ui.chapterText, { exact: true })).toContainText(
+    ui.addedSentence.trim(),
+  );
+  await holdVersion(ui.secondVersion);
+  await expect.poll(async () => (await historyCommits()).length).toBe(2);
+  await capture("versions");
   if (captures.join() !== README_VIEWS.join() || failures.length)
     throw new Error(`Incomplete capture: ${failures.join("\n")}`);
   console.log(`Captured all ${captures.length} ${lang} README screenshots.`);
