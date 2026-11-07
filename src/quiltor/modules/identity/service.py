@@ -45,7 +45,7 @@ REDIRECT_ATTR = "identity_redirect"
 
 #: The provider role that unlocks the assistant under OIDC
 #: (overridable with QUILTOR_PREMIUM_ROLE).
-DEFAULT_PREMIUM_ROLE = "quiltor-premium"
+DEFAULT_PREMIUM_ROLE = "premium"
 
 
 class Identity:

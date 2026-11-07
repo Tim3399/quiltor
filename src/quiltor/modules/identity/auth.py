@@ -69,35 +69,23 @@ class SessionData:
 MAX_ROLES = 256
 
 
-def extract_roles(claims: Mapping[str, Any], client_id: str) -> tuple[str, ...]:
-    """Realm roles plus this client's roles from verified ID-token claims.
+def extract_roles(claims: Mapping[str, Any]) -> tuple[str, ...]:
+    """Roles from the flat top-level `roles` claim of verified ID-token claims.
 
-    Only strings count. A claim shape other than the documented one, or more
-    than MAX_ROLES entries in total, yields no roles at all rather than a
-    partial set: a role list the provider did not mean to send grants nothing.
+    Only that claim is read. Keycloak's nested `realm_access` and
+    `resource_access` are ignored on purpose: the realm maps every role into
+    `roles`, and a second place to read them from would be a second way in.
+
+    The claim must be a list of strings with at most MAX_ROLES entries. Any
+    other shape yields no roles at all rather than a partial set: a role list
+    the provider did not mean to send grants nothing.
     """
-    sources: list[Any] = []
-    realm = claims.get("realm_access")
-    if isinstance(realm, Mapping):
-        sources.append(realm.get("roles"))
-    resources = claims.get("resource_access")
-    if isinstance(resources, Mapping) and client_id:
-        client = resources.get(client_id)
-        if isinstance(client, Mapping):
-            sources.append(client.get("roles"))
-    collected: list[str] = []
-    for roles in sources:
-        if roles is None:
-            continue
-        if not isinstance(roles, list):
-            return ()
-        for role in roles:
-            if not isinstance(role, str):
-                return ()
-            collected.append(role)
-            if len(collected) > MAX_ROLES:
-                return ()
-    return tuple(dict.fromkeys(collected))
+    roles = claims.get("roles")
+    if not isinstance(roles, list) or len(roles) > MAX_ROLES:
+        return ()
+    if not all(isinstance(role, str) for role in roles):
+        return ()
+    return tuple(dict.fromkeys(roles))
 
 
 class InvalidTokenSignature(ValueError):

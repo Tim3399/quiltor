@@ -170,9 +170,11 @@ class _LiveAuthServerTestCase(unittest.TestCase):
         name: str = "Tester",
         *,
         roles: tuple[str, ...] | None = (DEFAULT_PREMIUM_ROLE,),
+        extra_claims: dict[str, Any] | None = None,
     ) -> str:
         """Log in through the callback. `roles=None` sends an ID token that
-        carries no role claims at all; any tuple goes into realm_access."""
+        carries no `roles` claim at all; any tuple goes into `roles`.
+        `extra_claims` are merged into the ID-token claims as they are."""
         status, headers, _, set_cookies = self._request("GET", "/login")
         self.assertEqual(status, 302)
         login_state_cookie = next(c for c in set_cookies if c.startswith("quiltor_login_state="))
@@ -190,7 +192,8 @@ class _LiveAuthServerTestCase(unittest.TestCase):
             "exp": time.time() + 300,
         }
         if roles is not None:
-            claims["realm_access"] = {"roles": list(roles)}
+            claims["roles"] = list(roles)
+        claims.update(extra_claims or {})
         # Cryptographic verification is covered with real signed JWTs in
         # test_auth.py and fake_issuer.py. This HTTP-route test replaces the
         # verifier at its injected boundary, so use an explicitly opaque marker
@@ -487,6 +490,39 @@ class PremiumGateTests(_LiveAuthServerTestCase):
         self.assertEqual(status, 403, body)
         self.assertEqual(json.loads(body)["error"]["code"], "assistant.premium_required")
 
+    def test_a_role_only_in_realm_access_grants_nothing(self):
+        """Fallback guard (D-96): Keycloak's nested role claims are never read."""
+        session = self._login(
+            "user-nested",
+            roles=None,
+            extra_claims={
+                "realm_access": {"roles": [DEFAULT_PREMIUM_ROLE]},
+                "resource_access": {"quiltor-demo": {"roles": [DEFAULT_PREMIUM_ROLE]}},
+            },
+        )
+        world_id = self._create_world(session)
+        status, body = self._post_job(session, world_id)
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+
+    def test_the_refusal_arrives_whole_when_the_body_comes_late(self):
+        """The 403 discards the unread body first (D-38); see tests/python/late_body.py."""
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        headers = {
+            "Content-Type": "application/json",
+            "Idempotency-Key": "key-late",
+            "Cookie": f"quiltor_session={session}",
+        }
+        body = json.dumps(_job_body(world_id)).encode("utf-8")
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port, "POST", "/api/assistant/jobs", headers=headers, body=body
+                )
+                self.assertEqual(answer.status, 403, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "assistant.premium_required")
+
     def test_a_user_with_the_role_gets_202_on_jobs(self):
         session = self._login("user-paid")
         world_id = self._create_world(session)
@@ -536,44 +572,33 @@ class PremiumGateTests(_LiveAuthServerTestCase):
 
 
 class ExtractRolesTests(unittest.TestCase):
-    def test_realm_and_this_clients_roles_are_merged(self):
-        claims = {
-            "realm_access": {"roles": ["quiltor-premium", "offline_access"]},
-            "resource_access": {
-                "quiltor-demo": {"roles": ["editor", "quiltor-premium"]},
-                "other-client": {"roles": ["admin"]},
-            },
-        }
-        self.assertEqual(
-            extract_roles(claims, "quiltor-demo"),
-            ("quiltor-premium", "offline_access", "editor"),
-        )
+    def test_the_flat_roles_claim_is_read_without_duplicates(self):
+        claims = {"roles": ["premium", "offline_access", "premium"]}
+        self.assertEqual(extract_roles(claims), ("premium", "offline_access"))
 
-    def test_another_clients_roles_do_not_count(self):
-        claims = {"resource_access": {"other-client": {"roles": ["quiltor-premium"]}}}
-        self.assertEqual(extract_roles(claims, "quiltor-demo"), ())
+    def test_nested_keycloak_role_claims_are_ignored(self):
+        """Fallback guard (D-96): only the flat `roles` claim counts."""
+        claims = {
+            "realm_access": {"roles": ["premium"]},
+            "resource_access": {"quiltor-demo": {"roles": ["premium"]}},
+        }
+        self.assertEqual(extract_roles(claims), ())
 
     def test_missing_claims_give_no_roles(self):
-        self.assertEqual(extract_roles({"sub": "x"}, "quiltor-demo"), ())
+        self.assertEqual(extract_roles({"sub": "x"}), ())
 
     def test_non_string_entries_give_no_roles(self):
-        claims = {"realm_access": {"roles": ["quiltor-premium", 7]}}
-        self.assertEqual(extract_roles(claims, "quiltor-demo"), ())
+        self.assertEqual(extract_roles({"roles": ["premium", 7]}), ())
 
     def test_a_roles_value_that_is_not_a_list_gives_no_roles(self):
-        self.assertEqual(
-            extract_roles({"realm_access": {"roles": "quiltor-premium"}}, "quiltor-demo"), ()
-        )
+        for value in ("premium", {"premium": True}, None, 1, ("premium",)):
+            with self.subTest(value=value):
+                self.assertEqual(extract_roles({"roles": value}), ())
 
     def test_more_than_the_maximum_gives_no_roles(self):
         roles = [f"role-{index}" for index in range(MAX_ROLES)]
-        at_limit = {"realm_access": {"roles": roles}}
-        self.assertEqual(len(extract_roles(at_limit, "quiltor-demo")), MAX_ROLES)
-        over = {
-            "realm_access": {"roles": roles},
-            "resource_access": {"quiltor-demo": {"roles": ["one-more"]}},
-        }
-        self.assertEqual(extract_roles(over, "quiltor-demo"), ())
+        self.assertEqual(len(extract_roles({"roles": roles})), MAX_ROLES)
+        self.assertEqual(extract_roles({"roles": [*roles, "one-more"]}), ())
 
 
 class PremiumRoleConfigurationTests(unittest.TestCase):
@@ -590,7 +615,8 @@ class PremiumRoleConfigurationTests(unittest.TestCase):
             )
 
     def test_the_default_role(self):
-        self.assertEqual(self._identity(None).premium_role, DEFAULT_PREMIUM_ROLE)
+        self.assertEqual(DEFAULT_PREMIUM_ROLE, "premium")
+        self.assertEqual(self._identity(None).premium_role, "premium")
 
     def test_a_configured_role(self):
         self.assertEqual(self._identity("writers").premium_role, "writers")

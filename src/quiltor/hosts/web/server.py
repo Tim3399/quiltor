@@ -616,16 +616,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 verified_claims=claims,
             )
         if session is not None and not session.roles:
-            # Keycloak puts realm and client roles into the access token only,
-            # unless the mapper says "Add to ID token". Without that every
-            # account looks unentitled, so say so once per login. The fix is
-            # "Add to ID token" on the provider's role mappers; roles_claim_present
-            # tells that case apart from an account that simply has no roles.
+            # Roles come only from the flat `roles` claim of the ID token. Without
+            # it every account looks unentitled, so say so once per login. The fix
+            # is to assign the client scope `quiltor-roles` to the client;
+            # roles_claim_present tells that case apart from an account that
+            # simply has no roles.
             self.application.observability.logger.event(
                 "warning",
                 "identity.login_without_roles",
                 sub=session.sub,
-                roles_claim_present="realm_access" in claims or "resource_access" in claims,
+                roles_claim_present="roles" in claims,
             )
         self._pending_cookies.append(
             self.cookie_header(
@@ -913,6 +913,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if registration.premium and (
             session is None or not self.application.identity.is_premium(session)
         ):
+            # Same form as the two refusals above: the body stays unread (D-38).
+            self._discard_unread_body()
             return self.send_api_error(
                 403, error_code="assistant.premium_required", retryable=False
             )

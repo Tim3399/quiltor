@@ -520,9 +520,7 @@ class StdlibIdentityGateway:
                 # Roles only ever come from claims the caller has verified;
                 # without them the session keeps the roles it already has.
                 roles=(
-                    extract_roles(verified_claims, self.client_id)
-                    if verified_claims is not None
-                    else current.roles
+                    extract_roles(verified_claims) if verified_claims is not None else current.roles
                 ),
             )
             self._sessions[session_id] = updated
