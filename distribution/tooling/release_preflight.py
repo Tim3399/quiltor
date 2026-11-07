@@ -78,7 +78,7 @@ COVERAGE: dict[str, tuple[str, tuple[str, ...]]] = {
     ),
     "Playwright browser suite": (
         "browser-e2e-shards",
-        ('node tools/dev/test-shards.mjs select --os linux --slots 4 --slot "$SLOT"',),
+        ('node tools/dev/test-shards.mjs select --os linux --slots 6 --slot "$SLOT"',),
     ),
 }
 COVERED_BY_FULL_MATRIX = frozenset(COVERAGE)

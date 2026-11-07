@@ -244,8 +244,8 @@ test.yml with GitHub's comparison rules for these cases:
 | ------------------------------------------------------------------- | --------------------------- | ---------------------- |
 | plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
 | Core on macOS and Windows                                           | 2                           | 2                      |
-| Linux browser slots + `browser-e2e` aggregator                      | 4 + 1                       | 4 + 1                  |
-| Browser on Windows (8 slots) and macOS (3 slots)                    | 11                          | --                     |
+| Linux browser slots + `browser-e2e` aggregator                      | 6 + 1                       | 6 + 1                  |
+| Browser on Windows (8 slots) and macOS (4 slots)                    | 12                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
 | **Total**                                                           | **24** (was 23)             | **15** (was 23)        |
 
@@ -299,16 +299,55 @@ path`), plus a wall factor per suite and system: wall time of the slots over the
   still lands in exactly one slot. An entry no test matches is ignored. A slot that its other
   work already fills still gets one test, so no list is empty.
 - **Other work** counts as offset: the unit tests in slot 1 of Windows (3.1 min) and macOS
-  (2.5 min), the audit rules in Linux slot 4 (9 s), measured in the run on 15e0b43.
+  (2.5 min), the audit rules in Linux slot 6 (9 s), measured in the run on 15e0b43.
 - **Windows** keeps its cap: at most 100 product tests per slot (the network buffers ran out
   above 115). With durations the busiest slot gets 78.
-- **macOS** runs three slots instead of two; with two, slot 1 took 13.5 minutes.
+- **macOS** runs four slots (T-160); with two, slot 1 took 13.5 minutes, with three 9 to 10.7.
 
 Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:tools`)
 reads the slot shapes from test.yml, lists the current suites and checks for every system that
 every test is assigned exactly once and selected by exactly one slot's list under Playwright's
 own matching rule. `workflow_contract.py` holds the slot topology, the fail-closed shell and the
 uploads, and requires the browser group for every program a browser job runs.
+
+#### More slots for the free plan's parallelism (T-160)
+
+Run 41799087265 took 13 minutes. No job waited longer than 24 s for a runner, so the queue was
+not the limit; the longest jobs were: macOS browser slots 9 to 10.7 minutes, Linux E2E slots 9.6
+to 10 (target: about 10 minutes per full run). The free plan allows more concurrent jobs than the
+matrix used, so the slots grew and the same duration table (`tests/playwright/durations.json`)
+cuts the suites finer:
+
+| System  | Slots before | Slots now | Expected tests per slot (`plan`) | Concurrent jobs of that system in full mode |
+| ------- | ------------ | --------- | -------------------------------- | ------------------------------------------- |
+| Linux   | 4            | 6         | 6.3 min (audit rules in slot 6)  | 6 + aggregator                              |
+| macOS   | 3            | 4         | 6.2 min (unit tests in slot 1)   | 4 + Core on macos-15 = **5**, the limit     |
+| Windows | 8            | 8         | 5.4 min (unchanged)              | 8 + Core on windows-2025                    |
+
+- **macOS stays at the limit of five concurrent jobs.** `workflow_contract.py` counts Core on
+  macos-15 plus every macOS browser slot (`MACOS_CONCURRENT_LIMIT`) and fails above five.
+  Release Build's `macos-direct` needs the tests, so it never overlaps.
+- **Contracts that moved with it** (C-1 and the slot checks): `slot: [1, 2, 3, 4, 5, 6]`,
+  `--slots 6 --offset 6=9000`, the `-of-6` artifact names, 6 + 12 matrix expansions, the audit
+  step on `matrix.slot == 6`, and `release_preflight.py`'s coverage line.
+- **Every test exactly once** still holds per system: `test-shards.mjs plan` refuses an
+  assignment that loses or repeats one, and `select` has Playwright confirm each slot's lists.
+- **Still to come:** the `browser-e2e-oidc` group of T-58 (D-103) is not on this base. It joins
+  with the T-58 merge, with its own slot count and a share of the same limits.
+
+#### Duration and wait per job (to fill from the first full run)
+
+Expected = `test-shards.mjs plan` (tests only; a job adds about 3 to 4 minutes of setup). Measured
+values come from the first full run after the merge, which only the orchestrator can start.
+
+| Job                                     | Expected tests (min) | Measured job (min) | Wait for a runner (s) |
+| --------------------------------------- | -------------------- | ------------------ | --------------------- |
+| Browser E2E / slot 1–6                  | 6.3 each             | _to measure_       | _to measure_          |
+| Browser on macos-15 / slot 1 of 4       | 6.2 (incl. 2.5 unit) | _to measure_       | _to measure_          |
+| Browser on macos-15 / slot 2–4 of 4     | 6.2 each             | _to measure_       | _to measure_          |
+| Browser on windows-2025 / slot 1 of 8   | 5.4 (incl. 3.1 unit) | _to measure_       | _to measure_          |
+| Browser on windows-2025 / slot 2–8 of 8 | 5.4 each             | _to measure_       | _to measure_          |
+| Wall clock of the run                   | --                   | _to measure_       | --                    |
 
 #### Updating the table
 
@@ -397,7 +436,7 @@ the measured ones follow from the first full-matrix run.
 ### The pull-request smoke test
 
 **Linux stays complete on every pull request that runs browser suites at all** -- every product
-and design test, assigned to the four slots by duration, and the layout audit rules. That is the condition for running only a
+and design test, assigned to the six slots by duration, and the layout audit rules. That is the condition for running only a
 smoke test on Windows and macOS. `workflow_contract.py` fails if the Linux slots read the matrix
 plan or get any job-level `if:` other than the path filter's browser group (see "Path filter",
 "The one exception to Linux complete").
@@ -435,10 +474,10 @@ Every check that ran for a commit on main still runs for it, in the same or a me
 | actionlint, hadolint, shellcheck, osv-scanner    | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
 | Visual-baseline reach                            | visual-baseline-reach              | unchanged                                                                        | all                  |
 | Backend and Rust tests on macOS, Windows         | Core on …                          | unchanged                                                                        | all                  |
-| Product and design suites, audit rules (Linux)   | Browser E2E slots 1–4              | unchanged, both suites assigned by duration (T-38)                               | all                  |
+| Product and design suites, audit rules (Linux)   | Browser E2E slots 1–6              | unchanged, both suites assigned by duration (T-38)                               | all                  |
 | Unit tests on macOS, Windows                     | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
-| Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–3                                                    | main                 |
-| Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–3                                                    | main                 |
+| Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–4                                                    | main                 |
+| Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–4                                                    | main                 |
 | Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
 | Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
 | Product and design suites on macOS, Windows      | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
@@ -473,7 +512,7 @@ together. `server`, `workflows` and `docker` are rules, not groups -- they selec
 | server                   | `src/quiltor/**` except `hosts/cli`, `hosts/desktop`, `hosts/mcp`; `apps/web/server.py` | checks, python, client, browser | the product browser suite talks to this Python on :8010                               |
 | python                   | the other hosts, `tests/python/**`, `distribution/**`, `contracts/**`                   | checks, python                  | Python outside the web server, and what the backend suite reads                       |
 | client                   | `packages/client/**`, `apps/web` front end, `locales/**`, `dist/**`, build configs      | checks, client, browser         | the client, its build and the committed dist/                                         |
-| browser                  | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 4 runs                                    |
+| browser                  | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 6 runs                                    |
 | rust                     | `crates/**`, `rust-toolchain.toml`, `deny.toml`                                         | checks, rust, lint              | the portable core; osv-scanner reads `Cargo.lock`'s crates                            |
 | workflows                | `.github/**` other than the above                                                       | checks, python, lint            | actionlint, zizmor (in check) and `workflow_contract.py` (in the backend suite)       |
 | docker                   | `Dockerfile`, `.dockerignore`, `docker-compose.yml`                                     | checks, python, lint            | hadolint and the image contracts in the backend suite                                 |
@@ -631,8 +670,8 @@ that a full-mode run skips nothing.
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `docs/plans/x.md` (documentation)             | plan, frontend (`npm run check` only), browser-e2e                                                                      |
 | `tests/python/…`, `src/quiltor/hosts/cli/…`   | plan, backend, frontend (check only), Core on macOS/Windows, browser-e2e                                                |
-| `src/quiltor/delivery/http/…` (server Python) | plan, backend, frontend (all steps), Core on …, Linux browser slots 1–4, visual-baseline-reach, Smoke on …, browser-e2e |
-| `packages/client/src/…` (client)              | plan, frontend (all steps), Linux browser slots 1–4, visual-baseline-reach, Smoke on …, browser-e2e                     |
+| `src/quiltor/delivery/http/…` (server Python) | plan, backend, frontend (all steps), Core on …, Linux browser slots 1–6, visual-baseline-reach, Smoke on …, browser-e2e |
+| `packages/client/src/…` (client)              | plan, frontend (all steps), Linux browser slots 1–6, visual-baseline-reach, Smoke on …, browser-e2e                     |
 | `.github/workflows/release.yml`               | plan, backend, frontend (check only), workflow-docker-shell-lint, Core on …, browser-e2e                                |
 | an unknown path, or `test.yml`                | everything of the reduced matrix                                                                                        |
 
