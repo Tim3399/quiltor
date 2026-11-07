@@ -18,6 +18,7 @@ class Runtime(Protocol):
         url: str,
         binary_override: str | None,
         model_override: str | None,
+        key: str | None = None,
     ) -> tuple[subprocess.Popen[str], Path] | None: ...
 
 
@@ -40,7 +41,9 @@ def _preference_order() -> tuple[Runtime, ...]:
     return (llamacpp,)
 
 
-def start_runtime(base: Path, data: Path, url: str) -> tuple[subprocess.Popen[str], Path] | None:
+def start_runtime(
+    base: Path, data: Path, url: str, key: str | None = None
+) -> tuple[subprocess.Popen[str], Path] | None:
     """Choose and launch a local runtime backend for the current platform.
 
     Honours the QUILTOR_AI_* environment overrides. This is the seam
@@ -64,9 +67,9 @@ def start_runtime(base: Path, data: Path, url: str) -> tuple[subprocess.Popen[st
             raise SystemExit(
                 f"Unknown QUILTOR_AI_RUNTIME={forced!r}. Expected one of: {', '.join(RUNTIMES)}"
             )
-        return runtime.start(base, data, url, binary, model)
+        return runtime.start(base, data, url, binary, model, key)
     for runtime in _preference_order():
-        started = runtime.start(base, data, url, binary, model)
+        started = runtime.start(base, data, url, binary, model, key)
         if started is not None:
             return started
     return None

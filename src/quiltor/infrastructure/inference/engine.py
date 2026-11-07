@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,12 @@ class LocalInferenceEngine:
         self.process: subprocess.Popen[str] | None = None
         self.log_path: Path | None = None
         self.models_error: str | None = None
+        # One key per start, held in memory only and never logged: a local process or a page in
+        # the browser must not reach the sidecar without it (T-58 P4, D-37). An explicit
+        # QUILTOR_AI_URL starts no sidecar, so there is nothing of ours to authorise there.
+        self._sidecar_key: str | None = (
+            None if os.environ.get("QUILTOR_AI_URL") else secrets.token_urlsafe(32)
+        )
         self.reload()
 
     @property
@@ -40,7 +47,7 @@ class LocalInferenceEngine:
         if self.process is not None and self.process.poll() is None:
             return
         try:
-            started = select.start_runtime(self.base, self.data, self.url)
+            started = select.start_runtime(self.base, self.data, self.url, self._sidecar_key)
         except ModelsDirError as exc:
             self.models_error = str(exc)
             print(f"! {exc}", file=sys.stderr, flush=True)
@@ -83,12 +90,12 @@ class LocalInferenceEngine:
     def invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):
             raise InferenceUnavailableError("Local inference is unavailable for this build.")
-        return invoke_chat(self.url, payload, include_metadata=True)
+        return invoke_chat(self.url, payload, include_metadata=True, api_key=self._sidecar_key)
 
     def count_tokens(self, text: str) -> int:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):
             raise InferenceUnavailableError("Local inference is unavailable for this build.")
-        return count_tokens(self.url, text)
+        return count_tokens(self.url, text, api_key=self._sidecar_key)
 
     def close(self) -> None:
         if self.process and self.process.poll() is None:
