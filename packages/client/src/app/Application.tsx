@@ -231,8 +231,11 @@ export function App() {
   const overlays = useOverlayController();
   const shell = useShellStatus();
   // What this server lets the client offer (T-102); null until known, so nothing
-  // sync-only or sign-out flashes up before the answer.
-  const { instance: capabilities, user: userCapabilities } = useCapabilities();
+  // sync-only or sign-out flashes up before the answer. The user flags are polled only
+  // while the assistant drawer is open (D-T-102-F1).
+  const { instance: capabilities, user: userCapabilities } = useCapabilities(
+    overlays.assistantOpen,
+  );
   // Whose draft a refused save keeps: the signed-in user and the world the documents belong
   // to. Local mode has no user and never ends a session, so nothing is kept there (T-58 P7b).
   const accountSub = shell.account?.sub;

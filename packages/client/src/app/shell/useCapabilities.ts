@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { quiltorClient } from "../../platform";
+import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import type { InstanceCapabilitiesV1 } from "../../platform/contracts/v1/capabilities";
 import type { InstanceCapabilities, UserCapabilities } from "../../shared/capabilities";
 import { useStatusTick } from "../../shared/hooks/useStatusTick";
@@ -38,16 +38,23 @@ async function load(): Promise<Loaded> {
 
 /**
  * `instance` is read once at start and is null until it is known. `user` is read
- * again on every status tick, so a premium role granted or withdrawn shows without
- * a reload (T-102 D, F-102-2). A failed re-read keeps what was known.
+ * again so a premium role granted or withdrawn shows without a reload (T-102 D,
+ * F-102-2): on every status tick while `polling` (the assistant drawer is open),
+ * and once when the window gains focus or becomes visible. A permanent tick would
+ * keep the OIDC session alive past its idle limit, because every request may
+ * refresh the token (D-T-102-F1, F-102-8). Only a multi-user server has a session
+ * and roles to re-read. A 401 or 404 ends re-reading for good; any other failure
+ * keeps what was known.
  */
-export function useCapabilities(): {
+export function useCapabilities(polling = false): {
   instance: InstanceCapabilities | null;
   user: UserCapabilities;
 } {
   const [instance, setInstance] = useState<InstanceCapabilities | null>(null);
   const [user, setUser] = useState<UserCapabilities>({});
+  const [stopped, setStopped] = useState(false);
   const mounted = useRef(true);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
@@ -62,14 +69,40 @@ export function useCapabilities(): {
   }, []);
 
   const refreshUser = useCallback(() => {
+    // focus and visibilitychange arrive together; one request answers both.
+    if (inFlight.current) return;
+    inFlight.current = true;
     quiltorClient.application.capabilities
       .current()
       .then((answer) => {
         if (answer && mounted.current) setUser(answer.user);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        const category = error instanceof ApplicationGatewayError ? error.category : undefined;
+        if ((category === "unauthorized" || category === "not_found") && mounted.current) {
+          setStopped(true);
+        }
+      })
+      .finally(() => {
+        inFlight.current = false;
+      });
   }, []);
-  useStatusTick(refreshUser);
+
+  const rereading = instance?.multiUser === true && !stopped;
+  useStatusTick(refreshUser, rereading && polling);
+
+  useEffect(() => {
+    if (!rereading) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshUser();
+    };
+    window.addEventListener("focus", refreshUser);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", refreshUser);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [rereading, refreshUser]);
 
   return { instance, user };
 }

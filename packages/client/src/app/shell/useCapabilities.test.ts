@@ -72,45 +72,153 @@ describe("useCapabilities", () => {
   });
 });
 
-describe("useCapabilities user flags (T-102 D)", () => {
+describe("useCapabilities user flags (T-102 D, D-T-102-F1)", () => {
   afterEach(() => vi.useRealTimers());
 
-  it("re-reads serverAi on the status tick, so a granted or withdrawn role shows without a reload", async () => {
-    vi.useFakeTimers();
-    let serverAi = false;
+  const local = { ...hostedFixture.instance, multiUser: false };
+
+  function serve(instance = hostedFixture.instance) {
+    const state = { serverAi: false };
     const current = vi
       .spyOn(quiltorClient.application.capabilities, "current")
-      .mockImplementation(async () => ({ instance: hostedFixture.instance, user: { serverAi } }));
-    const { result } = renderHook(() => useCapabilities());
+      .mockImplementation(async () => ({ instance, user: { serverAi: state.serverAi } }));
+    return { state, current };
+  }
+
+  async function tick(ms = STATUS_POLL_MS) {
+    await act(async () => {
+      vi.advanceTimersByTime(ms);
+    });
+  }
+
+  it("re-reads serverAi on the status tick while the drawer is open, so a granted or withdrawn role shows without a reload", async () => {
+    vi.useFakeTimers();
+    const { state, current } = serve();
+    const { result } = renderHook(() => useCapabilities(true));
     await act(async () => {});
     expect(result.current.user).toEqual({ serverAi: false });
 
-    serverAi = true;
-    await act(async () => {
-      vi.advanceTimersByTime(STATUS_POLL_MS);
-    });
+    state.serverAi = true;
+    await tick();
     expect(result.current.user).toEqual({ serverAi: true });
 
-    serverAi = false;
-    await act(async () => {
-      vi.advanceTimersByTime(STATUS_POLL_MS);
-    });
+    state.serverAi = false;
+    await tick();
     expect(result.current.user).toEqual({ serverAi: false });
     expect(current).toHaveBeenCalledTimes(3);
   });
 
-  it("keeps the known user flags when a re-read fails", async () => {
+  it("does not poll an open tab without the drawer, so an idle session can expire", async () => {
+    vi.useFakeTimers();
+    const { current } = serve();
+    renderHook(() => useCapabilities(false));
+    await act(async () => {});
+    expect(current).toHaveBeenCalledTimes(1);
+    await tick(60_000);
+    expect(current).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops polling when the drawer closes", async () => {
+    vi.useFakeTimers();
+    const { current } = serve();
+    const { rerender } = renderHook(({ open }) => useCapabilities(open), {
+      initialProps: { open: true },
+    });
+    await act(async () => {});
+    await tick();
+    expect(current).toHaveBeenCalledTimes(2);
+    rerender({ open: false });
+    await tick(60_000);
+    expect(current).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["gains focus", () => window.dispatchEvent(new Event("focus"))],
+    ["becomes visible", () => document.dispatchEvent(new Event("visibilitychange"))],
+  ])("re-reads once when the window %s", async (_, signal) => {
+    vi.useFakeTimers();
+    const { current } = serve();
+    renderHook(() => useCapabilities(false));
+    await act(async () => {});
+    await act(async () => {
+      signal();
+    });
+    expect(current).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-reads exactly once when the window gains focus and becomes visible", async () => {
+    vi.useFakeTimers();
+    const { state, current } = serve();
+    const { result } = renderHook(() => useCapabilities(false));
+    await act(async () => {});
+    state.serverAi = true;
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(current).toHaveBeenCalledTimes(2);
+    expect(result.current.user).toEqual({ serverAi: true });
+    await tick(60_000);
+    expect(current).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a visibilitychange to hidden", async () => {
+    vi.useFakeTimers();
+    const { current } = serve();
+    renderHook(() => useCapabilities(false));
+    await act(async () => {});
+    const hidden = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    hidden.mockRestore();
+    expect(current).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["401", "unauthorized"],
+    ["404", "not_found"],
+  ])("ends re-reading on a %s", async (_, code) => {
+    vi.useFakeTimers();
+    const current = vi
+      .spyOn(quiltorClient.application.capabilities, "current")
+      .mockResolvedValueOnce({ instance: hostedFixture.instance, user: { serverAi: true } })
+      .mockRejectedValue(new ApplicationGatewayError("refused", code));
+    const { result } = renderHook(() => useCapabilities(true));
+    await act(async () => {});
+    await tick();
+    expect(current).toHaveBeenCalledTimes(2);
+    await tick(60_000);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(current).toHaveBeenCalledTimes(2);
+    expect(result.current.user).toEqual({ serverAi: true });
+  });
+
+  it("never re-reads without a session, drawer open or not", async () => {
+    vi.useFakeTimers();
+    const { current } = serve(local);
+    renderHook(() => useCapabilities(true));
+    await act(async () => {});
+    await tick(60_000);
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(current).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the known user flags and keeps polling when a re-read fails otherwise", async () => {
     vi.useFakeTimers();
     const current = vi
       .spyOn(quiltorClient.application.capabilities, "current")
       .mockResolvedValueOnce({ instance: hostedFixture.instance, user: { serverAi: true } })
       .mockRejectedValue(new TypeError("Failed to fetch"));
-    const { result } = renderHook(() => useCapabilities());
+    const { result } = renderHook(() => useCapabilities(true));
     await act(async () => {});
-    await act(async () => {
-      vi.advanceTimersByTime(STATUS_POLL_MS);
-    });
-    expect(current).toHaveBeenCalledTimes(2);
+    await tick();
+    await tick();
+    expect(current).toHaveBeenCalledTimes(3);
     expect(result.current.user).toEqual({ serverAi: true });
   });
 });

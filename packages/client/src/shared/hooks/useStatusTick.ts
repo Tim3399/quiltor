@@ -17,11 +17,13 @@ function tick() {
  * so a second status reader adds no second timer (T-102, F-102-5). The interval
  * runs while at least one component is subscribed. It lives in shared/ because
  * product modules (the assistant) and the shell (capabilities) both subscribe.
+ * With `enabled` false the component is not subscribed (D-T-102-F1).
  */
-export function useStatusTick(onTick: () => void): void {
+export function useStatusTick(onTick: () => void, enabled = true): void {
   const onTickRef = useLatest(onTick);
 
   useEffect(() => {
+    if (!enabled) return;
     const subscriber = () => onTickRef.current();
     subscribers.add(subscriber);
     if (interval === undefined) interval = window.setInterval(tick, STATUS_POLL_MS);
@@ -32,5 +34,5 @@ export function useStatusTick(onTick: () => void): void {
         interval = undefined;
       }
     };
-  }, []);
+  }, [enabled]);
 }
