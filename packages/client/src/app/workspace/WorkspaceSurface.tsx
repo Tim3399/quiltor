@@ -206,6 +206,7 @@ export function WorkspaceSurface({
     );
   return (
     <StoryboardWorkspace
+      worldId={worldId}
       state={storyboards}
       onChange={storyboardHistory.change}
       candidates={referenceCandidates}
