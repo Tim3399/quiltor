@@ -11,11 +11,16 @@ from typing import Any
 
 from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.infrastructure.inference import select
+from quiltor.infrastructure.inference.endpoint import resolve_endpoint
 from quiltor.infrastructure.inference.model_store import ModelsDirError
 from quiltor.infrastructure.inference.shared.contract import (
     check_health,
+    check_models,
     count_tokens,
+    estimate_tokens,
     invoke_chat,
+    json_object_fallback,
+    refuses_json_schema,
 )
 from quiltor.modules.assistant.ports import InferenceUnavailableError
 
@@ -25,7 +30,9 @@ class LocalInferenceEngine:
         self.base = base
         self.data = data
         self.capabilities = capabilities
-        self.url = os.environ.get("QUILTOR_AI_URL", "http://127.0.0.1:11435").rstrip("/")
+        # Raises at start-up on an invalid configuration -- before any key leaves this process.
+        self.endpoint = resolve_endpoint()
+        self.url = self.endpoint.url
         self.process: subprocess.Popen[str] | None = None
         self.log_path: Path | None = None
         self.models_error: str | None = None
@@ -35,6 +42,12 @@ class LocalInferenceEngine:
         self._sidecar_key: str | None = (
             None if os.environ.get("QUILTOR_AI_URL") else secrets.token_urlsafe(32)
         )
+        # A provider that cannot do strict json_schema is asked with json_object from then on;
+        # set up front with QUILTOR_AI_JSON_MODE=json_object, or learnt from its first refusal.
+        self._json_object_only = (
+            self.endpoint.external
+            and os.environ.get("QUILTOR_AI_JSON_MODE", "").strip().lower() == "json_object"
+        )
         self.reload()
 
     @property
@@ -43,6 +56,9 @@ class LocalInferenceEngine:
 
     def reload(self) -> None:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):
+            return
+        if self.endpoint.external:
+            # An external provider is the model; nothing of ours is started next to it.
             return
         if self.process is not None and self.process.poll() is None:
             return
@@ -67,6 +83,21 @@ class LocalInferenceEngine:
                 "reason": "; ".join(availability.reasons)
                 or "Local inference is unavailable for this build.",
             }
+        if self.endpoint.external:
+            # Neither the URL nor the key is shown: the status reaches every signed-in browser.
+            if check_models(self.url, self.endpoint.api_key):
+                return {
+                    "available": True,
+                    "mode": "external",
+                    "reason": "",
+                    "backend": "openai-compatible",
+                    "model": self.endpoint.model_name,
+                }
+            return {
+                "available": False,
+                "mode": "external",
+                "reason": "The configured AI endpoint does not answer GET /v1/models.",
+            }
         if check_health(self.url):
             backend = "mlx" if self.log_path and "mlx" in self.log_path.name else "llama.cpp"
             return {
@@ -90,11 +121,36 @@ class LocalInferenceEngine:
     def invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):
             raise InferenceUnavailableError("Local inference is unavailable for this build.")
-        return invoke_chat(self.url, payload, include_metadata=True, api_key=self._sidecar_key)
+        if not self.endpoint.external:
+            return invoke_chat(self.url, payload, include_metadata=True, api_key=self._sidecar_key)
+        request = {**payload, "model": self.endpoint.model_name}
+        if self._json_object_only:
+            request = json_object_fallback(request)
+            return invoke_chat(
+                self.url, request, include_metadata=True, api_key=self.endpoint.api_key
+            )
+        try:
+            return invoke_chat(
+                self.url, request, include_metadata=True, api_key=self.endpoint.api_key
+            )
+        except RuntimeError as exc:
+            if not refuses_json_schema(exc):
+                raise
+        # Exactly one retry, and the provider is remembered as json_object-only, so a refusal
+        # never turns into a loop. The reply is still checked against the schema upstream.
+        self._json_object_only = True
+        return invoke_chat(
+            self.url,
+            json_object_fallback(request),
+            include_metadata=True,
+            api_key=self.endpoint.api_key,
+        )
 
     def count_tokens(self, text: str) -> int:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):
             raise InferenceUnavailableError("Local inference is unavailable for this build.")
+        if self.endpoint.external:
+            return estimate_tokens(text)
         return count_tokens(self.url, text, api_key=self._sidecar_key)
 
     def close(self) -> None:
