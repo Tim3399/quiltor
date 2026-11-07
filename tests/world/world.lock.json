@@ -459,7 +459,7 @@
       "accent": "moss",
       "id": "nordhafen",
       "label": "⟦el.nordhafen.label⟧",
-      "mapHeight": 320,
+      "mapHeight": 1000,
       "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
       "mapImageU": 0.5,
       "mapImageV": 0.5,
@@ -468,7 +468,7 @@
         "unitLabel": "km",
         "unitsPer100px": 0.15
       },
-      "mapWidth": 480,
+      "mapWidth": 1500,
       "mapX": 300,
       "mapY": 300,
       "name": "⟦el.nordhafen.name⟧",
