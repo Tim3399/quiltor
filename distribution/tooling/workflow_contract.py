@@ -1048,7 +1048,7 @@ PATH_FILTER_COMMAND = (
     '            python "$base/distribution/tooling/path_filter.py" plan --repository .'
     ' --merge HEAD --output "$GITHUB_OUTPUT" || {\n'
     '              echo "::warning::the path filter failed, running everything"\n'
-    "              for group in checks python rust client browser lint; do\n"
+    "              for group in checks python rust client browser lint oidc; do\n"
     '                echo "run_$group=true" >> "$GITHUB_OUTPUT"\n'
     "              done\n"
     "            }\n"
@@ -1105,6 +1105,11 @@ FILTERED_JOBS = {
     "cross-platform-smoke": (
         REDUCED_MATRIX_GUARD.removeprefix("if: "),
         "needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser != 'false'",
+    ),
+    # The OIDC browser suite (T-58 P7b, D-103): Linux only, its own group.
+    "browser-e2e-oidc": (
+        "needs.plan.outputs.run_oidc == 'true'",
+        "needs.plan.outputs.run_oidc != 'false'",
     ),
 }
 CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")

@@ -156,6 +156,36 @@ describe("typing after the session ended", () => {
   });
 });
 
+describe("a manuscript larger than the device's storage", () => {
+  it("keeps the hint and the text on the page when the draft does not fit", async () => {
+    // localStorage holds about 5 MB per origin. A draft beyond that is refused with
+    // QuotaExceededError; the platform store swallows it, so nothing is kept on the device,
+    // and the page must carry on exactly as without a draft (T-58 P7b).
+    const setItem = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, "setItem").mockImplementation((key: string, value: string) => {
+      if (key.startsWith("quiltor.draft")) {
+        throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+      }
+      setItem(key, value);
+    });
+    vi.spyOn(quiltorClient.application.manuscript, "save").mockRejectedValue(ended());
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Anfang" }));
+
+    expect(
+      await screen.findByText(
+        "Deine Anmeldung ist abgelaufen. Melde dich in einem neuen Tab an, dein Text bleibt hier erhalten.",
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Anfang+" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "In neuem Tab anmelden" })).toBeVisible();
+    expect(localStorage.getItem("quiltor.draft.v1:ada:world-a:manuscript")).toBeNull();
+  });
+});
+
 describe("a draft kept from an earlier visit", () => {
   it("is offered and adopted against the revision it was written on", async () => {
     writeDraft(ADA, "manuscript", DRAFT, 4);

@@ -71,6 +71,7 @@ jobs:
       run_client: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_client == 'false' && 'false' || 'true') }}
       run_browser: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_browser == 'false' && 'false' || 'true') }}
       run_lint: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_lint == 'false' && 'false' || 'true') }}
+      run_oidc: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_oidc == 'false' && 'false' || 'true') }}
     steps:
       - id: decide
         env:
@@ -110,7 +111,7 @@ jobs:
             # itself stays green; later lines of $GITHUB_OUTPUT win over earlier ones.
             python "$base/distribution/tooling/path_filter.py" plan --repository . --merge HEAD --output "$GITHUB_OUTPUT" || {
               echo "::warning::the path filter failed, running everything"
-              for group in checks python rust client browser lint; do
+              for group in checks python rust client browser lint oidc; do
                 echo "run_$group=true" >> "$GITHUB_OUTPUT"
               done
             }
@@ -424,6 +425,44 @@ jobs:
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
 
+  # The OIDC browser suite (T-58 P7b, D-103): tests/e2e-oidc/support/oidc_stack.py starts a fake
+  # Keycloak and the real server against it, and the tests end sessions on purpose. Linux only;
+  # its own group, so on a pull request only sign-in, session and autosave changes run it, and
+  # the full matrix always does. The stack picks its own ports (8035/8036) and data directory.
+  browser-e2e-oidc:
+    name: Browser E2E / OIDC sessions
+    needs: plan
+    if: needs.plan.outputs.run_oidc == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.23.2"
+          cache: npm
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+      - run: npm ci
+      # apt with a time limit and one mirror switch; red if both attempts fail.
+      - name: Install Chromium
+        run: bash tools/dev/playwright-linux.sh
+      - name: Install the application
+        run: python -m pip install --quiet -e .
+      - name: Run the OIDC browser suite
+        run: npx playwright test --config playwright.oidc.config.ts --output=test-results/oidc --reporter=line
+      - name: Upload OIDC browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: browser-e2e-oidc-diagnostics
+          if-no-files-found: ignore
+          path: test-results/oidc/**
+
   # Keep this job ID stable: branch protection requires `browser-e2e`, while
   # the matrix above may grow or rebalance without changing the required check.
   #
@@ -443,6 +482,7 @@ jobs:
       - cross-platform-native
       - cross-platform-browser
       - cross-platform-smoke
+      - browser-e2e-oidc
     if: always()
     runs-on: ubuntu-24.04
     permissions: {}
@@ -475,6 +515,8 @@ jobs:
           SELECTED_CROSS_PLATFORM_BROWSER: ${{ needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser != 'false' }}
           RESULT_CROSS_PLATFORM_SMOKE: ${{ needs['cross-platform-smoke'].result }}
           SELECTED_CROSS_PLATFORM_SMOKE: ${{ needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser != 'false' }}
+          RESULT_BROWSER_E2E_OIDC: ${{ needs['browser-e2e-oidc'].result }}
+          SELECTED_BROWSER_E2E_OIDC: ${{ needs.plan.outputs.run_oidc != 'false' }}
         run: |
           status=0
           require() {
@@ -497,6 +539,7 @@ jobs:
           require cross-platform-native "$RESULT_CROSS_PLATFORM_NATIVE" "$SELECTED_CROSS_PLATFORM_NATIVE"
           require cross-platform-browser "$RESULT_CROSS_PLATFORM_BROWSER" "$SELECTED_CROSS_PLATFORM_BROWSER"
           require cross-platform-smoke "$RESULT_CROSS_PLATFORM_SMOKE" "$SELECTED_CROSS_PLATFORM_SMOKE"
+          require browser-e2e-oidc "$RESULT_BROWSER_E2E_OIDC" "$SELECTED_BROWSER_E2E_OIDC"
           # Full mode only: every job is selected except the reduced-only smoke test, which must
           # not be. A selection that turns false in full mode would be a skip the release
           # inherits; the plan already prevents it, and this keeps it from passing if it did.
@@ -515,6 +558,7 @@ jobs:
           full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" true
           full_mode cross-platform-browser "$SELECTED_CROSS_PLATFORM_BROWSER" true
           full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" false
+          full_mode browser-e2e-oidc "$SELECTED_BROWSER_E2E_OIDC" true
           if [ "$status" -ne 0 ]; then
             exit 1
           fi
