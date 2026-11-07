@@ -52,6 +52,31 @@ export function describeEdge(api, world) {
     node("x-long-org", "organisation", 1600, 770),
     // An element whose note is empty.
     node("x-empty-note", "objekt", 1980, 310, {}, ""),
+    // A map opened out on the world level, with its picture, a scale and two places standing
+    // on it. Opened out, a map is ground rather than a card, and the places on it are derived
+    // from the map; the base world only has the folded Nordhafen and its city level.
+    node("x-map", "ort", 1980, 540, {
+      mapX: 200,
+      mapY: 700,
+      // The same picture as Nordhafen: the world carries one map file.
+      mapImageId: figures.nodes.find((item) => item.id === "nordhafen").mapImageId,
+      mapExpanded: true,
+      mapWidth: 800,
+      mapHeight: 600,
+      mapScale: { unitsPer100px: 25, unitLabel: "km" },
+    }),
+    node("x-map-pier", "ort", 1980, 770, {
+      parentPlaceId: "x-map",
+      mapU: 0.3,
+      mapV: 0.4,
+      placeDisplay: "card",
+    }),
+    node("x-map-crane", "ort", 2360, 80, {
+      parentPlaceId: "x-map",
+      mapU: 0.7,
+      mapV: 0.6,
+      placeDisplay: "pin",
+    }),
   );
 
   // A chapter without text, appended to the second act.
@@ -125,6 +150,9 @@ export const PURPOSE = {
   "x-long-place": "long place name inside Nordhafen (cut as North Harb... in T-173 B)",
   "x-long-org": "long organisation name with an apostrophe (cut in T-173 B)",
   "x-empty-note": "element with an empty note",
+  "x-map": "map opened out on the world level, with picture and scale (geometry specs)",
+  "x-map-pier": "place standing on the opened-out map as a card",
+  "x-map-crane": "place standing on the opened-out map as a pin",
   "x-empty-chapter": "chapter without text and without a note",
   "x-trash-orphan": "chapter in the bin whose folder no longer exists",
   "x-board": "board holding every card of the check part",

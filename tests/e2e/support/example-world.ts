@@ -131,9 +131,11 @@ export async function mockExampleWorld(
       updated: "2026-01-12T09:30:00Z",
     },
     version = "example-world",
+    assistant,
   }: ExampleWorldOptions & {
     world?: Parameters<typeof mockWorkshop>[1]["world"];
     version?: string;
+    assistant?: Parameters<typeof mockWorkshop>[1]["assistant"];
   } = {},
 ): Promise<{ ids: typeof WORLD; text: (key: string) => string }> {
   const mapId = harbourMapId();
@@ -143,6 +145,11 @@ export async function mockExampleWorld(
       ? route.fulfill({ contentType: "image/png", body: readFileSync(HARBOUR_MAP_FILE) })
       : route.fulfill({ status: 404, json: { ok: false } });
   });
-  await mockWorkshop(page, { world, version, documents: exampleWorldDocuments({ lang, include }) });
+  await mockWorkshop(page, {
+    world,
+    version,
+    documents: exampleWorldDocuments({ lang, include }),
+    ...(assistant ? { assistant } : {}),
+  });
   return { ids: WORLD, text: textOf(lang) };
 }

@@ -36,6 +36,9 @@ for the README and ships as the example world; the edge part (ids `x-...`) never
 | `x-long-place` | edge | ort          | Speicherviertel hinter der alten Fischhalle am nördlichen Kai     | long place name inside Nordhafen (cut as North Harb... in T-173 B)                |
 | `x-long-org`   | edge | organisation | Vereinigte Gilde der Kartographen, Lotsen und Leuchtturmwärter    | long organisation name with an apostrophe (cut in T-173 B)                        |
 | `x-empty-note` | edge | objekt       | Leerer Kompass                                                    | element with an empty note                                                        |
+| `x-map`        | edge | ort          | Werftplan                                                         | map opened out on the world level, with picture and scale (geometry specs)        |
+| `x-map-pier`   | edge | ort          | Steg                                                              | place standing on the opened-out map as a card                                    |
+| `x-map-crane`  | edge | ort          | Kran                                                              | place standing on the opened-out map as a pin                                     |
 
 ## Chapters
 

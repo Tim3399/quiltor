@@ -31,6 +31,9 @@ export const WORLD = {
     xLongPlace: "x-long-place",
     xLongOrg: "x-long-org",
     xEmptyNote: "x-empty-note",
+    xMap: "x-map",
+    xMapPier: "x-map-pier",
+    xMapCrane: "x-map-crane",
   },
   relationships: {
     e1: "e1",

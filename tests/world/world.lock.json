@@ -761,6 +761,66 @@
       "x": 1600,
       "y": 540
     },
+    "world.figures.nodes[x-map-crane]": {
+      "accent": "ink",
+      "id": "x-map-crane",
+      "label": "⟦el.x-map-crane.label⟧",
+      "mapU": 0.7,
+      "mapV": 0.6,
+      "name": "⟦el.x-map-crane.name⟧",
+      "parentPlaceId": "x-map",
+      "placeDisplay": "pin",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-map-crane.notes⟧"
+      },
+      "sub": "⟦el.x-map-crane.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 80
+    },
+    "world.figures.nodes[x-map-pier]": {
+      "accent": "ink",
+      "id": "x-map-pier",
+      "label": "⟦el.x-map-pier.label⟧",
+      "mapU": 0.3,
+      "mapV": 0.4,
+      "name": "⟦el.x-map-pier.name⟧",
+      "parentPlaceId": "x-map",
+      "placeDisplay": "card",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-map-pier.notes⟧"
+      },
+      "sub": "⟦el.x-map-pier.sub⟧",
+      "type": "ort",
+      "x": 1980,
+      "y": 770
+    },
+    "world.figures.nodes[x-map]": {
+      "accent": "ink",
+      "id": "x-map",
+      "label": "⟦el.x-map.label⟧",
+      "mapExpanded": true,
+      "mapHeight": 600,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapScale": {
+        "unitLabel": "km",
+        "unitsPer100px": 25
+      },
+      "mapWidth": 800,
+      "mapX": 200,
+      "mapY": 700,
+      "name": "⟦el.x-map.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-map.notes⟧"
+      },
+      "sub": "⟦el.x-map.sub⟧",
+      "type": "ort",
+      "x": 1980,
+      "y": 540
+    },
     "world.figures.presence[presence-1]": {
       "elementId": "mara",
       "id": "presence-1",
@@ -2471,6 +2531,66 @@
       "de": "Ein Name, der auf keine Karte passt.",
       "en": "A name that fits on no map.",
       "translatedFrom": "a876fd9fbd6d72ce"
+    },
+    "el.x-map-crane.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-map-crane.name": {
+      "de": "Kran",
+      "en": "Crane",
+      "translatedFrom": "25502a8d74dfb52d"
+    },
+    "el.x-map-crane.notes": {
+      "de": "Der Kran hat sich seit dem letzten Stapellauf nicht gedreht.",
+      "en": "The crane has not turned since the last launch.",
+      "translatedFrom": "7d8983726c7e1976"
+    },
+    "el.x-map-crane.sub": {
+      "de": "Auch auf der Karte.",
+      "en": "Also on the map.",
+      "translatedFrom": "766bf410acdf9a3f"
+    },
+    "el.x-map-pier.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-map-pier.name": {
+      "de": "Steg",
+      "en": "Pier",
+      "translatedFrom": "24b19adec8ff7267"
+    },
+    "el.x-map-pier.notes": {
+      "de": "Der alte Steg am Rand der Werft.",
+      "en": "The old pier at the edge of the yard.",
+      "translatedFrom": "dfd946080b5087e9"
+    },
+    "el.x-map-pier.sub": {
+      "de": "Auf der Karte.",
+      "en": "On the map.",
+      "translatedFrom": "263febbebac61797"
+    },
+    "el.x-map.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-map.name": {
+      "de": "Werftplan",
+      "en": "Shipyard Plan",
+      "translatedFrom": "580b1befc85fd8af"
+    },
+    "el.x-map.notes": {
+      "de": "Der Plan zeigt die Werft, wie sie vor dem Nebel war.",
+      "en": "The plan shows the yard as it was before the fog.",
+      "translatedFrom": "a2a3967a5f3a310d"
+    },
+    "el.x-map.sub": {
+      "de": "Eine Karte, die sich als Grund aufklappt.",
+      "en": "A map that opens out as ground.",
+      "translatedFrom": "129000a2f071703f"
     },
     "field.origin": {
       "de": "Herkunft",
