@@ -358,16 +358,16 @@
       "expect": "reject"
     },
     {
-      "id": "reference-note-surface-must-match-text",
+      "id": "group-note-surface-must-match-text",
       "operation": "set",
-      "path": "/payload/nodes/1/noteReferences/0/surface",
+      "path": "/payload/nodes/3/noteReferences/0/surface",
       "value": "Archive",
       "expect": "reject"
     },
     {
-      "id": "reference-note-text-is-required-for-ranges",
+      "id": "group-note-text-is-required-for-ranges",
       "operation": "remove",
-      "path": "/payload/nodes/1/text",
+      "path": "/payload/nodes/3/text",
       "expect": "reject"
     },
     {

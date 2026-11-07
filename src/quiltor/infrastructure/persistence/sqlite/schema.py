@@ -11,7 +11,7 @@ from pathlib import Path
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
