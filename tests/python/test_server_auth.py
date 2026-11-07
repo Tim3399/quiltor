@@ -16,6 +16,7 @@ from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
 from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway, TokenEndpointRejected
+from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity.auth import MAX_ROLES, extract_roles
@@ -1026,6 +1027,126 @@ class RefreshFollowsTheProviderTests(_LiveAuthServerTestCase):
         status, body = self._whoami()
         self.assertEqual(status, 200, body)
         self.assertIsNotNone(self.auth.get_session(self.session))
+
+
+class AssistantLimitsHostedTests(_LiveAuthServerTestCase):
+    """What a shared server limits (T-58 P6): open jobs per account, what the status
+    tells an account without the premium role, and who may install."""
+
+    def setUp(self):
+        super().setUp()
+        runtime = MagicMock()
+        runtime.status.return_value = {
+            "available": True,
+            "mode": "local",
+            "reason": "",
+            "backend": "llama",
+            "model": "secret-model",
+        }
+        self.store = AssistantJobStore(Path(self.temp.name) / "limit-jobs.sqlite3")
+        jobs = MagicMock()
+        jobs.submit.side_effect = lambda **kwargs: self.store.submit(**kwargs)
+        self.application.assistant_services = AssistantServices(runtime, jobs)
+
+    def _world(self, session: str) -> str:
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+        return json.loads(body)["world"]["id"]
+
+    def _job(self, session: str, world_id: str, key: str):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=_job_body(world_id),
+            headers={"Idempotency-Key": key},
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def _status(self, session: str, world_id: str):
+        status, _, body, _ = self._request(
+            "GET",
+            f"/api/assistant/status?world={world_id}",
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def test_the_fourth_open_job_gets_429_with_the_limit(self):
+        session = self._login("user-paid")
+        world_id = self._world(session)
+        for index in range(3):
+            status, body = self._job(session, world_id, f"key-{index}")
+            self.assertEqual(status, 202, body)
+        status, body = self._job(session, world_id, "key-3")
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["code"], "assistant.too_many_jobs")
+        self.assertEqual(body["error"]["params"], {"limit": 3})
+        self.assertTrue(body["error"]["retryable"])
+
+    def test_a_retry_of_an_accepted_job_is_no_429_at_the_limit(self):
+        session = self._login("user-paid")
+        world_id = self._world(session)
+        for index in range(3):
+            self._job(session, world_id, f"key-{index}")
+        status, body = self._job(session, world_id, "key-0")
+        self.assertEqual(status, 200, body)
+        self.assertFalse(body["created"])
+
+    def test_the_limit_is_the_configured_one_and_per_account(self):
+        self.application.assistant_max_open_jobs = 1
+        first = self._login("user-one")
+        second = self._login("user-two")
+        first_world = self._world(first)
+        second_world = self._world(second)
+        self.assertEqual(self._job(first, first_world, "key-a")[0], 202)
+        status, body = self._job(first, first_world, "key-b")
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["params"], {"limit": 1})
+        self.assertEqual(self._job(second, second_world, "key-a")[0], 202)
+
+    def test_status_without_the_role_is_exactly_the_hint_payload(self):
+        session = self._login("user-free", roles=())
+        world_id = self._world(session)
+        status, body = self._status(session, world_id)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(
+            body,
+            {
+                "ok": True,
+                "available": False,
+                "premium": False,
+                "installed": False,
+                "reason": "",
+                "chunks": 0,
+            },
+        )
+
+    def test_status_with_the_role_has_the_runtime_fields_and_premium(self):
+        session = self._login("user-paid")
+        world_id = self._world(session)
+        status, body = self._status(session, world_id)
+        self.assertEqual(status, 200, body)
+        self.assertIs(body["premium"], True)
+        self.assertIs(body["available"], True)
+        self.assertEqual(body["backend"], "llama")
+
+    def test_installing_is_refused_on_a_hosted_server_for_everyone(self):
+        for roles in ((), (DEFAULT_PREMIUM_ROLE,)):
+            with self.subTest(roles=roles):
+                session = self._login("user-install", roles=roles)
+                status, _, body, _ = self._request(
+                    "POST",
+                    "/api/assistant/install",
+                    body={},
+                    cookies={"quiltor_session": session},
+                )
+                self.assertEqual(status, 403, body)
+                self.assertEqual(json.loads(body)["error"]["code"], "install.forbidden_hosted")
 
 
 if __name__ == "__main__":

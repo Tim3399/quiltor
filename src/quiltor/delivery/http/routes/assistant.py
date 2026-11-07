@@ -4,17 +4,32 @@ from __future__ import annotations
 
 from typing import Any
 
+from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http.routes import Request, get, save
 from quiltor.modules.assistant import (
     ASSISTANT_REPLY_LANGUAGES,
     DEFAULT_ASSISTANT_LANGUAGE,
 )
-from quiltor.modules.assistant.jobs import IdempotencyConflict
+from quiltor.modules.assistant.jobs import IdempotencyConflict, TooManyOpenJobs
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 
 
 @get("/api/assistant/status", world=True)
 def status(handler, request: Request, app) -> None:
+    if app.identity.multi_user and not app.identity.is_premium(request.session):
+        # Without the role there is no assistant to describe, so nothing of the
+        # runtime is reported: the client shows a hint instead of "offline" (F4).
+        return handler.send_json(
+            {
+                "ok": True,
+                "available": False,
+                "premium": False,
+                "installed": False,
+                "reason": "",
+                "chunks": 0,
+            }
+        )
+
     with app.lock:
         manuscript, figures = app.documents.load_pair(request.db_path)
         storyboards = app.documents.load("storyboards", request.db_path).state
@@ -28,6 +43,7 @@ def status(handler, request: Request, app) -> None:
         {
             "ok": True,
             **app.assistant.status(),
+            "premium": True,
             "installed": app.assistant_installation.is_configured(),
             # False on a hosted server: the operator installs, the client shows no button.
             "installable": app.installable,
@@ -200,6 +216,7 @@ def create_job(handler, request: Request, app) -> None:
             intent=intent,
             execution=execution,
             progress_id=execution.get("progressId"),
+            max_open=app.max_open_jobs,
         )
         handler.send_json(
             {
@@ -209,6 +226,14 @@ def create_job(handler, request: Request, app) -> None:
             },
             202 if created else 200,
         )
+    except TooManyOpenJobs as refused:
+        error = http_errors.for_status(
+            429,
+            code="assistant.too_many_jobs",
+            params={"limit": refused.limit},
+            retryable=True,
+        )
+        handler.send_json(error.payload(), error.status)
     except IdempotencyConflict:
         handler.send_api_error(
             409,

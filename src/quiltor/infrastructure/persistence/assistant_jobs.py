@@ -33,7 +33,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from quiltor.modules.assistant.ports import IdempotencyConflict
+from quiltor.modules.assistant.ports import IdempotencyConflict, TooManyOpenJobs
 
 JOB_RETENTION_DAYS = 7
 
@@ -145,6 +145,7 @@ class AssistantJobStore:
         intent: dict[str, Any],
         execution: dict[str, Any],
         progress_id: str | None = None,
+        max_open: int | None = None,
     ) -> tuple[dict[str, Any], bool]:
         """Create or reuse one job atomically.
 
@@ -152,6 +153,11 @@ class AssistantJobStore:
         therefore always creates a fresh job, even when the question happens to
         equal another in-flight question. Retries reuse the original key and get
         the original job back.
+
+        With `max_open`, an owner who already has that many queued or running jobs
+        gets TooManyOpenJobs instead of a new one. The count comes after the key
+        lookup, so a retry never meets the limit, and sits in the same transaction
+        as the insert, so two requests at once cannot both slip under it.
         """
 
         key = idempotency_key.strip()
@@ -179,6 +185,18 @@ class AssistantJobStore:
                 public = self._public(existing)
                 assert public is not None  # noqa: S101 - type narrowing, not a runtime check
                 return public, False
+
+            if max_open is not None:
+                (open_jobs,) = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM assistant_jobs
+                    WHERE owner_sub=? AND status IN ('queued','running')
+                    """,
+                    (owner_sub,),
+                ).fetchone()
+                if open_jobs >= max_open:
+                    conn.rollback()
+                    raise TooManyOpenJobs(max_open)
 
             job_id = uuid.uuid4().hex
             conn.execute(
