@@ -985,9 +985,9 @@ describe("active expanded map chrome", () => {
 });
 
 describe("place patches against the latest state (T-180)", () => {
-  // Hazard, not an author path found so far: two inspector patches in one React batch. The second
-  // is built from the render-time `state` prop and drops the first.
-  it.fails("keeps a favourite and a note that land in the same batch", () => {
+  // Two inspector patches in one React batch: each must build on the other, not on the
+  // render-time `state` prop.
+  it("keeps a favourite and a note that land in the same batch", () => {
     const changes: FigureState[] = [];
     const { container } = render(
       <ControlledPlaces

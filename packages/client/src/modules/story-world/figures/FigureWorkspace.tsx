@@ -11,8 +11,8 @@ import {
   Toast,
 } from "../../../design";
 import { useI18n } from "../../../i18n";
-import { uid } from "../../../shared/id";
 import { useLatest } from "../../../shared/hooks/useLatest";
+import { uid } from "../../../shared/id";
 import { GraphEdgeInspector, graphEdgeLineStyle, graphRelationshipKind } from "../../graph";
 import type { FigureEdge, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
@@ -21,7 +21,6 @@ import { FigureCanvas } from "./FigureCanvas";
 import { FigureInspector } from "./FigureInspector";
 import { FigureNodeContextMenu, type FigureNodeMenuState } from "./FigureNodeContextMenu";
 import { FigureToolbar } from "./FigureToolbar";
-import { WorldOverviewPanel } from "./WorldOverviewPanel";
 import { prunePresence } from "./presence";
 import {
   patchRelationship,
@@ -31,6 +30,7 @@ import {
 } from "./relationships";
 import { TimelineStrip } from "./TimelineStrip";
 import { useFigureCanvas } from "./useFigureCanvas";
+import { WorldOverviewPanel } from "./WorldOverviewPanel";
 
 const EMPTY_TIMELINE: TimelineMoment[] = [];
 const EMPTY_PRESENCE: PresenceEntry[] = [];
@@ -158,11 +158,16 @@ function FigureWorkspaceInner({
     return () => window.clearTimeout(timer);
   }, [playing, playbackAtEnd, playbackIndex, timeline]);
 
-  const patchNode = (id: string, patch: Partial<FigureNode>) =>
-    onChange({
-      ...state,
-      nodes: state.nodes.map((node) => (node.id === id ? { ...node, ...patch } : node)),
-    });
+  // From the latest state, not the render-time prop: two patches in one batch must both land.
+  const patchNode = (id: string, patch: Partial<FigureNode>) => {
+    const current = latestStateRef.current;
+    const next = {
+      ...current,
+      nodes: current.nodes.map((node) => (node.id === id ? { ...node, ...patch } : node)),
+    };
+    latestStateRef.current = next;
+    onChange(next);
+  };
   const patchSelectedEdge = (patch: Partial<FigureEdge>) => {
     if (!selectedEdge) return;
     const current = latestStateRef.current;
