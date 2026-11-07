@@ -51,6 +51,7 @@ extend-exclude = [
   # writing-data build reads as its sources.
   "tests/python/fixtures/writing-data/**",
   "tools/documentation/readme_fixture.mjs",
+  "tools/documentation/example_world/texts.de.mjs",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 
   # The browser-inference test page is German interface text for testers, and its prompt
