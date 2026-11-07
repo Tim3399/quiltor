@@ -128,7 +128,7 @@ class FakeIssuer:
             "e": self._uint(numbers.e),
         }
 
-    def _grant(self, scope: str, *, nonce: str = "") -> dict:
+    def _grant(self, scope: str, *, nonce: str = "", audience: str = "quiltor-desktop") -> dict:
         """Mint an access/refresh/id-token triple for the current account."""
         access = secrets.token_urlsafe(16)
         refresh = secrets.token_urlsafe(16)
@@ -136,7 +136,7 @@ class FakeIssuer:
         self.refresh_tokens[refresh] = {"scope": scope, "account": dict(self.account)}
         claims = {
             "iss": self.url,
-            "aud": "quiltor-desktop",
+            "aud": audience,
             "exp": int(time.time()) + 3600,
             "iat": int(time.time()),
             **self.account,
@@ -254,7 +254,9 @@ class FakeIssuer:
                         return self._json({"error": "invalid_grant"}, 400)
                     previous, issuer.account = issuer.account, old["account"]
                     try:
-                        return self._json(issuer._grant(old["scope"]))
+                        # Like a real provider, the refreshed ID token is for the asking client.
+                        audience = field("client_id") or "quiltor-desktop"
+                        return self._json(issuer._grant(old["scope"], audience=audience))
                     finally:
                         issuer.account = previous
                 return self._json({"error": "unsupported_grant_type"}, 400)

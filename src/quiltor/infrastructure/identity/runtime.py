@@ -37,6 +37,36 @@ MAX_SESSIONS = 4096
 DISCOVERY_TTL_SECONDS = 60 * 60
 JWKS_TTL_SECONDS = 15 * 60
 JWKS_MIN_REFRESH_SECONDS = 30
+#: After a refresh that failed without ending the session, no new attempt for this long.
+REFRESH_BACKOFF_SECONDS = 60
+
+
+class TokenEndpointRejected(ValueError):
+    """The token endpoint refused the grant with HTTP 400 or 401.
+
+    `error` is the OAuth error code from the response body (`invalid_grant`,
+    `invalid_client`, ...), or "" when the body named none. Only `invalid_grant`
+    means the login itself is over; everything else is the server's problem.
+    """
+
+    def __init__(self, error: str) -> None:
+        super().__init__("OIDC provider rejected the token request.")
+        self.error = error
+
+
+def _rejection_code(error: urllib.error.HTTPError) -> str:
+    """The OAuth error code of a refused token request, read with a size bound."""
+    try:
+        raw = error.read(MAX_TOKEN_RESPONSE_BYTES + 1)
+        if len(raw) > MAX_TOKEN_RESPONSE_BYTES:
+            return ""
+        document = json.loads(raw.decode("utf-8"))
+    except (OSError, ValueError):
+        return ""
+    code = document.get("error") if isinstance(document, dict) else None
+    if not isinstance(code, str) or len(code) > 64:
+        return ""
+    return code
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -70,6 +100,8 @@ class UrllibJsonTransport:
                     raise ValueError("OIDC provider response is too large.")
                 document = json.loads(raw.decode("utf-8"))
         except urllib.error.HTTPError as exc:
+            if data is not None and exc.code in (400, 401):
+                raise TokenEndpointRejected(_rejection_code(exc)) from exc
             raise ValueError(f"OIDC provider returned HTTP {exc.code}.") from exc
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             raise ValueError("OIDC provider returned an invalid response.") from exc
@@ -522,46 +554,89 @@ class StdlibIdentityGateway:
                 roles=(
                     extract_roles(verified_claims) if verified_claims is not None else current.roles
                 ),
+                refresh_retry_at=0.0,
             )
             self._sessions[session_id] = updated
             return updated
 
-    def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None:
-        # Stub with today's behaviour; the real refresh (invalid_grant, backoff,
-        # roles from the refreshed ID token) is T-58 P2.
-        self.session_access_token(session_id, leeway=leeway)
-        return self.get_session(session_id)
+    def _refresh_due(self, session: SessionData, leeway: float) -> bool:
+        """Whether the access token has run out and no backoff is pending.
 
-    def session_access_token(self, session_id: str, *, leeway: float = 30) -> str:
+        Decided by the expiry alone, never by whether an access token is present:
+        a failed refresh keeps its tokens and only sets `refresh_retry_at`.
+        """
+        now = self._clock()
+        return (
+            bool(session.refresh_token)
+            and bool(session.access_expires_at)
+            and now >= session.access_expires_at - leeway
+            and now >= session.refresh_retry_at
+        )
+
+    def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None:
+        """Follow the provider: refresh an expired access token, re-read the roles.
+
+        Returns None when the provider says the login is over (`invalid_grant`);
+        the session is destroyed then. Any other failure keeps the session with
+        its tokens and roles and waits REFRESH_BACKOFF_SECONDS before trying
+        again. A refresh token is single-use, so concurrent callers share one
+        token request: whoever gets the lock second finds the work done.
+        """
         current = self.get_session(session_id)
-        if current is None or not current.access_token:
-            return ""
-        if not current.access_expires_at or self._clock() < current.access_expires_at - leeway:
-            return current.access_token
-        if not current.refresh_token:
-            return ""
+        if current is None or not self._refresh_due(current, leeway):
+            return current
         with self._lock:
             refresh_lock = self._refresh_locks.setdefault(session_id, threading.Lock())
         with refresh_lock:
             current = self.get_session(session_id)
-            if current is None:
-                return ""
-            if current.access_token and (
-                not current.access_expires_at or self._clock() < current.access_expires_at - leeway
-            ):
-                return current.access_token
-            if not current.refresh_token:
-                return ""
+            if current is None or not self._refresh_due(current, leeway):
+                return current
             try:
                 tokens = self.refresh_tokens(current.refresh_token)
-                updated = self.store_session_tokens(session_id, tokens)
-            except Exception:  # noqa: BLE001 - a failed refresh clears the access token and returns no token
-                with self._lock:
-                    latest = self._sessions.get(session_id)
-                    if latest is not None:
-                        self._sessions[session_id] = replace(latest, access_token="")
-                return ""
-            return updated.access_token if updated is not None else ""
+                id_token = tokens.get("id_token")
+                claims = None
+                if id_token is not None:
+                    if not isinstance(id_token, str) or not id_token:
+                        raise ValueError("OIDC provider returned an invalid ID token.")
+                    claims = self.verify_id_token(id_token, None)
+                    if claims.get("sub") != current.sub:
+                        # Another account's token for this session: the login is not ours.
+                        self.destroy_session(session_id)
+                        return None
+                return self.store_session_tokens(
+                    session_id,
+                    tokens,
+                    verified_id_token=id_token if claims is not None else None,
+                    verified_claims=claims,
+                )
+            except TokenEndpointRejected as rejected:
+                if rejected.error == "invalid_grant":
+                    self.destroy_session(session_id)
+                    return None
+                return self._back_off(session_id)
+            except Exception:  # noqa: BLE001 - network, 5xx, invalid response: keep the session
+                return self._back_off(session_id)
+
+    def _back_off(self, session_id: str) -> SessionData | None:
+        with self._lock:
+            latest = self._sessions.get(session_id)
+            if latest is None:
+                return None
+            latest = replace(latest, refresh_retry_at=self._clock() + REFRESH_BACKOFF_SECONDS)
+            self._sessions[session_id] = latest
+            return latest
+
+    def session_access_token(self, session_id: str, *, leeway: float = 30) -> str:
+        """A usable access token for backups, refreshed if needed; "" if there is none.
+
+        During a backoff the expired token is not handed out.
+        """
+        current = self.refresh_session(session_id, leeway=leeway)
+        if current is None or not current.access_token:
+            return ""
+        if current.access_expires_at and self._clock() >= current.access_expires_at - leeway:
+            return ""
+        return current.access_token
 
     def get_session(self, session_id: str | None) -> SessionData | None:
         if not session_id:
@@ -619,4 +694,4 @@ class StdlibIdentityGateway:
         return f"{endpoint}?{urllib.parse.urlencode(params)}" if params else str(endpoint)
 
 
-__all__ = ["StdlibIdentityGateway", "UrllibJsonTransport"]
+__all__ = ["StdlibIdentityGateway", "TokenEndpointRejected", "UrllibJsonTransport"]

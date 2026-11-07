@@ -138,6 +138,18 @@ class OidcIdentity(Identity):
         account needs the premium role from its verified ID token."""
         return self.premium_role in session.roles
 
+    def resolve(self, handler) -> auth.SessionData | None:
+        """The base session, refreshed once its access token has run out.
+
+        The refresh re-reads the roles, so a role the provider withdrew or
+        granted counts from the next request on. When the provider ends the
+        login (`invalid_grant`) the session is gone and the request has none.
+        """
+        session = super().resolve(handler)
+        if session is None:
+            return None
+        return self.auth.refresh_session(session.session_id)
+
 
 class LocalIdentity(Identity):
     """The single person at this machine -- desktop, CLI, a source checkout.

@@ -15,7 +15,7 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
-from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
+from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway, TokenEndpointRejected
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity.auth import MAX_ROLES, extract_roles
@@ -919,6 +919,113 @@ class RefusedRequestBodyAuthTests(_LiveAuthServerTestCase):
                 answer = self._send(f"/api/manuscript-export/preview?world={'0' * 32}", alice)
                 self.assertEqual(answer.status, 404, answer.body[:200])
                 self.assertFalse(answer.json()["ok"])
+
+
+class RefreshFollowsTheProviderTests(_LiveAuthServerTestCase):
+    """End to end (T-58 P2): once the access token has run out, the next request
+    refreshes it, and the provider's answer decides roles and session."""
+
+    def setUp(self):
+        super().setUp()
+        self.application.assistant_services = _assistant_fakes()
+        self.session = self._login("user-paid")
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": self.session},
+        )
+        self.assertEqual(status, 200, body)
+        self.world_id = json.loads(body)["world"]["id"]
+        self.refresh_calls = 0
+
+    def _lapse(self):
+        """The access token has run out; the next request has to refresh."""
+        self.auth.store_session_tokens(
+            self.session, {"access_token": "at", "refresh_token": "rt", "expires_in": 0}
+        )
+
+    def _provider(self, *, roles=None, failure: Exception | None = None):
+        def refresh_tokens(refresh_token, **_):
+            self.refresh_calls += 1
+            if failure is not None:
+                raise failure
+            claims: dict[str, Any] = {"sub": "user-paid"}
+            if roles is not None:
+                claims["roles"] = list(roles)
+            return {
+                "access_token": "at-new",
+                "refresh_token": "rt-new",
+                "expires_in": 300,
+                "id_token": json.dumps(claims),
+            }
+
+        for name, replacement in (
+            ("refresh_tokens", refresh_tokens),
+            ("verify_id_token", lambda token, nonce, **_: json.loads(token)),
+        ):
+            patcher = patch.object(self.auth, name, side_effect=replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _post_job(self):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=_job_body(self.world_id),
+            headers={"Idempotency-Key": f"key-{self.refresh_calls}"},
+            cookies={"quiltor_session": self.session},
+        )
+        return status, json.loads(body)
+
+    def _whoami(self):
+        status, _, body, _ = self._request(
+            "GET", "/api/whoami", cookies={"quiltor_session": self.session}
+        )
+        return status, json.loads(body)
+
+    def test_a_withdrawn_role_refuses_the_next_job(self):
+        self._provider(roles=[])
+        self._lapse()
+        status, body = self._post_job()
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        self.assertEqual(self.refresh_calls, 1)
+
+    def test_a_granted_role_admits_the_next_job_without_a_new_login(self):
+        self.session = self._login("user-paid", roles=())
+        self._provider(roles=[DEFAULT_PREMIUM_ROLE])
+        status, body = self._post_job()
+        self.assertEqual(status, 403, body)
+        self._lapse()
+        status, body = self._post_job()
+        self.assertEqual(status, 202, body)
+
+    def test_invalid_grant_answers_401_and_the_cookie_is_dead(self):
+        self._provider(failure=TokenEndpointRejected("invalid_grant"))
+        self._lapse()
+        for _ in range(2):
+            status, body = self._whoami()
+            self.assertEqual(status, 401, body)
+            self.assertEqual(body["error"]["code"], "auth.unauthenticated")
+        self.assertIsNone(self.auth.get_session(self.session))
+        self.assertEqual(self.refresh_calls, 1)
+
+    def test_a_network_error_keeps_the_old_roles(self):
+        self._provider(failure=ValueError("OIDC provider returned an invalid response."))
+        self._lapse()
+        status, body = self._whoami()
+        self.assertEqual(status, 200, body)
+        status, body = self._post_job()
+        self.assertEqual(status, 202, body)
+        self.assertEqual(self.refresh_calls, 1, "the second request falls in the backoff")
+
+    def test_invalid_client_keeps_the_session(self):
+        self._provider(failure=TokenEndpointRejected("invalid_client"))
+        self._lapse()
+        status, body = self._whoami()
+        self.assertEqual(status, 200, body)
+        self.assertIsNotNone(self.auth.get_session(self.session))
 
 
 if __name__ == "__main__":
