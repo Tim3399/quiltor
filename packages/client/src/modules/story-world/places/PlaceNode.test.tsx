@@ -124,7 +124,9 @@ describe("PlaceNode overview marker", () => {
 
     expect(container.querySelector(".story-node.zoom-overview.is-important")).toBeInTheDocument();
     expect(screen.getByText("D", { selector: ".node-monogram-letter" })).toBeInTheDocument();
-    expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Dämmerhafen", { selector: ".node-name" }).closest("strong"),
+    ).toBeInTheDocument();
   });
 
   it("counter-scales compact layout height to a real 44px mobile hit target", () => {

@@ -4,7 +4,7 @@ const favouriteIds = ["fav-libelle", "fav-hafen", "fav-mole"];
 
 async function openScene(page: Page, theme: "light" | "dark" = "light") {
   await page.goto(`/?scene=story-node-favourites&theme=${theme}`);
-  await expect(page.locator(".react-flow__node")).toHaveCount(44);
+  await expect(page.locator(".react-flow__node")).toHaveCount(46);
   await expect(page.locator('[data-id="fav-libelle"] .story-node')).toBeVisible();
 }
 
@@ -118,20 +118,70 @@ test("a name too long for its pill is cut with an ellipsis and stays whole in th
   for (const theme of ["light", "dark"] as const) {
     await openScene(page, theme);
     const pill = page.locator('[data-id="fav-lang"] .story-node');
-    const name = pill.locator("strong");
-    // The ellipsis only works on a block container: on a flex box the text is cut hard,
-    // in the middle of a letter, whatever `text-overflow` says.
-    const cut = await name.evaluate((element) => ({
+    // The name has an element of its own: the ellipsis only works on a block container, and
+    // the strong around it is a flex box that also holds a symbol. As flex text the name was
+    // cut hard, in the middle of a letter, whatever `text-overflow` said.
+    const cut = await pill.locator(".node-name").evaluate((element) => ({
       display: getComputedStyle(element).display,
       textOverflow: getComputedStyle(element).textOverflow,
       truncated: element.scrollWidth > element.clientWidth,
-      title: element.getAttribute("title"),
+      title: element.closest("strong")?.getAttribute("title"),
     }));
     expect(cut.truncated, `${theme}: the name fits, so nothing is tested`).toBe(true);
-    expect(cut.display).toBe("block");
+    expect(cut.display).not.toBe("inline");
     expect(cut.textOverflow).toBe("ellipsis");
     expect(cut.title).toBe("Die nördliche Hafenmeisterei am äußersten Kai der Gezeitenbucht");
     expect((await pill.boundingBox())?.width).toBeLessThanOrEqual(140);
+  }
+});
+
+test("a symbol beside a name that has to be cut stays whole, centred and apart from it", async ({
+  page,
+}) => {
+  for (const theme of ["light", "dark"] as const) {
+    await openScene(page, theme);
+    for (const id of ["fav-tot", "fav-pin"]) {
+      const pill = page.locator(`[data-id="${id}"] .story-node`);
+      const probe = await pill.evaluate((pillElement) => {
+        const strong = pillElement.querySelector("strong") as HTMLElement;
+        const symbol = strong.querySelector("svg") as SVGElement;
+        const name = strong.querySelector<HTMLElement>(".node-name");
+        const rect = (element: Element) => {
+          const { left, right, top, bottom } = element.getBoundingClientRect();
+          return { left, right, top, bottom };
+        };
+        const symbolBox = rect(symbol);
+        const owner = document.elementFromPoint(
+          (symbolBox.left + symbolBox.right) / 2,
+          (symbolBox.top + symbolBox.bottom) / 2,
+        );
+        return {
+          pill: rect(pillElement),
+          symbol: symbolBox,
+          name: name ? rect(name) : null,
+          nameCut: name ? name.scrollWidth > name.clientWidth : null,
+          nameOverflow: name ? getComputedStyle(name).textOverflow : null,
+          title: strong.getAttribute("title"),
+          symbolOnTop: !!owner && (owner === symbol || symbol.contains(owner)),
+        };
+      });
+      const label = `${theme} ${id}`;
+      expect(probe.symbolOnTop, `${label}: the symbol is hidden or clipped`).toBe(true);
+      // Whole inside the pill, borders included.
+      expect(probe.symbol.left, label).toBeGreaterThanOrEqual(probe.pill.left + 2);
+      expect(probe.symbol.right, label).toBeLessThanOrEqual(probe.pill.right - 2);
+      // Centred on the pill's height, not left on the text's baseline.
+      const centre = (box: { top: number; bottom: number }) => (box.top + box.bottom) / 2;
+      expect(Math.abs(centre(probe.symbol) - centre(probe.pill)), label).toBeLessThanOrEqual(1.5);
+      // The name -- not the symbol -- is what gets cut, and it keeps a gap to the symbol.
+      expect(probe.name, `${label}: the name has no element of its own`).not.toBeNull();
+      expect(probe.nameCut, `${label}: nothing is cut`).toBe(true);
+      expect(probe.nameOverflow, label).toBe("ellipsis");
+      expect(probe.name?.right ?? Number.POSITIVE_INFINITY, label).toBeLessThanOrEqual(
+        probe.symbol.left - 2,
+      );
+      expect(probe.title, label).toMatch(/\S{3,}/);
+    }
   }
 });
 

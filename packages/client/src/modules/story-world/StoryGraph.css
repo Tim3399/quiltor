@@ -255,13 +255,22 @@
 .story-node.zoom-overview.is-important :is(.node-kind, small, .node-monogram, .importance-mark) {
   display: none;
 }
-/* A block, not the flex the other zoom levels give the name: text-overflow reaches only a
-   block container, so as a flex box the cut-off name ended in half a letter instead of an
-   ellipsis. The pill, a flex container itself, still centres it. */
 .story-node.zoom-overview.is-important strong {
-  display: block;
   color: var(--ink);
   font: 600 var(--font-size-label-compact) / 1.6 var(--ui);
+}
+/* The ellipsis sits on the name's own element: text-overflow reaches only a block container,
+   and the strong around it is a flex box that also holds a symbol. A name too long for the
+   pill is cut with "..." here, and the symbol beside it (skull, pin) keeps its size and
+   place instead of being cut off with the text. */
+.story-node.zoom-overview.is-important .node-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.story-node.zoom-overview.is-important strong svg {
+  flex: none;
 }
 .story-node.zoom-overview .node-guests {
   display: none;

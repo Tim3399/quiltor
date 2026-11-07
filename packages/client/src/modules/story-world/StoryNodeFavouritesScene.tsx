@@ -1,14 +1,17 @@
 import { Handle, type NodeProps, Position, ReactFlow, ReactFlowProvider } from "@xyflow/react";
+import { Pin, Skull } from "lucide-react";
 import { useEffect } from "react";
 import { GRAPH_CONNECTION_HANDLES } from "../graph";
 import type { FigureFlowNode } from "./figures/FigureNode";
 import { createFigureFlowNodes } from "./figures/figureCanvasModel";
 import type { FigureNode } from "./model";
+import "./places/PlaceNode.css";
 import { StoryNodeCard, StoryNodeIdentity } from "./StoryNodeCard";
 
 /**
  * Overview scene for T-129: forty ordinary markers packed so tightly that they overlap, and
- * four favourites standing among them, one with a name too long for its pill. The favourites come FIRST in the array on purpose --
+ * six favourites standing among them: one with a name too long for its pill, and two
+ * more with a symbol (a skull, a pin) beside such a name. The favourites come FIRST in the array on purpose --
  * without a z-index they would be drawn first and every later marker would cover them, which
  * is the defect this scene exists to catch.
  *
@@ -32,6 +35,24 @@ const FAVOURITES: readonly FigureNode[] = [
     x: 1640,
     y: 940,
   },
+  // The two symbols a name can carry (FigureNode, PlaceNode), each beside a name too long for
+  // the pill: the symbol has to stay whole while the name is cut.
+  {
+    id: "fav-tot",
+    name: "Die verstorbene Kartographin Mara Venn von der Gezeitenbucht",
+    type: "person",
+    important: true,
+    x: 1120,
+    y: 1180,
+  },
+  {
+    id: "fav-pin",
+    name: "Der fixierte Leuchtturm am äußersten Ende der Nördlichen Mole",
+    type: "ort",
+    important: true,
+    x: 1640,
+    y: 1180,
+  },
 ];
 
 const ORDINARY: readonly FigureNode[] = Array.from({ length: 40 }, (_, index) => ({
@@ -53,7 +74,17 @@ function SceneNode({ data }: NodeProps<FigureFlowNode>) {
       important={!!item.important}
     >
       <Handle id={GRAPH_CONNECTION_HANDLES.incoming} type="target" position={Position.Left} />
-      <StoryNodeIdentity kindLabel={item.type} name={item.name} />
+      <StoryNodeIdentity
+        kindLabel={item.type}
+        name={item.name}
+        trailing={
+          item.id === "fav-tot" ? (
+            <Skull />
+          ) : item.id === "fav-pin" ? (
+            <Pin className="place-node__pinned" />
+          ) : undefined
+        }
+      />
       <Handle id={GRAPH_CONNECTION_HANDLES.outgoing} type="source" position={Position.Right} />
     </StoryNodeCard>
   );
