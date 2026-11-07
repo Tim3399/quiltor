@@ -170,6 +170,7 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
     with GENERATION_LOCK:
         text = ""
         completion_tokens = 0
+        reported_finish: str | None = None
         for response in stream_generate(
             model,
             tokenizer,
@@ -180,12 +181,27 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
         ):
             text += response.text
             completion_tokens += 1
+            reported_finish = getattr(response, "finish_reason", None) or reported_finish
             if matcher.is_stopped():
                 break
 
+    # A finished schema or the model's own EOS is "stop"; running into max_tokens is
+    # "length", which is what makes the caller retry with more headroom. mlx-lm reports
+    # the reason on its last response; without it, the token count decides.
+    if matcher.is_stopped():
+        finish_reason = "stop"
+    elif reported_finish in {"stop", "length"}:
+        finish_reason = reported_finish
+    else:
+        finish_reason = "length" if completion_tokens >= max_tokens else "stop"
+
     return {
         "choices": [
-            {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": text}}
+            {
+                "index": 0,
+                "finish_reason": finish_reason,
+                "message": {"role": "assistant", "content": text},
+            }
         ],
         "usage": {
             "prompt_tokens": prompt_len,
