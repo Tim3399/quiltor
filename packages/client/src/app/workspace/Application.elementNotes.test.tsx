@@ -79,6 +79,10 @@ vi.mock("./WorkspaceSurface", () => ({
     return (
       <>
         <output aria-label="chapter note">{manuscript.chapters[0]?.note}</output>
+        {/* Where a reference card's note editor sits: inside its element's owner key. */}
+        <div data-note-owner="chapter:k1">
+          <div contentEditable data-testid="card note" />
+        </div>
         <output aria-label="second chapter note">{manuscript.chapters[1]?.note}</output>
         <output aria-label="figure note">{figures.nodes[0]?.profile?.notes}</output>
         <output aria-label="place note">{figures.nodes[1]?.profile?.notes}</output>
@@ -169,6 +173,16 @@ describe("element notes written from a Storyboard reference card (T-177)", () =>
       shown("figure note"),
       shown("moment note"),
     ]).toEqual(["Erste", "Zweite", "Dritte", "Vierte"]);
+  });
+
+  it("undoes a chapter note edited on a Storyboard card in the manuscript", async () => {
+    await renderApp();
+    fireEvent.click(screen.getByRole("button", { name: "chapter" }));
+    expect(shown("chapter note")).toBe("Kapitel");
+
+    fireEvent.keyDown(screen.getByTestId("card note"), { key: "z", ctrlKey: true });
+
+    expect(shown("chapter note")).toBe("");
   });
 
   it("writes nothing for an element that is gone", async () => {

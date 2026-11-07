@@ -1,6 +1,7 @@
 export {
   type ElementNote,
   type ElementNoteTarget,
+  noteOwnerFamily,
   resolveElementNote,
   withChapterNote,
   withFigureNote,

@@ -114,3 +114,19 @@ export function withFigureNote<F extends FigureNotes>(
     ),
   } as F;
 }
+
+export type NoteFamily = "manuscript" | "figures" | "storyboards";
+
+/**
+ * The document family whose history holds the note a focused editor shows, read from the
+ * `data-note-owner` key (`kind:id`) the note editor writes. A chapter's note lives in the
+ * manuscript, a figure's, place's and moment's in the story world, a free Storyboard card's in
+ * the Storyboard; an unknown key belongs to no family.
+ */
+export function noteOwnerFamily(ownerKey: string): NoteFamily | null {
+  const kind = ownerKey.slice(0, ownerKey.indexOf(":"));
+  if (kind === "chapter") return "manuscript";
+  if (kind === "entity" || kind === "place" || kind === "timeline") return "figures";
+  if (kind === "storyboard") return "storyboards";
+  return null;
+}

@@ -127,3 +127,25 @@ describe("chapter note typed while versions are open survives a chapter switch (
     expect(noteView(view.container).state.doc.toString()).toBe("Wichtig");
   });
 });
+
+describe("undo in the chapter note while versions are open (T-180, T-177)", () => {
+  it("never reaches any history", async () => {
+    vi.spyOn(historyApi, "log").mockResolvedValue({ ok: true, commits: [] });
+    const view = render(
+      <TestProviders>
+        <Harness onStored={() => undefined} />
+      </TestProviders>,
+    );
+    const toolbar = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
+    fireEvent.click(toolbar.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Versionen" }));
+    await waitFor(() => expect(historyApi.log).toHaveBeenCalled());
+    const undo = vi.fn();
+    window.addEventListener("keydown", undo);
+
+    fireEvent.keyDown(noteView(view.container).contentDOM, { key: "z", ctrlKey: true });
+
+    window.removeEventListener("keydown", undo);
+    expect(undo).not.toHaveBeenCalled();
+  });
+});

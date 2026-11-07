@@ -132,10 +132,9 @@ describe("a Storyboard reference card and its element's note (T-177)", () => {
     ]);
   });
 
-  // Plan test 17. ReferenceTextEditor replaces the whole document on a controlled update, so
-  // the cursor of the card that did not type jumps to the start. The fix belongs in
-  // modules/notes/ReferenceTextEditor.tsx, which this part may not touch.
-  it.fails("keeps the other card's cursor where its author left it", () => {
+  // Plan test 17: a controlled update changes only the edited range, so the editor that did
+  // not type keeps its cursor.
+  it("keeps the other card's cursor where its author left it", () => {
     const first = card("c1", "plot");
     const second = card("c2", "figuren");
     const cards = renderCards([data(first, note("Eins.")), data(second, note("Eins."))]);
