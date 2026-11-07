@@ -216,7 +216,7 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
     return (
       <div className={className}>
         <p className="storyboard-node__note-missing" role="note">
-          {t("storyboardElementDeleted")}
+          {data.elementInTrash ? t("storyboardElementInTrash") : t("storyboardElementDeleted")}
         </p>
       </div>
     );

@@ -1,6 +1,7 @@
 export {
   type ElementNote,
   type ElementNoteTarget,
+  isChapterInTrash,
   noteOwnerFamily,
   resolveElementNote,
   titleHeadingLines,

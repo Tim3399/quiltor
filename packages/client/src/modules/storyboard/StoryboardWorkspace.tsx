@@ -73,6 +73,7 @@ export type StoryboardWorkspaceProps = {
   onOpenReference: (target: WorldReferenceTarget) => void;
   /** The one note of the element a reference card shows; null once it is deleted. */
   elementNote?: (target: ElementNoteTarget) => ElementNote | null;
+  elementInTrash?: (target: ElementNoteTarget) => boolean;
   onElementNoteChange?: (
     target: ElementNoteTarget,
     text: string,
@@ -101,6 +102,7 @@ function StoryboardWorkspaceInner({
   candidates,
   onOpenReference,
   elementNote,
+  elementInTrash,
   onElementNoteChange,
   targetId,
   targetRequestId,
@@ -294,6 +296,8 @@ function StoryboardWorkspaceInner({
             onElementNoteChange,
             elementNote:
               item.kind === "reference" && elementNote ? elementNote(item.target) : undefined,
+            elementInTrash:
+              item.kind === "reference" && elementInTrash ? elementInTrash(item.target) : undefined,
             onOpenReference: openReference,
             onOpenBoard: openBoard,
           },
@@ -306,6 +310,7 @@ function StoryboardWorkspaceInner({
       allCandidates,
       boards,
       changeNote,
+      elementInTrash,
       elementNote,
       noteBoardContext,
       onElementNoteChange,

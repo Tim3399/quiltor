@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isChapterInTrash,
   resolveElementNote,
   titleHeadingLines,
   withChapterNote,
@@ -121,5 +122,20 @@ describe("titleHeadingLines, partial heading (T-185)", () => {
       noteMarks: [{ from: 5, to: 9, kind: "heading" as const, level: 1 as const }],
     };
     expect(titleHeadingLines(partial, "Mara Venn")).toBe(0);
+  });
+});
+
+describe("isChapterInTrash (F-177-10)", () => {
+  const withTrash = { ...manuscript, trash: [{ chapter: { id: "alt" } }] };
+
+  it("is true for a chapter that sits in the trash", () => {
+    expect(isChapterInTrash({ kind: "chapter", id: "alt" }, withTrash)).toBe(true);
+  });
+
+  it("is false for a chapter in the book, a missing one and any other kind", () => {
+    expect(isChapterInTrash({ kind: "chapter", id: "k1" }, withTrash)).toBe(false);
+    expect(isChapterInTrash({ kind: "chapter", id: "gone" }, withTrash)).toBe(false);
+    expect(isChapterInTrash({ kind: "entity", id: "alt" }, withTrash)).toBe(false);
+    expect(isChapterInTrash({ kind: "chapter", id: "alt" }, manuscript)).toBe(false);
   });
 });

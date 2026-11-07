@@ -21,7 +21,10 @@ type ProfileLike = NoteRanges & { notes?: string };
 type FigureLike = { id: string; profile?: ProfileLike };
 type MomentLike = NoteRanges & { id: string; note?: string };
 
-export type ManuscriptNotes = { chapters: ChapterLike[] };
+export type ManuscriptNotes = {
+  chapters: ChapterLike[];
+  trash?: { chapter: { id: string } }[];
+};
 export type FigureNotes = { nodes: FigureLike[]; timeline?: MomentLike[] };
 
 function noteOf(text: string | undefined, ranges: NoteRanges): ElementNote {
@@ -49,6 +52,17 @@ export function resolveElementNote(
   // Places are figures of kind "ort": both kinds share the figure's profile note.
   const figure = figures.nodes.find((item) => item.id === target.id);
   return figure ? noteOf(figure.profile?.notes, figure.profile ?? {}) : null;
+}
+
+/**
+ * Whether `target` is a chapter that sits in the trash: gone from the book, but restorable
+ * with its note (F-177-10). A card then says so instead of "deleted".
+ */
+export function isChapterInTrash(target: ElementNoteTarget, manuscript: ManuscriptNotes): boolean {
+  return (
+    target.kind === "chapter" &&
+    (manuscript.trash ?? []).some((entry) => entry.chapter.id === target.id)
+  );
 }
 
 /** `manuscript` with the chapter's note replaced, or null when the chapter is gone. */
