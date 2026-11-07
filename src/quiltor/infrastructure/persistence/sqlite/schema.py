@@ -350,8 +350,12 @@ def _validate_migrated_database(database: sqlite3.Connection) -> None:
         raise ValueError("Migration did not produce the current schema version.")
 
 
-def initialize(path: Path | None = None) -> None:
-    """Create the schema or safely migrate an existing older database."""
+def initialize(path: Path | None = None) -> bool:
+    """Create the schema or safely migrate an existing older database.
+
+    True when an existing database was migrated, which is when files derived from its
+    content (the Markdown mirrors) may be out of date. False for a new or current one.
+    """
 
     database_path = path or config.DB
     database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -363,10 +367,10 @@ def initialize(path: Path | None = None) -> None:
             f"Database schema version {version} is newer than supported version {SCHEMA_VERSION}."
         )
     if existing and version == SCHEMA_VERSION:
-        return
+        return False
     if not existing:
         _initialize_in_place(database_path, 0)
-        return
+        return False
 
     # Hold SQLite's writer lock from snapshot through commit. The safety copy includes
     # committed WAL contents, and another writer cannot slip changes between snapshot and
@@ -403,6 +407,7 @@ def initialize(path: Path | None = None) -> None:
         migrate(database, version)
         _validate_migrated_database(database)
         database.commit()
+        return True
     except BaseException:
         if database is not None:
             database.rollback()
