@@ -37,6 +37,7 @@ import json
 import os
 import sys
 import threading
+import time
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast
@@ -199,6 +200,11 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# A refused request's body is dropped, up to this size and for this long (see _discard_body).
+REFUSED_BODY_DISCARD_LIMIT = 64 * 1024
+REFUSED_BODY_DISCARD_TIMEOUT_SECONDS = 2.0
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         print(f"MLX bridge: {self.address_string()} - {format % args}", flush=True)
@@ -210,6 +216,38 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _discard_body(self) -> None:
+        """Read and drop a small body that no code has read, before a refusal is sent.
+
+        Closing a socket with unread bytes resets the connection on Windows, and the client
+        loses the answer that was already on its way -- an intermittent failure that shows up
+        under load. Anything unbounded, invalid or slow is left unread, so a refused client
+        cannot make the bridge wait: a body that is too large or has no length is not waited
+        for, and one deadline covers the whole body, not each chunk.
+        """
+        if self.headers.get("Transfer-Encoding"):
+            return
+        try:
+            length = int((self.headers.get("Content-Length") or "").strip())
+        except ValueError:
+            return
+        if length <= 0 or length > REFUSED_BODY_DISCARD_LIMIT:
+            return
+        deadline = time.monotonic() + REFUSED_BODY_DISCARD_TIMEOUT_SECONDS
+        remaining = length
+        try:
+            while remaining > 0:
+                rest = deadline - time.monotonic()
+                if rest <= 0:
+                    return
+                self.connection.settimeout(rest)
+                chunk = self.rfile.read1(remaining)
+                if not chunk:
+                    return
+                remaining -= len(chunk)
+        except OSError:
+            pass
 
     def do_GET(self) -> None:
         if self.path == "/health":
@@ -234,12 +272,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if self.path not in {"/v1/chat/completions", "/tokenize"}:
+            self._discard_body()
             self._send_json(404, {"error": "not found"})
             return
         if not self._authorized():
+            self._discard_body()
             self._send_json(401, {"error": "invalid api key"})
             return
         if not STATE["ready"]:
+            self._discard_body()
             self._send_json(503, {"error": "model not loaded yet"})
             return
         length = int(self.headers.get("Content-Length", "0"))
