@@ -28,7 +28,6 @@ export function WritingAidInspector({
   statusFailed,
   onRetryStatus,
   replaceTarget,
-  lookupSources,
   grammarIssues,
   selectedIssue,
   grammarPhase,
@@ -90,7 +89,6 @@ export function WritingAidInspector({
               phase={assistancePhase}
               errorMessage={lookupError}
               replaceTarget={replaceTarget}
-              lookupSources={lookupSources}
               onWritingQuery={onWritingQuery}
               onRunLookup={onRunLookup}
               onChooseTool={onChooseTool}

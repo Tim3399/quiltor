@@ -21,6 +21,7 @@ export const assistant = {
   localModelUnavailable: "Lokales Modell nicht erreichbar",
   retry: "Erneut versuchen",
   installAssistant: "Jetzt einrichten",
+  assistantInstalledByOperator: "Wird vom Betreiber eingerichtet",
   installingAssistant: "Wird eingerichtet … {percent}%",
   installingAssistantStep: "{phase} … {percent}%",
   installPhaseRuntime: "Laufzeit wird geladen",

@@ -15,6 +15,12 @@ class SyncRequestInvalid(InvalidApplicationInput):
     code = "sync.request_invalid"
 
 
+class SyncTargetInvalid(InvalidApplicationInput):
+    """The sync target address is not an HTTPS (or loopback HTTP) endpoint."""
+
+    code = "sync.target_invalid"
+
+
 class SyncConflict(ApplicationConflict):
     code = "sync.conflict"
 
@@ -35,4 +41,4 @@ class SyncGatewayFailure(ApplicationGatewayError):
         self.head = head
 
 
-__all__ = ["SyncConflict", "SyncGatewayFailure", "SyncRequestInvalid"]
+__all__ = ["SyncConflict", "SyncGatewayFailure", "SyncRequestInvalid", "SyncTargetInvalid"]

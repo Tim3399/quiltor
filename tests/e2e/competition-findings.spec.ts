@@ -15,6 +15,21 @@ async function seedManuscript(page: Page, worldId: string) {
   expect(response.ok(), await response.text()).toBeTruthy();
 }
 
+// Clicks, then waits for the manuscript save that click causes and reads the stored
+// state once. Polling instead gave the save only the 5 s expect budget, which a loaded
+// server (2-3 s per request) can use up before the PUT lands (T-99).
+async function savedAfter(page: Page, worldId: string, action: () => Promise<void>) {
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      response.url().includes(`/api/manuscript?world=${worldId}`),
+  );
+  await action();
+  const response = await saved;
+  expect(response.ok(), await response.text()).toBeTruthy();
+  return (await (await page.request.get(`/api/manuscript?world=${worldId}`)).json()).payload;
+}
+
 async function openBinder(page: Page) {
   await expect(page.getByRole("toolbar", { name: "Manuskript", exact: true })).toBeVisible();
   if (!(await page.getByRole("button", { name: "Papierkorb", exact: true }).isVisible())) {
@@ -38,14 +53,32 @@ test("Backup preview exposes storage and restore preserves the newer saved conte
   await page.goto(`/?world=${world.id}`);
   await expect(page.getByLabel("Kapiteltext")).toContainText("Erste Fassung.");
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Sicherungen", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "Sicherungen", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
+  // The tab flushes, then asks for the list and the storage location. On a loaded server
+  // those round trips alone can outlast the 5 s expect budget, so wait for them (T-172).
+  const backupsLoaded = Promise.all(
+    ["/api/backups?", "/api/backups/location?"].map((path) =>
+      page.waitForResponse(
+        (response) => response.url().includes(path) && response.request().method() === "GET",
+      ),
+    ),
+  );
+  await sheet.getByRole("tab", { name: "Automatische Sicherungen", exact: true }).click();
+  for (const response of await backupsLoaded) expect(response.ok()).toBeTruthy();
   await expect(sheet).toContainText("Datenbankdatei");
   await expect(sheet).toContainText("Letzte erfolgreiche Sicherung");
+  await expect(sheet).toContainText(
+    "höchstens alle 5 Minuten. Die letzten 40 Sicherungen bleiben erhalten.",
+  );
   await expect(
     sheet.getByRole("button", { name: "Sicherung wiederherstellen", exact: true }),
   ).toHaveCount(0);
+  const previewLoaded = page.waitForResponse((response) =>
+    response.url().includes("/api/backups/preview?"),
+  );
   await sheet.locator(".backup-list-item").first().click();
+  expect((await previewLoaded).ok()).toBeTruthy();
   await expect(
     sheet.getByRole("button", { name: "Sicherung wiederherstellen", exact: true }),
   ).toBeEnabled();
@@ -95,46 +128,36 @@ test("Set-aside chapters remain editable and survive trash, reload and restore",
   await expect(page.getByLabel("Kapiteltext")).toContainText("Erste Fassung.");
   await openBinder(page);
   await page.getByRole("button", { name: "Kapitelaktionen: Anfang", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Aus dem Buch nehmen", exact: true }).click();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get(`/api/manuscript?world=${world.id}`);
-      return (await response.json()).payload.chapters[0].inBook;
-    })
-    .toBe(false);
+  const setAside = await savedAfter(page, world.id, () =>
+    page.getByRole("menuitem", { name: "Aus dem Buch nehmen", exact: true }).click(),
+  );
+  expect(setAside.chapters[0].inBook).toBe(false);
   await page.reload();
   await expect(page.getByLabel("Kapiteltext")).toContainText("Erste Fassung.");
   await openBinder(page);
   await page.getByRole("button", { name: "Zurückgestellt", exact: true }).click();
   await page.getByRole("button", { name: "Kapitelaktionen: Anfang", exact: true }).click();
   await page.getByRole("menuitem", { name: "Kapitel löschen", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Kapitel löschen", exact: true })
-    .click();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get(`/api/manuscript?world=${world.id}`);
-      return (await response.json()).payload.trash?.length;
-    })
-    .toBe(1);
+  const deleted = await savedAfter(page, world.id, () =>
+    page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Kapitel löschen", exact: true })
+      .click(),
+  );
+  expect(deleted.trash?.length).toBe(1);
   await page.reload();
   await openBinder(page);
   await page.getByRole("button", { name: "Papierkorb", exact: true }).click();
   const trash = page.getByRole("dialog", { name: "Papierkorb", exact: true });
   await expect(trash).toContainText("Erste Fassung.");
   await trash.getByRole("textbox").fill("Erste Fassung");
-  await trash.getByRole("button", { name: "Kapitel wiederherstellen", exact: true }).click();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get(`/api/manuscript?world=${world.id}`);
-      const manuscript = (await response.json()).payload;
-      return { chapter: manuscript.chapters[0], trash: manuscript.trash?.length ?? 0 };
-    })
-    .toMatchObject({
-      chapter: { id: "opening", body: "Erste Fassung.", note: "Notiz.", inBook: false },
-      trash: 0,
-    });
+  const restored = await savedAfter(page, world.id, () =>
+    trash.getByRole("button", { name: "Kapitel wiederherstellen", exact: true }).click(),
+  );
+  expect({ chapter: restored.chapters[0], trash: restored.trash?.length ?? 0 }).toMatchObject({
+    chapter: { id: "opening", body: "Erste Fassung.", note: "Notiz.", inBook: false },
+    trash: 0,
+  });
 });
 
 test("Project trash remains accessible after reload and restores the same manuscript", async ({
@@ -333,7 +356,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(exportDialog).toHaveCount(0);
     await page.getByRole("button", { name: "Mehr", exact: true }).click();
     await page.getByRole("menuitem", { name: "Zur Weltauswahl", exact: true }).click();
-    await page.getByRole("button", { name: "Projekt importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Importieren", exact: true }).click();
+    await page.getByRole("button", { name: "Projekt", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Quiltor-Projekt importieren", exact: true });
     const confirm = dialog.getByRole("button", {
       name: "Als neues Projekt importieren",

@@ -31,6 +31,7 @@ from quiltor.infrastructure.backup.authorization import EndpointBoundBackupAutho
 from quiltor.infrastructure.pdf import unavailable
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 from quiltor.infrastructure.platform.ports import AppDirectories
+from quiltor.infrastructure.platform.runtime_target import ProcessRole, current_target
 from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngine
 from quiltor.modules.identity.auth import SessionData
 from quiltor.modules.identity.service import Identity
@@ -67,6 +68,7 @@ class WebWorldContext:
 class WorldRouteServices:
     worlds: Any
     lock: threading.Lock
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +94,7 @@ class AssistantRouteServices:
     assistant_jobs: Any
     assistant_installation: AssistantInstallation
     lock: threading.Lock
+    installable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +105,7 @@ class BackupRouteServices:
     observability: ObservabilityServices
     lock: threading.Lock
     backup_authorization: Callable[[str, SessionData | None], BackupAuthorization]
-    session_backup_token: Callable[[SessionData | None], str]
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +113,8 @@ class SynchronizationRouteServices:
     synchronization: Any
     lock: threading.Lock
     backup_authorization: Callable[[str, SessionData | None], BackupAuthorization]
+    worlds: Any = None
+    default_endpoint: Callable[[], str] = lambda: ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +140,9 @@ class ManuscriptImportRouteServices:
 class HistoryRouteServices:
     history: Any
     lock: threading.Lock
+    # The one write the history routes have (T-87 B): putting a version back. Only
+    # that bound use case, not the whole backups slice, so the routes stay narrow.
+    restore_version: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,11 +150,33 @@ class IdentityRouteServices:
     identity: Identity
     observability: ObservabilityServices
     version: str
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class WritingAssistanceRouteServices:
     writing_assistance: WritingAssistanceService
+    installable: bool = True
+
+
+HOSTED = "hosted"
+DESKTOP = "desktop"
+LOCAL = "local"
+
+
+def operation_profile_for(*, multi_user: bool, process_role: ProcessRole | None) -> str:
+    """How this instance is operated, which decides who may install software (D-59).
+
+    `hosted` is exactly the multi-user (OIDC) deployment: several people share one
+    server, so downloading runtimes, models or dictionaries belongs to its operator.
+    There is deliberately no loopback criterion and no environment switch.
+    """
+
+    if multi_user:
+        return HOSTED
+    if process_role is ProcessRole.DESKTOP:
+        return DESKTOP
+    return LOCAL
 
 
 @dataclass(slots=True)
@@ -167,6 +197,21 @@ class WebApplication:
     public_url: str
     bound_to_loopback: bool
     lock: threading.Lock
+    operation_profile: str = LOCAL
+
+    @property
+    def installable(self) -> bool:
+        """Whether a request may install software on this server."""
+        return self.operation_profile != HOSTED
+
+    @property
+    def syncable(self) -> bool:
+        """Whether worlds on this server may sync with another device (D-61).
+
+        A hosted server is the shared storage itself. Routes ask this, never
+        `multi_user`, so the rule lives in one place.
+        """
+        return self.operation_profile != HOSTED
 
     @property
     def assistant(self):
@@ -227,7 +272,7 @@ class WebApplication:
         """Expose only the capabilities owned by the selected route context."""
 
         if path.startswith("/api/worlds"):
-            return WorldRouteServices(self.application.worlds, self.lock)
+            return WorldRouteServices(self.application.worlds, self.lock, self.syncable)
         if path in {"/api/state", "/api/manuscript", "/api/storyboards", "/api/book.pdf"}:
             return DocumentRouteServices(
                 self.application.documents,
@@ -244,12 +289,15 @@ class WebApplication:
                 self.assistant_jobs,
                 self.assistant_installation,
                 self.lock,
+                self.installable,
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
                 self.application.synchronization,
                 self.lock,
                 self.backup_authorization,
+                self.application.worlds,
+                self.application.backups.default_endpoint,
             )
         if path.startswith("/api/backup") or path == "/backup/callback":
             return BackupRouteServices(
@@ -259,7 +307,7 @@ class WebApplication:
                 self.observability,
                 self.lock,
                 self.backup_authorization,
-                self.session_backup_token,
+                self.syncable,
             )
         if path.startswith("/api/place-map"):
             return PlaceMapRouteServices(self.application.place_maps, self.observability, self.lock)
@@ -270,10 +318,14 @@ class WebApplication:
         if path.startswith("/api/manuscript-export"):
             return ManuscriptExportRouteServices(self.application.manuscript_export, self.lock)
         if path.startswith("/api/history"):
-            return HistoryRouteServices(self.application.history, self.lock)
+            return HistoryRouteServices(
+                self.application.history,
+                self.lock,
+                self.application.backups.restore_version,
+            )
         if path.startswith("/api/writing-assistance"):
-            return WritingAssistanceRouteServices(self.writing_assistance)
-        return IdentityRouteServices(self.identity, self.observability, self.version)
+            return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
+        return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
 
 def _validated_public_url(identity: Identity) -> str:
@@ -368,6 +420,10 @@ def build_web_application(
         public_url=public_url,
         bound_to_loopback=(os.environ.get("QUILTOR_HOST", "127.0.0.1") in LOOPBACK_HOSTS),
         lock=lock,
+        operation_profile=operation_profile_for(
+            multi_user=selected_identity.multi_user,
+            process_role=current_target().process_role,
+        ),
     )
 
 
@@ -385,4 +441,5 @@ __all__ = [
     "WorldRouteServices",
     "WritingAssistanceRouteServices",
     "build_web_application",
+    "operation_profile_for",
 ]

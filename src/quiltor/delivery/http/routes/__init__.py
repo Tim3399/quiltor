@@ -17,6 +17,20 @@ otherwise sit far from the route they govern are stated with it:
     JSON object, because pretending to have an account system is worse than not
     having one. It is pinned by
     tests/python/test_server_auth.py::LocalIdentityServerTest.
+  - **`operator_only=True`** means the route installs software on the server
+    (a runtime, a model, a dictionary). In the `hosted` operation profile that
+    is the operator's job, not a user's: the dispatch answers
+    `403 install.forbidden_hosted` before the route runs. Every route whose path
+    contains `install` carries it; tests/python/test_operator_only_routes.py
+    holds the table.
+  - **`device_sync=True`** means the route syncs worlds with another device
+    through a backup endpoint: the sync itself, the endpoint's remote worlds and
+    remote restore, and signing in to that endpoint. A hosted server already is
+    the shared storage for everyone on it (D-61), so in the `hosted` operation
+    profile the dispatch answers `403 sync.forbidden_hosted` before the route
+    runs. Two routes decide it from their body instead: `POST /api/backup` with
+    `push` and `POST /api/worlds/create` with a `backupUrl`.
+    tests/python/test_device_sync_routes.py holds the table.
   - **`premium=True`** means the session must pass `app.identity.is_premium`.
     The dispatch checks it before resolving any world, so an account without
     the role cannot even probe which worlds exist. Locally it always passes.
@@ -40,6 +54,8 @@ class Registration:
     world: bool = False
     anonymous: bool = False
     auth_only: bool = False
+    operator_only: bool = False
+    device_sync: bool = False
     premium: bool = False
 
 

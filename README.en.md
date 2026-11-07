@@ -498,6 +498,27 @@ QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
 
 is set. Without that opt-in, chapter text and lookup terms used by this feature stay on the device.
 
+For servers without Java, such as the Docker image, run LanguageTool as a separate service:
+
+```bash
+QUILTOR_LANGUAGETOOL_URL=http://languagetool:8010
+QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
+```
+
+With both set, grammar checks go to that server and the writing aid shows neither the install
+button nor the Java notice. With only the URL set and no local installation, it reports the service as
+configured but not enabled; with the JAR and Java installed it counts as ready, and the "not
+enabled" notice only appears as an error when a check is run. If the server does not answer, the error code is `writing_assistance.grammar_unavailable`.
+Quiltor writes no chapter text to the log or to error messages.
+
+#### Language data for dictionary, synonyms, and translation
+
+The data is a prebuilt package from a separate data release. It is downloaded on demand and not shipped with Quiltor. On install, Quiltor checks size and checksum before it accepts the data. It comes from the German Wiktionary and OpenThesaurus and is licensed as a whole under CC BY-SA 4.0.
+
+Version 3.25.0 ships without a published package. The interface then shows "Die Sprachdaten folgen mit einem späteren Update." ("The language data will follow in a later update."), and `quiltor install` cannot load the data yet. Browser spellchecking remains available.
+
+If you run Quiltor as a server, you install the data yourself: run `quiltor install` once on the server as soon as a package is published. The file lives in the data directory, which for the Docker image is the `/data` volume, and survives an image update. A server never downloads anything on its own.
+
 Sources, versions, checksums, licenses, and attribution are recorded in the installation manifest and [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ---
@@ -963,13 +984,13 @@ entry in [`locales/index.ts`](locales/index.ts). No other registry or UI code ch
 the i18n check automatically enforces directory-to-registry parity. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Reproduce the seven README screenshots against a freshly built client and a running isolated server:
+The seven README screenshots come from a fixed example world at 1440 × 900 pixels with the German interface. They are retaken automatically with every release: `npm run set-version` starts an isolated server for it and writes `docs/screenshots/manifest.json` (version, a checksum per image, a checksum of the script and demo data); the release preflight and `npm run check` refuse images that do not match `VERSION`. By hand:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
+npm run screenshots:readme
 ```
 
-The script creates a fictional demo world, checks API responses, and captures the real interface at 1440 × 900 pixels using German text. It deletes the demo world afterward. The demo data lives under [`tools/documentation/`](tools/documentation/).
+The images are valid for Windows, where releases are prepared; font rendering differs per system, and the Linux release job only verifies the manifest. `node tools/documentation/compare_readme_screenshots.mjs <directory-a> <directory-b>` compares two runs of one version (output directory via `QUILTOR_SCREENSHOT_DIR`); a few edge pixels can differ, and the tool allows at most 0.05 % differing pixels per image. The script checks API responses and deletes the demo world afterward. The demo data lives under [`tools/documentation/`](tools/documentation/).
 
 ---
 

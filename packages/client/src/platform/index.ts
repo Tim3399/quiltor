@@ -16,11 +16,15 @@ export type {
   ManuscriptImportSource,
   ManuscriptImportWarningCode,
   ProjectTransferPreview,
+  SnapshotChangesWire,
   SnapshotChapterRecord,
+  SnapshotKindWire,
   StoredMapImage,
+  SyncTarget,
   VersionedDocument,
   WritingAssistanceLookupResult,
   WritingAssistanceStatus,
+  WritingInstalledSource,
 } from "./application";
 export {
   ApplicationGatewayError,

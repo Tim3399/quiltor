@@ -1,13 +1,14 @@
 import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { resolveDesignPort } from "./tools/dev/design-port.mjs";
 
 export default defineConfig({
   root: fileURLToPath(new URL("./apps/design-gallery", import.meta.url)),
   plugins: [react()],
   server: {
     host: "127.0.0.1",
-    port: 4174,
+    port: resolveDesignPort(),
     strictPort: true,
   },
 });

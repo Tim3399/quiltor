@@ -8,6 +8,8 @@ export interface ModeBannerProps {
   dismissLabel: string;
   onDismiss: () => void;
   className?: string;
+  /** "info" for a mode that only explains itself; "warning" asks for care. */
+  tone?: "warning" | "info";
 }
 
 /** Persistent status banner for temporary canvas interaction modes. */
@@ -17,9 +19,11 @@ export function ModeBanner({
   dismissLabel,
   onDismiss,
   className = "",
+  tone = "warning",
 }: ModeBannerProps) {
+  const toneClass = tone === "info" ? " mode-banner--info" : "";
   return (
-    <div className={`mode-banner ${className}`.trim()} role="status">
+    <div className={`mode-banner${toneClass} ${className}`.trim()} role="status">
       <span className="mode-banner-icon" aria-hidden="true">
         {icon}
       </span>

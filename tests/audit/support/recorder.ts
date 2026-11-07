@@ -31,6 +31,8 @@ type CaptureOptions = {
   viewportSpecific?: boolean;
   /** CSS selector of the open popup; switches the screenshot to the viewport. */
   popupSelector?: string;
+  /** Overlays of this state that must not overlap each other. */
+  stackedSelectors?: readonly string[];
 };
 
 export class AuditRecorder {
@@ -124,6 +126,7 @@ export class AuditRecorder {
         viewport: this.viewport,
         touch: this.touch,
         popupSelector: options.popupSelector,
+        stackedSelectors: options.stackedSelectors,
       });
     } catch (error) {
       this.fail(`${state}/analyze`, error);

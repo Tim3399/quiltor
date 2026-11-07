@@ -10,6 +10,7 @@ import {
   fulfillStoryWorld,
 } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -176,7 +177,7 @@ test("Mobile core workspaces hold their layout and touch contracts", async ({ pa
       }),
     );
   expect(undersizedToolbarButtons).toEqual([]);
-  await expect(page.getByRole("button", { name: "Buch exportieren" })).toBeVisible();
+  await expect(manuscriptToolbar.getByRole("button", { name: "Weitere Aktionen" })).toBeVisible();
   const offCenterToolbarIcons = await manuscriptToolbar.getByRole("button").evaluateAll((buttons) =>
     buttons.flatMap((button) => {
       const label = button.querySelector(".ui-button__label");
@@ -255,7 +256,7 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
       }
       await waitForManuscriptReady(page);
 
-      await expectKeyboardMenuContract(page, "Buch exportieren", "Buchexport");
+      await expectKeyboardMenuContract(page, "Weitere Aktionen");
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
@@ -736,12 +737,10 @@ test("The context bar stays inside the window from 320 to 1440px", async ({ page
   expect(compactFit.scrollWidth).toBeLessThanOrEqual(compactFit.clientWidth + 1);
   expect(compactFit.overflowX).toBe("auto");
 
-  const versionsAction = manuscriptToolbar.getByRole("button", { name: "Fassungen" });
-  const sceneBreakAction = manuscriptToolbar.getByRole("button", {
-    name: "Szenenwechsel einfügen",
-  });
-  const exportAction = manuscriptToolbar.getByRole("button", { name: "Buch exportieren" });
-  for (const action of [versionsAction, sceneBreakAction, exportAction]) {
+  // Since T-104 versions, the scene break and the book export wait in the overflow menu; its
+  // trigger is the control that has to stay inside the strip.
+  const overflowAction = manuscriptToolbar.getByRole("button", { name: "Weitere Aktionen" });
+  for (const action of [overflowAction]) {
     await expect(action).toBeVisible();
     await action.focus();
     await expect(action).toBeFocused();
@@ -1825,21 +1824,18 @@ test("Shortcuts tell saving and backing up apart", async ({ page }, testInfo) =>
     testInfo.project.name !== "wide",
     "Two keyboard shortcuts and whether a dialog opens: nothing here depends on the width.",
   );
-  // The test checks the two keyboard shortcuts, not the upload. It used to claim as well
-  // that a configured endpoint makes "Sichern & hochladen" active -- that no longer holds:
-  // the endpoint demands a sign-in, and without one the upload would run into a 401. The
-  // dialog then offers the sign-in instead of a button that would fail. That the upload
-  // really does fire once signed in is a unit test in
-  // packages/client/src/modules/history/SnapshotDialog.test.tsx, where the signed-in state
-  // can be produced without a real Keycloak.
+  // The test checks the two keyboard shortcuts. Saving a version never uploads (D-57 F5), so a
+  // configured endpoint changes nothing here; uploading lives in the sync tab.
   await openBlankWorld(page, "Testwelt", "https://backup.example.com/shortcut-test");
   await page.keyboard.press("Control+Shift+S");
-  const dialog = page.getByRole("dialog", { name: /Arbeitsstand sichern/ });
+  const dialog = page.getByRole("dialog", { name: /Versionen & Sicherungen/ });
   await expect(dialog).toBeVisible();
+  // The shortcut lands in the note field, ready to type.
+  await expect(dialog.getByLabel("Was hat sich geändert?")).toBeFocused();
   await dialog.getByLabel("Was hat sich geändert?").fill("Zwischenstand aus dem Test");
-  // Saving locally needs neither an endpoint nor a sign-in -- it is the path that is always
+  // Saving a version needs neither an endpoint nor a sign-in -- it is the path that is always
   // open, and therefore the dependable evidence that the dialog is alive.
-  await expect(dialog.getByRole("button", { name: "Nur lokal sichern" })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "Version festhalten" })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+S");
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -1965,13 +1961,22 @@ test("The command palette runs every visible action atomically", async ({ page }
     .click();
   await expect(page.getByRole("button", { name: /Fokusmodus verlassen/ })).toBeVisible();
   await page.keyboard.press("Escape");
-  for (const command of ["Verlauf öffnen", "Sicherung öffnen", "Sicherungen öffnen"]) {
+  // Three palette entries, one dialog: each starts on its own tab.
+  for (const [command, tab] of [
+    ["Versionen öffnen", "Versionen"],
+    ["Version festhalten", "Versionen"],
+    ["Automatische Sicherungen öffnen", "Automatische Sicherungen"],
+  ] as const) {
     await open();
     await page
       .getByRole("dialog")
       .getByRole("option", { name: new RegExp(command) })
       .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Versionen & Sicherungen" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     await page
       .getByRole("dialog")
       .getByRole("button", { name: /schließen/i })
@@ -3000,8 +3005,8 @@ test("Chapter versions appear inline in the writing surface", async ({ page }, t
     }),
   );
   await openBlankWorld(page);
-  await page.getByRole("button", { name: "Fassungen" }).click();
-  const history = page.getByRole("complementary", { name: "Fassungen" });
+  await openToolbarOverflow(page, "Manuskript", "Versionen");
+  const history = page.getByRole("complementary", { name: "Versionen" });
   await expect(history).toBeVisible();
   const editor = page.getByLabel("Kapiteltext");
   await expect(editor).toContainText("Historischer");

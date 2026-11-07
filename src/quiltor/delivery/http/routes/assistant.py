@@ -29,6 +29,8 @@ def status(handler, request: Request, app) -> None:
             "ok": True,
             **app.assistant.status(),
             "installed": app.assistant_installation.is_configured(),
+            # False on a hosted server: the operator installs, the client shows no button.
+            "installable": app.installable,
             "chunks": app.story_world.knowledge_chunk_count(manuscript, figures)
             + len(build_storyboard_knowledge(storyboards)),
         }
@@ -77,7 +79,7 @@ def install_status(handler, request: Request, app) -> None:
     )
 
 
-@save("/api/assistant/install")
+@save("/api/assistant/install", operator_only=True)
 def install(handler, request: Request, app) -> None:
     """Start asynchronous local-runtime installation.
 

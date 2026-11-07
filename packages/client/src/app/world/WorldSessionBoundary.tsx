@@ -25,6 +25,7 @@ export function WorldSessionBoundary({
   onRestore,
   onPurge,
   onProjectImported,
+  syncAvailable = false,
   children,
 }: {
   worlds: WorldInfo[] | null;
@@ -44,6 +45,8 @@ export function WorldSessionBoundary({
   onRestore: (id: string) => Promise<void>;
   onPurge: (id: string) => Promise<void>;
   onProjectImported?: (world: WorldInfo) => Promise<void>;
+  /** Offers the sync address when creating a world; false on a hosted server (D-61). */
+  syncAvailable?: boolean;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -73,6 +76,7 @@ export function WorldSessionBoundary({
         onRestore={onRestore}
         onPurge={onPurge}
         onProjectImported={onProjectImported}
+        syncAvailable={syncAvailable}
       />
     );
   if (loadError) {

@@ -206,6 +206,27 @@ npm run lint:pyright
 Arguments after `--` narrow the run, for example `npm run lint:pyright -- src`. It is part
 of `npm run check`.
 
+### Strict mode for domain and application
+
+`src/quiltor/domain` and `src/quiltor/application` are checked in strict mode: the `strict`
+list in `pyproject.toml` names both directories, so a new file there is held to strict without
+a header of its own. The two test helpers `tests/python/narrowing.py` and
+`tests/python/module_loader.py` are in the list as well. The rest of the tree stays in
+`standard` mode.
+
+Decoded JSON arrives as `object` and is narrowed with `as_object`, `as_mapping` and `as_array`
+from `quiltor.domain.json_values`. They turn `object` into `dict[str, object]`,
+`Mapping[str, object]` and `list[object]`, or answer `None`; a mapping with a key that is not a
+`str` is refused, as JSON has none. That module holds the only `cast` in `quiltor.domain` and
+`quiltor.application`, behind the runtime check, and `git grep "cast(" -- src/quiltor/domain
+src/quiltor/application` must show nothing else. Code that wants one elsewhere should go through
+those functions. Nested values stay `object` and are narrowed where they are read; validators
+collect typed rows (tuples, `NamedTuple`) in one pass instead of reading the raw dict again.
+
+Some public functions still return `dict[str, Any]` because their callers outside these two
+directories are not strict yet; they are listed in the T-19 report as a follow-up. Do not add
+new ones: return `JsonObject` or a `TypedDict`.
+
 ### Which Python it reads
 
 pyright resolves third-party imports (typer, PyJWT, markdown-it-py) through a Python

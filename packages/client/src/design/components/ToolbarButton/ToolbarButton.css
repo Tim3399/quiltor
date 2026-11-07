@@ -83,9 +83,3 @@
     height: var(--font-size-5);
   }
 }
-
-@media (max-width: 380px) {
-  .ui-toolbar-button[data-label-mode="hidden"] {
-    display: none;
-  }
-}

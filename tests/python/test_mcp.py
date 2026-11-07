@@ -399,6 +399,20 @@ class McpTest(unittest.TestCase):
                     self.assertFalse(result["operationSatisfied"])
                     self.assertEqual(result["resolution"]["proof"]["worldRevision"], 8)
 
+    def test_a_relationship_version_decides_whether_the_state_is_already_directed(self):
+        figures = story_world()
+        figures["edges"][0]["versions"] = [
+            {"momentId": "arrival", "active": True, "directed": True}
+        ]
+        ask = {"worldId": "world", "relationshipId": "bond", "momentId": "arrival"}
+        with patch("quiltor.hosts.mcp.quiltor_server._world", return_value=({}, figures, 8)):
+            already = call_tool("propose_relationship_state", {**ask, "directed": True})
+            opposite = call_tool("propose_relationship_state", {**ask, "directed": False})
+        # The version made the edge directed at that moment, the base edge was not.
+        self.assertTrue(already["operationSatisfied"])
+        self.assertFalse(opposite["operationSatisfied"])
+        self.assertIs(opposite["proposal"]["patch"]["directed"], False)
+
     def test_element_ensure_reuses_exact_alias_and_unique_fuzzy_matches(self):
         figures = story_world()
         for mention, expected in (

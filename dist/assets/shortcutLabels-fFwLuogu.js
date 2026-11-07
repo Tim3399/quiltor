@@ -1,0 +1,1 @@
+var e=typeof navigator<`u`&&/Mac|iPhone|iPad|iPod/i.test(`${navigator.platform||``} ${navigator.userAgent||``}`);function t(t,n,r={}){if(e)return`${r.shift?`⇧`:``}⌘${t}`;let i=[n.startsWith(`de`)?`Strg`:`Ctrl`];return r.shift&&i.push(n.startsWith(`de`)?`Umschalt`:`Shift`),i.push(t),i.join(`+`)}export{t};

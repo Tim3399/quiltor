@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlatformGateway } from "./PlatformGateway";
 import { createPlatformGateway } from "./createPlatformGateway";
+import type { PlatformGateway } from "./PlatformGateway";
 import { createQuiltorClient } from "./QuiltorClient";
 import { createApplicationGatewayStub } from "./testing/createApplicationGatewayStub";
 

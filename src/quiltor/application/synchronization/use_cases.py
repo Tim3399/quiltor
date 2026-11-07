@@ -6,11 +6,11 @@ import hashlib
 import json
 import tempfile
 import threading
-from contextlib import nullcontext, suppress
+from contextlib import AbstractContextManager, nullcontext, suppress
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from quiltor.application.backups import (
     BackupAuthorization,
@@ -29,6 +29,10 @@ from quiltor.application.synchronization.errors import (
 )
 from quiltor.application.synchronization.ports import SyncStateStore
 from quiltor.application.worlds import WorldRepository
+from quiltor.domain.json_values import as_object
+
+# The caller's lock around the active world, such as the HTTP host's `threading.RLock`.
+type LocalLock = AbstractContextManager[object]
 
 
 def _now() -> str:
@@ -57,8 +61,30 @@ class SynchronizationUseCases:
             return self._sync_locks.setdefault(world_id, threading.Lock())
 
     @staticmethod
-    def _locked(local_lock):
+    def _locked(local_lock: LocalLock | None) -> LocalLock:
         return local_lock if local_lock is not None else nullcontext()
+
+    @staticmethod
+    def _revisions(value: object) -> dict[str, int] | None:
+        """Revision counters as saved before a pull, or None if any is not a count."""
+
+        revisions = as_object(value)
+        if revisions is None:
+            return None
+        counts: dict[str, int] = {}
+        for kind, count in revisions.items():
+            if type(count) is not int or count < 0:
+                return None
+            counts[kind] = count
+        return counts
+
+    @staticmethod
+    def _resolution_generation(value: object) -> int:
+        """The generation a conflict resolution was shown, which must be a count."""
+
+        if type(value) is not int or value < 0:
+            raise SyncRequestInvalid(params={"field": "expectedGeneration"})
+        return value
 
     def _current_context(self, context: WorldBackupContext, owner_sub: str) -> WorldBackupContext:
         opened = self._worlds.open(context.root.name, owner_sub)
@@ -78,7 +104,13 @@ class SynchronizationUseCases:
             raise SyncConflict(params={"reason": "configuration_changed"})
 
     def _preserve_local_conflict(self, context: WorldBackupContext) -> None:
-        self._history.commit(context, "Cloud sync conflict (local)", push=False, authorization=None)
+        self._history.commit(
+            context,
+            "Cloud sync conflict (local)",
+            push=False,
+            authorization=None,
+            kind="cloud-sync-conflict",
+        )
 
     def fingerprint(self, context: WorldBackupContext) -> str:
         material = {
@@ -119,23 +151,22 @@ class SynchronizationUseCases:
         head: dict[str, Any],
         saved: dict[str, Any] | None,
         owner_sub: str,
-        local_lock,
+        local_lock: LocalLock | None,
     ) -> dict[str, Any] | None:
         if not saved:
             return saved
-        pending_pull = saved.get("pendingPull")
-        if isinstance(pending_pull, dict):
+        pending_pull = as_object(saved.get("pendingPull"))
+        if pending_pull is not None:
             target_head = {
                 "generation": pending_pull.get("generation"),
                 "snapshotId": pending_pull.get("snapshotId"),
             }
             target_fingerprint = pending_pull.get("targetFingerprint")
-            previous_revisions = pending_pull.get("previousRevisions")
+            previous_revisions = self._revisions(pending_pull.get("previousRevisions"))
             if (
                 target_head == head
                 and isinstance(target_fingerprint, str)
-                and isinstance(previous_revisions, dict)
-                and all(type(value) is int and value >= 0 for value in previous_revisions.values())
+                and previous_revisions is not None
             ):
                 with self._locked(local_lock):
                     current = self._current_context(context, owner_sub)
@@ -147,8 +178,8 @@ class SynchronizationUseCases:
                     completed = self._baseline(head, current_fingerprint, last_synced_at=_now())
                     self._state.save(context.root.name, context.endpoint_url, account_id, completed)
                 return completed
-        pending = saved.get("pending")
-        if isinstance(pending, dict) and head.get("snapshotId") == pending.get("snapshotId"):
+        pending = as_object(saved.get("pending"))
+        if pending is not None and head.get("snapshotId") == pending.get("snapshotId"):
             fingerprint = pending.get("fingerprint")
             if isinstance(fingerprint, str):
                 with self._locked(local_lock):
@@ -166,7 +197,7 @@ class SynchronizationUseCases:
         owner_sub: str,
         authorization: BackupAuthorization,
         *,
-        local_lock=None,
+        local_lock: LocalLock | None = None,
     ) -> dict[str, Any]:
         with self._sync_lock(context.root.name):
             return self._status(context, owner_sub, authorization, local_lock=local_lock)
@@ -177,7 +208,7 @@ class SynchronizationUseCases:
         owner_sub: str,
         authorization: BackupAuthorization,
         *,
-        local_lock,
+        local_lock: LocalLock | None,
     ) -> dict[str, Any]:
         with self._locked(local_lock):
             context = self._current_context(context, owner_sub)
@@ -266,7 +297,7 @@ class SynchronizationUseCases:
         *,
         expected_generation: int | None = None,
         expected_local_fingerprint: str = "",
-        local_lock=None,
+        local_lock: LocalLock | None = None,
     ) -> dict[str, Any]:
         with self._sync_lock(context.root.name):
             return self._synchronize(
@@ -288,7 +319,7 @@ class SynchronizationUseCases:
         *,
         expected_generation: int | None,
         expected_local_fingerprint: str,
-        local_lock,
+        local_lock: LocalLock | None,
     ) -> dict[str, Any]:
         if action not in {"sync", "keep-local", "use-remote"}:
             raise SyncRequestInvalid(params={"field": "action"})
@@ -313,8 +344,7 @@ class SynchronizationUseCases:
                 local = self.fingerprint(current)
 
         if action in {"keep-local", "use-remote"}:
-            if type(expected_generation) is not int or expected_generation < 0:
-                raise SyncRequestInvalid(params={"field": "expectedGeneration"})
+            expected_generation = self._resolution_generation(expected_generation)
             if expected_generation != head["generation"] or expected_local_fingerprint != local:
                 raise SyncConflict(
                     params={"head": head, "localFingerprint": local, "reason": "stale_resolution"}
@@ -336,7 +366,7 @@ class SynchronizationUseCases:
                     local,
                     local_lock,
                 )
-            expected_generation = head["generation"]
+            publish_generation = int(head["generation"])
         elif action == "use-remote":
             if head["snapshotId"] is None:
                 raise SyncConflict(params={"head": head, "reason": "remote_empty"})
@@ -350,6 +380,8 @@ class SynchronizationUseCases:
                 local,
                 local_lock,
             )
+        else:
+            publish_generation = self._resolution_generation(expected_generation)
 
         if account["access"] != "read-write":
             raise SyncGatewayFailure("cloud.read_only", status=403)
@@ -361,8 +393,7 @@ class SynchronizationUseCases:
                 account_id,
                 head,
                 local,
-                # Validated above for every action that reaches the publish path.
-                int(cast(int, expected_generation)),
+                publish_generation,
                 owner_sub,
                 local_lock,
             )
@@ -390,7 +421,7 @@ class SynchronizationUseCases:
         local: str,
         expected_generation: int,
         owner_sub: str,
-        local_lock,
+        local_lock: LocalLock | None,
     ) -> dict[str, Any]:
         with self._locked(local_lock):
             current = self._current_context(context, owner_sub)
@@ -398,7 +429,9 @@ class SynchronizationUseCases:
             if self.fingerprint(current) != local:
                 raise SyncConflict(params={"reason": "local_changed"})
             context = current
-            self._history.commit(context, "Cloud sync", push=False, authorization=None)
+            self._history.commit(
+                context, "Cloud sync", push=False, authorization=None, kind="cloud-sync"
+            )
             entries = self._history.entries(context)
             if not entries:
                 raise SyncGatewayFailure("sync.snapshot_failed", status=502)
@@ -469,7 +502,7 @@ class SynchronizationUseCases:
         account_id: str,
         head: dict[str, Any],
         expected_local: str,
-        local_lock,
+        local_lock: LocalLock | None,
     ) -> dict[str, Any]:
         snapshot_id = head.get("snapshotId")
         if not isinstance(snapshot_id, str):
@@ -495,7 +528,13 @@ class SynchronizationUseCases:
             previous_revisions = self._documents.revision_checkpoint(context.database)
             safety_entry: dict[str, Any] | None = None
             if self._documents.exists(context.database):
-                self._history.commit(context, "Before cloud sync", push=False, authorization=None)
+                self._history.commit(
+                    context,
+                    "Before cloud sync",
+                    push=False,
+                    authorization=None,
+                    kind="before-cloud-sync",
+                )
                 safety_entries = self._history.entries(context)
                 safety_entry = safety_entries[-1] if safety_entries else None
             if safety_entry is None:
@@ -651,9 +690,8 @@ class SynchronizationUseCases:
             documents: dict[str, dict[str, Any]] = {
                 kind: self._documents.load(kind, temporary.database) for kind in kinds
             }
-            for document_kind, document in documents.items():
-                # Keys come from `kinds` just above.
-                encode_document_v1(cast(DocumentKind, document_kind), document)
+            for kind in kinds:
+                encode_document_v1(kind, documents[kind])
             target_fingerprint = self.fingerprint(temporary)
             return documents, cached_blobs, target_fingerprint
 

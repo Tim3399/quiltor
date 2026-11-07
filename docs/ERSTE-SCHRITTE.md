@@ -26,7 +26,8 @@ Bei einer gehosteten Webseite liegen die Projektdaten auf deren Server.
 ## Ein Projekt mit der Cloud abgleichen
 
 Wenn ein kompatibles Cloud-Ziel eingerichtet ist, öffne in deinem Projekt
-**Mehr → Cloud-Synchronisation**. Melde dich bei Bedarf beim Ziel an und wähle anschließend
+**Mehr → Versionen & Sicherungen** und dort den Reiter **Mit anderen Geräten abgleichen**.
+Melde dich bei Bedarf beim Ziel an und wähle anschließend
 **Status aktualisieren**. **Jetzt synchronisieren** startet einen einzelnen Abgleich.
 Im Hintergrund werden keine Änderungen automatisch übertragen.
 
@@ -49,12 +50,12 @@ zusammengeführt; prüfe vor der Auswahl den vollständigen Projektstand.
 
 ## Mit einer Aufgabe beginnen
 
-| Aufgabe                     | Einstieg                                                                                                                                                                                                                         |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schreiben                   | Öffne **Text**, wähle **Neues Kapitel** und beginne im Kapiteltext.                                                                                                                                                              |
-| Vorhandenen Text übernehmen | Lege ein Kapitel an und füge deinen Text aus der bisherigen Anwendung ein. Prüfe Absätze, Formatierungen und Links. Übernimm längere Texte kapitelweise. Für ein vollständiges Quiltor-Projekt verwende **Projekt importieren**. |
-| Eine Figur nachschlagen     | Öffne **Suchen & Befehle**, suche ihren Namen und öffne den Treffer. **Text** bringt dich zum zuletzt bearbeiteten Kapitel zurück.                                                                                               |
-| Weltwissen vorbereiten      | Öffne den Assistenten und wähle ausdrücklich die zu berücksichtigenden Kapitel. Richte das lokale Modell erst für diese Funktion ein und prüfe Vorschläge vor dem Übernehmen.                                                    |
+| Aufgabe                     | Einstieg                                                                                                                                                                                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schreiben                   | Öffne **Text**, wähle **Neues Kapitel** und beginne im Kapiteltext.                                                                                                                                                                                              |
+| Vorhandenen Text übernehmen | Lege ein Kapitel an und füge deinen Text aus der bisherigen Anwendung ein. Prüfe Absätze, Formatierungen und Links. Übernimm längere Texte kapitelweise. Für ein vollständiges Quiltor-Projekt wähle in der Projektauswahl **Importieren** und dann **Projekt**. |
+| Eine Figur nachschlagen     | Öffne **Suchen & Befehle**, suche ihren Namen und öffne den Treffer. **Text** bringt dich zum zuletzt bearbeiteten Kapitel zurück.                                                                                                                               |
+| Weltwissen vorbereiten      | Öffne den Assistenten und wähle ausdrücklich die zu berücksichtigenden Kapitel. Richte das lokale Modell erst für diese Funktion ein und prüfe Vorschläge vor dem Übernehmen.                                                                                    |
 
 Der Assistent schreibt oder überarbeitet keine Romanprosa. Standardanalysen
 berücksichtigen Kapitel im Buch. Zurückgestellte Kapitel sind ausdrücklich auswählbar;
@@ -84,8 +85,8 @@ bestätigte Aktion. Sie löscht keine Kopien auf einem separat betriebenen Backu
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Buch exportieren                  | Aktuelle Buchfassung ohne zurückgestellte und gelöschte Kapitel.                                                                                                                                                                                          |
 | Projekt exportieren / importieren | Aktuelles Projekt als `.quiltor`, einschließlich zurückgestellter Kapitel, Kapitelpapierkorb und benötigter Bilder. Ohne Versionsverlauf und frühere Sicherungen. Import erstellt eine neue Welt; Konten und Backup-Zugangsdaten werden nicht übernommen. |
-| Sicherung wiederherstellen        | Vorschau einer lokalen Sicherung; vor dem Ersetzen wird der aktuelle gespeicherte Zustand nochmals gesichert. Der Dialog zeigt Speicherort und letzte lokale Sicherung.                                                                                   |
-| Arbeitsstand sichern              | Benannter Stand im Verlauf; optionaler Upload an einen konfigurierten Backup-Server.                                                                                                                                                                      |
+| Sicherung wiederherstellen        | Im Reiter **Automatische Sicherungen**: Vorschau einer lokalen Sicherung; vor dem Ersetzen wird der aktuelle gespeicherte Zustand nochmals gesichert. Der Dialog zeigt Speicherort und letzte lokale Sicherung.                                           |
+| Version festhalten                | Benannter Stand im Reiter **Versionen** unter Mehr → Versionen & Sicherungen; bleibt auf dem Gerät.                                                                                                                                                       |
 
 Bei **Speichern fehlgeschlagen** bleibt dein Entwurf im Editor. **Entwurf retten**
 ermöglicht Kopieren und Herunterladen. Die zusätzliche JSON-Rettung enthält die

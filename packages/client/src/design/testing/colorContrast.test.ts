@@ -219,7 +219,7 @@ describe.each(["light", "dark"] as const)("%s-theme text contrast", (theme) => {
   it.each(["ins", "del"])(
     "keeps history %s words readable on context, added and deleted lines",
     (tag) => {
-      const history = stylesheet("../modules/history/HistoryDialog.css");
+      const history = stylesheet("../modules/history/VersionsPanel.css");
       const block = history.match(new RegExp(`\\.diff-view ${tag}\\s*\\{([^}]*)\\}`))?.[1];
       expect(block, `History word rule for ${tag} is missing`).toBeDefined();
       const foreground = block?.match(/(?:^|;)\s*color:\s*var\((--[\w-]+)\)/)?.[1] ?? "--ink";

@@ -130,7 +130,10 @@
         "tools/audit/**",
         "tools/quality/check_visual_baseline_reach.mjs",
         "tools/dev/test-shards.mjs",
-        "tools/dev/playwright-linux.sh"
+        "tools/dev/design-port.mjs",
+        "tools/dev/design-port.d.mts",
+        "tools/dev/playwright-linux.sh",
+        "tools/dev/chromium-starts.mjs"
       ],
       "groups": ["checks", "browser"],
       "reason": "The browser suites, their configuration, the layout-audit rules slot 4 runs, the program that assigns every slot its tests from tests/playwright/durations.json, and the Linux Chromium install the slots run. workflow_contract.py derives the programs the browser jobs run and requires browser for each."
@@ -199,9 +202,9 @@
     },
     {
       "name": "tools",
-      "patterns": ["tools/**"],
+      "patterns": ["tools/**", "docs/screenshots/manifest.json", "docs/screenshots/*.png"],
       "groups": ["checks", "python"],
-      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README."
+      "reason": "The check gates and developer tools; the backend suite scans tools/ for Python and reads its README. The README screenshot manifest and the PNGs next to it are read by check:readme-screenshots, which hashes every image."
     },
     {
       "name": "architecture-docs",
@@ -231,10 +234,5 @@
       "reason": "Prose and team configuration: formatting, markdownlint and typos in npm run check, nothing that runs the product."
     }
   ],
-  "untested": [
-    {
-      "patterns": ["docs/screenshots/*.png"],
-      "reason": "README screenshots: binary images no gate reads; tools/documentation regenerates them by hand."
-    }
-  ]
+  "untested": []
 }

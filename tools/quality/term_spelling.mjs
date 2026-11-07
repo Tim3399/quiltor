@@ -74,6 +74,16 @@ export const FORBIDDEN_SPELLINGS = [
   { pattern: /\bCharacters?\b/, use: "Figur / Figuren" },
   // The inspector is spelled "Inspector" ("Figuren-Inspector"), not the German "Inspektor".
   { pattern: /\bInspektor\w*/, use: "Inspector" },
+
+  // --- Stored states ---
+  // A held-on-to state of the project is a "Version" (D-57 F1); the chapter panel said "Fassung".
+  // Only the forms that mean a stored state: the recovery and sync dialogs compare a draft with
+  // the "gespeicherte Fassung" or "Cloud-Fassung", and "Manuskriptfassung" is a print label.
+  {
+    pattern:
+      /\b(?:Kapitelfassung\w*|Fassungsänderung\w*|(?:frühere|vorherigen?|ausgewählte) Fassung)/i,
+    use: "Version / Kapitelversion / frühere Version",
+  },
 ];
 
 /**

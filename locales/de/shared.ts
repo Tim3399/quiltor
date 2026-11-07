@@ -10,7 +10,7 @@ export const shared = {
   gettingStartedWriteAction: "Zum Schreiben",
   gettingStartedBringManuscript: "Manuskript übernehmen",
   gettingStartedBringManuscriptHelp:
-    "Lege ein Kapitel an und füge vorhandenen Text sicher ein. Ein vollständiges .quiltor-Projekt importierst du in der Projektauswahl.",
+    "Lege ein Kapitel an und füge vorhandenen Text sicher ein. Ein vollständiges .quiltor-Projekt importierst du in der Projektauswahl über „Importieren“.",
   gettingStartedBringManuscriptAction: "Zum Manuskript",
   gettingStartedFindFigure: "Figur nachschlagen",
   gettingStartedFindFigureHelp:
@@ -42,7 +42,12 @@ export const shared = {
   projectImportOpenAction: "Importiertes Projekt öffnen",
   projectImportOpenFailed:
     "Das Projekt wurde importiert, konnte aber noch nicht geöffnet werden. Versuche erneut, es zu öffnen.",
-  projectImportButton: "Projekt importieren",
+  importChoiceButton: "Importieren",
+  importChoiceTitle: "Was möchtest du importieren?",
+  importChoiceManuscript: "Manuskript",
+  importChoiceManuscriptHelp: "Word, Markdown oder Text als neues Projekt",
+  importChoiceProject: "Projekt",
+  importChoiceProjectHelp: "Quiltor-Export mit allem, als Kopie",
   projectTransferTooLarge: "Die Projektdatei ist größer als 64 MiB.",
   projectExportTitle: "Quiltor-Projekt exportieren",
   projectExportIntro: "Exportiert das vollständige Projekt als übertragbare Quiltor-Projektdatei.",
@@ -134,8 +139,6 @@ export const shared = {
   // Shown when an export does not reach its destination: rarely in the browser, but in
   // the desktop app whenever the native save bridge cannot write the file.
   exportFailed: "Der Export konnte nicht gespeichert werden.",
-  saveConflict:
-    "Die gespeicherte Fassung wurde in einem anderen Tab geändert. Bewahre deinen Entwurf auf und vergleiche ihn mit der gespeicherten Fassung.",
   timeline: "Timeline",
   moment: "Zeitpunkt",
   moments: "Zeitpunkte",
@@ -188,5 +191,4 @@ export const shared = {
   nRelationships: "{n} Beziehungen",
   nMoments: "{n} Zeitpunkte",
   nChanges: "{n} Änderungen",
-  nPlaces: "{n} Orte",
 } as const;

@@ -121,33 +121,27 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
     state: "overlay.palette",
     evidence: { role: "dialog", name: "Suchen & Befehle" },
   },
+  // One overlay, three tabs: each tab is a state of its own.
   {
-    component: "overlay:history",
+    component: "overlay:versions.versions",
     file: src("app/overlays/useOverlayController.ts"),
     category: "overlay",
-    state: "overlay.history",
-    evidence: { role: "dialog", name: "Verlauf" },
+    state: "overlay.versions.versions",
+    evidence: { role: "dialog", name: "Versionen & Sicherungen" },
   },
   {
-    component: "overlay:snapshot",
+    component: "overlay:versions.backups",
     file: src("app/overlays/useOverlayController.ts"),
     category: "overlay",
-    state: "overlay.snapshot",
-    evidence: { role: "dialog", name: "Arbeitsstand sichern" },
+    state: "overlay.versions.backups",
+    evidence: { role: "dialog", name: "Versionen & Sicherungen" },
   },
   {
-    component: "overlay:backups",
+    component: "overlay:versions.sync",
     file: src("app/overlays/useOverlayController.ts"),
     category: "overlay",
-    state: "overlay.backups",
-    evidence: { role: "dialog", name: "Sicherungen" },
-  },
-  {
-    component: "overlay:cloud",
-    file: src("app/overlays/useOverlayController.ts"),
-    category: "overlay",
-    state: "overlay.cloud",
-    evidence: { role: "dialog", name: "Cloud-Synchronisation" },
+    state: "overlay.versions.sync",
+    evidence: { role: "dialog", name: "Versionen & Sicherungen" },
   },
 
   // Inventory components.
@@ -202,13 +196,13 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
       name: "Nach",
     },
   ),
-  component("BackupDialog", "modules/backup/BackupDialog.tsx", "overlay.backups", {
+  component("BackupDialog", "modules/backup/BackupDialog.tsx", "overlay.versions.backups", {
     role: "dialog",
-    name: "Sicherungen",
+    name: "Versionen & Sicherungen",
   }),
-  component("CloudDialog", "modules/cloud/CloudDialog.tsx", "overlay.cloud", {
+  component("CloudDialog", "modules/cloud/CloudDialog.tsx", "overlay.versions.sync", {
     role: "dialog",
-    name: "Cloud-Synchronisation",
+    name: "Versionen & Sicherungen",
   }),
   component(
     "GettingStartedDialog",
@@ -231,13 +225,13 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
     "figures.edge/listbox.linienart",
     { role: "listbox", name: "Linienart" },
   ),
-  component("HistoryDialog", "modules/history/HistoryDialog.tsx", "overlay.history", {
+  component("VersionsDialog", "modules/history/VersionsDialog.tsx", "overlay.versions.versions", {
     role: "dialog",
-    name: "Verlauf",
+    name: "Versionen & Sicherungen",
   }),
-  component("SnapshotDialog", "modules/history/SnapshotDialog.tsx", "overlay.snapshot", {
+  component("VersionsPanel", "modules/history/VersionsPanel.tsx", "overlay.versions.versions", {
     role: "dialog",
-    name: "Arbeitsstand sichern",
+    name: "Versionen & Sicherungen",
   }),
   component(
     "ManuscriptImportDialog",
@@ -309,10 +303,11 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
   component(
     "ManuscriptToolbar",
     "modules/manuscript/ManuscriptToolbar.tsx",
-    "workspace.text/menu.buch-exportieren",
+    // Since T-104 the book exports sit in the toolbar's overflow menu.
+    "workspace.text/menu.weitere-aktionen",
     {
       role: "menu",
-      name: "Buchexport",
+      name: "Weitere Aktionen",
     },
   ),
   component(

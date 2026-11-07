@@ -45,4 +45,46 @@ class GrammarStartFailed(ApplicationUnavailable):
     code = "writing_assistance.grammar_start_failed"
 
 
-__all__ = ["ChecksumMismatch", "DownloadFailed", "GrammarStartFailed", "JavaMissing"]
+class GrammarUnavailable(ApplicationUnavailable):
+    """The grammar server did not answer usefully: unreachable, a 5xx, a timeout
+    or a reply that is not LanguageTool JSON. Same code the check route already
+    used for its catch-all, so the client text stays the same."""
+
+    code = "writing_assistance.grammar_unavailable"
+
+
+class InstallInProgress(ApplicationConflict):
+    """Another request is installing the language data right now. 409 and
+    retryable: once that one finishes, the data is there or a retry can start."""
+
+    code = "writing_assistance.install_in_progress"
+    retryable = True
+
+
+class DataNotPublished(ApplicationConflict):
+    """This release ships without a published dictionary asset, so there is
+    nothing to download. Not retryable: the same version stays unpublished."""
+
+    code = "writing_assistance.data_not_published"
+    retryable = False
+
+
+class InsufficientSpace(ApplicationConflict):
+    """The data directory's drive cannot hold the update. Raised before anything
+    is downloaded; ``params`` carry ``needed`` and ``free`` in bytes. Not
+    retryable: the same request needs the same space until the user frees some."""
+
+    code = "writing_assistance.insufficient_space"
+    retryable = False
+
+
+__all__ = [
+    "ChecksumMismatch",
+    "DataNotPublished",
+    "DownloadFailed",
+    "GrammarStartFailed",
+    "GrammarUnavailable",
+    "InstallInProgress",
+    "InsufficientSpace",
+    "JavaMissing",
+]

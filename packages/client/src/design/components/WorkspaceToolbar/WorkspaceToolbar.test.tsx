@@ -42,26 +42,25 @@ describe("WorkspaceToolbar", () => {
     });
   });
 
-  it("offers a wrapping action layout without a horizontal scroll container", () => {
+  it("renders the overflow slot last, after every other slot", () => {
     render(
       <WorkspaceToolbar label="Zeitstrahlwerkzeuge">
         <WorkspaceToolbarActions
-          layout="wrap"
           data-testid="actions"
-          create={
-            <WorkspaceToolbarGroup label="Erstellen">
-              <Button>Neu</Button>
-            </WorkspaceToolbarGroup>
-          }
+          overflow={<Button>Weitere Aktionen</Button>}
+          actions={<Button>Löschen</Button>}
+          create={<Button>Neu</Button>}
         />
       </WorkspaceToolbar>,
     );
 
-    const actions = screen.getByTestId("actions");
-    expect(actions).toHaveAttribute("data-layout", "wrap");
-    expect(actions).not.toHaveClass("scroll-area");
-    expect(actions).not.toHaveAttribute("data-axis");
-    expect(actions).not.toHaveAttribute("data-scrollbar");
+    const names = within(screen.getByTestId("actions"))
+      .getAllByRole("button")
+      .map((button) => button.textContent);
+    expect(names).toEqual(["Neu", "Löschen", "Weitere Aktionen"]);
+    expect(screen.getByRole("button", { name: "Weitere Aktionen" }).parentElement).toHaveClass(
+      "workspace-toolbar__overflow",
+    );
   });
 
   it("accepts a semantic composite fieldset as a direct action group", () => {

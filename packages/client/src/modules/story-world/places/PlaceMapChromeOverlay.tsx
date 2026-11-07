@@ -1,5 +1,6 @@
 import { useViewport } from "@xyflow/react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { PlaceMapChrome, type PlaceMapChromeProps } from "./PlaceMapChrome";
 import { usePlaceMapVisualClipPublisher } from "./PlaceMapFrameContext";
 import type { PlaceMapFlowNode } from "./PlaceMapNode";
@@ -29,24 +30,6 @@ export function PlaceMapChromeOverlay({
   const boundary = useRef<HTMLDivElement>(null);
   const [safe, setSafe] = useState<{ bounds: LevelRect; footer: MapChromeFooterArea }>();
   const [size, setSize] = useState<MapChromeSize & { mapId: string; measuredWidth: number }>();
-  const layoutWidth = useRef(0);
-  const onSize = useCallback(
-    (next: MapChromeSize) => {
-      setSize((current) =>
-        current?.mapId === chrome.map.id &&
-        current.measuredWidth === layoutWidth.current &&
-        current.headerHeight === next.headerHeight &&
-        current.footerHeight === next.footerHeight
-          ? current
-          : {
-              ...next,
-              mapId: chrome.map.id,
-              measuredWidth: layoutWidth.current,
-            },
-      );
-    },
-    [chrome.map.id],
-  );
 
   useLayoutEffect(() => {
     void chrome.map.id;
@@ -165,8 +148,25 @@ export function PlaceMapChromeOverlay({
           safe.footer,
         )
       : undefined;
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  layoutWidth.current = layout?.width ?? 0;
+  // Read by the chrome's own measurement, which reports from a layout effect of this commit.
+  const layoutWidthRef = useLatest(layout?.width ?? 0);
+  const onSize = useCallback(
+    (next: MapChromeSize) => {
+      setSize((current) =>
+        current?.mapId === chrome.map.id &&
+        current.measuredWidth === layoutWidthRef.current &&
+        current.headerHeight === next.headerHeight &&
+        current.footerHeight === next.footerHeight
+          ? current
+          : {
+              ...next,
+              mapId: chrome.map.id,
+              measuredWidth: layoutWidthRef.current,
+            },
+      );
+    },
+    [chrome.map.id],
+  );
   const visualClip =
     map && layout
       ? projectMapVisualClip(

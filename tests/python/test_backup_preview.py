@@ -121,6 +121,10 @@ class BackupPreviewTests(unittest.TestCase):
         )
         self.assertEqual(storage["scope"], "application-host")
         self.assertFalse(storage["canOpenFolder"])
+        # The explanatory sentence in the backups tab quotes these, so they come from the
+        # constants the backup code itself uses, never from a copy.
+        self.assertEqual(storage["intervalSeconds"], restore.BACKUP_INTERVAL)
+        self.assertEqual(storage["keep"], restore.MAX_BACKUPS)
 
     def test_committed_restore_reports_mirror_failure_as_a_warning(self):
         with patch.object(

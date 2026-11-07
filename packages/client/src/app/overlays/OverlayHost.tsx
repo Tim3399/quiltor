@@ -2,9 +2,7 @@ import { lazy } from "react";
 import { ConfirmDialog } from "../../design";
 import { useI18n } from "../../i18n";
 import { applyAssistantProposalsWithResult, loadAssistantDrawer } from "../../modules/assistant";
-import { loadBackupDialog } from "../../modules/backup";
-import { loadCloudDialog } from "../../modules/cloud";
-import { loadHistoryDialog, loadSnapshotDialog } from "../../modules/history";
+import { loadVersionsDialog } from "../../modules/history";
 import {
   isChapterInBook,
   type Manuscript,
@@ -15,14 +13,11 @@ import { loadSearchDialog } from "../../modules/search";
 import type { FigureState } from "../../modules/story-world";
 import type { StoryboardState } from "../../modules/storyboard";
 import type { Workspace, WorkspaceTarget } from "../../shared";
-import type { Overlay } from "./useOverlayController";
+import type { Overlay, VersionsRequest } from "./useOverlayController";
 
 const AssistantDrawer = lazy(loadAssistantDrawer);
 const SearchDialog = lazy(loadSearchDialog);
-const SnapshotDialog = lazy(loadSnapshotDialog);
-const HistoryDialog = lazy(loadHistoryDialog);
-const BackupDialog = lazy(loadBackupDialog);
-const CloudDialog = lazy(loadCloudDialog);
+const VersionsDialog = lazy(loadVersionsDialog);
 
 export type PendingEntityRename = {
   id: string;
@@ -32,6 +27,7 @@ export type PendingEntityRename = {
 
 export function OverlayHost({
   overlay,
+  versions,
   onCloseOverlay,
   assistantOpen,
   assistantEverOpened,
@@ -49,6 +45,7 @@ export function OverlayHost({
   onCommand,
   flushAll,
   onDocumentsReplaced,
+  syncAvailable = false,
   pendingRename,
   onManuscriptChange,
   onCloseRename,
@@ -56,6 +53,7 @@ export function OverlayHost({
   onOpenChapterTrash,
 }: {
   overlay: Overlay;
+  versions: VersionsRequest;
   onCloseOverlay: () => void;
   assistantOpen: boolean;
   assistantEverOpened: boolean;
@@ -73,6 +71,8 @@ export function OverlayHost({
   onCommand: (command: string) => void;
   flushAll: () => Promise<void>;
   onDocumentsReplaced: () => void;
+  /** Whether this server syncs with other devices (D-61): the sync tab and its command. */
+  syncAvailable?: boolean;
   pendingRename: PendingEntityRename | null;
   onManuscriptChange: (manuscript: Manuscript) => void;
   onCloseRename: () => void;
@@ -123,23 +123,19 @@ export function OverlayHost({
           onCommand={onCommand}
           onShowSetAside={onShowSetAside}
           onOpenChapterTrash={onOpenChapterTrash}
+          syncAvailable={syncAvailable}
         />
       )}
-      {overlay === "snapshot" && <SnapshotDialog onClose={onCloseOverlay} flush={flushAll} />}
-      {overlay === "history" && <HistoryDialog onClose={onCloseOverlay} flush={flushAll} />}
-      {overlay === "backups" && (
-        <BackupDialog
-          onClose={onCloseOverlay}
-          flush={flushAll}
-          onDocumentsReplaced={onDocumentsReplaced}
-        />
-      )}
-      {overlay === "cloud" && (
-        <CloudDialog
+      {overlay === "versions" && (
+        <VersionsDialog
+          key={versions.id}
+          tab={versions.tab}
+          focusNote={versions.focusNote}
           onClose={onCloseOverlay}
           flush={flushAll}
           manuscript={manuscript}
           onDocumentsReplaced={onDocumentsReplaced}
+          syncAvailable={syncAvailable}
         />
       )}
       {pendingRename && (

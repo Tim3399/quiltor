@@ -159,8 +159,9 @@ sind ausdrücklich nicht enthalten; für deren Wiederherstellung gibt es die Sic
 und Verlaufsfunktionen. Der gewöhnliche Buchexport enthält nur Kapitel im Buch.
 
 Eine erfolgreiche lokale Speicherung, eine wiederherstellbare Sicherung und eine Übertragung
-an einen Backup-Server sind getrennte Vorgänge. Unter **Mehr → Cloud-Synchronisation**
-gleicht **Jetzt synchronisieren** ein Projekt mit einem kompatiblen Cloud-Endpunkt ab.
+an einen Backup-Server sind getrennte Vorgänge. Unter **Mehr → Versionen & Sicherungen**
+gleicht im Reiter **Mit anderen Geräten abgleichen** die Schaltfläche **Jetzt synchronisieren**
+ein Projekt mit einem kompatiblen Cloud-Endpunkt ab.
 Bei konkurrierenden Änderungen oder Löschung gegen Offline-Bearbeitung bleiben die Fassungen
 erhalten und erfordern eine ausdrückliche Auswahl. Es gibt keine automatische Übertragung
 im Hintergrund und keine automatische Textzusammenführung. Ein ausgefallener Cloud-Endpunkt
@@ -501,6 +502,28 @@ QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
 ```
 
 gesetzt ist. Ohne Opt-in verlassen Kapiteltexte und Suchbegriffe für diese Funktion das Gerät nicht.
+
+Für Server ohne Java, etwa das Docker-Image, gibt es einen LanguageTool-Server als eigenen Dienst:
+
+```bash
+QUILTOR_LANGUAGETOOL_URL=http://languagetool:8010
+QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
+```
+
+Mit beiden Werten läuft die Grammatikprüfung über diesen Server. Die Schreibhilfe zeigt dann
+weder den Installieren-Knopf noch den Java-Hinweis. Ist nur die URL gesetzt, meldet sie ohne lokale
+Installation, dass der Dienst eingetragen, aber nicht freigegeben ist; mit installiertem JAR und Java
+gilt sie als bereit, und der Hinweis „nicht freigegeben“ erscheint erst als Fehler beim Prüfen. Antwortet der Server nicht, erscheint
+„Die Grammatikprüfung antwortet gerade nicht.“ (Fehlercode `writing_assistance.grammar_unavailable`).
+Quiltor schreibt dabei keinen Kapiteltext ins Log oder in Fehlermeldungen.
+
+#### Sprachdaten für Wörterbuch, Synonyme und Übersetzung
+
+Die Daten sind ein vorgebautes Datenpaket aus einem eigenen Daten-Release. Sie werden nachgeladen und nicht mit Quiltor ausgeliefert. Beim Installieren prüft Quiltor Größe und Prüfsumme, bevor es die Daten übernimmt. Sie stammen aus dem deutschen Wiktionary und aus OpenThesaurus und stehen als Ganzes unter CC BY-SA 4.0.
+
+Version 3.25.0 erscheint noch ohne veröffentlichtes Paket. Die Oberfläche zeigt dann „Die Sprachdaten folgen mit einem späteren Update.“, und `quiltor install` kann die Daten noch nicht laden. Die Rechtschreibprüfung des Browsers bleibt verfügbar.
+
+Wer Quiltor als Server betreibt, installiert die Daten selbst: einmal `quiltor install` auf dem Server, sobald ein Paket veröffentlicht ist. Die Datei liegt im Datenverzeichnis, beim Docker-Image also im Volume `/data`, und überlebt ein Image-Update. Ein Server lädt von sich aus nichts nach.
 
 Quellen, Versionen, Checksummen, Lizenzen und Attributionen stehen im Installationsmanifest und in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
@@ -954,13 +977,13 @@ Für beispielsweise Spanisch kommt zum neuen Ordner genau ein gut sichtbarer Imp
 UI-Codeänderungen sind nicht nötig; der i18n-Check erzwingt automatisch die Übereinstimmung von
 Ordnern und Registry. Die genaue Anleitung steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-Die sieben README-Screenshots gegen einen frisch gebauten Client und einen laufenden, isolierten Server erzeugen:
+Die sieben README-Screenshots entstehen aus einer festen Beispielwelt in 1440 × 900 Pixeln mit der deutschen Oberfläche. Sie werden bei jedem Release automatisch neu aufgenommen: `npm run set-version` startet dafür einen isolierten Server, schreibt `docs/screenshots/manifest.json` (Version, Prüfsumme je Bild, Prüfsumme von Skript und Demo-Daten) und der Release-Preflight sowie `npm run check` lehnen Bilder ab, die nicht zu `VERSION` passen. Von Hand:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:8125 node tools/documentation/capture_readme.mjs
+npm run screenshots:readme
 ```
 
-Das Skript legt eine fiktive Demo-Welt an, prüft die API-Antworten und nimmt die echte Oberfläche in 1440 × 900 Pixeln auf. Es verwendet die deutschen Texte und löscht die Demo-Welt anschließend wieder. Die Demo-Daten liegen unter [`tools/documentation/`](tools/documentation/).
+Die Bilder gelten für Windows, wo Releases vorbereitet werden; die Schriftdarstellung unterscheidet sich je System, der Linux-Release-Job prüft nur das Manifest. Zwei Läufe derselben Version vergleicht `node tools/documentation/compare_readme_screenshots.mjs <Ordner-A> <Ordner-B>` (Ausgabeordner per `QUILTOR_SCREENSHOT_DIR`); es kann einzelne Kantenpixel geben, das Werkzeug erlaubt höchstens 0,05 % abweichende Pixel je Bild. Das Skript prüft die API-Antworten und löscht die Demo-Welt anschließend wieder. Die Demo-Daten liegen unter [`tools/documentation/`](tools/documentation/).
 
 ---
 

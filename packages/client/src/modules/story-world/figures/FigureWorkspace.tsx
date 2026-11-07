@@ -1,6 +1,6 @@
 import { Panel, ReactFlowProvider } from "@xyflow/react";
 import { UserRound, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Checkbox,
   ConfirmDialog,
@@ -12,6 +12,7 @@ import {
 } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { uid } from "../../../shared/id";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { GraphEdgeInspector, graphEdgeLineStyle, graphRelationshipKind } from "../../graph";
 import type { FigureEdge, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
@@ -76,9 +77,9 @@ function FigureWorkspaceInner({
   const [playing, setPlaying] = useState(false);
   const [deleteMoment, setDeleteMoment] = useState<TimelineMoment | null>(null);
   const [connectionError, setConnectionError] = useState("");
-  const latestState = useRef(state);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  latestState.current = state;
+  // Writable: patchSelectedEdge moves it ahead to the value it hands to onChange, so a second
+  // edit before the next commit builds on the first.
+  const latestStateRef = useLatest(state);
 
   const selected = state.nodes.find((node) => node.id === selectedId) ?? null;
   const timeline = state.timeline ?? EMPTY_TIMELINE;
@@ -113,9 +114,8 @@ function FigureWorkspaceInner({
     onEnsureRelationshipsVisible: () => setRelationshipsVisible(true),
     onConnectionError: setConnectionError,
   });
-  const centerOnNode = useRef(canvas.centerOnNode);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  centerOnNode.current = canvas.centerOnNode;
+  // Read only, by the navigation-target effect.
+  const centerOnNodeRef = useLatest(canvas.centerOnNode);
 
   useEffect(() => {
     const closeModes = (event: KeyboardEvent) => {
@@ -132,12 +132,12 @@ function FigureWorkspaceInner({
     // textually identical to the previous request.
     void targetRequestId;
     if (!targetId) return;
-    const current = latestState.current;
+    const current = latestStateRef.current;
     const item = current.nodes.find((node) => node.id === targetId);
     if (item) {
       setSelectedId(targetId);
       setSelectedEdgeId(null);
-      centerOnNode.current(item);
+      centerOnNodeRef.current(item);
       return;
     }
     if ((current.timeline ?? EMPTY_TIMELINE).some((moment) => moment.id === targetId)) {
@@ -145,19 +145,18 @@ function FigureWorkspaceInner({
       setTimelineOpen(true);
     }
   }, [targetId, targetRequestId]);
+  // Playback ends on the last moment. Stopping is adjusted during render, so the strip never
+  // paints a "playing" state on a moment that has nothing left to advance to.
+  const playbackIndex = activeMomentId
+    ? timeline.findIndex((moment) => moment.id === activeMomentId)
+    : -1;
+  const playbackAtEnd = playing && timeline.length > 0 && playbackIndex >= timeline.length - 1;
+  if (playbackAtEnd) setPlaying(false);
   useEffect(() => {
-    if (!playing || !timeline.length) return;
-    const index = activeMomentId
-      ? timeline.findIndex((moment) => moment.id === activeMomentId)
-      : -1;
-    if (index >= timeline.length - 1) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-      setPlaying(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setActiveMomentId(timeline[index + 1].id), 1500);
+    if (!playing || !timeline.length || playbackAtEnd) return;
+    const timer = window.setTimeout(() => setActiveMomentId(timeline[playbackIndex + 1].id), 1500);
     return () => window.clearTimeout(timer);
-  }, [playing, activeMomentId, timeline]);
+  }, [playing, playbackAtEnd, playbackIndex, timeline]);
 
   const patchNode = (id: string, patch: Partial<FigureNode>) =>
     onChange({
@@ -166,7 +165,7 @@ function FigureWorkspaceInner({
     });
   const patchSelectedEdge = (patch: Partial<FigureEdge>) => {
     if (!selectedEdge) return;
-    const current = latestState.current;
+    const current = latestStateRef.current;
     const next = {
       ...current,
       edges: current.edges.map((edge) =>
@@ -175,7 +174,7 @@ function FigureWorkspaceInner({
           : edge,
       ),
     };
-    latestState.current = next;
+    latestStateRef.current = next;
     onChange(next);
   };
   const edgeConflict = (

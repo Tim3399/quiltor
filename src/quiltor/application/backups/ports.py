@@ -4,12 +4,28 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from quiltor.application.backups.types import BackupAuthorization, WorldBackupContext
 
+# Who named a snapshot (contracts/persistence/history-labels). The store keeps it
+# beside the history; the client words every kind but "manual" itself.
+SnapshotKind = Literal[
+    "manual",
+    "automatic",
+    "changes",
+    "before-restore",
+    "cloud-sync",
+    "before-cloud-sync",
+    "cloud-sync-conflict",
+]
+
 
 class BackupRepository(Protocol):
+    @property
+    def interval_seconds(self) -> int: ...
+    @property
+    def keep(self) -> int: ...
     def backup_if_due(self, database: Path, backups: Path) -> None: ...
     def list_local(self, backups: Path) -> list[dict[str, Any]]: ...
     def preview_local(self, name: str, backups: Path) -> dict[str, Any]: ...
@@ -53,6 +69,8 @@ class SnapshotHistory(Protocol):
         message: str,
         push: bool,
         authorization: BackupAuthorization | None = None,
+        *,
+        kind: SnapshotKind = "manual",
     ) -> dict[str, Any]: ...
     def restore(
         self,
@@ -69,7 +87,7 @@ class RemoteBackupGateway(Protocol):
         self,
         context: WorldBackupContext,
         entry: dict[str, Any],
-        read_blob,
+        read_blob: Callable[[str], bytes],
         authorization: BackupAuthorization,
     ) -> None: ...
     def worlds(self, endpoint: str, authorization: BackupAuthorization) -> list[dict[str, Any]]: ...

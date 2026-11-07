@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Locator, Page, TestInfo } from "@playwright/test";
 import type { FigureState } from "../../packages/client/src/modules/story-world";
 import type { StoryboardState } from "../../packages/client/src/modules/storyboard/model";
@@ -7,6 +7,7 @@ import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldV1 } from "../../packages/client/src/platform/contracts/v1/storyWorld";
 import { putVersioned as putDocument } from "./support/seed";
+import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const docxFixture = new URL("../fixtures/manuscript-import/harbor.docx", import.meta.url);
@@ -231,7 +232,8 @@ async function exerciseTwoHundredPercentText(page: Page, dialog: Locator) {
 }
 
 async function openImportPreview(page: Page) {
-  await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Importieren", exact: true }).click();
+  await page.getByRole("button", { name: "Manuskript", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
   const response = page.waitForResponse((candidate) =>
     candidate.url().endsWith("/api/manuscript-import/v2/preview"),
@@ -247,7 +249,7 @@ async function openImportPreview(page: Page) {
 }
 
 async function openExportPreview(page: Page) {
-  await page.getByRole("button", { name: "Buch exportieren", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript");
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("/api/manuscript-export/preview"),
   );
@@ -259,7 +261,7 @@ async function openExportPreview(page: Page) {
 }
 
 async function openEpubPreview(page: Page) {
-  await page.getByRole("button", { name: "Buch exportieren", exact: true }).click();
+  await openToolbarOverflow(page, "Manuskript");
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("/api/manuscript-export/preview"),
   );
@@ -272,8 +274,8 @@ async function openEpubPreview(page: Page) {
 
 async function openHistory(page: Page) {
   await page.getByRole("button", { name: "Mehr", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Verlauf", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Verlauf", exact: true });
+  await page.getByRole("menuitem", { name: "Versionen & Sicherungen", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Versionen & Sicherungen", exact: true });
   await expect(dialog.locator("ins").first()).toBeVisible();
   return dialog;
 }
@@ -333,7 +335,8 @@ for (const theme of ["light", "dark"] as const) {
       await page.route("**/api/manuscript-import/v2/preview", (route) => route.abort("failed"), {
         times: 1,
       });
-      await page.getByRole("button", { name: "Manuskript importieren", exact: true }).click();
+      await page.getByRole("button", { name: "Importieren", exact: true }).click();
+      await page.getByRole("button", { name: "Manuskript", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Manuskript importieren", exact: true });
       await dialog.locator('input[type="file"]').setInputFiles({
         name: "Hafenroman.docx",

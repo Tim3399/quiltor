@@ -340,7 +340,7 @@ const MAP_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="
   <path d="M225 0Q160 120 315 220T380 415Q420 495 695 500" fill="none" stroke="#a9c7cf" stroke-width="13"/>
 </svg>`;
 
-/** git word-diff output, the format HistoryDialog parses. */
+/** git word-diff output, the format VersionsPanel parses. */
 const HISTORY_DIFF = [
   "diff --git a/kapitel/03-sturmflutwarnungsbekanntmachungsnacht.md b/kapitel/03-sturmflutwarnungsbekanntmachungsnacht.md",
   "index 1111111..2222222 100644",
@@ -413,9 +413,15 @@ export async function mockAuditWorld(page: Page, options: AuditWorldOptions = {}
     revisions.manuscript += 1;
     return fulfillDocumentSave(route, revisions.manuscript);
   });
-  await page.route("**/api/state?*", (route) => {
-    if (route.request().method() === "GET")
+  await page.route("**/api/state?*", async (route) => {
+    if (route.request().method() === "GET") {
+      // Timing probe: QUILTOR_AUDIT_STATE_DELAY_MS=2500 serves the story world that late, as a slow
+      // machine does, and shifts later frames into a capture step (it surfaced the T-115 reflow,
+      // T-27). Unset, nothing is delayed.
+      const delay = Number(process.env.QUILTOR_AUDIT_STATE_DELAY_MS ?? 0);
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
       return fulfillStoryWorld(route, storyWorld, revisions.state);
+    }
     if (options.failSaves) return failSave(route);
     storyWorld = decodeStoryWorldV1(route.request().postDataJSON()).document;
     revisions.state += 1;

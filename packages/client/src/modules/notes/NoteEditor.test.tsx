@@ -97,6 +97,30 @@ describe("NoteEditor", () => {
     expect(editor).toHaveFocus();
   });
 
+  it("reports an edit to the newest onChange, not the one from the first render", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const note = (onChange: () => void) => (
+      <NoteEditor
+        owner={{ kind: "chapter", id: "c1" }}
+        label="Notiz"
+        value="Alt"
+        onChange={onChange}
+      />
+    );
+    const view = renderNote(note(first));
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {note(second)}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    replaceText(viewFor(screen.getByRole("textbox", { name: "Notiz" })), "Neu");
+    expect(second).toHaveBeenCalledWith("Neu", [], []);
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it("stores bold, italic and headings as ranges beside unchanged plain text", () => {
     const onChange = vi.fn();
     renderNote(
@@ -247,6 +271,30 @@ describe("NoteEditor", () => {
     expect(trigger.querySelector(".lucide-maximize-2")).not.toBeInTheDocument();
     fireEvent.click(trigger);
     expect(onFocusRequest).toHaveBeenCalledWith({ kind: "place", id: "harbour" });
+  });
+
+  it("closes the focus surface when the editor moves to another owner", () => {
+    const note = (id: string) => (
+      <NoteEditor
+        owner={{ kind: "place", id }}
+        label="Notiz"
+        value=""
+        onChange={vi.fn()}
+        focus={focus}
+      />
+    );
+    const view = renderNote(note("harbour"));
+    fireEvent.click(screen.getByRole("button", { name: "Im Fokus öffnen" }));
+    expect(screen.getByRole("dialog", { name: "Notiz · Hafen" })).toBeInTheDocument();
+
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {note("castle")}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("edits the same controlled note in a nearly full focus surface", async () => {
@@ -591,5 +639,40 @@ describe("NoteEditor", () => {
     );
     expect(css).toMatch(/\.note-editor__control \.cm-editor\s*\{[^}]*height:\s*100%;/s);
     expect(css).toMatch(/\.note-editor__control \.cm-content\s*\{[^}]*min-height:\s*100%;/s);
+  });
+});
+
+// T-159 (F-159-1): every transaction makes CodeMirror drop a DOM selection it has not read
+// yet, so a re-render that changes nothing must not reach the view, even when the optional
+// marks and references fall back to their defaults.
+describe("NoteEditor re-render", () => {
+  it("sends the view no transaction when it re-renders with unchanged props", () => {
+    const editor = () => (
+      <NoteEditor
+        owner={{ kind: "place", id: "harbour" }}
+        label="Notiz"
+        value="Der Morgen lag still."
+        onChange={vi.fn()}
+      />
+    );
+    const view = renderNote(editor());
+    const update = vi.spyOn(viewFor(screen.getByRole("textbox", { name: "Notiz" })), "update");
+
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {editor()}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+    view.rerender(
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          {editor()}
+        </NoteReferenceProvider>
+      </I18nProvider>,
+    );
+
+    expect(update).toHaveBeenCalledTimes(0);
   });
 });

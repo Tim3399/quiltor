@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
+
+from quiltor.domain.json_values import JsonObject, as_array, as_object
 
 ResolutionStatus = Literal["resolved", "ambiguous", "not_found"]
 ENTITY_ALIAS_NORMALIZATION_V1 = "quiltor.story-world.alias-ascii-v1"
@@ -44,7 +46,7 @@ class _CandidateMatch:
     context_reasons: tuple[str, ...]
 
 
-def normalize_entity_name(value: Any) -> str:
+def normalize_entity_name(value: object) -> str:
     """Frozen v1 identity: ASCII case/separators; non-ASCII code points stay opaque."""
 
     if not isinstance(value, str):
@@ -113,25 +115,30 @@ def name_distance(left: str, right: str, budget: int) -> int:
     return previous[len(right)]
 
 
-def _aliases(node: dict[str, Any]) -> list[str]:
-    return [
-        item["alias"]
-        for item in node.get("aliases") or []
-        if isinstance(item, dict) and isinstance(item.get("alias"), str)
-    ]
+def _rows(value: object) -> list[JsonObject]:
+    """The object items of a list-valued field; anything else contributes nothing."""
+
+    items = as_array(value or []) or []
+    return [row for row in map(as_object, items) if row is not None]
 
 
-def _context_connections(figures: dict[str, Any], context: set[str]) -> set[str]:
-    return {
-        endpoint
-        for edge in figures.get("edges") or []
-        if isinstance(edge, dict)
-        for endpoint, other in (
-            (edge.get("from"), edge.get("to")),
-            (edge.get("to"), edge.get("from")),
-        )
-        if other in context and isinstance(endpoint, str)
-    }
+def _aliases(node: JsonObject) -> list[str]:
+    aliases: list[str] = []
+    for item in _rows(node.get("aliases")):
+        alias = item.get("alias")
+        if isinstance(alias, str):
+            aliases.append(alias)
+    return aliases
+
+
+def _context_connections(figures: Mapping[str, object], context: set[str]) -> set[str]:
+    connected: set[str] = set()
+    for edge in _rows(figures.get("edges")):
+        source, target = edge.get("from"), edge.get("to")
+        for endpoint, other in ((source, target), (target, source)):
+            if isinstance(other, str) and other in context and isinstance(endpoint, str):
+                connected.add(endpoint)
+    return connected
 
 
 def _context_reasons(node_id: str, context: set[str], connected: set[str]) -> tuple[str, ...]:
@@ -144,14 +151,14 @@ def _context_reasons(node_id: str, context: set[str], connected: set[str]) -> tu
 
 
 def _match_node(
-    node: dict[str, Any],
+    node: JsonObject,
+    node_id: str,
     mention: str,
     normalized: str,
     *,
     fuzzy_allowed: bool,
     type_filtered: bool,
 ) -> ResolutionCandidate | None:
-    node_id = node["id"]
     name = normalize_entity_name(node.get("name"))
     aliases = [alias for value in _aliases(node) if (alias := normalize_entity_name(value))]
     reasons: list[str] = []
@@ -204,11 +211,11 @@ def _ordered(candidates: Sequence[ResolutionCandidate]) -> list[ResolutionCandid
 
 
 def resolve_entity(
-    figures: dict[str, Any],
+    figures: Mapping[str, object],
     mention: str,
     *,
     entity_type: str | None = None,
-    context_ids: Sequence[str] = (),
+    context_ids: Sequence[object] = (),
     vocabulary: Sequence[str] = (),
 ) -> ResolutionResult:
     """Resolve a mention without guessing across a tied or weak match.
@@ -222,13 +229,13 @@ def resolve_entity(
     if not normalized:
         return ResolutionResult("not_found", mention, None, [])
 
-    nodes = [
-        node
-        for node in figures.get("nodes") or []
-        if isinstance(node, dict)
-        and isinstance(node.get("id"), str)
-        and (entity_type is None or node.get("type", "person") == entity_type)
-    ]
+    nodes: list[tuple[str, JsonObject]] = []
+    for node in _rows(figures.get("nodes")):
+        node_id = node.get("id")
+        if isinstance(node_id, str) and (
+            entity_type is None or node.get("type", "person") == entity_type
+        ):
+            nodes.append((node_id, node))
     context = {node_id for node_id in context_ids if isinstance(node_id, str)}
     connected = _context_connections(figures, context)
     normalized_vocabulary = {word for value in vocabulary if (word := normalize_entity_name(value))}
@@ -237,9 +244,10 @@ def resolve_entity(
     )
 
     matches: list[_CandidateMatch] = []
-    for node in nodes:
+    for node_id, node in nodes:
         candidate = _match_node(
             node,
+            node_id,
             mention,
             normalized,
             fuzzy_allowed=fuzzy_allowed,

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ComponentType, ReactNode } from "react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -186,6 +186,14 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
 
 afterEach(cleanup);
 
+/** Opens the storyboard toolbar's overflow menu and returns the named entry. */
+function moreAction(name: string) {
+  if (!screen.queryByRole("menu")) {
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  }
+  return screen.getByRole("menuitem", { name });
+}
+
 const ada: WorldReferenceCandidate = {
   id: "entity:ada",
   target: { kind: "entity", id: "ada" },
@@ -307,7 +315,7 @@ describe("StoryboardWorkspace interactions", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Test-reference-ada-auswählen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Element löschen" }));
+    fireEvent.click(moreAction("Element löschen"));
 
     const latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
     expect(latest.nodes.map(({ id }) => id)).toEqual(["note"]);
@@ -396,12 +404,12 @@ describe("StoryboardWorkspace interactions", () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Storyboard hinzufügen" }));
+    fireEvent.click(moreAction("Storyboard hinzufügen"));
     expect(screen.getByRole("combobox", { name: "Storyboard auswählen" })).toHaveTextContent(
       "Neues Storyboard 2",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Storyboard umbenennen" }));
+    fireEvent.click(moreAction("Storyboard umbenennen"));
     const boardName = screen.getByRole("textbox", { name: "Storyboard-Name" });
     fireEvent.change(boardName, { target: { value: "Zweiter Akt" } });
     fireEvent.blur(boardName);
@@ -409,7 +417,7 @@ describe("StoryboardWorkspace interactions", () => {
       "Zweiter Akt",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Gruppe hinzufügen" }));
+    fireEvent.click(moreAction("Gruppe hinzufügen"));
     const latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
     expect(latest.boards).toHaveLength(2);
     expect(latest.nodes).toEqual([
@@ -760,8 +768,8 @@ describe("StoryboardWorkspace interactions", () => {
     render(<Harness initialState={initialState} candidates={[ada]} onChange={onChange} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Test-middle-auswählen" }));
-    const moveForward = screen.getByRole("button", { name: "Element nach vorne" });
-    const moveBackward = screen.getByRole("button", { name: "Element nach hinten" });
+    const moveForward = moreAction("Element nach vorne");
+    const moveBackward = screen.getByRole("menuitem", { name: "Element nach hinten" });
     expect(moveForward).toBeEnabled();
     expect(moveBackward).toBeEnabled();
     expect(screen.getByTestId("storyboard-flow")).toHaveAttribute(
@@ -774,9 +782,9 @@ describe("StoryboardWorkspace interactions", () => {
     expect(latest.nodes.find(({ id }) => id === "middle")?.zIndex).toBe(2);
     expect(latest.nodes.find(({ id }) => id === "front")?.zIndex).toBe(1);
     expect(onChange).toHaveBeenLastCalledWith(latest, { separateHistoryStep: true });
-    expect(screen.getByRole("button", { name: "Element nach vorne" })).toBeDisabled();
+    expect(moreAction("Element nach vorne")).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Element nach hinten" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Element nach hinten" }));
     latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
     expect(latest.nodes.find(({ id }) => id === "middle")?.zIndex).toBe(1);
     expect(latest.nodes.find(({ id }) => id === "front")?.zIndex).toBe(2);
@@ -823,7 +831,7 @@ describe("StoryboardWorkspace interactions", () => {
     );
     expect(createdReference).toMatchObject({ zIndex: 3 });
 
-    fireEvent.click(screen.getByRole("button", { name: "Gruppe hinzufügen" }));
+    fireEvent.click(moreAction("Gruppe hinzufügen"));
     latest = onChange.mock.calls.at(-1)?.[0] as StoryboardState;
     const createdGroup = latest.nodes.find(({ kind }) => kind === "group");
     expect(createdGroup).toMatchObject({ zIndex: 0 });
@@ -879,5 +887,49 @@ describe("StoryboardWorkspace interactions", () => {
       ]),
     );
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("builds a second change on the first when both land before the next commit", () => {
+    render(<Harness />);
+    const addNote = within(screen.getByRole("toolbar", { name: "Storyboard-Werkzeuge" })).getByRole(
+      "button",
+      { name: "Notiz hinzufügen" },
+    );
+    act(() => {
+      addNote.click();
+      addNote.click();
+    });
+    const saved = JSON.parse(
+      screen.getByLabelText("Storyboard-Zustand").textContent ?? "{}",
+    ) as StoryboardState;
+    expect(saved.nodes.filter((node) => node.kind === "note")).toHaveLength(2);
+  });
+
+  it("falls back to the first board when the active board disappears", () => {
+    function Replaceable() {
+      const [state, setState] = useState(createDefaultStoryboardState());
+      return (
+        <I18nProvider>
+          <button type="button" onClick={() => setState(createDefaultStoryboardState())}>
+            Test-Zustand-ersetzen
+          </button>
+          <StoryboardWorkspace
+            state={state}
+            candidates={[]}
+            onOpenReference={vi.fn()}
+            onChange={setState}
+          />
+        </I18nProvider>
+      );
+    }
+    render(<Replaceable />);
+    const boardSelect = () => screen.getByRole("combobox", { name: "Storyboard auswählen" });
+    const firstTitle = boardSelect().textContent;
+
+    fireEvent.click(moreAction("Storyboard hinzufügen"));
+    expect(boardSelect()).toHaveTextContent("Neues Storyboard 2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Test-Zustand-ersetzen" }));
+    expect(boardSelect().textContent).toBe(firstTitle);
   });
 });

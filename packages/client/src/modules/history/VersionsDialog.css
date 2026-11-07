@@ -1,0 +1,32 @@
+.versions-dialog {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.versions-dialog__tabs {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.versions-dialog__panel {
+  min-height: 0;
+  overflow: auto;
+}
+
+.versions-dialog__panel[hidden] {
+  display: none;
+}
+
+.versions-dialog__pane {
+  padding: var(--spacing-regular-wide);
+}
+
+.cloud-sync__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-compact-tight);
+  justify-content: flex-end;
+  margin-top: var(--spacing-regular-wide);
+}

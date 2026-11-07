@@ -47,6 +47,9 @@ extend-exclude = [
   "tools/documentation/**/*.md",
   "tools/evaluation/**/*.md",
   "tests/fixtures/**",
+  # German dictionary excerpts (Wiktionary records, an OpenThesaurus file, a word list) the
+  # writing-data build reads as its sources.
+  "tests/python/fixtures/writing-data/**",
   "tools/documentation/readme_fixture.mjs",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 
@@ -275,3 +278,5 @@ plattform = "plattform"
 vertikal = "vertikal"
 dokument = "dokument"
 worte = "worte"
+adresse = "adresse"
+passt = "passt"

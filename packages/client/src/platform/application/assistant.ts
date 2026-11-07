@@ -1,10 +1,10 @@
+import type { MessageKey } from "../../i18n";
 import type {
   AssistantHistoryMessage,
   AssistantJobState,
   AssistantMode,
   AssistantReply,
 } from "../../modules/assistant";
-import type { MessageKey } from "../../i18n";
 
 export type AssistantBatchRequest = {
   runBatches: boolean;
@@ -19,6 +19,8 @@ export interface AssistantGateway {
     mode: string;
     reason: string;
     installed: boolean;
+    /** False when the server's operator installs the assistant; missing on older servers. */
+    installable?: boolean;
     chunks: number;
     backend?: string;
     contextTokens?: number;

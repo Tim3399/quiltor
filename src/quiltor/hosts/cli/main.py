@@ -58,6 +58,13 @@ KNOWN_KEYS: dict[str, str] = {
         "Public OIDC client this machine signs in to the backup endpoint as (default "
         "quiltor-desktop). Must match the client registered in the endpoint's realm."
     ),
+    "QUILTOR_LANGUAGETOOL_URL": (
+        "Base URL of a LanguageTool server (e.g. http://languagetool:8010) used instead of a "
+        "local install. Needs QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1, since chapter text is sent there."
+    ),
+    "QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN": (
+        "Set to 1 to allow sending chapter text to QUILTOR_LANGUAGETOOL_URL for grammar checks."
+    ),
     "QUILTOR_LOG_LEVEL": "Server log level: DEBUG, INFO (default), WARNING or ERROR. Anything else stops the start.",
     "QUILTOR_LOG_FILE": (
         "Also write the server log to this file (rotates at 10 MiB, 5 backups). "
@@ -324,6 +331,7 @@ def _install_writing_assistance_step() -> None:
         build_writing_assistance_service,
     )
     from quiltor.infrastructure.platform.runtime_target import ProcessRole
+    from quiltor.modules.writing_assistance.errors import DataNotPublished
 
     home = Path(os.environ["QUILTOR_HOME"])
     data_dir = Path(os.environ.get("QUILTOR_DATA_DIR", str(home / "data"))).expanduser().resolve()
@@ -336,8 +344,15 @@ def _install_writing_assistance_step() -> None:
         if status["installed"]:
             typer.echo("✓ Dictionary, synonyms, and translations are already installed.")
         else:
-            result = service.install()
-            typer.echo(f"✓ German reference data installed ({result['entries']} starter entries).")
+            try:
+                result = service.install()
+                typer.echo(
+                    f"✓ German reference data installed ({result['entries']} starter entries)."
+                )
+            except DataNotPublished:
+                # Not a failure of this installation: the release ships without the
+                # data, so setup goes on with LanguageTool and exits 0 as before.
+                typer.echo("Writing data is not published yet; it follows with a later update.")
         grammar = service.status()["grammar"]
         if grammar["available"]:
             typer.echo(f"✓ LanguageTool {grammar['version']} is already ready.")

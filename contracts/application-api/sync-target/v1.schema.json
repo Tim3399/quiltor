@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/sync-target/v1.schema.json",
+  "title": "Quiltor sync target v1",
+  "description": "The answer of GET and POST /api/sync/target?world=ID. The world's own address wins; the operator's QUILTOR_BACKUP_URL is only the fallback for a world without one (F-87-4). POST takes { backupUrl } and an empty string removes the world's own address.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "backupUrl", "source", "worldUrl", "operatorUrl"],
+  "properties": {
+    "ok": { "const": true },
+    "backupUrl": {
+      "description": "The address the world syncs with: worldUrl if set, else operatorUrl, else empty.",
+      "type": "string",
+      "maxLength": 2048
+    },
+    "source": { "enum": ["world", "operator", "none"] },
+    "worldUrl": {
+      "description": "The world's own address, normalized; empty when the world has none.",
+      "type": "string",
+      "maxLength": 2048
+    },
+    "operatorUrl": {
+      "description": "The operator's QUILTOR_BACKUP_URL, canonical; empty when unset or unsafe.",
+      "type": "string",
+      "maxLength": 2048
+    }
+  }
+}

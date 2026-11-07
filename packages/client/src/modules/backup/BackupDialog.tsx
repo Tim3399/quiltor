@@ -1,9 +1,11 @@
 import { Archive, Copy, FileText, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Alert,
   Button,
   ConfirmDialog,
+  Disclosure,
   EmptyState,
   IRREVERSIBLE_HOLD_MS,
   Sheet,
@@ -33,9 +35,15 @@ export function BackupDialog({
   onClose,
   flush,
   onDocumentsReplaced,
+  embedded = false,
+  onBusyChange,
 }: {
   onClose: () => void;
   flush: () => Promise<void>;
+  /** Body only, without the sheet and its header: the versions dialog hosts it as a tab. */
+  embedded?: boolean;
+  /** Reports a running or just finished restore, so the host can keep the tab from changing. */
+  onBusyChange?: (busy: boolean) => void;
   /** The server now holds other documents than the open workspace; nothing may save over them. */
   onDocumentsReplaced: () => void;
 }) {
@@ -52,6 +60,8 @@ export function BackupDialog({
   const [error, setError] = useState("");
   const previewRequest = useRef(0);
   const restoreInFlight = useRef(false);
+  const busy = restoring || restoreWarning;
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
 
   useEffect(
     () => () => {
@@ -139,185 +149,190 @@ export function BackupDialog({
   const setAsideCount =
     manuscript?.chapters.filter((chapter) => !isChapterInBook(chapter)).length ?? 0;
 
-  return (
-    <>
-      <Sheet
-        open
-        label={t("backups")}
-        onClose={restoring || restoreWarning ? () => undefined : onClose}
-        wide
-      >
-        <div className="utility-sheet">
-          <SheetHeader
-            title={t("backups")}
-            closeLabel={t("closeDialog")}
-            onClose={restoring || restoreWarning ? () => undefined : onClose}
-          />
-          <SheetBody className="utility-sheet-content">
-            <p className="muted">{t("backupAutoNote")}</p>
-            {error && <Alert tone="danger">{error}</Alert>}
-            {restoreWarning && (
-              <Alert tone="warning">
-                {t("backupMirrorWarning")}
-                <Button appearance="secondary" size="compact" onClick={() => location.reload()}>
-                  {t("reloadAfterRestore")}
-                </Button>
-              </Alert>
-            )}
-            {storage && (
-              <section className="backup-storage" aria-labelledby="backup-storage-title">
-                <h3 id="backup-storage-title">{t("backupStorageTitle")}</h3>
-                <p>{t("backupStorageScope")}</p>
-                <dl>
-                  <div>
-                    <dt>{t("backupDatabasePath")}</dt>
-                    <dd>
-                      <code>{storage.databasePath}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{t("backupDirectory")}</dt>
-                    <dd>
-                      <code>{storage.backupDirectory}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{t("backupLastSuccessful")}</dt>
-                    <dd>
-                      {storage.lastSuccessfulBackup
-                        ? new Date(storage.lastSuccessfulBackup).toLocaleString()
-                        : t("backupNever")}
-                    </dd>
-                  </div>
-                </dl>
-                <Button
-                  appearance="secondary"
-                  size="compact"
-                  icon={<Copy />}
-                  onClick={() => void copyPath(storage.backupDirectory)}
-                >
-                  {copiedPath === storage.backupDirectory
-                    ? t("backupPathCopied")
-                    : t("backupCopyPath")}
-                </Button>
-              </section>
-            )}
-            <div className="utility-split backup-browser">
-              <nav className="backup-list" aria-label={t("backups")}>
-                {items.map((item) => (
-                  <Button
-                    key={item.name}
-                    className="backup-list-item"
-                    appearance="secondary"
-                    icon={<Archive className="backup-list-item-icon" />}
-                    aria-pressed={selected === item.name}
-                    disabled={restoring || restoreWarning}
-                    onClick={() => void selectBackup(item.name)}
-                  >
-                    <span className="backup-list-item-copy">
-                      <strong>{new Date(item.created).toLocaleString()}</strong>
-                      <small>{(item.size / 1024).toFixed(0)} KB</small>
-                    </span>
-                  </Button>
-                ))}
-                {!loaded && (
-                  <EmptyState title={t("loadingBackupStatus")} size="compact" headingLevel={3} />
-                )}
-                {loaded && !items.length && !error && (
-                  <EmptyState title={t("noBackup")} size="compact" headingLevel={3} />
-                )}
-              </nav>
-              <section className="backup-preview" aria-live="polite">
-                {selectedItem &&
-                  preview.status === "loading" &&
-                  preview.name === selectedItem.name && (
-                    <EmptyState
-                      icon={<Archive />}
-                      title={t("backupPreviewLoading")}
-                      headingLevel={3}
-                    />
-                  )}
-                {selectedItem &&
-                  preview.status === "error" &&
-                  preview.name === selectedItem.name && (
-                    <Alert tone="danger">{preview.message}</Alert>
-                  )}
-                {selectedItem && readyPreview && manuscript && (
-                  <>
-                    <Archive />
-                    <h3>{new Date(selectedItem.created).toLocaleString()}</h3>
-                    <p>
-                      {t("backupPreviewDescription", {
-                        size: `${(selectedItem.size / 1024).toFixed(0)} KB`,
-                      })}
-                    </p>
-                    <div className="backup-preview-counts">
-                      <span>{t("backupChapterCount", { count: manuscript.chapters.length })}</span>
-                      <span>{t("backupSetAsideCount", { count: setAsideCount })}</span>
-                      <span>{t("backupTrashCount", { count: manuscript.trash?.length ?? 0 })}</span>
-                      <span>
-                        {t("backupFigureCount", {
-                          count: readyPreview.documents.figures.nodes.length,
-                        })}
-                      </span>
-                      <span>
-                        {t("backupBoardCount", {
-                          count: readyPreview.documents.storyboards.boards.length,
-                        })}
-                      </span>
-                    </div>
-                    <div className="backup-preview-chapters">
-                      {manuscript.chapters.map((chapter) => (
-                        <article key={chapter.id}>
-                          <h4>
-                            <FileText />
-                            {chapter.title || t("untitled")}
-                            {!isChapterInBook(chapter) && (
-                              <small>{t("chapterSetAsideStatus")}</small>
-                            )}
-                          </h4>
-                          <p>{excerpt(chapter.body) || t("backupEmptyChapter")}</p>
-                        </article>
-                      ))}
-                    </div>
-                    <Button
-                      appearance="primary"
-                      icon={<RotateCcw />}
-                      disabled={restoring || restoreWarning}
-                      onClick={() => setRestoreTarget(selectedItem.name)}
-                    >
-                      {t("restoreBackup")}
-                    </Button>
-                  </>
-                )}
-                {!selectedItem && (
-                  <EmptyState icon={<Archive />} title={t("backupSelectTitle")} headingLevel={3}>
-                    <p>{t("backupSelectDescription")}</p>
-                  </EmptyState>
-                )}
-              </section>
-            </div>
-          </SheetBody>
-        </div>
-      </Sheet>
-      {restoreTarget && (
-        <ConfirmDialog
-          title={t("restoreBackup")}
-          description={t("restoreConfirmDescription")}
+  const content = (
+    <div className={embedded ? undefined : "utility-sheet"}>
+      {!embedded && (
+        <SheetHeader
+          title={t("backups")}
           closeLabel={t("closeDialog")}
-          cancelLabel={t("cancel")}
-          confirmLabel={t("restoreBackup")}
-          confirmation="hold"
-          holdDurationMs={IRREVERSIBLE_HOLD_MS}
-          holdLabels={{
-            accessible: t("holdAriaLabel", { label: t("restoreBackup") }),
-            idle: t("holdToConfirm", { label: t("restoreBackup") }),
-            active: t("keepHolding"),
-          }}
-          onConfirm={() => void restore()}
-          onClose={() => setRestoreTarget(null)}
+          onClose={restoring || restoreWarning ? () => undefined : onClose}
         />
       )}
+      <SheetBody className="utility-sheet-content">
+        {storage?.intervalSeconds !== undefined && storage.keep !== undefined && (
+          <p className="muted">
+            {t("backupAutoSentence", {
+              minutes: Math.max(1, Math.round(storage.intervalSeconds / 60)),
+              keep: storage.keep,
+            })}
+          </p>
+        )}
+        {error && <Alert tone="danger">{error}</Alert>}
+        {restoreWarning && (
+          <Alert tone="warning">
+            {t("backupMirrorWarning")}
+            <Button appearance="secondary" size="compact" onClick={() => location.reload()}>
+              {t("reloadAfterRestore")}
+            </Button>
+          </Alert>
+        )}
+        {storage && (
+          <Disclosure className="backup-storage" summary={t("backupStorageTitle")}>
+            <p>{t("backupStorageScope")}</p>
+            <dl>
+              <div>
+                <dt>{t("backupDatabasePath")}</dt>
+                <dd>
+                  <code>{storage.databasePath}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>{t("backupDirectory")}</dt>
+                <dd>
+                  <code>{storage.backupDirectory}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>{t("backupLastSuccessful")}</dt>
+                <dd>
+                  {storage.lastSuccessfulBackup
+                    ? new Date(storage.lastSuccessfulBackup).toLocaleString()
+                    : t("backupNever")}
+                </dd>
+              </div>
+            </dl>
+            <Button
+              appearance="secondary"
+              size="compact"
+              icon={<Copy />}
+              onClick={() => void copyPath(storage.backupDirectory)}
+            >
+              {copiedPath === storage.backupDirectory ? t("backupPathCopied") : t("backupCopyPath")}
+            </Button>
+          </Disclosure>
+        )}
+        <div className="utility-split backup-browser">
+          <nav className="backup-list" aria-label={t("backups")}>
+            {items.map((item) => (
+              <Button
+                key={item.name}
+                className="backup-list-item"
+                appearance="secondary"
+                icon={<Archive className="backup-list-item-icon" />}
+                aria-pressed={selected === item.name}
+                disabled={restoring || restoreWarning}
+                onClick={() => void selectBackup(item.name)}
+              >
+                <span className="backup-list-item-copy">
+                  <strong>{new Date(item.created).toLocaleString()}</strong>
+                  <small>{(item.size / 1024).toFixed(0)} KB</small>
+                </span>
+              </Button>
+            ))}
+            {!loaded && (
+              <EmptyState title={t("loadingBackupStatus")} size="compact" headingLevel={3} />
+            )}
+            {loaded && !items.length && !error && (
+              <EmptyState title={t("noBackup")} size="compact" headingLevel={3} />
+            )}
+          </nav>
+          <section className="backup-preview" aria-live="polite">
+            {selectedItem && preview.status === "loading" && preview.name === selectedItem.name && (
+              <EmptyState icon={<Archive />} title={t("backupPreviewLoading")} headingLevel={3} />
+            )}
+            {selectedItem && preview.status === "error" && preview.name === selectedItem.name && (
+              <Alert tone="danger">{preview.message}</Alert>
+            )}
+            {selectedItem && readyPreview && manuscript && (
+              <>
+                <Archive />
+                <h3>{new Date(selectedItem.created).toLocaleString()}</h3>
+                <p>
+                  {t("backupPreviewDescription", {
+                    size: `${(selectedItem.size / 1024).toFixed(0)} KB`,
+                  })}
+                </p>
+                <div className="backup-preview-counts">
+                  <span>{t("backupChapterCount", { count: manuscript.chapters.length })}</span>
+                  <span>{t("backupSetAsideCount", { count: setAsideCount })}</span>
+                  <span>{t("backupTrashCount", { count: manuscript.trash?.length ?? 0 })}</span>
+                  <span>
+                    {t("backupFigureCount", {
+                      count: readyPreview.documents.figures.nodes.length,
+                    })}
+                  </span>
+                  <span>
+                    {t("backupBoardCount", {
+                      count: readyPreview.documents.storyboards.boards.length,
+                    })}
+                  </span>
+                </div>
+                <div className="backup-preview-chapters">
+                  {manuscript.chapters.map((chapter) => (
+                    <article key={chapter.id}>
+                      <h4>
+                        <FileText />
+                        {chapter.title || t("untitled")}
+                        {!isChapterInBook(chapter) && <small>{t("chapterSetAsideStatus")}</small>}
+                      </h4>
+                      <p>{excerpt(chapter.body) || t("backupEmptyChapter")}</p>
+                    </article>
+                  ))}
+                </div>
+                <Button
+                  appearance="primary"
+                  icon={<RotateCcw />}
+                  disabled={restoring || restoreWarning}
+                  onClick={() => setRestoreTarget(selectedItem.name)}
+                >
+                  {t("restoreBackup")}
+                </Button>
+              </>
+            )}
+            {!selectedItem && (
+              <EmptyState icon={<Archive />} title={t("backupSelectTitle")} headingLevel={3}>
+                <p>{t("backupSelectDescription")}</p>
+              </EmptyState>
+            )}
+          </section>
+        </div>
+      </SheetBody>
+    </div>
+  );
+  // Inside the tab the dialog would sit in the sheet, which a modal on top makes inert.
+  const confirm = restoreTarget && (
+    <ConfirmDialog
+      title={t("restoreBackup")}
+      description={t("restoreConfirmDescription")}
+      closeLabel={t("closeDialog")}
+      cancelLabel={t("cancel")}
+      confirmLabel={t("restoreBackup")}
+      confirmation="hold"
+      holdDurationMs={IRREVERSIBLE_HOLD_MS}
+      holdLabels={{
+        accessible: t("holdAriaLabel", { label: t("restoreBackup") }),
+        idle: t("holdToConfirm", { label: t("restoreBackup") }),
+        active: t("keepHolding"),
+      }}
+      onConfirm={() => void restore()}
+      onClose={() => setRestoreTarget(null)}
+    />
+  );
+  return (
+    <>
+      {embedded ? (
+        content
+      ) : (
+        <Sheet
+          open
+          label={t("backups")}
+          onClose={restoring || restoreWarning ? () => undefined : onClose}
+          wide
+        >
+          {content}
+        </Sheet>
+      )}
+      {embedded && confirm ? createPortal(confirm, document.body) : confirm}
     </>
   );
 }

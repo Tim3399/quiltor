@@ -66,4 +66,35 @@ describe("Storyboard application shortcuts", () => {
     expect(redoStoryboards).not.toHaveBeenCalled();
     field.remove();
   });
+
+  it("opens the versions dialog on its note field with Mod+Shift+S, and plain Mod+S only saves", () => {
+    const openOverlay = vi.fn();
+    const flushAll = vi.fn().mockResolvedValue(undefined);
+    renderHook(() =>
+      useApplicationShortcuts({
+        focus: false,
+        setFocus: vi.fn(),
+        openOverlay,
+        flushAll,
+        workspace: "text",
+        undoManuscript: vi.fn(),
+        redoManuscript: vi.fn(),
+        undoFigures: vi.fn(),
+        redoFigures: vi.fn(),
+        undoStoryboards: vi.fn(),
+        redoStoryboards: vi.fn(),
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: "S", ctrlKey: true, shiftKey: true });
+    expect(openOverlay).toHaveBeenCalledExactlyOnceWith("versions", {
+      tab: "versions",
+      focusNote: true,
+    });
+    expect(flushAll).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    expect(openOverlay).toHaveBeenCalledOnce();
+    expect(flushAll).toHaveBeenCalledOnce();
+  });
 });

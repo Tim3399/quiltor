@@ -1,8 +1,6 @@
 import {
   ArchiveRestore,
   ArrowLeft,
-  Cloud,
-  DatabaseBackup,
   Download,
   HelpCircle,
   History,
@@ -10,12 +8,11 @@ import {
   Moon,
   MoreHorizontal,
   PanelLeft,
-  Save,
   Search,
   Sparkles,
   Sun,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { PRODUCT_NAME } from "../config/branding";
 import {
   Button,
@@ -43,16 +40,34 @@ const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
 // A saved status ages while you read. The minute is the finest step relativeTime reports at
 // all, so a tick at that resolution is enough -- and it runs only while there is a time to be
 // seen in the first place.
+//
+// The clock is an external store read in whole ticks: the snapshot is the current tick number,
+// so it is stable between ticks (as useSyncExternalStore requires) and a render that happens
+// long after the last tick still sees the right time, without an effect to catch up. The timer
+// is armed for the next tick boundary and runs only while `active`.
+const TICK_MS = 30_000;
+const readTick = () => Math.floor(Date.now() / TICK_MS);
+
 function useMinuteTick(active: boolean) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
-    setNow(Date.now());
-    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(tick);
-  }, [active]);
-  return now;
+  const subscribe = useCallback(
+    (onTick: () => void) => {
+      if (!active) return () => undefined;
+      let timer = 0;
+      const arm = () => {
+        timer = window.setTimeout(
+          () => {
+            onTick();
+            arm();
+          },
+          TICK_MS - (Date.now() % TICK_MS),
+        );
+      };
+      arm();
+      return () => window.clearTimeout(timer);
+    },
+    [active],
+  );
+  return useSyncExternalStore(subscribe, readTick) * TICK_MS;
 }
 
 export function AppShell({
@@ -72,10 +87,7 @@ export function AppShell({
   theme,
   onTheme,
   onSearch,
-  onHistory,
-  onSnapshot,
-  onBackups,
-  onCloud,
+  onVersions,
   onExportProject,
   onGettingStarted,
   onAssistant,
@@ -103,10 +115,7 @@ export function AppShell({
   navigationOpen?: boolean;
   onNavigation?: () => void;
   onSearch: () => void;
-  onHistory: () => void;
-  onSnapshot: () => void;
-  onBackups: () => void;
-  onCloud?: () => void;
+  onVersions: () => void;
   onExportProject?: () => void;
   onGettingStarted?: () => void;
   onAssistant: () => void;
@@ -214,16 +223,7 @@ export function AppShell({
               onSelect={onExitWorld}
             />
             <MenuSeparator />
-            <MenuItem icon={<History />} label={t("history")} onSelect={onHistory} />
-            {onGettingStarted && (
-              <MenuItem
-                icon={<HelpCircle />}
-                label={t("gettingStartedTitle")}
-                onSelect={onGettingStarted}
-              />
-            )}
-            <MenuItem icon={<DatabaseBackup />} label={t("backups")} onSelect={onBackups} />
-            {onCloud && <MenuItem icon={<Cloud />} label={t("cloudTitle")} onSelect={onCloud} />}
+            <MenuItem icon={<History />} label={t("versionsAndBackups")} onSelect={onVersions} />
             {onExportProject && (
               <MenuItem
                 icon={<Download />}
@@ -232,8 +232,13 @@ export function AppShell({
               />
             )}
             <MenuSeparator />
-            <MenuItem icon={<Save />} label={t("snapshotSave")} onSelect={onSnapshot} />
-            <MenuSeparator />
+            {onGettingStarted && (
+              <MenuItem
+                icon={<HelpCircle />}
+                label={t("gettingStartedTitle")}
+                onSelect={onGettingStarted}
+              />
+            )}
             <MenuItem
               icon={theme === "dark" ? <Sun /> : <Moon />}
               label={theme === "dark" ? t("themeLight") : t("themeDark")}

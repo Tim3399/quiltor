@@ -122,7 +122,7 @@ describe("FigureNodeContextMenu", () => {
     fireEvent.click(trigger);
     const menu = screen.getByRole("menu");
 
-    fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Als wichtig markieren" }));
+    fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Figur favorisieren" }));
     expect(menu).toBeInTheDocument();
 
     fireEvent.pointerDown(screen.getByRole("button", { name: "Außerhalb" }));

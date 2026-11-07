@@ -5,6 +5,7 @@ import {
   type WritingAssistanceLookupResult,
   type WritingAssistanceStatus,
 } from "../../platform";
+import { useLatest } from "../../shared/hooks/useLatest";
 import type { FigureNode, FigureState } from "../story-world";
 import { writingVocabulary } from "./autocomplete";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
@@ -45,9 +46,8 @@ export function useWritingAssistance({
   const editor = useRef<ManuscriptEditorHandle | null>(null);
   const lookupRequest = useRef<AbortController | null>(null);
   const grammarRequest = useRef<AbortController | null>(null);
-  const currentRef = useRef(current);
-  // eslint-disable-next-line react-hooks/refs -- latest-value ref: callbacks and effects read the newest value without re-subscribing; assigning in an effect would leave it one commit stale
-  currentRef.current = current;
+  // Read only, by the grammar request's callback, which resolves after later renders.
+  const currentRef = useLatest(current);
   const [symbolPicker, setSymbolPicker] = useState(false);
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
   const [selectionMenuOpen, setSelectionMenuOpen] = useState(false);
@@ -89,9 +89,12 @@ export function useWritingAssistance({
     [current, figures.nodes],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item resets all selection-bound state
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // Switching the edited item resets all selection-bound state. Adjusted during render, so the
+  // new item never paints the previous item's selection or query; only the outward part, the
+  // grammar request that belongs to the old item, is aborted in an effect.
+  const [seenSelectionKey, setSeenSelectionKey] = useState(selectionKey);
+  if (seenSelectionKey !== selectionKey) {
+    setSeenSelectionKey(selectionKey);
     setSelection(null);
     setSelectionMenuOpen(false);
     setWritingSelection(null);
@@ -99,6 +102,9 @@ export function useWritingAssistance({
     setResults([]);
     setGrammarIssues([]);
     setSelectedIssue(null);
+  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item aborts the grammar request of the old one
+  useEffect(() => {
     grammarRequest.current?.abort();
   }, [selectionKey]);
 
@@ -334,11 +340,17 @@ export function useWritingAssistance({
     };
   }, [current?.id, current?.body, manuscript.grammarMode, status?.grammar?.available]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `liveSelection.from` is a trigger: selecting the same text elsewhere refills the query
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate state reset or sync when its trigger changes; moving it into render would change when the update lands
+  // A live selection fills the query, also when the same text is selected somewhere else, so the
+  // key carries the position. Handled during render: the query is part of the commit that shows
+  // the selection.
+  const liveSelectionKey = liveSelection?.text
+    ? `${liveSelection.from}\u0000${liveSelection.text}`
+    : "";
+  const [seenLiveSelectionKey, setSeenLiveSelectionKey] = useState("");
+  if (liveSelectionKey !== seenLiveSelectionKey) {
+    setSeenLiveSelectionKey(liveSelectionKey);
     if (liveSelection?.text) setQuery(liveSelection.text);
-  }, [liveSelection?.text, liveSelection?.from]);
+  }
 
   const grammarSupported = status?.grammar?.supported !== false;
   const helperModes: HelperMode[] = grammarSupported
@@ -387,7 +399,6 @@ export function useWritingAssistance({
     lookupError,
     statusFailed,
     retryStatus,
-    lookupSources: [...new Set(results.map((result) => result.source))],
     grammarIssues,
     selectedIssue,
     setSelectedIssue,

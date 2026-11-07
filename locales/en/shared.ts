@@ -10,7 +10,7 @@ export const shared = {
   gettingStartedWriteAction: "Start writing",
   gettingStartedBringManuscript: "Bring in a manuscript",
   gettingStartedBringManuscriptHelp:
-    "Create a chapter and safely paste existing text. Import a complete .quiltor project from project selection.",
+    "Create a chapter and safely paste existing text. Import a complete .quiltor project with “Import” in project selection.",
   gettingStartedBringManuscriptAction: "Open manuscript",
   gettingStartedFindFigure: "Look up a character",
   gettingStartedFindFigureHelp:
@@ -42,7 +42,12 @@ export const shared = {
   projectImportOpenAction: "Open imported project",
   projectImportOpenFailed:
     "The project was imported but could not be opened yet. Try opening it again.",
-  projectImportButton: "Import project",
+  importChoiceButton: "Import",
+  importChoiceTitle: "What do you want to import?",
+  importChoiceManuscript: "Manuscript",
+  importChoiceManuscriptHelp: "Word, Markdown or text as a new project",
+  importChoiceProject: "Project",
+  importChoiceProjectHelp: "Quiltor export with everything, as a copy",
   projectTransferTooLarge: "The project file is larger than 64 MiB.",
   projectExportTitle: "Export Quiltor project",
   projectExportIntro: "Exports the complete project as a transferable Quiltor project file.",
@@ -130,8 +135,6 @@ export const shared = {
   // Raised when an export never reaches its destination -- practically never in the browser, and in
   // the desktop app whenever the native save bridge could not write the file.
   exportFailed: "The export could not be saved.",
-  saveConflict:
-    "The saved version changed in another tab. Preserve your draft and compare it with the saved version.",
   timeline: "Timeline",
   moment: "Moment",
   moments: "Moments",
@@ -184,5 +187,4 @@ export const shared = {
   nRelationships: "{n} relationships",
   nMoments: "{n} moments",
   nChanges: "{n} changes",
-  nPlaces: "{n} places",
 } as const;

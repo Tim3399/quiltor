@@ -2,6 +2,8 @@
 
 import contextlib
 import functools
+import hashlib
+import inspect
 import io
 import json
 import re
@@ -31,6 +33,7 @@ import workflow_contract  # noqa: E402
 BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
 TEST_WORKFLOW = REPO_ROOT / ".github/workflows/test.yml"
+WRITING_DATA_WORKFLOW = REPO_ROOT / ".github/workflows/writing-data.yml"
 
 
 class VersionArithmeticTests(unittest.TestCase):
@@ -290,14 +293,17 @@ class VersionRepoTestCase(unittest.TestCase):
             .split('"', 1)[0],
         }
 
-    def run_bump(self, request, preflight_error=None):
+    def run_bump(self, request, preflight_error=None, screenshots_error=None):
         with patch.object(set_version, "REPO_ROOT", self.repo):
             with patch.object(set_version, "run_preflight") as preflight:
-                preflight.side_effect = preflight_error
-                with contextlib.redirect_stdout(io.StringIO()):
-                    with contextlib.redirect_stderr(io.StringIO()):
-                        status = set_version.main([request])
+                with patch.object(set_version, "refresh_readme_screenshots") as screenshots:
+                    preflight.side_effect = preflight_error
+                    screenshots.side_effect = screenshots_error
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        with contextlib.redirect_stderr(io.StringIO()):
+                            status = set_version.main([request])
         self.preflight = preflight
+        self.screenshots = screenshots
         return status
 
 
@@ -328,6 +334,33 @@ class ApplyVersionTests(VersionRepoTestCase):
         before = self.versions()
         error = release_preflight.PreflightError("cargo test failed")
         self.assertEqual(self.run_bump("minor", error), 1)
+        self.assertEqual(self.versions(), before)
+
+    def test_screenshots_are_retaken_for_the_new_version_before_any_file_moves(self):
+        seen = {}
+
+        def record(repo_root, version):
+            seen["version"] = version
+            seen["versions"] = self.versions()
+
+        before = self.versions()
+        expected = set_version.next_version(set_version.current_version(self.repo), "minor")
+        with patch.object(set_version, "REPO_ROOT", self.repo):
+            with patch.object(set_version, "run_preflight"):
+                with patch.object(
+                    set_version, "refresh_readme_screenshots", side_effect=record
+                ) as screenshots:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(set_version.main(["minor"]), 0)
+        screenshots.assert_called_once()
+        self.assertEqual(seen["version"], expected)
+        self.assertEqual(seen["versions"], before)
+        self.assertEqual(set(self.versions().values()), {seen["version"]})
+
+    def test_failed_screenshots_write_no_version(self):
+        before = self.versions()
+        error = release_preflight.PreflightError("the browser did not start")
+        self.assertEqual(self.run_bump("minor", screenshots_error=error), 1)
         self.assertEqual(self.versions(), before)
 
     def test_invalid_last_target_is_detected_before_any_file_is_replaced(self):
@@ -616,6 +649,7 @@ class PreflightContractTests(unittest.TestCase):
             "check-release",
         ]
         self.assertIn(["npm", "run", "check:contracts"], commands)
+        self.assertIn(["npm", "run", "check:readme-screenshots"], commands)
         self.assertIn(
             [sys.executable, "distribution/tooling/workflow_contract.py", "check"], commands
         )
@@ -841,7 +875,8 @@ class ReleaseManifestTests(unittest.TestCase):
                 self.assertEqual(manifest["profiles"], profiles)
                 self.assertEqual([item["name"] for item in manifest["artifacts"]], names)
                 self.assertEqual({item["scheme"] for item in manifest["signatures"]}, schemes)
-                self.assertEqual(manifest["schemaVersion"], 6)
+                self.assertEqual(manifest["schemaVersion"], 7)
+                self.assertEqual(manifest["dataAssets"], release_manifest.data_asset_records())
                 self.assertEqual(manifest["sourceRevision"], "a" * 40)
                 self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["artifacts"]))
                 self.assertEqual(manifest["images"], release_manifest.image_records(self._images()))
@@ -1240,7 +1275,9 @@ class WorkflowBoundaryTests(unittest.TestCase):
         self.assertIn("distribution/tooling/release_preflight.py", self.build)
         self.assertNotIn("set_version.py", self.build)
         self.assertGreaterEqual(
-            self.build.count("needs: [version-check, release-gate]"),
+            self.build.count(
+                "needs: [release-plan, release-context, version-check, release-gate, tests]"
+            ),
             5,
         )
         self.assertIn("bash tools/dev/playwright-linux.sh", self.build)
@@ -1303,6 +1340,73 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
 
+    def test_windows_browser_jobs_install_chromium_without_system_dependencies(self):
+        sources = workflow_contract._workflow_sources()
+        script = (REPO_ROOT / workflow_contract.CHROMIUM_STARTS).read_text("utf-8")
+        workflow_contract.validate_windows_playwright_install(sources, script)
+        source = sources[TEST_WORKFLOW]
+        check_step = (
+            "      - name: Check that Chromium starts\n"
+            "        if: runner.os == 'Windows'\n"
+            "        run: node tools/dev/chromium-starts.mjs\n"
+        )
+        mutations = (
+            (
+                "Windows installs the system half",
+                "run: npx playwright install chromium\n",
+                "run: npx playwright install --with-deps chromium\n",
+                "only the browser on Windows",
+            ),
+            (
+                "macOS loses --with-deps",
+                "if: runner.os != 'Windows'\n        run: npx playwright install --with-deps",
+                "if: runner.os != 'Windows'\n        run: npx playwright install",
+                "keep --with-deps for macOS",
+            ),
+            (
+                "one install for every system",
+                "        if: runner.os != 'Windows'\n        run: npx playwright install",
+                "        run: npx playwright install",
+                "one step for Windows",
+            ),
+            ("check removed", check_step, "", "check that Chromium starts"),
+            (
+                "check runs on every system",
+                check_step,
+                check_step.replace("        if: runner.os == 'Windows'\n", ""),
+                "check that Chromium starts",
+            ),
+            (
+                "check swallows a failure",
+                check_step,
+                check_step.replace(".mjs\n", ".mjs || true\n"),
+                "check that Chromium starts",
+            ),
+            (
+                "check may fail",
+                check_step,
+                check_step + "        continue-on-error: true\n",
+                "check that Chromium starts",
+            ),
+        )
+        for name, original, replacement, message in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, source)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = source.replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                    workflow_contract.validate_windows_playwright_install(mutated, script)
+
+        for evidence in workflow_contract.CHROMIUM_STARTS_EVIDENCE:
+            with self.subTest(script=evidence):
+                self.assertIn(evidence, script)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "chromium-starts.mjs"
+                ):
+                    workflow_contract.validate_windows_playwright_install(
+                        sources, script.replace(evidence, "", 1)
+                    )
+
     def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_windows_port_range(sources)
@@ -1336,7 +1440,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
 
     def test_normal_ci_runs_the_browser_suite_instead_of_deferring_it_to_release(self):
         test_workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("push:\n    branches: [main]", test_workflow)
+        # T-35: main reaches this workflow only through release.yml's call, never by push.
+        self.assertNotIn("\n  push:", test_workflow.partition("\njobs:")[0])
         self.assertIn("pull_request:", test_workflow)
         for required_job in (
             "backend:",
@@ -1801,13 +1906,14 @@ class WorkflowBoundaryTests(unittest.TestCase):
         self.assertLess(context, release_gate)
         self.assertLess(context, version_check)
         self.assertIn('[ "$GITHUB_REF" = "refs/heads/main" ]', self.build)
-        self.assertIn("git rev-parse refs/remotes/origin/main", self.build)
-        self.assertIn('[ "$GITHUB_SHA" = "$MAIN_SHA" ]', self.build)
+        self.assertIn('git rev-parse "refs/remotes/origin/$GITHUB_REF_NAME"', self.build)
+        self.assertIn('[ "$GITHUB_SHA" = "$HEAD_SHA" ]', self.build)
         self.assertIn(
-            "release-gate:\n    name: Portable release gate\n    needs: release-context",
+            "release-gate:\n    name: Portable release gate\n"
+            "    needs: [release-plan, release-context]",
             self.build,
         )
-        self.assertIn("version-check:\n    needs: release-context", self.build)
+        self.assertIn("version-check:\n    needs: [release-plan, release-context]", self.build)
         self.assertEqual(self.build.count("packages: write"), 2)
 
     def test_oci_handoff_uses_build_digests_not_re_resolved_version_tags(self):
@@ -1868,8 +1974,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             (
                 "unguarded macOS job",
                 BUILD_WORKFLOW,
-                "if: needs.version-check.outputs.macos_direct == 'true'",
-                "if: true",
+                "      && needs.version-check.outputs.macos_direct == 'true'\n    runs-on: macos-15",
+                "    runs-on: macos-15",
                 "macos-direct is not guarded",
             ),
             (
@@ -1906,6 +2012,140 @@ class WorkflowBoundaryTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "at workflow level"):
             workflow_contract.validate_security_events_scope(mutated)
+
+    def test_writing_data_publishes_only_on_its_switch(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_writing_data(sources)
+        source = sources[WRITING_DATA_WORKFLOW]
+
+        def check(mutated_source, message, path=WRITING_DATA_WORKFLOW):
+            mutated = dict(sources)
+            mutated[path] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_writing_data(mutated)
+
+        cases = (
+            ("missing", None, "is missing"),
+            (
+                "push trigger",
+                source.replace(
+                    "on:\n  workflow_dispatch:", "on:\n  push:\n  workflow_dispatch:", 1
+                ),
+                "started by hand",
+            ),
+            (
+                "schedule",
+                source.replace(
+                    "\nconcurrency:", "  schedule:\n    - cron: '0 3 1 * *'\n\nconcurrency:", 1
+                ),
+                "started by hand",
+            ),
+            (
+                "switch on by default",
+                source.replace("default: false", "default: true", 1),
+                "off by default",
+            ),
+            (
+                "switch not boolean",
+                source.replace("type: boolean", "type: string", 1),
+                "off by default",
+            ),
+            (
+                "write at workflow level",
+                source.replace(
+                    "permissions:\n  contents: read\n", "permissions:\n  contents: write\n", 1
+                ),
+                "only contents: read",
+            ),
+            (
+                "secret",
+                source.replace("${{ github.token }}", "${{ secrets.RELEASE_TOKEN }}", 1),
+                "secrets",
+            ),
+            (
+                "build job publishes",
+                source.replace(
+                    "    outputs:\n", "    permissions:\n      contents: write\n    outputs:\n", 1
+                ),
+                "build job may not publish",
+            ),
+            (
+                "publish job without write",
+                source.replace("    permissions:\n      contents: write\n", "", 1),
+                "only the writing-data publish job",
+            ),
+            (
+                "publish without switch",
+                source.replace("    if: inputs.publish\n", "", 1),
+                "publish switch",
+            ),
+            (
+                "marked latest",
+                source.replace("--latest=false", "--latest", 1),
+                "never be marked latest",
+            ),
+            (
+                "bare date tag",
+                source.replace('TAG="writing-data-$VERSION"', 'TAG="$VERSION"', 1),
+                "writing-data-<YYYY.MM.DD>",
+            ),
+            (
+                "no tag guard",
+                source.replace("^writing-data-[0-9]{4}", "^writing-data-.*", 1),
+                "writing-data-<YYYY.MM.DD>",
+            ),
+            (
+                "build job runs gh release",
+                source.replace(
+                    "          ls -l work/release\n",
+                    "          ls -l work/release\n          gh release upload x y\n",
+                    1,
+                ),
+                "build job may not publish",
+            ),
+            (
+                "third job writes",
+                source
+                + "\n  extra:\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write\n    steps:\n      - run: echo extra\n",
+                "only the writing-data publish job",
+            ),
+            (
+                "write moved out of the publish job",
+                source.replace("    permissions:\n      contents: write\n", "", 1)
+                + "\n  extra:\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: write\n    steps:\n      - run: echo extra\n",
+                "only the writing-data publish job",
+            ),
+            (
+                "second release",
+                source + "      - run: gh release create extra\n",
+                "exactly one release",
+            ),
+        )
+        for name, mutated_source, message in cases:
+            with self.subTest(name=name):
+                if mutated_source is None:
+                    mutated = {
+                        path: text
+                        for path, text in sources.items()
+                        if path != WRITING_DATA_WORKFLOW
+                    }
+                    with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                        workflow_contract.validate_writing_data(mutated)
+                else:
+                    self.assertNotEqual(mutated_source, source, name)
+                    check(mutated_source, message)
+        with self.subTest(name="another workflow creates a data release"):
+            check(
+                sources[PUBLISH_WORKFLOW] + "# gh release create writing-data-2026.11.03\n",
+                "may not create writing-data releases",
+                PUBLISH_WORKFLOW,
+            )
+
+    def test_writing_data_tags_are_not_app_versions(self):
+        with self.assertRaises(previous_release.PreviousReleaseError):
+            previous_release.semantic_version("writing-data-2026.11.03")
+        with self.assertRaises(previous_release.PreviousReleaseError):
+            previous_release.semantic_version("2026.11.03.1")
 
     def test_release_packaging_toolchain_is_concretely_pinned(self):
         pins = {
@@ -2010,6 +2250,38 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "workflow runners",
         ):
             workflow_contract.validate_toolchains(mutable_runner, contract)
+
+    def test_rust_toolchain_steps_match_rust_toolchain_toml(self):
+        """The release gate once installed 1.98.0 without components and failed at random."""
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_rust_toolchain_steps(sources)
+        gate = """          toolchain: "1.98.0"
+          components: rustfmt, clippy
+      - run: npm ci
+      - name: Install the browser and declared Python dependencies"""
+        self.assertIn(gate, sources[BUILD_WORKFLOW])
+        mutations = {
+            "components removed": gate.replace("          components: rustfmt, clippy\n", ""),
+            "one component missing": gate.replace("rustfmt, clippy", "rustfmt"),
+            "other channel": gate.replace('"1.98.0"', '"1.97.0"'),
+        }
+        for label, mutated in mutations.items():
+            with self.subTest(label):
+                broken = dict(sources)
+                broken[BUILD_WORKFLOW] = sources[BUILD_WORKFLOW].replace(gate, mutated)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError,
+                    r"release\.yml: rust-toolchain step",
+                ):
+                    workflow_contract.validate_rust_toolchain_steps(broken)
+        workflow_contract.validate_rust_toolchain_steps(
+            {BUILD_WORKFLOW: sources[BUILD_WORKFLOW].replace("rustfmt, clippy", "clippy ,rustfmt")}
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "toolchain 1.99.0"):
+            workflow_contract.validate_rust_toolchain_steps(
+                sources,
+                '[toolchain]\nchannel = "1.99.0"\ncomponents = ["clippy", "rustfmt"]\n',
+            )
 
     def test_matrix_runners_are_resolved_rather_than_read_literally(self):
         """A cross-platform suite is a matrix, and the runner lock has to survive one."""
@@ -2353,14 +2625,14 @@ class PathFilterContractTests(unittest.TestCase):
     def setUpClass(cls):
         cls.workflow = TEST_WORKFLOW.read_text(encoding="utf-8")
         # Every validation repeats work that depends only on the repository, never on the
-        # workflow text the tests mutate: about 200,000 glob compilations, listing the tracked
-        # files, and reading every client unit test. Caching those three for this class changes
-        # no result; each cached list is handed out as a fresh copy (T-40).
+        # workflow text the tests mutate: listing the tracked files and reading every client
+        # unit test (the glob compilations are cached in path_filter itself, T-96). Caching
+        # those two for this class changes no result; each cached list is handed out as a
+        # fresh copy (T-40).
         tracked_paths = functools.cache(path_filter.tracked_paths)
         original_client_inputs = workflow_contract.client_test_inputs
         client_inputs = functools.cache(lambda tracked: original_client_inputs(list(tracked)))
         for target, name, replacement in (
-            (path_filter, "glob_to_regex", functools.cache(path_filter.glob_to_regex)),
             (path_filter, "tracked_paths", lambda *args: list(tracked_paths(*args))),
             (
                 workflow_contract,
@@ -2489,10 +2761,10 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
-                "pull request, untested screenshot only",
+                "pull request, a README screenshot only (check:readme-screenshots hashes it)",
                 pr,
                 ["docs/screenshots/places.png"],
-                set(),
+                {"backend", "frontend", "cross-platform-native"},
                 False,
             ),
         )
@@ -2613,6 +2885,18 @@ class PathFilterContractTests(unittest.TestCase):
                 "path filter step is missing",
             ),
             (
+                "a crashed filter fails the plan",
+                ' --output "$GITHUB_OUTPUT" || {\n',
+                ' --output "$GITHUB_OUTPUT" || exit 1\n              : || {\n',
+                "path filter step is missing",
+            ),
+            (
+                "the crash fallback forgets a group",
+                "for group in checks python rust client browser lint; do",
+                "for group in checks python rust client browser; do",
+                "path filter step is missing",
+            ),
+            (
                 "the filter compares only one commit",
                 "--merge HEAD --output",
                 "--base HEAD^ --head HEAD --output",
@@ -2668,8 +2952,8 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the gate skips with its needs",
-                "    if: always()\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Require every selected job",
-                "    runs-on: ubuntu-24.04\n    steps:\n      - name: Require every selected job",
+                "    if: always()\n    runs-on: ubuntu-24.04\n    permissions: {}\n",
+                "    runs-on: ubuntu-24.04\n    permissions: {}\n",
                 "browser-e2e is missing its gate: if: always()",
             ),
             (
@@ -2727,45 +3011,15 @@ class PathFilterContractTests(unittest.TestCase):
 
     def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
         """T-46: the browsers no longer wait for frontend; the real gate script still fails."""
-        bash = shutil.which("bash")
-        if bash is None:
-            self.skipTest("bash is not installed")
-        aggregator = workflow_contract._job_body(self.workflow, "browser-e2e")
-        script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
-        assert script is not None, "browser-e2e has no run block"
-        body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
-
-        def gate(results):
-            # On Windows, `bash` can resolve to WSL's System32\bash.exe. It does not pass
-            # the caller's environment on, and it hands a `-c` argument through another
-            # shell that expands `$1` and `$VAR` to nothing first -- every job name and
-            # result arrived empty and the green case failed. So the values go in as
-            # assignments ahead of the script, and the script goes in on stdin.
-            values = {"PLAN_RESULT": "success"}
-            for name in workflow_contract.FILTERED_JOBS:
-                job = workflow_contract._env_name(name)
-                values[f"RESULT_{job}"] = results.get(name, "success")
-                values[f"SELECTED_{job}"] = "true"
-            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in values.items())
-            # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
-            completed = subprocess.run(
-                [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
-            )
-            return subprocess.CompletedProcess(
-                completed.args,
-                completed.returncode,
-                completed.stdout.decode(errors="replace"),
-                completed.stderr.decode(errors="replace"),
-            )
-
-        green = gate({})
-        self.assertEqual(green.returncode, 0, green.stdout + green.stderr)
+        code, output, _ = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
         for result in ("failure", "cancelled", "skipped"):
             with self.subTest(frontend=result):
-                red = gate({"frontend": result})
-                self.assertEqual(red.returncode, 1, red.stdout + red.stderr)
-                self.assertIn("frontend is " + result, red.stdout)
-                self.assertIn("browser-e2e-shards: success", red.stdout)
+                values = gate_values("true", results={"frontend": result})
+                code, output, _ = run_gate_script(self.workflow, values)
+                self.assertEqual(code, 1, output)
+                self.assertIn("frontend is " + result, output)
+                self.assertIn("browser-e2e-shards: success", output)
 
     def test_the_mutated_expressions_change_the_outcome(self):
         """The two expression mutations above are not cosmetic: they change what runs."""
@@ -2788,6 +3042,40 @@ class PathFilterContractTests(unittest.TestCase):
             "pull_request", "refs/pull/7/merge", None, [], workflow=to_nothing, filter_outputs={}
         )
         self.assertNotIn("browser-e2e-shards", running)
+
+    def test_a_crashed_path_filter_runs_every_group(self):
+        """T-48: a filter that dies (here after writing run_browser=false) must leave every
+        run_<group> true and the step green, instead of a red plan or fewer tests."""
+        groups = path_filter.load_config().groups
+
+        def run(workflow):
+            with tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                output.write_bytes(b"")
+                preamble = (
+                    "set -e\n"
+                    f"export RUNNER_TEMP={shlex.quote(Path(directory).as_posix())}\n"
+                    f"export GITHUB_OUTPUT={shlex.quote(output.as_posix())}\n"
+                    "git() { return 0; }\n"
+                    'python() { echo "run_browser=false" >> "$GITHUB_OUTPUT"; return 1; }\n'
+                )
+                code, log = run_step_script(
+                    workflow, "plan", "Select job groups by changed path", preamble
+                )
+                written = output.read_text(encoding="utf-8")
+            # GITHUB_OUTPUT: the last line for a name wins.
+            values = dict(line.split("=", 1) for line in written.splitlines() if "=" in line)
+            return code, log, values
+
+        code, log, values = run(self.workflow)
+        self.assertEqual(code, 0, log)
+        self.assertEqual({f"run_{group}": "true" for group in groups}, values)
+
+        # Without the fallback the same crash fails the step.
+        fallback = re.search(r" \|\| \{\n.*?\n            \}\n", self.workflow, re.DOTALL)
+        assert fallback is not None
+        code, _, _ = run(self.workflow.replace(fallback.group(0), "\n", 1))
+        self.assertNotEqual(code, 0)
 
     def test_every_lint_input_selects_lint(self):
         """F-37-1: what hadolint, shellcheck and osv-scanner read is derived, not listed."""
@@ -2913,7 +3201,7 @@ class PathFilterContractTests(unittest.TestCase):
 
         document = json.loads((REPO_ROOT / ".github/test-paths.json").read_text(encoding="utf-8"))
         unjustified = json.loads(json.dumps(document))
-        del unjustified["untested"][0]["reason"]
+        unjustified["untested"] = [{"patterns": ["newdir/**"]}]
         groupless = json.loads(json.dumps(document))
         groupless["rules"].append(
             {"name": "new", "patterns": ["newdir/**"], "groups": [], "reason": "A new directory."}
@@ -2933,6 +3221,939 @@ class PathFilterContractTests(unittest.TestCase):
                 self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
             ):
                 workflow_contract.validate_path_filter(sources, tracked=tracked)
+
+
+# Constructs bash 3.2 lacks. macOS ships 3.2, and these tests run workflow steps under the
+# machine's own bash, so a step that needs bash 4 fails there although the Linux runner is fine.
+BASH4_ONLY = re.compile(
+    r"\b(?:mapfile|readarray|coproc)\b|\b(?:declare|local|typeset) -[a-zA-Z]*[An]"
+    r"|\$\{[A-Za-z_][A-Za-z_0-9]*(?:,,?|\^\^?)\}|\|&|&>>|\[\[ -v |\bwait -n\b"
+)
+
+
+def assert_bash32(script, where):
+    """Fail on a bash-4-only construct in a script these tests run under the local bash."""
+
+    match = BASH4_ONLY.search(script)
+    assert match is None, f"{where} uses {match.group(0)!r}, which bash 3.2 (macOS) lacks"
+
+
+def run_gate_script(workflow, values):
+    """
+    Run browser-e2e's real gate script under bash with the given environment.
+
+    Returns (exit code, output, the GITHUB_OUTPUT file's text). On Windows, `bash` can resolve to
+    WSL's System32\\bash.exe, which passes no environment on and expands `$1` before the script
+    sees it, so the values go in as assignments ahead of the script, and the script on stdin.
+    """
+
+    bash = shutil.which("bash")
+    if bash is None:
+        raise unittest.SkipTest("bash is not installed")
+    aggregator = workflow_contract._job_body(workflow, "browser-e2e")
+    script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
+    assert script is not None, "browser-e2e has no run block"
+    body = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
+    assert_bash32(body, "browser-e2e")
+    with tempfile.TemporaryDirectory() as directory:
+        output = Path(directory) / "output"
+        output.write_bytes(b"")
+        # bash on Windows reads a POSIX path; as_posix() keeps C:/... which Git Bash accepts.
+        assignments = {**values, "GITHUB_OUTPUT": output.as_posix()}
+        preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in assignments.items())
+        # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+        completed = subprocess.run(
+            [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+        )
+        written = output.read_text(encoding="utf-8")
+    return (
+        completed.returncode,
+        completed.stdout.decode(errors="replace") + completed.stderr.decode(errors="replace"),
+        written,
+    )
+
+
+def gate_values(full_matrix, selected=None, results=None):
+    """Gate inputs: every job green and selected as the given mode selects it, with overrides."""
+
+    values = {"PLAN_RESULT": "success", "FULL_MATRIX": full_matrix}
+    # Full mode selects everything but the smoke test; reduced mode swaps the full
+    # cross-platform matrix for it.
+    if full_matrix == "true":
+        off = set(workflow_contract.REDUCED_ONLY)
+    else:
+        off = {"cross-platform-browser"}
+    for name in workflow_contract.FILTERED_JOBS:
+        job = workflow_contract._env_name(name)
+        chosen = (selected or {}).get(name, "false" if name in off else "true")
+        values[f"SELECTED_{job}"] = chosen
+        values[f"RESULT_{job}"] = (results or {}).get(
+            name, "success" if chosen == "true" else "skipped"
+        )
+    return values
+
+
+class FullMatrixVerdictContractTests(unittest.TestCase):
+    """T-35 P2-a: test.yml's verdict is the release's test evidence (C-1, C-2, C-7, C-8, C-13,
+    C-18, C-20)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sources = workflow_contract._workflow_sources()
+        cls.workflow = cls.sources[TEST_WORKFLOW]
+
+    def assert_mutation_fails(self, validate, original, replacement, error, count=1):
+        self.assertEqual(self.workflow.count(original), count, original)
+        mutated = dict(self.sources)
+        mutated[TEST_WORKFLOW] = self.workflow.replace(original, replacement)
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, re.escape(error)):
+            validate(mutated)
+
+    def test_the_repository_satisfies_every_contract(self):
+        for validate in (
+            workflow_contract.validate_full_matrix_coverage,
+            workflow_contract.validate_full_matrix_verdict,
+            workflow_contract.validate_test_triggers,
+            workflow_contract.validate_test_concurrency,
+            workflow_contract.validate_full_mode_runs_everything,
+            workflow_contract.validate_required_step_conditions,
+        ):
+            with self.subTest(validate=validate.__name__):
+                validate(self.sources)
+        workflow_contract.validate_no_attempt_dependent_tests()
+
+    def test_the_constants_follow_the_existing_ones(self):
+        self.assertEqual(workflow_contract.REDUCED_ONLY, {"cross-platform-smoke"})
+        self.assertLessEqual(workflow_contract.REDUCED_ONLY, set(workflow_contract.FILTERED_JOBS))
+        self.assertEqual(
+            workflow_contract.FULL_MATRIX_EXPANSIONS,
+            {"browser-e2e-shards": 4, "cross-platform-native": 2, "cross-platform-browser": 11},
+        )
+
+    def test_c1_coverage_mutations(self):
+        validate = workflow_contract.validate_full_matrix_coverage
+        for name, original, replacement, error in (
+            (
+                "verdict from another job",
+                "value: ${{ jobs.browser-e2e.outputs.verdict }}",
+                "value: ${{ jobs.plan.outputs.verdict }}",
+                "must output verdict",
+            ),
+            (
+                "verdict output removed",
+                '    outputs:\n      verdict:\n        description: "full-success only when every '
+                'job the full matrix requires succeeded"\n        value: ${{ '
+                "jobs.browser-e2e.outputs.verdict }}\n",
+                "",
+                "must output verdict",
+            ),
+            (
+                "a Linux slot dropped",
+                "        slot: [1, 2, 3, 4]\n",
+                "        slot: [1, 2, 3]\n",
+                "browser-e2e-shards expands to 3 jobs",
+            ),
+            (
+                "an include row of the cross-platform matrix dropped",
+                "          - os: macos-15\n            system: macos\n"
+                "            label: macos-15 / slot 3 of 3\n            slot: 3\n"
+                "            slots: 3\n            diagnostics: macos-15-3-of-3\n",
+                "",
+                "cross-platform-browser expands to 10 jobs",
+            ),
+            (
+                "a matrix the contract cannot count",
+                "        slot: [1, 2, 3, 4]\n",
+                "        slot: ${{ fromJSON(needs.plan.outputs.slots) }}\n",
+                "has a matrix the contract cannot count",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+        # The native matrix: one runner fewer is one expansion fewer.
+        native = workflow_contract._job_body(self.workflow, "cross-platform-native")
+        self.assertIn("        os: [macos-15, windows-2025]\n", native)
+        mutated = dict(self.sources)
+        mutated[TEST_WORKFLOW] = self.workflow.replace(
+            native, native.replace("os: [macos-15, windows-2025]", "os: [windows-2025]")
+        )
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "cross-platform-native expands to 1 jobs"
+        ):
+            validate(mutated)
+
+    def test_c1_an_ungated_job_fails(self):
+        mutated = dict(self.sources)
+        mutated[TEST_WORKFLOW] = self.workflow.replace(
+            "\n  visual-baseline-reach:\n",
+            "\n  ghost-job:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: true\n"
+            "\n  visual-baseline-reach:\n",
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "found ghost-job"):
+            workflow_contract.validate_full_matrix_coverage(mutated)
+
+    def test_c2_verdict_mutations(self):
+        validate = workflow_contract.validate_full_matrix_verdict
+        for name, original, replacement, error in (
+            (
+                "the full-mode check removed",
+                "          full_mode cross-platform-native "
+                '"$SELECTED_CROSS_PLATFORM_NATIVE" true\n',
+                "",
+                "selected=true for cross-platform-native",
+            ),
+            (
+                "cross-platform-native treated as reduced-only",
+                'full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" true',
+                'full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" false',
+                "selected=true for cross-platform-native",
+            ),
+            (
+                "the smoke test allowed in full mode",
+                'full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" false',
+                'full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" true',
+                "selected=false for cross-platform-smoke",
+            ),
+            (
+                "full-success without the full-mode test",
+                '          if [ "$FULL_MATRIX" = "true" ]; then\n            verdict=full-success\n',
+                "          if true; then\n            verdict=full-success\n",
+                "must end with the verdict",
+            ),
+            (
+                "the verdict written before the status test",
+                '          if [ "$status" -ne 0 ]; then\n            exit 1\n          fi\n'
+                '          if [ "$FULL_MATRIX" = "true" ]; then\n',
+                '          if [ "$FULL_MATRIX" = "true" ]; then\n',
+                "must end with the verdict",
+            ),
+            (
+                "the plan's decision not read",
+                "          FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}\n",
+                "          FULL_MATRIX: 'true'\n",
+                "FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}",
+            ),
+            (
+                "permissions granted",
+                "    permissions: {}\n    # The one verdict",
+                "    permissions:\n      contents: read\n    # The one verdict",
+                "permissions: {}",
+            ),
+            (
+                "the output no longer from the gate step",
+                "      verdict: ${{ steps.gate.outputs.verdict }}\n",
+                "      verdict: full-success\n",
+                "verdict: ${{ steps.gate.outputs.verdict }}",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+
+    def test_c2_the_real_gate_script(self):
+        """Full mode with a deselected job is red; a reduced run with a chosen skip passes."""
+        code, output, written = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        self.assertEqual(written, "verdict=full-success\n")
+
+        values = gate_values("true", selected={"cross-platform-native": "false"}, results={})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertIn("cross-platform-native has selected=false in full mode", output)
+        self.assertEqual(written, "", "a red gate must leave the verdict empty")
+
+        values = gate_values("true", selected={"cross-platform-smoke": "true"})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(written, "")
+
+        values = gate_values("false", selected={"portable-core": "false"})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 0, output)
+        self.assertIn("portable-core: skipped, not selected by the plan", output)
+        self.assertEqual(written, "verdict=reduced-success\n")
+
+        values = gate_values("true", results={"frontend": "failure"})
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(written, "")
+
+        # A plan that failed leaves FULL_MATRIX empty: red, and never full-success.
+        values = {**gate_values("true"), "PLAN_RESULT": "failure", "FULL_MATRIX": ""}
+        code, output, written = run_gate_script(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual(written, "")
+
+    def test_c7_no_push_trigger(self):
+        self.assert_mutation_fails(
+            workflow_contract.validate_test_triggers,
+            "on:\n  pull_request:\n",
+            "on:\n  push:\n    branches: [main]\n  pull_request:\n",
+            "must run on exactly",
+        )
+        self.assert_mutation_fails(
+            workflow_contract.validate_test_triggers,
+            "on:\n  pull_request:\n",
+            "on:\n  schedule:\n    - cron: '0 3 * * *'\n  pull_request:\n",
+            "must run on exactly",
+        )
+
+    def test_c8_concurrency_mutations(self):
+        validate = workflow_contract.validate_test_concurrency
+        for name, original, replacement in (
+            (
+                "one group per ref again",
+                "  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', "
+                "github.ref) || format('test-run-{0}', github.run_id) }}\n",
+                "  group: test-${{ github.ref }}\n",
+            ),
+            (
+                "every run cancels",
+                "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+                "  cancel-in-progress: true\n",
+            ),
+            (
+                "a second, job-level concurrency",
+                "    permissions: {}\n    # The one verdict",
+                "    permissions: {}\n    concurrency: gate\n    # The one verdict",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, "concurrency")
+
+    def test_c13_a_test_reading_the_attempt_fails(self):
+        validate = workflow_contract.validate_no_attempt_dependent_tests
+        # Split, so this file itself never reads like a test that reads the attempt.
+        name = "_".join(("GITHUB", "RUN", "ATTEMPT"))
+        for path, source in (
+            ("tests/python/test_flake.py", f'if os.environ.get("{name}") == "1":\n'),
+            ("tests/python/test_flake.py", f'attempt = os.getenv("{name}")\n'),
+            ("tests/e2e/flake.spec.ts", f"if (process.env.{name} === '1') {{}}\n"),
+            ("tests/e2e/flake.spec.ts", f'if (process.env["{name}"]) {{}}\n'),
+            ("tests/e2e/run.sh", f'[ "${name}" = 1 ] && exit 1\n'),
+            ("tests/e2e/run.ps1", f"if ($env:{name} -eq 1) {{ exit 1 }}\n"),
+            ("tests/e2e/flow.yml", "if: " + ".".join(("github", "run_attempt")) + " == 1\n"),
+        ):
+            with self.subTest(path=path, source=source):
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(path)
+                ):
+                    validate({path: source})
+        # Naming the hand-off tag in a string literal reads nothing.
+        validate({"tests/python/test_x.py": '"build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"\n'})
+
+    def test_c18_full_mode_skips_nothing(self):
+        validate = workflow_contract.validate_full_mode_runs_everything
+        for name, original, replacement, error in (
+            (
+                "native core off in full mode",
+                "    if: needs.plan.outputs.run_python == 'true' || "
+                "needs.plan.outputs.run_rust == 'true'\n",
+                "    if: (needs.plan.outputs.run_python == 'true' || "
+                "needs.plan.outputs.run_rust == 'true') && needs.plan.outputs.full_matrix != 'true'\n",
+                "cross-platform-native is skipped in full mode",
+            ),
+            (
+                "the smoke test on in full mode",
+                "    if: needs.plan.outputs.full_matrix != 'true' && "
+                "needs.plan.outputs.run_browser == 'true'\n",
+                "    if: needs.plan.outputs.run_browser == 'true'\n",
+                "cross-platform-smoke runs in full mode",
+            ),
+            (
+                "a plan output that filters in full mode",
+                "      run_rust: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || ",
+                "      run_rust: ${{ ",
+                "the plan output run_rust must be 'true' in full mode",
+            ),
+            (
+                "a form the check cannot read",
+                "    if: needs.plan.outputs.run_lint == 'true'\n",
+                "    if: contains(needs.plan.outputs.run_lint, 'true')\n",
+                "cannot read",
+            ),
+            (
+                "a name the check does not know",
+                "    if: needs.plan.outputs.run_lint == 'true'\n",
+                "    if: vars.LINT == 'true'\n",
+                "cannot read",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+
+    def test_c18_the_evaluator(self):
+        evaluate = workflow_contract.evaluate_condition
+        context = {"a": "true", "b": "false"}
+        self.assertTrue(evaluate("a == 'true' && (b == 'true' || a != 'false')", context))
+        self.assertFalse(evaluate("${{ a == 'false' || b == 'true' }}", context))
+        for broken in ("a", "a == 'true' &&", "(a == 'true'", "a == true", "!a", "c == 'x'"):
+            with self.subTest(broken=broken), self.assertRaises(ValueError):
+                evaluate(broken, context)
+
+    def test_c20_step_condition_mutations(self):
+        validate = workflow_contract.validate_required_step_conditions
+        for name, original, replacement, count in (
+            (
+                "a test step only on push",
+                "      - name: Backend suite\n        run: python -m unittest discover -s "
+                "tests/python -t tests/python -v\n",
+                "      - name: Backend suite\n        if: github.event_name == 'push'\n"
+                "        run: python -m unittest discover -s tests/python -t tests/python -v\n",
+                1,
+            ),
+            (
+                "a status function on a test step",
+                "      - name: Layout audit rule tests\n        if: matrix.slot == 4\n",
+                "      - name: Layout audit rule tests\n        if: ${{ !cancelled() }}\n",
+                1,
+            ),
+            (
+                "a client step on full_matrix",
+                "      - name: Unit tests\n        if: needs.plan.outputs.run_client == 'true'\n",
+                "      - name: Unit tests\n        if: needs.plan.outputs.full_matrix != 'true'\n",
+                1,
+            ),
+            (
+                "a multi-line condition",
+                "        if: runner.os == 'Windows'\n",
+                "        if: >-\n          runner.os == 'Windows'\n",
+                6,
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(
+                    validate, original, replacement, "step condition that could skip", count
+                )
+        # A run_<group> step condition counts only while that output is true in full mode.
+        self.assert_mutation_fails(
+            validate,
+            "      run_client: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || ",
+            "      run_client: ${{ ",
+            "if: needs.plan.outputs.run_client == 'true'",
+        )
+
+
+def run_step_script(workflow, job, step_name, preamble, cwd=None):
+    """
+    Run one step's real `run: |` block under bash, after a preamble of assignments and stub
+    functions. Functions shadow commands, so gh, git and python can be stubbed portably.
+    Returns (exit code, output).
+    """
+
+    bash = shutil.which("bash")
+    if bash is None:
+        raise unittest.SkipTest("bash is not installed")
+    body = workflow_contract._job_body(workflow, job)
+    start = body.find(f"      - name: {step_name}\n")
+    if start < 0:  # the name is not the step's first key (`- id: x` comes first)
+        start = body.rfind("\n      - ", 0, body.index(f"        name: {step_name}\n")) + 1
+    end = body.find("\n      - ", start + 1)
+    # Keep the newline that ends the step's last line, or the regex below drops that line.
+    step = body[start : end + 1 if end >= 0 else len(body)]
+    script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", step, re.MULTILINE)
+    assert script is not None, f"{step_name} has no run block"
+    text = "".join(line[10:] + "\n" for line in script.group(1).splitlines())
+    text = text.replace("${{ github.repository }}", "owner/repo")
+    assert_bash32(text, step_name)
+    completed = subprocess.run(
+        [bash, "-s"], input=(preamble + text).encode(), capture_output=True, check=False, cwd=cwd
+    )
+    return (
+        completed.returncode,
+        completed.stdout.decode(errors="replace") + completed.stderr.decode(errors="replace"),
+    )
+
+
+class ReleaseSingleEntryContractTests(unittest.TestCase):
+    """T-35 P2-c: release.yml is the single entry, and builds only on full-success."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sources = workflow_contract._workflow_sources()
+
+    def assert_mutation_fails(self, validate, path, original, replacement, error):
+        source = self.sources[path]
+        self.assertIn(original, source, f"{path.name}: {original!r}")
+        mutated = dict(self.sources)
+        mutated[path] = source.replace(original, replacement)
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, re.escape(error)):
+            validate(mutated)
+
+    def test_the_repository_satisfies_every_contract(self):
+        for validate in (
+            workflow_contract.validate_release_no_continue_on_error,
+            workflow_contract.validate_release_calls_full_matrix,
+            workflow_contract.validate_tests_call_permissions,
+            workflow_contract.validate_artifact_edges,
+            workflow_contract.validate_single_entry,
+            workflow_contract.validate_release_concurrency,
+            workflow_contract.validate_dry_run_boundary,
+            workflow_contract.validate_publish_selection,
+            workflow_contract.validate_release_cache_boundary,
+            workflow_contract.validate_rerun_rechecks,
+            workflow_contract.validate_ci_release_scope,
+            workflow_contract.validate_bootstrap_never_on_main,
+            workflow_contract.validate_write_jobs_need_tests_and_gate,
+            workflow_contract.validate_dry_run_skips_secrets,
+        ):
+            with self.subTest(validate=validate.__name__):
+                validate(self.sources)
+
+    def test_the_write_class_is_detected(self):
+        build = self.sources[BUILD_WORKFLOW]
+        self.assertEqual(
+            workflow_contract.write_jobs(build),
+            {"web-image", "backup-image", "macos-direct", "windows-direct", "release-manifest"},
+        )
+
+    def test_mutations_fail_their_contract(self):
+        w = workflow_contract
+        bootstrap = TEST_WORKFLOW.parent / "visual-baselines-bootstrap.yml"
+        web_if = (
+            "    needs: [release-plan, release-context, version-check, release-gate, tests]\n"
+            "    if: >-\n      needs.release-plan.outputs.release == 'true'\n"
+            "      && needs.tests.outputs.verdict == 'full-success'\n    runs-on: ubuntu-24.04\n"
+            "    permissions:\n      contents: read\n      packages: write\n    outputs:\n"
+            "      image: ${{ steps.immutable.outputs.value }}\n    steps:\n"
+            "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\n"
+            "        with:\n          persist-credentials: false\n"
+            "      - uses: actions/setup-node"
+        )
+        cases = (
+            # C-3
+            (
+                "continue-on-error in a release job",
+                w.validate_release_no_continue_on_error,
+                BUILD_WORKFLOW,
+                "    runs-on: macos-15\n",
+                "    runs-on: macos-15\n    continue-on-error: true\n",
+                "continue-on-error",
+            ),
+            # C-4
+            (
+                "a reduced matrix",
+                w.validate_release_calls_full_matrix,
+                BUILD_WORKFLOW,
+                "      full_matrix: true\n",
+                "      full_matrix: false\n",
+                "full_matrix: true",
+            ),
+            (
+                "tests hang on release-context",
+                w.validate_release_calls_full_matrix,
+                BUILD_WORKFLOW,
+                "    name: Full test matrix\n",
+                "    name: Full test matrix\n    needs: release-context\n",
+                "may depend on nothing",
+            ),
+            # C-5
+            (
+                "secrets handed to the tests",
+                w.validate_tests_call_permissions,
+                BUILD_WORKFLOW,
+                "      full_matrix: true\n    permissions:\n",
+                "      full_matrix: true\n    secrets: inherit\n    permissions:\n",
+                "no secrets",
+            ),
+            (
+                "tests with write permission",
+                w.validate_tests_call_permissions,
+                BUILD_WORKFLOW,
+                "      full_matrix: true\n    permissions:\n      contents: read\n",
+                "      full_matrix: true\n    permissions:\n      contents: write\n",
+                "exactly permissions: contents: read",
+            ),
+            # C-6
+            (
+                "python-package without tests",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                "  python-package:\n    needs: [release-plan, release-context, version-check, "
+                "release-gate, tests]\n",
+                "  python-package:\n    needs: [release-plan, release-context, version-check, "
+                "release-gate]\n",
+                "python-package must need tests",
+            ),
+            (
+                "web-image without the verdict",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                web_if,
+                web_if.replace("      && needs.tests.outputs.verdict == 'full-success'\n", ""),
+                "web-image must run only on: needs.tests.outputs.verdict",
+            ),
+            # C-7
+            (
+                "a paths filter again",
+                w.validate_single_entry,
+                BUILD_WORKFLOW,
+                "  push:\n    branches: [main]\n",
+                '  push:\n    branches: [main]\n    paths: ["VERSION"]\n',
+                "every push to main",
+            ),
+            (
+                "the null SHA is no longer a release candidate",
+                w.validate_single_entry,
+                BUILD_WORKFLOW,
+                '            || [ "$BEFORE" = 0000000000000000000000000000000000000000 ] \\\n',
+                "",
+                "release-plan is missing its decision",
+            ),
+            # C-8
+            (
+                "a shared release group again",
+                w.validate_release_concurrency,
+                BUILD_WORKFLOW,
+                "permissions:\n  contents: read\n\njobs:",
+                "concurrency:\n  group: release-build\n\npermissions:\n  contents: read\n\njobs:",
+                "no concurrency",
+            ),
+            # C-9
+            (
+                "a dry run pushes the backup image",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "          file: services/backup-server/Dockerfile\n"
+                "          push: ${{ needs.release-plan.outputs.dry_run == 'false' }}\n",
+                "          file: services/backup-server/Dockerfile\n          push: true\n",
+                "backup-image may push only outside a dry run",
+            ),
+            (
+                "a dry run logs in",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "# v4\n        if: needs.release-plan.outputs.dry_run == 'false'\n        with:\n"
+                "          registry: ghcr.io\n",
+                "# v4\n        with:\n          registry: ghcr.io\n",
+                "may log in only outside a dry run",
+            ),
+            (
+                "a dry run creates the manifest",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "        && needs.release-plan.outputs.dry_run == 'false'\n",
+                "",
+                "release-manifest must never run in a dry run",
+            ),
+            (
+                "the input read outside release-plan",
+                w.validate_dry_run_boundary,
+                BUILD_WORKFLOW,
+                "          DRY_RUN: ${{ needs.release-plan.outputs.dry_run }}\n        run: |\n"
+                '          set -euo pipefail\n          [ "$GITHUB_REF"',
+                "          DRY_RUN: ${{ inputs.dry_run }}\n        run: |\n"
+                '          set -euo pipefail\n          [ "$GITHUB_REF"',
+                "only release-plan may read inputs.dry_run",
+            ),
+            # C-10
+            (
+                "publish from any branch",
+                w.validate_publish_selection,
+                PUBLISH_WORKFLOW,
+                " && github.event.workflow_run.head_branch == 'main')",
+                ")",
+                "select is missing",
+            ),
+            (
+                "publish without select",
+                w.validate_publish_selection,
+                PUBLISH_WORKFLOW,
+                "  publish:\n    needs: select\n",
+                "  publish:\n",
+                "must need select",
+            ),
+            (
+                "a published release overwritten",
+                w.validate_publish_selection,
+                PUBLISH_WORKFLOW,
+                '            [ "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true ]'
+                ' \\\n              || { echo "::error::v$VERSION is already published"; exit 1; }\n',
+                "",
+                "run check",
+            ),
+            # C-11
+            (
+                "npm cache back in a signing job",
+                w.validate_release_cache_boundary,
+                BUILD_WORKFLOW,
+                "          package-manager-cache: false # an artifact job restores no cache",
+                "          cache: npm",
+                "may not use a cache",
+            ),
+            (
+                "a cache in the publisher",
+                w.validate_release_cache_boundary,
+                PUBLISH_WORKFLOW,
+                '          python-version: "3.12.10"\n',
+                '          python-version: "3.12.10"\n          cache: pip\n',
+                "may not use a cache",
+            ),
+            (
+                "cache-mode write in the publisher",
+                w.validate_release_cache_boundary,
+                PUBLISH_WORKFLOW,
+                "  select:\n",
+                "  select:\n    cache-mode: write\n",
+                "may not write caches",
+            ),
+            (
+                "pull_request_target",
+                w.validate_release_cache_boundary,
+                TEST_WORKFLOW,
+                "on:\n  pull_request:\n",
+                "on:\n  pull_request_target:\n  pull_request:\n",
+                "pull_request_target",
+            ),
+            # C-12
+            (
+                "no head comparison",
+                w.validate_rerun_rechecks,
+                BUILD_WORKFLOW,
+                '          [ "$GITHUB_SHA" = "$MAIN_SHA" ] \\\n'
+                '            || { echo "::error::main moved to $MAIN_SHA; release revision '
+                '$GITHUB_SHA is stale"; exit 1; }\n',
+                "",
+                "compare the revision with main again",
+            ),
+            (
+                "the rechecks after the downloads",
+                w.validate_rerun_rechecks,
+                BUILD_WORKFLOW,
+                "      - name: Require the current main head again\n",
+                "      - name: Check the head\n",
+                "must start with",
+            ),
+            # C-15 (a, b)
+            (
+                "the reduced preflight a second time",
+                w.validate_ci_release_scope,
+                BUILD_WORKFLOW,
+                "python distribution/tooling/profile_contract.py check-release\n",
+                "python distribution/tooling/profile_contract.py check-release\n"
+                "          python distribution/tooling/release_preflight.py --ci-release-scope\n",
+                "may appear once",
+            ),
+            (
+                "the manifest builds on the gate without the tests",
+                w.validate_ci_release_scope,
+                BUILD_WORKFLOW,
+                "        release-gate,\n        tests,\n",
+                "        release-gate,\n",
+                "release-manifest builds on release-gate",
+            ),
+            # C-16
+            (
+                "the bootstrap runs on main again",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                "  push:\n    branches-ignore: [main]\n",
+                "  push:\n",
+                "ignore pushes to main",
+            ),
+            (
+                "the guard before the push removed",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                w.BOOTSTRAP_GUARD + "      - name: Check the new images in\n",
+                "      - name: Check the new images in\n",
+                "right before it pushes",
+            ),
+            (
+                "the guard compares with master",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                '[ "$TARGET_BRANCH" != main ]',
+                '[ "$TARGET_BRANCH" != master ]',
+                "first step",
+            ),
+            # C-17
+            (
+                "write permission at workflow level",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "permissions:\n  contents: read\n\njobs:",
+                "permissions:\n  contents: read\n  packages: write\n\njobs:",
+                "no write permission at workflow level",
+            ),
+            (
+                "a write job without tests",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                web_if,
+                web_if.replace("release-gate, tests]", "release-gate]"),
+                "web-image writes and must need tests and release-gate",
+            ),
+            (
+                "the manifest bypassed by an or",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "        !cancelled()\n",
+                "        github.event_name == 'workflow_dispatch' || !cancelled()\n",
+                "release-manifest writes and must run only on",
+            ),
+            (
+                "the gate with id-token",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "    name: Portable release gate\n    needs: [release-plan, release-context]\n",
+                "    name: Portable release gate\n    needs: [release-plan, release-context]\n"
+                "    permissions:\n      id-token: write\n",
+                "tests and release-gate may not write",
+            ),
+            (
+                "the manifest job renamed",
+                w.validate_write_jobs_need_tests_and_gate,
+                BUILD_WORKFLOW,
+                "\n  release-manifest:\n",
+                "\n  release-manifests:\n",
+                "not recognized: release-manifest",
+            ),
+            (
+                "publish without select",
+                w.validate_write_jobs_need_tests_and_gate,
+                PUBLISH_WORKFLOW,
+                "  publish:\n    needs: select\n",
+                "  publish:\n",
+                "publish writes and must run only on select",
+            ),
+            (
+                "a registry push in another workflow",
+                w.validate_write_jobs_need_tests_and_gate,
+                bootstrap,
+                '          git push origin "HEAD:$TARGET_BRANCH"\n',
+                '          git push origin "HEAD:$TARGET_BRANCH"\n          docker push ghcr.io/x\n',
+                "pushes to a registry",
+            ),
+            # C-19
+            (
+                "Windows signing in a dry run",
+                w.validate_dry_run_skips_secrets,
+                BUILD_WORKFLOW,
+                "      && needs.release-plan.outputs.dry_run == 'false'\n"
+                "      && needs.version-check.outputs.windows_direct == 'true'\n",
+                "      && needs.version-check.outputs.windows_direct == 'true'\n",
+                "windows-direct reads secrets",
+            ),
+            (
+                "the signing job renamed",
+                w.validate_dry_run_skips_secrets,
+                BUILD_WORKFLOW,
+                "\n  macos-direct:\n",
+                "\n  macos-signed:\n",
+                "signing jobs missing: macos-direct",
+            ),
+        )
+        for name, validate, path, original, replacement, error in cases:
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, path, original, replacement, error)
+
+    def test_c14_the_documentation_names_the_flow(self):
+        workflow_contract.validate_release_docs()
+        for name, anchors in workflow_contract.DOC_ANCHORS.items():
+            original = (REPO_ROOT / name).read_text(encoding="utf-8")
+            for anchor in anchors:
+                with self.subTest(doc=name, anchor=anchor):
+                    flat = " ".join(original.split())
+                    self.assertIn(anchor, flat)
+                    # The anchor may wrap across lines in the source, so drop it from the
+                    # whitespace-normalised text, which is what the contract reads.
+                    with self.assertRaisesRegex(
+                        workflow_contract.WorkflowContractError, re.escape(anchor)
+                    ):
+                        workflow_contract.validate_release_docs(
+                            docs={name: flat.replace(anchor, "x")}
+                        )
+
+    def test_a_new_secret_job_needs_the_dry_run_guard(self):
+        build = self.sources[BUILD_WORKFLOW]
+        mutated = dict(self.sources)
+        mutated[BUILD_WORKFLOW] = build + (
+            "\n  notify:\n    runs-on: ubuntu-24.04\n    steps:\n"
+            "      - env:\n          TOKEN: ${{ secrets.FOO }}\n        run: true\n"
+        )
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "notify reads secrets"
+        ):
+            workflow_contract.validate_dry_run_skips_secrets(mutated)
+
+    def test_release_complete_turns_an_empty_release_red(self):
+        build = self.sources[BUILD_WORKFLOW]
+
+        def complete(**values):
+            settings = {
+                "DRY_RUN": "false",
+                "VERDICT": "full-success",
+                "MANIFEST": "success",
+                "WEB": "success",
+                "BACKUP": "success",
+                "PACKAGE": "success",
+                "MACOS": "skipped",
+                "WINDOWS": "skipped",
+                **values,
+            }
+            preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in settings.items())
+            return run_step_script(
+                build, "release-complete", "Require the verdict and every artifact", preamble
+            )
+
+        for name, values, expected in (
+            ("a release", {}, 0),
+            ("a dry run", {"DRY_RUN": "true", "MANIFEST": "skipped"}, 0),
+            ("a reduced verdict", {"VERDICT": "reduced-success"}, 1),
+            ("no verdict", {"VERDICT": ""}, 1),
+            ("a skipped image", {"WEB": "skipped"}, 1),
+            ("a release without manifest", {"MANIFEST": "skipped"}, 1),
+            ("a dry run with a manifest", {"DRY_RUN": "true"}, 1),
+            (
+                "a dry run that signed",
+                {"DRY_RUN": "true", "MANIFEST": "skipped", "MACOS": "success"},
+                1,
+            ),
+        ):
+            with self.subTest(name=name):
+                code, output = complete(**values)
+                self.assertEqual(code, expected, output)
+
+    def test_a_second_run_cannot_release_a_published_version_again(self):
+        """F-35-15: the draft step refuses a published release and a draft on another revision."""
+        publish = self.sources[PUBLISH_WORKFLOW]
+        build_sha = "a" * 40
+
+        def draft(view, is_draft, tag_sha):
+            stubs = (
+                f"BUILD_SHA={build_sha}\nGH_TOKEN=x\n"
+                f'python() {{ case "$*" in -c*) echo 1.2.3;; *files*) echo pkg.whl;; esac; }}\n'
+                f'gh() {{ case "$1 $2" in\n'
+                f'  "api "*) echo {build_sha};;\n'
+                f'  "release view") case "$*" in *isDraft*) echo {is_draft};; '
+                f"*) return {view};; esac;;\n"
+                f'  "release "*) echo "gh $*";;\n'
+                f"esac; }}\n"
+                f"git() {{ echo {tag_sha}; }}\n"
+            )
+            with tempfile.TemporaryDirectory() as directory:
+                (Path(directory) / "release-assets").mkdir()
+                (Path(directory) / "release-assets" / "pkg.whl").write_bytes(b"")
+                return run_step_script(
+                    publish,
+                    "publish",
+                    "Create a draft release from the verified build",
+                    stubs,
+                    cwd=directory,
+                )
+
+        code, output = draft(view=0, is_draft="false", tag_sha=build_sha)
+        self.assertEqual(code, 1, output)
+        self.assertIn("v1.2.3 is already published", output)
+        code, output = draft(view=0, is_draft="true", tag_sha="b" * 40)
+        self.assertEqual(code, 1, output)
+        self.assertIn("existing draft points at another revision", output)
+        code, output = draft(view=0, is_draft="true", tag_sha=build_sha)
+        self.assertEqual(code, 0, output)
+        self.assertIn("gh release upload v1.2.3 --clobber", output)
+        code, output = draft(view=1, is_draft="false", tag_sha=build_sha)
+        self.assertEqual(code, 0, output)
+        self.assertIn("gh release create v1.2.3", output)
 
 
 class ThirdPartyNoticeContractTests(unittest.TestCase):
@@ -3013,6 +4234,435 @@ class ThirdPartyNoticeContractTests(unittest.TestCase):
             ):
                 with self.subTest(lock=record["name"], package=name):
                     self.assertIn((name.casefold().replace("_", "-"), version), package_versions)
+
+
+class PreflightCiScopeTests(unittest.TestCase):
+    """C-15: the release workflow's preflight skips only what the full test matrix runs."""
+
+    RELEASE_ENVIRONMENT: ClassVar[dict[str, str]] = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_WORKFLOW_REF": "owner/quiltor/.github/workflows/release.yml@refs/tags/v1.0.0",
+    }
+
+    def run_scope(self, scope: str, environment: dict[str, str]) -> tuple[list[str], str]:
+        ran: list[str] = []
+        output = io.StringIO()
+        with (
+            patch.dict(release_preflight.os.environ, environment, clear=True),
+            patch.object(release_preflight, "_npm_executable", return_value="npm"),
+            patch.object(release_preflight, "_cargo_executable", return_value="cargo"),
+            patch.object(release_preflight, "_docker_executable", return_value="docker"),
+            patch.object(release_preflight, "_require_pinned_runtime_toolchains"),
+            patch.object(release_preflight, "_require_pinned_python_build_tools"),
+            patch.object(
+                release_preflight, "_run", side_effect=lambda label, *_args: ran.append(label)
+            ),
+            patch.object(
+                release_preflight,
+                "_check_pinned_writing_data",
+                side_effect=lambda *_args, **_kwargs: ran.append("<pinned writing data>"),
+            ),
+            patch.object(
+                release_preflight,
+                "_run_portable_artifact_builds",
+                side_effect=lambda *_args, **_kwargs: ran.append("<artifact builds>"),
+            ),
+            patch.object(
+                release_preflight,
+                "_run_browser_suite",
+                side_effect=lambda *_args, **_kwargs: ran.append("Playwright browser suite"),
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            release_preflight.run_preflight(REPO_ROOT, scope=scope)
+        return ran, output.getvalue()
+
+    def test_full_scope_runs_every_step_and_skips_nothing(self):
+        ran, output = self.run_scope("full", {})
+        self.assertNotIn("Skipped", output)
+        self.assertLessEqual(release_preflight.COVERED_BY_FULL_MATRIX, set(ran))
+        self.assertIn("<artifact builds>", ran)
+
+    def test_both_scopes_check_the_pinned_writing_data(self):
+        # The pin is the only thing tying a release to the writing data it ships with; a
+        # preflight that forgets to call the check releases whatever the manifest says.
+        for scope, environment in (("full", {}), ("ci", self.RELEASE_ENVIRONMENT)):
+            with self.subTest(scope=scope):
+                ran, _ = self.run_scope(scope, environment)
+                self.assertEqual(ran.count("<pinned writing data>"), 1)
+
+    def test_ci_scope_skips_exactly_the_covered_steps(self):
+        full, _ = self.run_scope("full", {})
+        ci, output = self.run_scope("ci", self.RELEASE_ENVIRONMENT)
+        covered = release_preflight.COVERED_BY_FULL_MATRIX
+        self.assertEqual(ci, [label for label in full if label not in covered])
+        skipped = re.findall(
+            r"==> Skipped \(covered by the called full test matrix\): (.+)", output
+        )
+        self.assertEqual(skipped, [label for label in full if label in covered])
+        self.assertEqual(set(release_preflight.COVERAGE), covered)
+
+    def test_ci_scope_outside_release_workflow_fails_instead_of_shrinking(self):
+        other_workflow = "owner/quiltor/.github/workflows/test.yml@refs/heads/main"
+        for name, environment in (
+            ("local shell", {}),
+            (
+                "another workflow",
+                {**self.RELEASE_ENVIRONMENT, "GITHUB_WORKFLOW_REF": other_workflow},
+            ),
+            ("not in actions", {**self.RELEASE_ENVIRONMENT, "GITHUB_ACTIONS": "false"}),
+        ):
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(
+                    release_preflight.PreflightError, "reserved for release.yml"
+                ),
+            ):
+                self.run_scope("ci", environment)
+
+    def test_unknown_scope_is_refused(self):
+        with self.assertRaisesRegex(release_preflight.PreflightError, "Unknown preflight scope"):
+            release_preflight.run_preflight(REPO_ROOT, scope="fast")
+
+    def test_flag_selects_the_ci_scope_and_its_absence_the_full_one(self):
+        for argv, scope in (([], "full"), (["--ci-release-scope"], "ci")):
+            with (
+                self.subTest(argv=argv),
+                patch.object(release_preflight, "run_preflight") as run,
+            ):
+                self.assertEqual(release_preflight.main(argv), 0)
+                run.assert_called_once_with(scope=scope)
+
+    def test_the_default_scope_is_full(self):
+        signature = inspect.signature(release_preflight.run_preflight)
+        self.assertEqual(signature.parameters["scope"].default, "full")
+
+    def test_set_version_runs_the_full_preflight(self):
+        source = (TOOLING / "set_version.py").read_text(encoding="utf-8")
+        calls = re.findall(r"run_preflight\(([^)]*)\)", source)
+        self.assertEqual(calls, ["repo_root"])
+
+    def test_every_covered_step_is_run_by_the_matrix(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_preflight_coverage(sources)
+        for label, (_job, lines) in release_preflight.COVERAGE.items():
+            for line in lines:
+                with self.subTest(label=label, line=line):
+                    mutated = dict(sources)
+                    pattern = re.compile(r"^.*" + re.escape(line) + r".*\n", re.MULTILINE)
+                    self.assertRegex(mutated[TEST_WORKFLOW], pattern)
+                    mutated[TEST_WORKFLOW] = pattern.sub("", mutated[TEST_WORKFLOW])
+                    with self.assertRaisesRegex(
+                        workflow_contract.WorkflowContractError, "skipped in CI|frontend job"
+                    ):
+                        workflow_contract.validate_preflight_coverage(mutated)
+
+    def test_the_build_line_is_the_one_the_frontend_gate_contract_expects(self):
+        sources = dict(workflow_contract._workflow_sources())
+        line = "run: npx tsc -b && npx vite build\n"
+        self.assertIn(line, sources[TEST_WORKFLOW])
+        sources[TEST_WORKFLOW] = sources[TEST_WORKFLOW].replace(line, "run: npx vite build\n")
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "build script"):
+            workflow_contract.validate_preflight_coverage(sources)
+
+    def test_a_line_is_not_matched_by_a_longer_command(self):
+        sources = dict(workflow_contract._workflow_sources())
+        line = "run: npx vitest run\n"
+        self.assertIn(line, sources[TEST_WORKFLOW])
+        sources[TEST_WORKFLOW] = sources[TEST_WORKFLOW].replace(
+            line, "run: npx vitest run--passWithNoTests\n"
+        )
+        with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "npx vitest run"):
+            workflow_contract.validate_preflight_coverage(sources)
+
+    def test_a_label_without_a_required_job_fails(self):
+        sources = workflow_contract._workflow_sources()
+        for name, coverage, error in (
+            (
+                "job outside the matrix",
+                {"Backend suite": ("ghost", ("run: echo",))},
+                "does not require",
+            ),
+            ("no covering line", {"Backend suite": ("backend", ())}, "names no covering line"),
+        ):
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
+            ):
+                workflow_contract.validate_preflight_coverage(sources, coverage)
+
+    def test_package_scripts_must_match_what_the_matrix_runs(self):
+        sources = workflow_contract._workflow_sources()
+        package = json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+        for name, script, value, error in (
+            ("unit suite differs", "test", "vitest run --passWithNoTests", "vitest run"),
+            ("formatting left out of check", "check", "npm run check:contracts", "check:format"),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "tools" / "dev").mkdir(parents=True)
+                shutil.copy(REPO_ROOT / "tools/dev/run-check.mjs", root / "tools/dev")
+                scripts = {**package["scripts"], script: value}
+                (root / "package.json").write_text(
+                    json.dumps({**package, "scripts": scripts}), encoding="utf-8"
+                )
+                with (
+                    patch.object(workflow_contract, "REPO_ROOT", root),
+                    self.assertRaisesRegex(workflow_contract.WorkflowContractError, error),
+                ):
+                    workflow_contract.validate_preflight_coverage(sources)
+
+
+WRITING_DATA_PIN: dict[str, Any] = {
+    "version": "2026.11.03",
+    "url": (
+        "https://github.com/Tim3399/quiltor/releases/download/"
+        "writing-data-2026.11.03/writing-2026.11.03.sqlite3.gz"
+    ),
+    "sha256": "ab" * 32,
+    "bytes": 6,
+    "content_sha256": "cd" * 32,
+    "license": "CC BY-SA 4.0",
+}
+
+
+def _own_repository() -> str:
+    match = re.search(
+        r'^Homepage = "https://github\.com/([^/"]+/[^/"]+)"$',
+        (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match is not None, "pyproject.toml names no GitHub homepage"
+    return match.group(1)
+
+
+def assert_writing_data_pin(data: dict[str, Any] | None) -> None:
+    """The offline half of the pinned-data check: a set pin is complete and points home."""
+
+    if data is None:
+        return
+    missing = {"version", "url", "sha256", "bytes", "content_sha256", "license"} - set(data)
+    assert not missing, f"writing data pin is missing {sorted(missing)}"
+    prefix = f"https://github.com/{_own_repository()}/releases/download/writing-data-"
+    assert str(data["url"]).startswith(prefix), f"writing data url must start with {prefix}"
+    for field in ("sha256", "content_sha256"):
+        assert re.fullmatch(r"[0-9a-f]{64}", str(data[field])), f"{field} is not 64 hex digits"
+    assert isinstance(data["bytes"], int) and data["bytes"] > 0, "bytes must be positive"
+    assert isinstance(data["license"], str) and data["license"].strip(), "license is not set"
+
+
+class WritingDataReleaseContractTests(unittest.TestCase):
+    """T-88 D4: the app release refers to the pinned writing data without carrying it."""
+
+    def test_registry_pin_is_none_or_complete(self):
+        assert_writing_data_pin(release_manifest.pinned_writing_data())
+
+    def test_pin_contract_refuses_incomplete_or_foreign_pins(self):
+        assert_writing_data_pin(WRITING_DATA_PIN)
+        foreign = WRITING_DATA_PIN["url"].replace("Tim3399/quiltor", "someone/else")
+        cases = {
+            "license missing": {k: v for k, v in WRITING_DATA_PIN.items() if k != "license"},
+            "license empty": {**WRITING_DATA_PIN, "license": " "},
+            "foreign repository": {**WRITING_DATA_PIN, "url": foreign},
+            "app release tag": {
+                **WRITING_DATA_PIN,
+                "url": WRITING_DATA_PIN["url"].replace("writing-data-2026.11.03", "v3.25.0"),
+            },
+            "short sha256": {**WRITING_DATA_PIN, "sha256": "a" * 63},
+        }
+        for name, data in cases.items():
+            with self.subTest(name=name), self.assertRaises(AssertionError):
+                assert_writing_data_pin(data)
+
+    def test_none_pin_gives_no_data_assets(self):
+        self.assertEqual(release_manifest.data_asset_records(None), [])
+
+    def _manifest(self, root: Path, data: dict[str, Any] | None) -> Path:
+        artifact_root = root / "artifacts"
+        manifest: dict[str, Any] = release_manifest.create(
+            "3.3.1",
+            "a" * 40,
+            ReleaseManifestTests._images(),
+            ReleaseManifestTests._artifacts(artifact_root),
+            data=data,
+        )
+        ReleaseManifestTests._attest_signatures(manifest, artifact_root)
+        path = artifact_root / "release-manifest.json"
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        return path
+
+    def test_manifest_carries_the_pin_and_verify_refuses_a_wrong_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory), WRITING_DATA_PIN)
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["schemaVersion"], 7)
+            self.assertEqual(
+                manifest["dataAssets"],
+                [
+                    {
+                        "name": "writing-2026.11.03.sqlite3.gz",
+                        "url": WRITING_DATA_PIN["url"],
+                        "sha256": WRITING_DATA_PIN["sha256"],
+                        "bytes": 6,
+                    }
+                ],
+            )
+            release_manifest.verify(path, path.parent, "a" * 40, data=WRITING_DATA_PIN)
+            manifest["dataAssets"][0]["sha256"] = "ef" * 32
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "canonical"):
+                release_manifest.verify(path, path.parent, "a" * 40, data=WRITING_DATA_PIN)
+
+    def test_verify_refuses_a_manifest_built_against_another_pin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory), WRITING_DATA_PIN)
+            with self.assertRaisesRegex(release_manifest.ManifestError, "canonical"):
+                release_manifest.verify(path, path.parent, "a" * 40, data=None)
+
+    def test_files_lists_no_data_asset(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory), WRITING_DATA_PIN)
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            output = io.StringIO()
+            with (
+                patch.object(
+                    release_manifest, "pinned_writing_data", return_value=WRITING_DATA_PIN
+                ),
+                contextlib.redirect_stdout(output),
+            ):
+                status = release_manifest.main(["files", "--manifest", str(path)])
+            self.assertEqual(status, 0)
+            listed = output.getvalue().splitlines()
+            self.assertEqual(
+                listed,
+                [item["name"] for item in manifest["artifacts"]]
+                + [item["record"] for item in manifest["signatures"]],
+            )
+            self.assertNotIn("writing-2026.11.03.sqlite3.gz", listed)
+
+    def test_registry_pin_is_read_without_importing_the_application(self):
+        with tempfile.TemporaryDirectory() as directory:
+            registry = Path(directory) / "registry.py"
+            registry.write_text(
+                "DATA: Final[DataRelease | None] = " + repr(WRITING_DATA_PIN) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(release_manifest.pinned_writing_data(registry), WRITING_DATA_PIN)
+            registry.write_text("DATA = None\n", encoding="utf-8")
+            self.assertIsNone(release_manifest.pinned_writing_data(registry))
+            registry.write_text("OTHER = None\n", encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "no DATA pin"):
+                release_manifest.pinned_writing_data(registry)
+
+
+class _FakeResponse:
+    def __init__(self, status: int, body: bytes, length: str | None):
+        self.status = status
+        self.headers = {} if length is None else {"Content-Length": length}
+        self._body = io.BytesIO(body)
+
+    def read(self, size: int = -1) -> bytes:
+        return self._body.read(size)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+class PinnedWritingDataPreflightTests(unittest.TestCase):
+    """The preflight check behind the pin: not in COVERAGE, so it runs in every scope."""
+
+    BODY = b"sqlite"
+
+    def pin(self, body: bytes = BODY) -> dict[str, Any]:
+        return {
+            **WRITING_DATA_PIN,
+            "sha256": hashlib.sha256(body).hexdigest(),
+            "bytes": len(body),
+        }
+
+    def run_check(self, data, responses) -> str:
+        output = io.StringIO()
+        with (
+            patch.object(release_preflight.urllib.request, "urlopen", side_effect=responses),
+            contextlib.redirect_stdout(output),
+        ):
+            release_preflight._check_pinned_writing_data(data)
+        return output.getvalue()
+
+    def test_no_pin_says_so_and_touches_no_network(self):
+        output = self.run_check(None, AssertionError("network used without a pin"))
+        self.assertIn("no writing data pinned", output)
+
+    def test_published_asset_with_matching_bytes_passes(self):
+        output = self.run_check(
+            self.pin(),
+            [_FakeResponse(200, b"", str(len(self.BODY))), _FakeResponse(200, self.BODY, None)],
+        )
+        self.assertIn("sha256 matches", output)
+
+    def test_wrong_length_or_digest_or_status_fails(self):
+        cases = {
+            "status": [_FakeResponse(404, b"", "6")],
+            "length": [_FakeResponse(200, b"", "7")],
+            "no length": [_FakeResponse(200, b"", None)],
+            "digest": [_FakeResponse(200, b"", "6"), _FakeResponse(200, b"SQLITE", None)],
+        }
+        for name, responses in cases.items():
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(release_preflight.PreflightError, "Pinned writing data"),
+            ):
+                self.run_check(self.pin(), responses)
+
+    def test_check_is_not_part_of_the_matrix_coverage(self):
+        self.assertNotIn(release_preflight.WRITING_DATA_LABEL, release_preflight.COVERAGE)
+        self.assertEqual(len(release_preflight.COVERAGE), 10)
+
+
+class ReleaseNotesStartTests(unittest.TestCase):
+    """F-88-5 point 5: generated app notes start at the previous app tag, never a data tag."""
+
+    @staticmethod
+    def _release(tag: str, **extra: Any) -> dict[str, Any]:
+        return {"tag_name": tag, "draft": False, "prerelease": False, **extra}
+
+    def test_previous_app_tag_skips_data_releases_and_newer_versions(self):
+        releases = [
+            self._release("v3.24.0"),
+            self._release("writing-data-2026.11.03"),
+            self._release("v3.23.1"),
+            self._release("v3.26.0", draft=True),
+        ]
+        self.assertEqual(
+            previous_release.notes_start_tag("3.25.0", releases, ["writing-data-2026.11.04"]),
+            "v3.24.0",
+        )
+        self.assertEqual(
+            previous_release.notes_start_tag("3.25.0", [self._release("v3.25.0")], ["v3.24.0"]),
+            "v3.24.0",
+        )
+        self.assertIsNone(
+            previous_release.notes_start_tag("3.25.0", [self._release("writing-data-2026.11.03")])
+        )
+
+    def test_writing_data_tags_never_enter_stable_history(self):
+        self.assertEqual(
+            previous_release.stable_history_versions(
+                [self._release("writing-data-2026.11.03")], ["writing-data-2026.11.03"]
+            ),
+            set(),
+        )
+
+    def test_publisher_passes_the_previous_app_tag_to_generated_notes(self):
+        publish = PUBLISH_WORKFLOW.read_text(encoding="utf-8")
+        self.assertEqual(publish.count("--generate-notes"), 1)
+        self.assertIn("NOTES=(--generate-notes)", publish)
+        self.assertIn('[ -z "$START" ] || NOTES+=(--notes-start-tag "$START")', publish)
+        self.assertIn('--notes-start-tag --current-version "$VERSION")"', publish)
+        self.assertIn('--title "v$VERSION" "${NOTES[@]}" --draft "${ASSETS[@]}"', publish)
 
 
 if __name__ == "__main__":

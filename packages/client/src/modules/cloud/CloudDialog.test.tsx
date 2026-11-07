@@ -6,6 +6,7 @@ import {
   type CloudSyncPreview,
   type CloudSyncStatus,
   quiltorClient,
+  type SyncTarget,
 } from "../../platform";
 import type { Manuscript } from "../manuscript";
 import { CloudDialog } from "./CloudDialog";
@@ -52,6 +53,41 @@ function cloudStatus(overrides: Partial<CloudSyncStatus> = {}): CloudSyncStatus 
   };
 }
 
+function syncTarget(overrides: Partial<SyncTarget> = {}): SyncTarget {
+  return {
+    ok: true,
+    backupUrl: "https://cloud.example.test/project",
+    source: "world",
+    worldUrl: "https://cloud.example.test/project",
+    operatorUrl: "",
+    ...overrides,
+  };
+}
+
+const NO_TARGET = syncTarget({ backupUrl: "", source: "none", worldUrl: "" });
+
+function unconfigured() {
+  vi.mocked(quiltorClient.application.synchronization.target).mockResolvedValue(NO_TARGET);
+  vi.mocked(quiltorClient.application.backup.loginStatus).mockResolvedValue({
+    ok: true,
+    configured: false,
+    endpoint: "",
+    signedIn: false,
+  });
+  vi.mocked(quiltorClient.application.synchronization.status).mockResolvedValue(
+    cloudStatus({
+      configured: false,
+      endpoint: "",
+      state: "unconfigured",
+      localFingerprint: "",
+      baseGeneration: null,
+      remote: { generation: 0, snapshotId: null },
+      lastSyncedAt: null,
+      account: undefined,
+    }),
+  );
+}
+
 function remotePreview(overrides: Partial<CloudSyncPreview> = {}): CloudSyncPreview {
   return {
     ok: true,
@@ -95,7 +131,6 @@ beforeEach(() => {
   vi.spyOn(quiltorClient.application.backup, "loginStatus").mockResolvedValue({
     ok: true,
     configured: true,
-    hosted: false,
     endpoint: "https://cloud.example.test",
     signedIn: true,
   });
@@ -105,6 +140,8 @@ beforeEach(() => {
     redirectUri: "http://127.0.0.1/callback",
   });
   vi.spyOn(quiltorClient.application.synchronization, "status").mockResolvedValue(cloudStatus());
+  vi.spyOn(quiltorClient.application.synchronization, "target").mockResolvedValue(syncTarget());
+  vi.spyOn(quiltorClient.application.synchronization, "setTarget").mockResolvedValue(syncTarget());
   vi.spyOn(quiltorClient.application.synchronization, "preview").mockResolvedValue(remotePreview());
   vi.spyOn(quiltorClient.application.synchronization, "synchronize").mockResolvedValue({
     ok: true,
@@ -172,42 +209,112 @@ describe("CloudDialog", () => {
     expect(quiltorClient.application.synchronization.synchronize).not.toHaveBeenCalled();
   });
 
-  it("explains unconfigured cloud without weakening local independence", async () => {
-    vi.mocked(quiltorClient.application.backup.loginStatus).mockResolvedValue({
-      ok: true,
-      configured: false,
-      hosted: false,
-      endpoint: "",
-      signedIn: false,
-    });
-    vi.mocked(quiltorClient.application.synchronization.status).mockResolvedValue(
-      cloudStatus({
-        configured: false,
-        endpoint: "",
-        state: "unconfigured",
-        localFingerprint: "",
-        baseGeneration: null,
-        remote: { generation: 0, snapshotId: null },
-        lastSyncedAt: null,
-        account: undefined,
-      }),
+  it("explains in a muted sentence what syncing does and that the author starts it", async () => {
+    unconfigured();
+    renderDialog();
+    const intro = await screen.findByText(
+      "Der Abgleich überträgt deine Versionen zu einem Server, damit du auf anderen Geräten weiterschreiben kannst. Er startet nur, wenn du ihn auslöst.",
     );
+    expect(intro).toBeVisible();
+    expect(intro).toHaveClass("muted");
+  });
+
+  it("explains unconfigured cloud without weakening local independence", async () => {
+    unconfigured();
     renderDialog();
 
     expect(await screen.findByText("Keine Cloud eingerichtet")).toBeVisible();
     expect(
       screen.getByText(/Schreiben, Papierkorb, Wiederherstellung und Projektexport/),
     ).toBeVisible();
-    expect(screen.getByText(/Cloud-Ziel eingerichtet/)).toBeVisible();
+    expect(screen.getByText("Noch kein Abgleich eingerichtet.")).toBeVisible();
+    expect(screen.getByText(/Projekte lassen sich auch per Export übertragen/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Abgleich einrichten" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Jetzt synchronisieren" })).not.toBeInTheDocument();
     expect(quiltorClient.application.backup.beginLogin).not.toHaveBeenCalled();
+  });
+
+  it("sets up a target, then asks the server again where it stands", async () => {
+    unconfigured();
+    const flush = vi.fn().mockResolvedValue(undefined);
+    renderDialog({ flush });
+    const field = await screen.findByLabelText("Adresse des Servers");
+    vi.mocked(quiltorClient.application.synchronization.target).mockResolvedValue(syncTarget());
+    vi.mocked(quiltorClient.application.backup.loginStatus).mockResolvedValue({
+      ok: true,
+      configured: true,
+      endpoint: "https://cloud.example.test/project",
+      signedIn: false,
+    });
+
+    fireEvent.change(field, { target: { value: "  https://cloud.example.test/project  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Abgleich einrichten" }));
+
+    expect(await screen.findByText(/Ziel gespeichert/)).toBeVisible();
+    expect(quiltorClient.application.synchronization.setTarget).toHaveBeenCalledWith(
+      "https://cloud.example.test/project",
+    );
+    // The address is not project content: setting it saves nothing first.
+    expect(flush).toHaveBeenCalledOnce();
+    expect(quiltorClient.application.synchronization.target).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Noch kein Abgleich eingerichtet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bei der Sicherung anmelden" })).toBeVisible();
+  });
+
+  it("keeps the form and shows the server's reason when an address is refused", async () => {
+    unconfigured();
+    vi.mocked(quiltorClient.application.synchronization.setTarget).mockRejectedValue(
+      new ApplicationGatewayError("Diese Adresse passt nicht.", "sync.target_invalid"),
+    );
+    renderDialog();
+    fireEvent.change(await screen.findByLabelText("Adresse des Servers"), {
+      target: { value: "http://cloud.example.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abgleich einrichten" }));
+
+    expect(await screen.findByText("Diese Adresse passt nicht.")).toBeVisible();
+    expect(screen.getByLabelText("Adresse des Servers")).toHaveValue("http://cloud.example.test");
+    expect(screen.queryByText(/Ziel gespeichert/)).not.toBeInTheDocument();
+  });
+
+  it("names an operator default as such and lets the project override it", async () => {
+    vi.mocked(quiltorClient.application.synchronization.target).mockResolvedValue(
+      syncTarget({
+        backupUrl: "https://operator.example",
+        source: "operator",
+        worldUrl: "",
+        operatorUrl: "https://operator.example",
+      }),
+    );
+    renderDialog();
+
+    expect(await screen.findByText(/Vom Betreiber vorgegeben/)).toBeVisible();
+    expect(screen.queryByText("Noch kein Abgleich eingerichtet.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Ziel ändern"));
+    expect(screen.getByLabelText("Adresse des Servers")).toHaveValue("");
+    // Nothing of the project to remove: the operator default is not stored in the project.
+    expect(screen.queryByRole("button", { name: "Ziel entfernen" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Vorgabe des Betreibers verwenden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("returns a project that overrides the operator to the operator default", async () => {
+    vi.mocked(quiltorClient.application.synchronization.target).mockResolvedValue(
+      syncTarget({ operatorUrl: "https://operator.example" }),
+    );
+    renderDialog();
+    fireEvent.click(await screen.findByText("Ziel ändern"));
+    fireEvent.click(screen.getByRole("button", { name: "Vorgabe des Betreibers verwenden" }));
+    await waitFor(() =>
+      expect(quiltorClient.application.synchronization.setTarget).toHaveBeenCalledWith(""),
+    );
   });
 
   it("offers a separate login for a configured signed-out target", async () => {
     vi.mocked(quiltorClient.application.backup.loginStatus).mockResolvedValue({
       ok: true,
       configured: true,
-      hosted: false,
       endpoint: "https://cloud.example.test",
       signedIn: false,
     });
@@ -220,6 +327,75 @@ describe("CloudDialog", () => {
     );
     expect(quiltorClient.application.synchronization.status).not.toHaveBeenCalled();
     expect(quiltorClient.application.synchronization.synchronize).not.toHaveBeenCalled();
+  });
+
+  describe("signing out", () => {
+    const openDetails = async () => fireEvent.click(await screen.findByText("Technische Details"));
+
+    it("offers it only while signed in, then asks again for the sign-in status", async () => {
+      const signOut = vi
+        .spyOn(quiltorClient.application.backup, "signOut")
+        .mockResolvedValue({ ok: true } as Awaited<
+          ReturnType<typeof quiltorClient.application.backup.signOut>
+        >);
+      renderDialog();
+      await openDetails();
+      const loginStatus = vi.mocked(quiltorClient.application.backup.loginStatus);
+      const loadsBefore = loginStatus.mock.calls.length;
+      loginStatus.mockResolvedValue({
+        ok: true,
+        configured: true,
+        endpoint: "https://cloud.example.test",
+        signedIn: false,
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+      await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+      await waitFor(() => expect(loginStatus.mock.calls.length).toBeGreaterThan(loadsBefore));
+      // The tab now asks for the sign-in instead.
+      expect(
+        await screen.findByRole("button", { name: "Bei der Sicherung anmelden" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Technische Details")).not.toBeInTheDocument();
+    });
+
+    it("is not offered when signed out", async () => {
+      vi.mocked(quiltorClient.application.backup.loginStatus).mockResolvedValue({
+        ok: true,
+        configured: true,
+        endpoint: "https://cloud.example.test",
+        signedIn: false,
+      });
+      renderDialog();
+      await screen.findByRole("button", { name: "Bei der Sicherung anmelden" });
+      expect(screen.queryByRole("button", { name: "Abmelden" })).not.toBeInTheDocument();
+    });
+
+    it("shows a failed sign-out and keeps the details", async () => {
+      vi.spyOn(quiltorClient.application.backup, "signOut").mockRejectedValue(
+        new Error("Endpoint not reachable"),
+      );
+      renderDialog();
+      await openDetails();
+      fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+      expect(await screen.findByText("Endpoint not reachable")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Abmelden" })).toBeEnabled();
+    });
+
+    it("signs out once however often it is pressed", async () => {
+      const pending = deferred<{ ok: true }>();
+      const signOut = vi
+        .spyOn(quiltorClient.application.backup, "signOut")
+        .mockReturnValue(
+          pending.promise as ReturnType<typeof quiltorClient.application.backup.signOut>,
+        );
+      renderDialog();
+      await openDetails();
+      const button = screen.getByRole("button", { name: "Abmelden" });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      await waitFor(() => expect(signOut).toHaveBeenCalledOnce());
+      pending.resolve({ ok: true });
+    });
   });
 
   it("cannot resolve a conflict until a preview matches the current remote head", async () => {
