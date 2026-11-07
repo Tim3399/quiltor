@@ -581,6 +581,36 @@ describe("ManuscriptEditor selection", () => {
     expect(editor.state.doc.toString()).toBe("Neu");
   });
 
+  // T-161: during a composition (dead key, IME) the transaction must not set a selection.
+  it("leaves the selection alone while a composition is in progress", () => {
+    const { editor, rerender, handle, onChange, onSelection } = renderEditor({
+      value: "Anfang Ende",
+    });
+    editor.focus();
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 11);
+    editor.contentDOM.dispatchEvent(new CompositionEvent("compositionstart", { data: "" }));
+    const update = vi.spyOn(editor, "update");
+
+    rerender(
+      <ManuscriptEditor
+        value="Anfang Ende"
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={handle}
+        onChange={onChange}
+        onSelection={onSelection}
+        marks={[{ from: 7, to: 11, kind: "bold" }]}
+      />,
+    );
+
+    expect(editor.compositionStarted).toBe(true);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0]?.[0].some((tr) => tr.selection)).toBe(false);
+    expect(editor.state.doc.toString()).toBe("Anfang Ende");
+  });
+
   it("maps marks and mentions through two edits that land before the next commit", () => {
     const { editor, onChange } = renderEditor({
       marks: [{ from: 6, to: 10, kind: "italic" }],

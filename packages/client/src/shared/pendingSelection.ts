@@ -15,6 +15,10 @@ import type { EditorView } from "@codemirror/view";
  */
 export function withPendingSelection(view: EditorView, spec: TransactionSpec): TransactionSpec {
   if (spec.selection || spec.changes || !view.hasFocus) return spec;
+  // A selection set during an IME or dead-key composition (¨ + u) can break it off or double
+  // the character. `compositionStarted` is the public flag that also covers `composing`: it is
+  // true from `compositionstart` on, before the first composed text arrives.
+  if (view.compositionStarted) return spec;
   const root = view.root as Document | (ShadowRoot & { getSelection?: () => Selection | null });
   const native = root.getSelection ? root.getSelection() : document.getSelection();
   const { anchorNode, focusNode } = native ?? {};
