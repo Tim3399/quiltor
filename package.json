@@ -43,7 +43,7 @@
     "check:design-system": "node --test tools/quality/design_system_debt.test.mjs tools/quality/design_public_api.test.mjs tools/quality/css_design_debt.test.mjs tools/quality/menu_contracts.test.mjs tools/quality/action_ranks.test.mjs && node tools/quality/check_design_system_debt.mjs && node tools/quality/check_design_public_api.mjs && node tools/quality/check_css_design_debt.mjs && node tools/quality/check_menu_contracts.mjs && node tools/quality/check_action_ranks.mjs",
     "check:readme-screenshots": "node --test tools/quality/readme_screenshots.test.mjs && node tools/quality/check_readme_screenshots.mjs",
     "check:i18n": "node --test tools/quality/locale_registry.test.mjs tools/quality/term_spelling.test.mjs tools/quality/locale_dead_keys.test.mjs && node tools/quality/check_i18n.mjs",
-    "check:platform": "node tools/quality/check_platform_boundaries.mjs",
+    "check:platform": "node --test tools/quality/platform_boundaries.test.mjs && node tools/quality/check_platform_boundaries.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:tools": "node --test tools/audit/*.test.mjs tools/dev/*.test.mjs tools/documentation/*.test.mjs",
