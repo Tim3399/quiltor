@@ -371,6 +371,27 @@
       "expect": "reject"
     },
     {
+      "id": "reference-card-carries-no-note-text",
+      "operation": "set",
+      "path": "/payload/nodes/1/text",
+      "value": "Mara protects the archive.",
+      "expect": "reject"
+    },
+    {
+      "id": "reference-card-carries-no-note-marks",
+      "operation": "set",
+      "path": "/payload/nodes/1/noteMarks",
+      "value": [{ "from": 0, "to": 1, "kind": "bold" }],
+      "expect": "reject"
+    },
+    {
+      "id": "reference-card-keeps-an-empty-note",
+      "operation": "set",
+      "path": "/payload/nodes/1/text",
+      "value": "",
+      "expect": "accept"
+    },
+    {
       "id": "storyboard-note-target-must-exist",
       "operation": "set",
       "path": "/payload/nodes/2/noteReferences/0/target/id",
