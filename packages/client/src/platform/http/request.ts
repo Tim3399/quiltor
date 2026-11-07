@@ -115,6 +115,8 @@ function localizedStructuredErrorMessage(
   if (code === "backup_content_integrity") return messages.errorBackupContentIntegrity;
   if (code === "backup_content_unavailable") return messages.errorBackupContentUnavailable;
   if (code === "sync.forbidden_hosted") return messages.errorSyncForbiddenHosted;
+  // A hosted server refuses operator-only routes such as installing the assistant (T-184).
+  if (code === "install.forbidden_hosted") return messages.errorInstallForbiddenHosted;
   if (code === "sync.target_invalid") return messages.errorSyncTargetInvalid;
   if (code === "project_transfer.invalid_archive")
     return messages.errorProjectTransferInvalidArchive;

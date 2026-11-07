@@ -1149,5 +1149,129 @@ class AssistantLimitsHostedTests(_LiveAuthServerTestCase):
                 self.assertEqual(json.loads(body)["error"]["code"], "install.forbidden_hosted")
 
 
+class OneHostedAccountOverTimeTests(_LiveAuthServerTestCase):
+    """T-58 end to end: one OIDC account on a shared server, followed through every part.
+
+    The gate (G0), the status without the role and the open-job limit (P6), roles that follow
+    the provider at every refresh (P2) and a session the provider ended (P2) -- in one run
+    against one live server, the way they meet in operation.
+    """
+
+    def setUp(self):
+        super().setUp()
+        runtime = MagicMock()
+        runtime.status.return_value = {
+            "available": True,
+            "mode": "local",
+            "reason": "",
+            "backend": "llama",
+            "model": "secret-model",
+        }
+        self.store = AssistantJobStore(Path(self.temp.name) / "journey-jobs.sqlite3")
+        jobs = MagicMock()
+        jobs.submit.side_effect = lambda **kwargs: self.store.submit(**kwargs)
+        self.application.assistant_services = AssistantServices(runtime, jobs)
+        # What the provider answers at the next refresh; changed as the account's roles change.
+        self.provider: dict[str, Any] = {"roles": [], "failure": None}
+        self.refreshes = 0
+
+        def refresh_tokens(refresh_token, **_):
+            self.refreshes += 1
+            if self.provider["failure"] is not None:
+                raise self.provider["failure"]
+            claims = {"sub": "user-journey", "roles": list(self.provider["roles"])}
+            return {
+                "access_token": f"at-{self.refreshes}",
+                "refresh_token": f"rt-{self.refreshes}",
+                "expires_in": 300,
+                "id_token": json.dumps(claims),
+            }
+
+        for name, replacement in (
+            ("refresh_tokens", refresh_tokens),
+            ("verify_id_token", lambda token, nonce, **_: json.loads(token)),
+        ):
+            patcher = patch.object(self.auth, name, side_effect=replacement)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _lapse(self, session: str) -> None:
+        """The access token has run out; the next request asks the provider again."""
+        self.auth.store_session_tokens(
+            session, {"access_token": "at", "refresh_token": "rt", "expires_in": 0}
+        )
+
+    def _call(self, method: str, path: str, session: str, body=None, key: str | None = None):
+        status, _, raw, _ = self._request(
+            method,
+            path,
+            body=body,
+            headers={"Idempotency-Key": key} if key else None,
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(raw)
+
+    def test_gate_status_refresh_and_limit_follow_the_account_through_one_session(self):
+        session = self._login("user-journey", roles=())
+        status, body = self._call(
+            "POST", "/api/worlds/create", session, body={"title": "Welt", "backupUrl": ""}
+        )
+        self.assertEqual(status, 200, body)
+        world_id = body["world"]["id"]
+
+        def job(key: str):
+            return self._call("POST", "/api/assistant/jobs", session, _job_body(world_id), key)
+
+        # Without the role: the gate refuses, the status only says so.
+        status, body = job("key-0")
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        status, body = self._call("GET", f"/api/assistant/status?world={world_id}", session)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(
+            body,
+            {
+                "ok": True,
+                "available": False,
+                "premium": False,
+                "installed": False,
+                "reason": "",
+                "chunks": 0,
+            },
+        )
+
+        # The role is granted in Keycloak; the next refresh brings it, no new login.
+        self.provider["roles"] = [DEFAULT_PREMIUM_ROLE]
+        self._lapse(session)
+        for index in range(1, 4):
+            status, body = job(f"key-{index}")
+            self.assertEqual(status, 202, body)
+        self.assertEqual(self.refreshes, 1)
+
+        # Three jobs are open: the fourth is refused with the limit.
+        status, body = job("key-4")
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["code"], "assistant.too_many_jobs")
+        self.assertEqual(body["error"]["params"], {"limit": 3})
+
+        # The role is withdrawn; the next refresh takes it away again.
+        self.provider["roles"] = []
+        self._lapse(session)
+        status, body = job("key-5")
+        self.assertEqual(status, 403, body)
+        self.assertEqual(body["error"]["code"], "assistant.premium_required")
+        self.assertEqual(self.refreshes, 2)
+
+        # Keycloak ends the session: invalid_grant, and every request is 401 from then on.
+        self.provider["failure"] = TokenEndpointRejected("invalid_grant")
+        self._lapse(session)
+        for path in ("/api/whoami", f"/api/assistant/status?world={world_id}"):
+            status, body = self._call("GET", path, session)
+            self.assertEqual(status, 401, body)
+            self.assertEqual(body["error"]["code"], "auth.unauthenticated")
+        self.assertIsNone(self.auth.get_session(session))
+        self.assertEqual(self.refreshes, 3)
+
+
 if __name__ == "__main__":
     unittest.main()

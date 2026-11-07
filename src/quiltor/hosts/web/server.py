@@ -32,6 +32,14 @@ one user, the person at this machine, recognised by a loopback connection, a
 `?token=` link or a Bearer token, and no login page at all. Each Server owns an
 explicitly composed WebApplication; importing this module creates no sessions,
 stores, assistant process, or other product state.
+
+With OIDC, the AI assistant is for accounts with the realm role QUILTOR_PREMIUM_ROLE
+(default `premium`), read from the ID token's flat `roles` claim at login and at every
+refresh; QUILTOR_ASSISTANT_MAX_OPEN_JOBS (default 3, 1-100) bounds the open jobs per
+account. A key in QUILTOR_AI_KEY or QUILTOR_AI_KEY_FILE sends inference to the
+OpenAI-compatible endpoint at QUILTOR_AI_URL instead of a local runtime, with
+QUILTOR_AI_MODEL_NAME as the model and QUILTOR_AI_JSON_MODE=json_object for providers
+that ignore json_schema. See the README for all of them.
 """
 
 import hmac
