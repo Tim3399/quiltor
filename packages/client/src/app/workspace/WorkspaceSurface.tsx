@@ -174,6 +174,7 @@ export function WorkspaceSurface({
     return (
       <FigureWorkspace
         state={figures}
+        worldId={worldId}
         onChange={onFiguresChange}
         targetId={target?.workspace === "figures" ? target.id : undefined}
         targetRequestId={target?.workspace === "figures" ? target.requestId : undefined}
