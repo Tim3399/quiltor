@@ -100,7 +100,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.addInitScript((selected) => localStorage.setItem("quiltor-theme", selected), theme);
     await mockExpandedMapWorld(page, expandedMapState({ expanded: false }));
     await openExpandedMapWorld(page);
-    await page.locator('.react-flow__node[data-id="weltkarte"]').click();
+    await page.locator('.react-flow__node[data-id="x-weltkarte"]').click();
     const name = page.locator(".place-map-toolbar__name");
     await expect(name).toHaveText("Weltkarte");
     await expect(name).toHaveCSS("font-size", "14px");

@@ -158,13 +158,13 @@ test("Place: the card and the pin list their commands in the same order", async 
   await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
 
-  const node = placeNode(page, "graufurth");
+  const node = placeNode(page, "x-graufurth");
   await node.locator(".story-node").hover();
   const card = await commandsOf(node, PLACE_ACTIONS);
   expect(actionsOf(card)).toEqual(["display", "open"]);
 
   await node.getByRole("button", { name: "Ort Graufurth als Stecknadel anzeigen" }).click();
-  const pinNode = page.locator('.place-node-pin[data-place-id="graufurth"]');
+  const pinNode = page.locator('.place-node-pin[data-place-id="x-graufurth"]');
   await pinNode.hover();
   const pin = await commandsOf(pinNode, PLACE_ACTIONS);
   expect(actionsOf(pin)).toEqual(["display", "open"]);
@@ -181,7 +181,7 @@ test("Map: the collapsed and the expanded map list their commands in the same or
   await openExpandedMapWorld(page);
 
   // Collapsed: once the card is selected, the toolbar beside the canvas.
-  await placeNode(page, "weltkarte").locator(".story-node").click();
+  await placeNode(page, "x-weltkarte").locator(".story-node").click();
   const toolbar = page.getByRole("toolbar", { name: "Kartenaktionen" });
   await expect(toolbar).toBeVisible();
   const collapsedToolbar = await commandsOf(toolbar, PLACE_ACTIONS);
@@ -206,7 +206,7 @@ test("Map: the collapsed card and the toolbar list their commands in the same or
   await mockExpandedMapWorld(page, expandedMapState({ expanded: false }));
   await openExpandedMapWorld(page);
 
-  const mapNode = placeNode(page, "weltkarte");
+  const mapNode = placeNode(page, "x-weltkarte");
   await mapNode.locator(".story-node").hover();
   const card = await commandsOf(mapNode, PLACE_ACTIONS);
   await mapNode.locator(".story-node").click();

@@ -72,7 +72,7 @@ test("A map place toggles between card and pin without moving its anchor", async
   const fixture = await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
 
-  const graufurthNode = placeNode(page, "graufurth");
+  const graufurthNode = placeNode(page, "x-graufurth");
   const card = graufurthNode.locator(".story-node");
   const cardRect = await card.boundingBox();
   if (!cardRect) throw new Error("The place card has no screen geometry.");
@@ -82,11 +82,11 @@ test("A map place toggles between card and pin without moving its anchor", async
     .getByRole("button", { name: "Ort Graufurth als Stecknadel anzeigen" })
     .click();
 
-  const pin = page.locator('.place-node-pin[data-place-id="graufurth"]');
+  const pin = page.locator('.place-node-pin[data-place-id="x-graufurth"]');
   await expect(pin).toBeVisible();
   await expectCenterAt(pin.locator(".place-node-pin__tip"), cardCenter);
-  await expectAnchorUnchanged(fixture.savedState, "graufurth", {
-    parentPlaceId: "weltkarte",
+  await expectAnchorUnchanged(fixture.savedState, "x-graufurth", {
+    parentPlaceId: "x-weltkarte",
     mapU: 0.3,
     mapV: 0.4,
   });
@@ -112,12 +112,12 @@ test("A map place toggles between card and pin without moving its anchor", async
     .click();
   await expect(card).toBeVisible();
   await expectCenterAt(card, cardCenter);
-  await expectAnchorUnchanged(fixture.savedState, "graufurth", {
-    parentPlaceId: "weltkarte",
+  await expectAnchorUnchanged(fixture.savedState, "x-graufurth", {
+    parentPlaceId: "x-weltkarte",
     mapU: 0.3,
     mapV: 0.4,
   });
-  await expect(placeNode(page, "nordhafen").locator(".story-node")).toBeVisible();
+  await expect(placeNode(page, "x-nordhafen").locator(".story-node")).toBeVisible();
 });
 
 test("A permanent pin survives a real backend reload", async ({ page }, testInfo) => {
@@ -161,12 +161,12 @@ test("A permanent pin keeps pointer-accurate placement and returns as a card", a
   );
   await useGermanTheme(page);
   const state = expandedMapState();
-  Object.assign(node(state, "graufurth") ?? {}, { placeDisplay: "pin" });
+  Object.assign(node(state, "x-graufurth") ?? {}, { placeDisplay: "pin" });
   const fixture = await mockExpandedMapWorld(page, state);
   await openExpandedMapWorld(page);
 
   const mapRect = await page
-    .locator('.react-flow__node-placeMap[data-id="weltkarte"]')
+    .locator('.react-flow__node-placeMap[data-id="x-weltkarte"]')
     .boundingBox();
   if (!mapRect) throw new Error("The expanded map has no screen geometry.");
   const target = { u: 0.64, v: 0.58 };
@@ -174,7 +174,7 @@ test("A permanent pin keeps pointer-accurate placement and returns as a card", a
     x: mapRect.x + mapRect.width * target.u,
     y: mapRect.y + mapRect.height * target.v,
   };
-  const permanentPin = page.locator('.place-node-pin[data-place-id="graufurth"]');
+  const permanentPin = page.locator('.place-node-pin[data-place-id="x-graufurth"]');
   const startTip = await permanentPin.locator(".place-node-pin__tip").boundingBox();
   if (!startTip) throw new Error("The permanent pin tip has no screen geometry.");
   await page.mouse.move(startTip.x + startTip.width / 2, startTip.y + startTip.height / 2);
@@ -195,7 +195,7 @@ test("A permanent pin keeps pointer-accurate placement and returns as a card", a
   await expect(permanentPin).toBeVisible();
   await expect
     .poll(() => {
-      const place = node(fixture.savedState(), "graufurth");
+      const place = node(fixture.savedState(), "x-graufurth");
       if (place?.placeDisplay !== "pin") return Number.POSITIVE_INFINITY;
       return Math.max(
         Math.abs((place.mapU ?? Number.POSITIVE_INFINITY) - target.u) * mapRect.width,
@@ -206,7 +206,7 @@ test("A permanent pin keeps pointer-accurate placement and returns as a card", a
   await expectCenterAt(permanentPin.locator(".place-node-pin__tip"), pointer);
 
   await permanentPin.getByRole("button", { name: "Ort Graufurth als Karte anzeigen" }).click();
-  const card = placeNode(page, "graufurth").locator(".story-node");
+  const card = placeNode(page, "x-graufurth").locator(".story-node");
   await expect(card).toBeVisible();
   await expectCenterAt(card, pointer);
 });
@@ -218,14 +218,14 @@ test("Compact pin toggles remain keyboard reachable without replacing map action
   await useGermanTheme(page, "dark");
   const fixture = await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
-  const graufurthNode = placeNode(page, "graufurth");
+  const graufurthNode = placeNode(page, "x-graufurth");
   const toPin = graufurthNode.getByRole("button", {
     name: "Ort Graufurth als Stecknadel anzeigen",
   });
   await toPin.focus();
   await expect(toPin).toBeFocused();
   await page.keyboard.press("Enter");
-  const pin = page.locator('.place-node-pin[data-place-id="graufurth"]');
+  const pin = page.locator('.place-node-pin[data-place-id="x-graufurth"]');
   await expect(pin).toBeVisible();
   const toCard = pin.getByRole("button", { name: "Ort Graufurth als Karte anzeigen" });
   await expect(toCard).toBeFocused();
@@ -233,7 +233,7 @@ test("Compact pin toggles remain keyboard reachable without replacing map action
   await expect(graufurthNode.locator(".story-node")).toBeVisible();
   await expect(toPin).toBeFocused();
   await expect
-    .poll(() => node(fixture.savedState(), "graufurth")?.placeDisplay ?? "card")
+    .poll(() => node(fixture.savedState(), "x-graufurth")?.placeDisplay ?? "card")
     .toBe("card");
   await expect(
     page.locator(".place-map-chrome").getByRole("button", { name: "Weltkarte einklappen" }),
@@ -263,7 +263,7 @@ test("A place card lists its display toggle left of the open command, as the pin
   await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
 
-  const graufurthNode = placeNode(page, "graufurth");
+  const graufurthNode = placeNode(page, "x-graufurth");
   await graufurthNode.locator(".story-node").hover();
   const toggle = graufurthNode.getByRole("button", {
     name: "Ort Graufurth als Stecknadel anzeigen",

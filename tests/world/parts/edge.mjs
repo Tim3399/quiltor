@@ -52,31 +52,66 @@ export function describeEdge(api, world) {
     node("x-long-org", "organisation", 1600, 770),
     // An element whose note is empty.
     node("x-empty-note", "objekt", 1980, 310, {}, ""),
-    // A map opened out on the world level, with its picture, a scale and two places standing
-    // on it. Opened out, a map is ground rather than a card, and the places on it are derived
-    // from the map; the base world only has the folded Nordhafen and its city level.
-    node("x-map", "ort", 1980, 540, {
+    // A map opened out on the world level, with its picture, a scale and three places standing
+    // on it, plus a second, smaller map with one place. Opened out, a map is ground rather
+    // than a card, and the places on it are derived from the map; the base world only has
+    // the folded Nordhafen and its city level. The map specs mock this group on its own
+    // (support/expanded-map-fixture.ts), so its proportions are theirs: 1000 x 680, 25 km per
+    // 100 px, the island map overlapping the right edge.
+    node("x-weltkarte", "ort", 1980, 540, {
       mapX: 200,
-      mapY: 700,
+      mapY: 900,
       // The same picture as Nordhafen: the world carries one map file.
       mapImageId: figures.nodes.find((item) => item.id === "nordhafen").mapImageId,
       mapExpanded: true,
-      mapWidth: 800,
-      mapHeight: 600,
+      mapWidth: 1000,
+      mapHeight: 680,
       mapScale: { unitsPer100px: 25, unitLabel: "km" },
+      pinned: true,
     }),
-    node("x-map-pier", "ort", 1980, 770, {
-      parentPlaceId: "x-map",
-      mapU: 0.3,
-      mapV: 0.4,
-      placeDisplay: "card",
+    // The places on the map carry no note: the places baseline photographs the inspector of
+    // the first one, and the specs type into empty notes.
+    node(
+      "x-graufurth",
+      "ort",
+      1980,
+      770,
+      { parentPlaceId: "x-weltkarte", mapU: 0.3, mapV: 0.4 },
+      "",
+    ),
+    node(
+      "x-nordhafen",
+      "ort",
+      2360,
+      80,
+      { parentPlaceId: "x-weltkarte", mapU: 0.7, mapV: 0.4 },
+      "",
+    ),
+    node(
+      "x-tannenhain",
+      "ort",
+      2360,
+      310,
+      { parentPlaceId: "x-weltkarte", mapU: 0.48, mapV: 0.7 },
+      "",
+    ),
+    node("x-inselkarte", "ort", 2360, 540, {
+      mapX: 900,
+      mapY: 900,
+      mapImageId: figures.nodes.find((item) => item.id === "nordhafen").mapImageId,
+      mapExpanded: true,
+      mapWidth: 600,
+      mapHeight: 500,
+      pinned: true,
     }),
-    node("x-map-crane", "ort", 2360, 80, {
-      parentPlaceId: "x-map",
-      mapU: 0.7,
-      mapV: 0.6,
-      placeDisplay: "pin",
-    }),
+    node(
+      "x-inselhafen",
+      "ort",
+      2360,
+      770,
+      { parentPlaceId: "x-inselkarte", mapU: 0.5, mapV: 0.5 },
+      "",
+    ),
   );
 
   // A chapter without text, appended to the second act.
@@ -150,9 +185,15 @@ export const PURPOSE = {
   "x-long-place": "long place name inside Nordhafen (cut as North Harb... in T-173 B)",
   "x-long-org": "long organisation name with an apostrophe (cut in T-173 B)",
   "x-empty-note": "element with an empty note",
-  "x-map": "map opened out on the world level, with picture and scale (geometry specs)",
-  "x-map-pier": "place standing on the opened-out map as a card",
-  "x-map-crane": "place standing on the opened-out map as a pin",
+  "x-weltkarte":
+    "map opened out on the world level, 1000 x 680 with a 25 km scale; mocked alone by the map specs",
+  "x-graufurth": "place standing on the opened-out map, the one the map specs select",
+  "x-nordhafen":
+    "place standing on the opened-out map, 200 km from Graufurth; shares its name with the city",
+  "x-tannenhain": "place standing on the opened-out map near its lower edge",
+  "x-inselkarte":
+    "second opened-out map, 600 x 500, overlapping the first; the map specs add it on demand",
+  "x-inselhafen": "the one place on the second map",
   "x-empty-chapter": "chapter without text and without a note",
   "x-trash-orphan": "chapter in the bin whose folder no longer exists",
   "x-board": "board holding every card of the check part",
