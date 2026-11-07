@@ -11,8 +11,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from typing import Any, ClassVar, cast
 from unittest.mock import MagicMock, patch
@@ -21,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOLING = REPO_ROOT / "distribution" / "tooling"
 sys.path.insert(0, str(TOOLING))
 
+import artifact_profile  # noqa: E402
 import dependency_lock_contract  # noqa: E402
 import path_filter  # noqa: E402
 import previous_release  # noqa: E402
@@ -4692,6 +4695,166 @@ class ReleaseNotesStartTests(unittest.TestCase):
         self.assertIn('[ -z "$START" ] || NOTES+=(--notes-start-tag "$START")', publish)
         self.assertIn('--notes-start-tag --current-version "$VERSION")"', publish)
         self.assertIn('--title "v$VERSION" "${NOTES[@]}" --draft "${ASSETS[@]}"', publish)
+
+
+EXAMPLE_WORLD_SOURCE = REPO_ROOT / "src/quiltor/resources/example_world"
+
+
+def _wheel_names() -> dict[str, bytes]:
+    """Every member a built wheel holds, as the build would pack it.
+
+    The example world is taken from its directory, not from the allowlist, so a file that
+    lands there without an allowlist entry shows up the way it would in a real wheel. Its
+    documents carry their real bytes; everything else is empty, which the payload check
+    does not read.
+    """
+    source = REPO_ROOT / "src/quiltor"
+    members: dict[str, bytes] = {
+        f"quiltor/{name}": b""
+        for name in artifact_profile._source_files(source)
+        if name.endswith((".py", ".pyi"))
+    }
+    for name in artifact_profile.FIXED_RESOURCE_SOURCES:
+        if not name.startswith("example_world/"):
+            members[f"quiltor/resources/{name}"] = b""
+    for item in sorted(EXAMPLE_WORLD_SOURCE.iterdir()):
+        members[f"quiltor/resources/example_world/{item.name}"] = item.read_bytes()
+    for name in artifact_profile._source_files(REPO_ROOT / "dist"):
+        members[f"quiltor/resources/web/{name}"] = b""
+    for name in artifact_profile._source_files(REPO_ROOT / "distribution/assets/icons"):
+        members[f"quiltor/resources/icons/{name}"] = b""
+    members["quiltor/VERSION"] = b""
+    members["quiltor/infrastructure/platform/quiltor-build-profile.json"] = b""
+    for name in ("METADATA", "WHEEL", "entry_points.txt", "licenses/LICENSE", "RECORD"):
+        members[f"quiltor-1.dist-info/{name}"] = b""
+    return members
+
+
+def _write_wheel(directory: str, members: dict[str, bytes]) -> Path:
+    wheel = Path(directory) / "quiltor-1-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    return wheel
+
+
+class ShippedExampleWorldTests(unittest.TestCase):
+    """The package carries the example world: both languages and the map, the base world
+    only, and nothing else from tests/world/ (T-214-4).
+
+    `artifact_profile.py pkg-dist` runs these checks on the built wheel and sdist in the
+    release workflow; here they run on an archive laid out the same way.
+    """
+
+    def test_the_wheel_carries_both_documents_and_the_map(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wheel = _write_wheel(directory, _wheel_names())
+            artifact_profile._verify_wheel_payload(wheel)
+            artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_the_shipped_documents_carry_no_id_of_the_check_part(self):
+        # The real files as they are checked in: a ship built with the check part fails here.
+        for name in ("de.json", "en.json"):
+            with self.subTest(document=name):
+                text = (EXAMPLE_WORLD_SOURCE / name).read_text(encoding="utf-8")
+                self.assertIsNone(artifact_profile.CHECK_PART_ID.search(text))
+
+    def test_a_check_part_id_in_the_wheel_is_refused(self):
+        for leaked in ('"x-cluster-1"', '"item-x-note"', '"chapter:x-long"'):
+            with self.subTest(id=leaked), tempfile.TemporaryDirectory() as directory:
+                members = _wheel_names()
+                document = "quiltor/resources/example_world/de.json"
+                members[document] = members[document].replace(b'"nordhafen"', leaked.encode(), 1)
+                self.assertIn(leaked.encode(), members[document])
+                wheel = _write_wheel(directory, members)
+                with self.assertRaisesRegex(artifact_profile.ProfileError, "check part"):
+                    artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_a_test_world_file_in_the_wheel_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            members = _wheel_names()
+            members["quiltor/resources/example_world/ids.generated.ts"] = b"export {};"
+            wheel = _write_wheel(directory, members)
+            with self.assertRaisesRegex(artifact_profile.ProfileError, "allowlist drift"):
+                artifact_profile._verify_wheel_payload(wheel)
+
+    def test_a_missing_or_foreign_document_is_refused(self):
+        cases = {
+            "does not ship": lambda members: members.pop("quiltor/resources/example_world/en.json"),
+            "unreadable": lambda members: members.update(
+                {"quiltor/resources/example_world/en.json": b"{"}
+            ),
+            "format": lambda members: members.update(
+                {"quiltor/resources/example_world/en.json": b'{"format": "other"}'}
+            ),
+        }
+        for message, change in cases.items():
+            with self.subTest(case=message), tempfile.TemporaryDirectory() as directory:
+                members = _wheel_names()
+                change(members)
+                wheel = _write_wheel(directory, members)
+                with self.assertRaisesRegex(artifact_profile.ProfileError, message):
+                    artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_the_release_check_runs_the_rule_on_wheel_and_sdist(self):
+        """`verify_archive` is what `pkg-dist` calls; the other checks are stood in for."""
+        leaked = (
+            (EXAMPLE_WORLD_SOURCE / "de.json").read_bytes().replace(b'"nordhafen"', b'"x-leak"', 1)
+        )
+        clean = (EXAMPLE_WORLD_SOURCE / "en.json").read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            wheel = Path(directory) / "quiltor-1-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("quiltor/resources/example_world/de.json", leaked)
+                archive.writestr("quiltor/resources/example_world/en.json", clean)
+            sdist = Path(directory) / "quiltor-1.tar.gz"
+            with tarfile.open(sdist, "w:gz") as archive:
+                for name, data in (("de.json", leaked), ("en.json", clean)):
+                    info = tarfile.TarInfo(f"quiltor-1/src/quiltor/resources/example_world/{name}")
+                    info.size = len(data)
+                    archive.addfile(info, io.BytesIO(data))
+            stand_ins = (
+                patch.object(artifact_profile, "_archive_document", return_value={}),
+                patch.object(artifact_profile, "expected_document", return_value={}),
+                patch.object(artifact_profile, "_archive_mcp_contract", return_value={}),
+                patch.object(artifact_profile, "expected_mcp_contract", return_value={}),
+                patch.object(artifact_profile, "_verify_wheel_payload"),
+                patch.object(artifact_profile, "_verify_sdist_payload"),
+                patch.object(artifact_profile, "_verify_wheel_oidc_dependency"),
+            )
+            with contextlib.ExitStack() as stack:
+                for stand_in in stand_ins:
+                    stack.enter_context(stand_in)
+                for artifact in (wheel, sdist):
+                    with (
+                        self.subTest(artifact=artifact.name),
+                        self.assertRaisesRegex(artifact_profile.ProfileError, "check part"),
+                    ):
+                        artifact_profile.verify_archive(artifact)
+
+    def test_the_sdist_is_held_to_the_same_rule(self):
+        for leak in (False, True):
+            with self.subTest(leak=leak), tempfile.TemporaryDirectory() as directory:
+                sdist = Path(directory) / "quiltor-1.tar.gz"
+                with tarfile.open(sdist, "w:gz") as archive:
+                    for name in ("de.json", "en.json"):
+                        data = (EXAMPLE_WORLD_SOURCE / name).read_bytes()
+                        if leak and name == "en.json":
+                            data = data.replace(b'"nordhafen"', b'"x-leak"', 1)
+                        info = tarfile.TarInfo(
+                            f"quiltor-1/src/quiltor/resources/example_world/{name}"
+                        )
+                        info.size = len(data)
+                        archive.addfile(info, io.BytesIO(data))
+                if leak:
+                    with self.assertRaisesRegex(artifact_profile.ProfileError, "check part"):
+                        artifact_profile._verify_example_world(
+                            sdist, "quiltor-1/src/quiltor/resources/"
+                        )
+                else:
+                    artifact_profile._verify_example_world(
+                        sdist, "quiltor-1/src/quiltor/resources/"
+                    )
 
 
 if __name__ == "__main__":

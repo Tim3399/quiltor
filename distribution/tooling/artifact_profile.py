@@ -7,6 +7,7 @@ import argparse
 import email.parser
 import email.policy
 import json
+import re
 import sys
 import tarfile
 import zipfile
@@ -146,6 +147,50 @@ def _source_files(root: Path) -> set[str]:
     return {item.relative_to(root).as_posix() for item in root.rglob("*") if item.is_file()}
 
 
+# The example world ships as two documents (T-214). Only the base world may go out: every
+# id of the test world's check part starts with "x-" (tests/world/), with or without a
+# "kind:" or "item-" in front, and a single one of them in the package is a leak.
+EXAMPLE_WORLD_DOCUMENTS = ("example_world/de.json", "example_world/en.json")
+EXAMPLE_WORLD_FORMAT = "quiltor.example-world.v1"
+CHECK_PART_ID = re.compile(r'"(?:[a-z]+:)?(?:item-)?x-')
+
+
+def _archive_member(path: Path, name: str) -> bytes | None:
+    if path.suffix == ".whl":
+        with zipfile.ZipFile(path) as archive:
+            try:
+                return archive.read(name)
+            except KeyError:
+                return None
+    with tarfile.open(path, "r:gz") as archive:
+        try:
+            member = archive.extractfile(name)
+        except KeyError:
+            return None
+        return member.read() if member is not None else None
+
+
+def _verify_example_world(path: Path, resources: str) -> None:
+    """Both example-world documents are there, readable, and carry nothing of the check part."""
+    for document in EXAMPLE_WORLD_DOCUMENTS:
+        raw = _archive_member(path, resources + document)
+        if raw is None:
+            raise ProfileError(f"{path.name} does not ship {document}")
+        try:
+            text = raw.decode("utf-8")
+            parsed = json.loads(text)
+        except ValueError as exc:
+            raise ProfileError(f"{path.name} ships an unreadable {document}") from exc
+        if not isinstance(parsed, dict) or parsed.get("format") != EXAMPLE_WORLD_FORMAT:
+            raise ProfileError(
+                f"{path.name} ships {document} without the {EXAMPLE_WORLD_FORMAT} format"
+            )
+        if CHECK_PART_ID.search(text):
+            raise ProfileError(
+                f"{path.name} ships ids of the test world's check part in {document}"
+            )
+
+
 def _archive_files(path: Path) -> set[str]:
     if path.suffix == ".whl":
         with zipfile.ZipFile(path) as archive:
@@ -281,8 +326,11 @@ def verify_archive(path: Path, profile_id: str = "python-package") -> None:
         raise ProfileError(f"{path.name} does not embed the source MCP contract")
     if path.suffix == ".whl":
         _verify_wheel_payload(path)
+        _verify_example_world(path, RESOURCE_PREFIX)
     else:
         _verify_sdist_payload(path)
+        root = next(iter(_archive_files(path))).split("/", 1)[0]
+        _verify_example_world(path, f"{root}/src/quiltor/resources/")
     _verify_wheel_oidc_dependency(path)
 
 

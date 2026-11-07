@@ -20,6 +20,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TOOLING_ROOT = REPO_ROOT / "distribution" / "tooling"
 SOURCE_ROOT = REPO_ROOT / "src"
+EXAMPLE_WORLD = "quiltor/resources/example_world"
+EXAMPLE_WORLD_FILES = ("de.json", "en.json", "harbour-map.png")
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(SOURCE_ROOT))
 sys.path.insert(0, str(TOOLING_ROOT))
@@ -185,6 +187,9 @@ def data_files(profile_id: str | None = None) -> list[tuple[str, str]]:
             "quiltor/resources/icons",
         ),
         (str(embedded), "quiltor/infrastructure/platform"),
+        # The example world (T-214): two documents and the harbour map, generated from
+        # tests/world/ by `npm run world:update`. Only these three files are packed.
+        *((str(SOURCE_ROOT / EXAMPLE_WORLD / name), EXAMPLE_WORLD) for name in EXAMPLE_WORLD_FILES),
     ]
     # The MLX sidecar and its pinned requirements ship only where the target
     # may assemble that optional runtime. MLX is
