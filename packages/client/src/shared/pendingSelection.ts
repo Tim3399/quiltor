@@ -8,8 +8,17 @@ import { type EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
  */
 const HOLD_TIMEOUT_MS = 250;
 
-/** The input types Android sends for the Enter and Backspace that CodeMirror holds back. */
-const HELD_INPUT_TYPES = new Set(["insertParagraph", "insertLineBreak", "deleteContentBackward"]);
+/**
+ * The input types whose DOM change CodeMirror holds back on Android: Enter, Backspace and
+ * Delete, the entries of its `PendingKeys`. Delete only comes as `beforeinput`; CodeMirror's
+ * keydown path holds back keyCode 13 and 8 alone, so the keydown handler needs no Delete.
+ */
+const HELD_INPUT_TYPES = new Set([
+  "insertParagraph",
+  "insertLineBreak",
+  "deleteContentBackward",
+  "deleteContentForward",
+]);
 
 /**
  * Marks the stretch between an Enter or Backspace and the document change it causes.

@@ -651,6 +651,23 @@ describe("ManuscriptEditor selection", () => {
     expect(sendsSelection(update)).toBe(false);
   });
 
+  // F-161-4: CodeMirror holds Delete back as well (its `PendingKeys`), through `beforeinput`.
+  it("leaves the selection alone while a held-back Delete changes the text", () => {
+    const r = renderEditor({ value: "Anfang Ende" });
+    const { editor } = r;
+    editor.focus();
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    editor.contentDOM.dispatchEvent(held("deleteContentForward"));
+    text.nodeValue = "AnfangEnde";
+    document.getSelection()?.setBaseAndExtent(text, 6, text, 6);
+    const update = vi.spyOn(editor, "update");
+
+    rerenderWithMarks(r, "Anfang Ende");
+
+    expect(update).toHaveBeenCalled();
+    expect(sendsSelection(update)).toBe(false);
+  });
+
   // S1 (T-161-r2): Backspace on an empty line removes its div; the line above keeps its text.
   it("leaves the selection alone while a held-back Backspace removes an empty line", () => {
     const r = renderEditor({ value: "Anfang Ende\n\nEnde" });
