@@ -319,10 +319,9 @@ function StoryboardWorkspaceInner({
   // flowNodes mirrors derivedNodes but is state of its own: React Flow writes into it between
   // two derivations (onNodesChange applies drag positions, previewGroupMove shows a group's
   // members moving before anything is persisted), and the next derivation replaces those
-  // transient positions. Deriving it during render would need those writes to live elsewhere,
-  // so the mirror stays an effect until a drag spec holds that rewrite (T-17 P3 plan, S2).
-  // The reset keeps each node's `measured` size: without it React Flow hides every card until
-  // it measures them again, which on macOS left a selected card without its commands (T-149).
+  // transient positions, so those writes keep flowNodes a state of its own. The reset keeps
+  // each node's `measured` size: without it React Flow hides every card until it measures them
+  // again, which on macOS left a selected card without its commands (T-149).
   //
   // The reset happens while rendering, not in an effect. Every keystroke in a card's note
   // derives new nodes; an effect turned each into a second synchronous commit, and React counts
