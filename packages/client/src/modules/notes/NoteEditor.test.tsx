@@ -97,6 +97,36 @@ describe("NoteEditor", () => {
     expect(editor).toHaveFocus();
   });
 
+  // T-161: new marks that arrive between a native selection and its `selectionchange` must not
+  // put the next keystroke in front of the text.
+  it("keeps a native selection it has not read yet when new marks arrive", () => {
+    const note = (marks: React.ComponentProps<typeof NoteEditor>["marks"]) => (
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          <NoteEditor
+            owner={{ kind: "chapter", id: "c1" }}
+            label="Notiz"
+            value="Anfang Ende"
+            marks={marks}
+            onChange={vi.fn()}
+          />
+        </NoteReferenceProvider>
+      </I18nProvider>
+    );
+    const { rerender } = render(note(undefined));
+    const view = viewFor(screen.getByRole("textbox", { name: "Notiz" }));
+    view.focus();
+    const text = view.contentDOM.querySelector(".cm-line")?.firstChild;
+    if (!text) throw new Error("text node missing");
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 11);
+
+    rerender(note([{ from: 7, to: 11, kind: "bold" }]));
+    document.dispatchEvent(new Event("selectionchange"));
+    view.dispatch(view.state.replaceSelection("Neu"));
+
+    expect(view.state.doc.toString()).toBe("Neu");
+  });
+
   it("reports an edit to the newest onChange, not the one from the first render", () => {
     const first = vi.fn();
     const second = vi.fn();

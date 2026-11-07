@@ -551,6 +551,36 @@ describe("ManuscriptEditor selection", () => {
     expect(update).toHaveBeenCalledTimes(1);
   });
 
+  // T-161: a native selection (Ctrl+A, Shift+arrow) reaches CodeMirror one `selectionchange`
+  // task later. A prop transaction that lands in between must not throw it away, or the next
+  // keystroke goes in front of the text instead of replacing it.
+  it("keeps a native selection it has not read yet when new marks arrive", () => {
+    const { editor, rerender, handle, onChange, onSelection } = renderEditor({
+      value: "Anfang Ende",
+    });
+    editor.focus();
+    const text = requireValue(editor.contentDOM.querySelector(".cm-line")?.firstChild, "text");
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 11);
+
+    rerender(
+      <ManuscriptEditor
+        value="Anfang Ende"
+        label="Kapiteltext"
+        placeholder=""
+        vocabulary={[]}
+        editorRef={handle}
+        onChange={onChange}
+        onSelection={onSelection}
+        marks={[{ from: 7, to: 11, kind: "bold" }]}
+      />,
+    );
+    // The browser's own `selectionchange` task, then the keystroke.
+    document.dispatchEvent(new Event("selectionchange"));
+    editor.dispatch(editor.state.replaceSelection("Neu"));
+
+    expect(editor.state.doc.toString()).toBe("Neu");
+  });
+
   it("maps marks and mentions through two edits that land before the next commit", () => {
     const { editor, onChange } = renderEditor({
       marks: [{ from: 6, to: 10, kind: "italic" }],
