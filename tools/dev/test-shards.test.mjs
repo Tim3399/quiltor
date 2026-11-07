@@ -233,9 +233,9 @@ test("the workflow names a slot shape for every system", () => {
   assert.deepEqual(
     workflowShapes().map(({ os, slots, maxTests }) => [os, slots, maxTests]),
     [
-      ["linux", 4, Infinity],
+      ["linux", 6, Infinity],
       ["windows", 8, 100],
-      ["macos", 3, Infinity],
+      ["macos", 4, Infinity],
     ],
   );
 });
