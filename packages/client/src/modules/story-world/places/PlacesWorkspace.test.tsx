@@ -1,3 +1,4 @@
+import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -980,5 +981,32 @@ describe("active expanded map chrome", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weltkarte öffnen" }));
     expect(container.querySelector(".place-map-chrome")).not.toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Pfad durch die Orte" })).toBeInTheDocument();
+  });
+});
+
+describe("place patches against the latest state (T-180)", () => {
+  // Hazard, not an author path found so far: two inspector patches in one React batch. The second
+  // is built from the render-time `state` prop and drops the first.
+  it.fails("keeps a favourite and a note that land in the same batch", () => {
+    const changes: FigureState[] = [];
+    const { container } = render(
+      <ControlledPlaces
+        initialState={{ ...state, nodes: [state.nodes[0]] }}
+        onChange={(next) => changes.push(next)}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("place-node-a"));
+    const root = container.querySelector<HTMLElement>('[data-note-owner="place:a"] .cm-editor');
+    if (!root) throw new Error("place note editor missing");
+    const note = EditorView.findFromDOM(root);
+    if (!note) throw new Error("place note view missing");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Ort favorisieren" }));
+      note.dispatch({ changes: { from: 0, insert: "Hafen" }, userEvent: "input" });
+    });
+    expect(changes.at(-1)?.nodes[0]).toMatchObject({
+      important: true,
+      profile: expect.objectContaining({ notes: "Hafen" }),
+    });
   });
 });
