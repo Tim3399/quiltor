@@ -146,6 +146,36 @@ def authority_host(authority: str) -> str:
     return authority.rsplit(":", 1)[0] if ":" in authority else authority
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin_of(url: str, *, allow_path: bool) -> str | None:
+    """`scheme://host[:port]` of a URL in one canonical form, or None when it is not one.
+
+    Scheme and host are lower-cased and the scheme's default port is dropped, so
+    `https://Example.com:443` and `https://example.com` are the same origin. An
+    Origin header carries nothing after the authority (`allow_path=False`); the
+    configured public URL may have a path when the app is served under one.
+    """
+    try:
+        parts = urlparse(url)
+        port = parts.port
+    except ValueError:
+        return None
+    scheme = parts.scheme.lower()
+    host = (parts.hostname or "").lower()
+    if scheme not in _DEFAULT_PORTS or not host or parts.username is not None:
+        return None
+    if parts.password is not None or parts.query or parts.fragment:
+        return None
+    if not allow_path and parts.path:
+        return None
+    shown = f"[{host}]" if ":" in host else host
+    return f"{scheme}://{shown}" + (
+        f":{port}" if port not in (None, _DEFAULT_PORTS[scheme]) else ""
+    )
+
+
 LOGIN_STATE_COOKIE = "quiltor_login_state"
 
 REQUEST_ID_HEADER = "X-Request-Id"
@@ -394,10 +424,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def reject_foreign_request(self) -> bool:
         """True -- with a 403 already written -- when this request's Host or
-        Origin says it did not come from the local app itself. No-op for the
-        proxied deployment, where the proxy owns Host and OIDC owns access."""
+        Origin says it did not come from the app itself.
+
+        Bound to loopback, Host and Origin must both be loopback. Behind a proxy
+        the proxy owns Host and OIDC owns access, so only one check remains: with
+        QUILTOR_PUBLIC_URL set, a write (anything but GET and HEAD) that carries an
+        Origin must carry exactly the public URL's scheme, host and port, with the
+        default port normalised; `null` is refused. A write without an Origin passes
+        -- curl and the CLI send none, and a browser always sends one cross-site --
+        and so does every read. Without QUILTOR_PUBLIC_URL there is nothing to
+        compare with and the proxied case stays a no-op."""
         if not self.application.bound_to_loopback:
-            return False
+            return self._reject_foreign_public_origin()
 
         host = authority_host(self.headers.get("Host", ""))
         if host and host not in LOOPBACK_HOSTS:
@@ -416,15 +454,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if origin and (
             origin == "null" or authority_host(urlparse(origin).netloc) not in LOOPBACK_HOSTS
         ):
-            self._discard_unread_body()
-            self.send_json(
-                http_errors.for_status(
-                    403, code="request.untrusted_origin", retryable=False
-                ).payload(),
-                403,
-            )
-            return True
+            return self._refuse_untrusted_origin()
         return False
+
+    def _reject_foreign_public_origin(self) -> bool:
+        """The proxied deployment's half of reject_foreign_request."""
+        public_origin = _origin_of(self.application.public_url, allow_path=True)
+        if public_origin is None or self.command in {"GET", "HEAD"}:
+            return False
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            return False
+        if origin == "null" or _origin_of(origin, allow_path=False) != public_origin:
+            return self._refuse_untrusted_origin()
+        return False
+
+    def _refuse_untrusted_origin(self) -> bool:
+        """Answer 403 `request.untrusted_origin`, after dropping the unread body (D-38)."""
+        self._discard_unread_body()
+        self.send_json(
+            http_errors.for_status(403, code="request.untrusted_origin", retryable=False).payload(),
+            403,
+        )
+        return True
 
     def read_request_body(self, length: int) -> bytes:
         """Read the request body. Every route that reads it goes through here, so
