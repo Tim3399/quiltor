@@ -31,6 +31,11 @@ resolution carries the displayed generation and local semantic fingerprint. Eith
 invalidates the decision. Pulling keeps a local safety snapshot and invalidates stale editor
 revisions. After applying a remote version, the UI requires a reload before editing continues.
 
+A snapshot written by a newer version, whose database schema is ahead of the build, is refused
+in staging with `storage.schema_newer` (HTTP 400, `params.found` and `params.supported`). The
+same code answers a local restore of such data. A build older than 3.26 has no such code and
+reports a plain `request.invalid`.
+
 Before applying a remote snapshot, a durable `pendingPull` record identifies the selected
 head, staged semantic fingerprint and local safety snapshot. Recovery acknowledges it only
 when the active content and remote head match. Baseline persistence failure after applying

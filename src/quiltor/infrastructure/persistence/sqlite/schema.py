@@ -8,6 +8,7 @@ from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 
+from quiltor.application.errors import SchemaNewerThanSupported
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
@@ -363,9 +364,7 @@ def initialize(path: Path | None = None) -> bool:
     if version < 0:
         raise ValueError(f"Database schema version {version} is invalid.")
     if version > SCHEMA_VERSION:
-        raise ValueError(
-            f"Database schema version {version} is newer than supported version {SCHEMA_VERSION}."
-        )
+        raise SchemaNewerThanSupported(version, SCHEMA_VERSION)
     if existing and version == SCHEMA_VERSION:
         return False
     if not existing:

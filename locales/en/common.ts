@@ -24,6 +24,8 @@ export const common = {
     "There is not enough storage space. Rescue the draft, free up space, and try again.",
   errorStorageLocked:
     "The project is currently locked for writes. Your draft is preserved. Try again or rescue the draft.",
+  errorStorageSchemaNewer:
+    "This data comes from a newer version of Quiltor. Update Quiltor and try again. Your current state is unchanged.",
   errorBackupPreviewFailed: "The backup could not be opened for preview. It may be damaged.",
   errorBackupContentIntegrity:
     "This version is damaged and cannot be restored. Your current state is unchanged.",

@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from quiltor.application.errors import SchemaNewerThanSupported
 from quiltor.infrastructure.persistence.backup_validation import validate_backup_documents
 from quiltor.infrastructure.persistence.sqlite import config, revisions
 from quiltor.infrastructure.persistence.sqlite.connection import connect
@@ -96,8 +97,10 @@ def staged_backup(name: str, source_dir: Path) -> Iterator[StagedBackup]:
             if source.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
                 raise ValueError("Backup database failed its integrity check.")
             version = source.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
-            if version is None or not 0 <= int(version[0]) <= SCHEMA_VERSION:
+            if version is None or int(version[0]) < 0:
                 raise ValueError("Backup database schema version is not supported.")
+            if int(version[0]) > SCHEMA_VERSION:
+                raise SchemaNewerThanSupported(int(version[0]), SCHEMA_VERSION)
             # Legacy snapshots may contain only one document family, but metadata
             # alone must not be turned into a newly initialized, empty world.
             if (
