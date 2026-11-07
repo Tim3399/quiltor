@@ -18,6 +18,7 @@ from quiltor.domain.storyboard.element_notes import (
     ElementNote,
     ReferenceCardNote,
     append_reference_notes,
+    discarded_protocol,
 )
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.schema import SCHEMA_VERSION
@@ -227,19 +228,12 @@ def _move_reference_card_notes(database: sqlite3.Connection) -> None:
     for family in sorted(changed_families):
         _bump_revision(database, family)
     if result.discarded:
-        protocol = [
-            {
-                "storyboard": entry.board_id,
-                "targetKind": entry.target_kind,
-                "targetId": entry.target_id,
-                "reason": entry.reason,
-                "count": entry.count,
-            }
-            for entry in result.discarded
-        ]
         database.execute(
             "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
-            (DISCARDED_NOTES_META_KEY, json.dumps(protocol, ensure_ascii=False)),
+            (
+                DISCARDED_NOTES_META_KEY,
+                json.dumps(discarded_protocol(result.discarded), ensure_ascii=False),
+            ),
         )
 
 

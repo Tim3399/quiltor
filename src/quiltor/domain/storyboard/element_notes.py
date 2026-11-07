@@ -293,6 +293,24 @@ def move_reference_notes(
     return manuscript, figures, storyboards, result.discarded
 
 
+def discarded_protocol(discarded: tuple[DiscardedCards, ...]) -> list[dict[str, Any]]:
+    """The record of dropped card texts that a migration or an import keeps: where and how many.
+
+    Never the words themselves (D-100); the pre-migration safety copy is the way back.
+    """
+
+    return [
+        {
+            "storyboard": entry.board_id,
+            "targetKind": entry.target_kind,
+            "targetId": entry.target_id,
+            "reason": entry.reason,
+            "count": entry.count,
+        }
+        for entry in discarded
+    ]
+
+
 __all__ = [
     "MAX_CHAPTER_NOTE_LENGTH",
     "MAX_NOTE_REFERENCES",
@@ -301,6 +319,7 @@ __all__ = [
     "ElementNote",
     "ReferenceCardNote",
     "append_reference_notes",
+    "discarded_protocol",
     "element_key",
     "move_reference_notes",
     "separator",
