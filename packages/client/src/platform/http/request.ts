@@ -89,8 +89,19 @@ function localizedApplicationErrorMessage(category: ApplicationErrorCategory): s
   return messageByCategory[category];
 }
 
-function localizedStructuredErrorMessage(code: string | undefined): string | undefined {
+function localizedStructuredErrorMessage(
+  code: string | undefined,
+  params: Readonly<Record<string, unknown>> = {},
+): string | undefined {
   const messages = currentMessages();
+  if (code === "assistant.premium_required") return messages.errorAssistantPremiumRequired;
+  if (code === "assistant.too_many_jobs") {
+    // The server names its own limit (QUILTOR_ASSISTANT_MAX_OPEN_JOBS); without a usable number
+    // the category's generic message is the honest answer.
+    const limit = params.limit;
+    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1) return undefined;
+    return messages.errorAssistantTooManyJobs.replace("{limit}", String(limit));
+  }
   if (code === "storage.read_only") return messages.errorStorageReadOnly;
   if (code === "cloud.quota_exceeded") return messages.cloudQuotaExceeded;
   if (code === "cloud.read_only") return messages.cloudReadOnly;
@@ -181,7 +192,8 @@ export function httpResponseError(response: Response, data: unknown): Applicatio
   const category = applicationCodeForHttpStatus(response.status);
   const structured = structuredApplicationError(data);
   return new ApplicationGatewayError(
-    localizedStructuredErrorMessage(structured?.code) ?? localizedApplicationErrorMessage(category),
+    localizedStructuredErrorMessage(structured?.code, structured?.params) ??
+      localizedApplicationErrorMessage(category),
     structured?.code ?? category,
     {
       category,

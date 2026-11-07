@@ -28,7 +28,14 @@ export function AssistantStatusPanel({
           <small>{t("sourcesScopeDescription")}</small>
         </span>
       </div>
-      {status && !status.available && (
+      {/* Without the premium role nothing here can help: no model to reach, nothing to install
+          (the install would answer 403). Only `false` counts -- older servers send no field. */}
+      {status?.premium === false && (
+        <Alert className="assistant-offline" tone="info" icon={<Bot />}>
+          <p>{t("errorAssistantPremiumRequired")}</p>
+        </Alert>
+      )}
+      {status && status.premium !== false && !status.available && (
         <Alert
           className="assistant-offline"
           tone="warning"

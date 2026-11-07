@@ -164,4 +164,7 @@ export const assistant = {
     "Processed {chapters} chapters in {groups} groups, preparing {proposals} proposals. Each proposal can be reviewed and applied individually.",
   chapterGroupLabel: "Chapter {index}/{total}: {titles}",
   extractionEmpty: "No new reviewable world state was found in the selected chapters.",
+  errorAssistantPremiumRequired:
+    "The AI assistant on this server is only available with premium access.",
+  errorAssistantTooManyJobs: "You already have {limit} open jobs. Wait until one is finished.",
 } as const;
