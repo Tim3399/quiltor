@@ -336,19 +336,24 @@ cuts the suites finer:
   the matrix: it runs only when the plan sets `run_oidc`, uses no macOS runner and so leaves the
   macOS limit at five. In full mode Linux runs 6 browser slots, the aggregator and this job.
 
-#### Duration and wait per job (to fill from the first full run)
+#### Duration and wait per job (run 42394051139)
 
-Expected = `test-shards.mjs plan` (tests only; a job adds about 3 to 4 minutes of setup). Measured
-values come from the first full run after the merge, which only the orchestrator can start.
+Expected = `test-shards.mjs plan` (tests only; a job adds about 3 to 4 minutes of setup).
+Measured = the first full run after the merge, 42394051139 (`full_matrix`, d9b13502,
+2026-11-07): whole job including setup, and the time it waited for a runner.
 
-| Job                                     | Expected tests (min) | Measured job (min) | Wait for a runner (s) |
-| --------------------------------------- | -------------------- | ------------------ | --------------------- |
-| Browser E2E / slot 1–6                  | 6.3 each             | _to measure_       | _to measure_          |
-| Browser on macos-15 / slot 1 of 4       | 6.2 (incl. 2.5 unit) | _to measure_       | _to measure_          |
-| Browser on macos-15 / slot 2–4 of 4     | 6.2 each             | _to measure_       | _to measure_          |
-| Browser on windows-2025 / slot 1 of 8   | 5.4 (incl. 3.1 unit) | _to measure_       | _to measure_          |
-| Browser on windows-2025 / slot 2–8 of 8 | 5.4 each             | _to measure_       | _to measure_          |
-| Wall clock of the run                   | --                   | _to measure_       | --                    |
+| Job                                     | Expected tests (min) | Measured job (min)                          | Wait for a runner (s)              |
+| --------------------------------------- | -------------------- | ------------------------------------------- | ---------------------------------- |
+| Browser E2E / slot 1–6                  | 6.3 each             | 7.7–8.8 (7.9, 7.7, 8.8, 8.3, 8.3, 8.5)      | 1–77 (2, 2, 1, 27, 1, 77)          |
+| Browser E2E / OIDC sessions             | --                   | 1.2                                         | 1                                  |
+| Browser on macos-15 / slot 1 of 4       | 6.2 (incl. 2.5 unit) | 9.6                                         | 3                                  |
+| Browser on macos-15 / slot 2–4 of 4     | 6.2 each             | 8.2–8.8 (8.2, 8.6, 8.8)                     | 2 each                             |
+| Browser on windows-2025 / slot 1 of 8   | 5.4 (incl. 3.1 unit) | 8.9                                         | 2                                  |
+| Browser on windows-2025 / slot 2–8 of 8 | 5.4 each             | 6.3–8.4 (7.2, 6.3, 8.3, 8.0, 7.3, 8.4, 6.5) | 1–284 (223, 284, 14, 24, 1, 1, 10) |
+| Wall clock of the run                   | --                   | 11.3 (13 before, run 41799087265)           | --                                 |
+
+Windows slots 2 and 3 waited 223 s and 284 s for a free runner and so ended at about 11
+minutes; those two waits, not the longest job (macOS slot 1, 9.6 min), set the run's wall clock.
 
 #### Updating the table
 
