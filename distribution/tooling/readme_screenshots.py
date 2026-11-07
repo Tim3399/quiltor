@@ -5,8 +5,8 @@
     python distribution/tooling/readme_screenshots.py 3.25.0     # for a release about to be set
 
 `set_version.py` calls `refresh_readme_screenshots` with the version it is about to write, so a
-release cannot carry pictures taken for an older one: `docs/screenshots/manifest.json` names
-the version, `tools/quality/check_readme_screenshots.mjs` compares it with VERSION, and the
+release cannot carry pictures taken for an older one: `docs/screenshots/<language>/manifest.json`
+names the version, `tools/quality/check_readme_screenshots.mjs` compares it with VERSION, and the
 release preflight runs that check. The pictures are taken on the machine that prepares the
 release (Windows); the Linux release job only verifies them.
 """
@@ -29,6 +29,9 @@ from release_preflight import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+# The languages the pictures are taken in; SCREENSHOT_LANGUAGES in
+# tools/documentation/readme_screenshots.mjs is the list the check reads.
+SCREENSHOT_LANGUAGES = ("de", "en")
 
 
 def refresh_readme_screenshots(repo_root: Path, version: str) -> None:
@@ -56,12 +59,14 @@ def refresh_readme_screenshots(repo_root: Path, version: str) -> None:
         environment = os.environ.copy()
         environment["PLAYWRIGHT_BASE_URL"] = f"http://127.0.0.1:{port}"
         environment["QUILTOR_SCREENSHOT_VERSION"] = version
-        _run(
-            f"README screenshots for {version}",
-            ["node", "tools/documentation/capture_readme.mjs"],
-            repo_root,
-            environment,
-        )
+        # One server, one run per language: each run seeds its own world and deletes it again.
+        for language in SCREENSHOT_LANGUAGES:
+            _run(
+                f"README screenshots ({language}) for {version}",
+                ["node", "tools/documentation/capture_readme.mjs", "--lang", language],
+                repo_root,
+                environment,
+            )
     finally:
         try:
             if server is not None:

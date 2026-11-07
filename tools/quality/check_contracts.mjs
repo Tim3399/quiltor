@@ -464,6 +464,30 @@ try {
       fail(label, "document wire contract must register a differential corpus");
     }
   }
+
+  // The example world ships with the product (T-214). Its documents are rendered in Node from
+  // tests/world/, so they are held to the same wire schemas as the fixtures above; the server
+  // side of the same check is tests/python/test_example_world.py.
+  const shipped = resolve(root, "src/quiltor/resources/example_world");
+  for (const lang of ["de", "en"]) {
+    const path = resolve(shipped, `${lang}.json`);
+    if (!existsSync(path)) {
+      fail(display(path), "the shipped example world is missing");
+      continue;
+    }
+    const world = parseJson(path);
+    for (const [field, contract, schema] of [
+      ["manuscript", "quiltor.manuscript", "application-api/manuscript/v1.schema.json"],
+      ["storyWorld", "quiltor.story-world", "application-api/story-world/v1.schema.json"],
+      ["storyboards", "quiltor.storyboards", "application-api/storyboards/v1.schema.json"],
+    ]) {
+      const schemaPath = contractPath(schema, `${field} schema`);
+      const envelope = { contract, version: 1, payload: world[field] };
+      for (const error of validate(envelope, parseJson(schemaPath), schemaPath)) {
+        fail(`${display(path)} ${field}`, error);
+      }
+    }
+  }
 } catch (error) {
   fail("contracts", error.stack ?? error.message);
 }

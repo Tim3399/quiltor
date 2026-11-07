@@ -38,6 +38,10 @@ extend-exclude = [
   "README.md",
   "DESIGN.md",
   "docs/ERSTE-SCHRITTE.md",
+  "docs/funktionen.md",
+  "docs/assistent.md",
+  "docs/schreibwerkzeuge.md",
+  "docs/betrieb/**",
   "docs/design/FRONTEND_STYLEGUIDE.md",
   "docs/plans/**",
   "packages/client/src/design/README.md",
@@ -50,7 +54,10 @@ extend-exclude = [
   # German dictionary excerpts (Wiktionary records, an OpenThesaurus file, a word list) the
   # writing-data build reads as its sources.
   "tests/python/fixtures/writing-data/**",
-  "tools/documentation/readme_fixture.mjs",
+  "tests/world/texts/*.de.mjs",
+  "src/quiltor/resources/example_world/de.json",
+  "tests/world/world.lock.json",
+  "tests/world/CATALOG.md",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 
   # The browser-inference test page is German interface text for testers, and its prompt
@@ -70,6 +77,9 @@ extend-ignore-re = [
   # ... and quotes German phrases and persisted field names that were once German.
   "`elementeVerborgen`",
   "mischt benannte und unbenannte Geometrie",
+
+  # The German search term the README "search" view types (tools/documentation/capture_readme.mjs).
+  "searchTerm: \"Archiv\"",
 
   # A SQL keyword in the plural: "UPDATEs" is split as UPDAT + Es.
   "\\bUPDATEs\\b",

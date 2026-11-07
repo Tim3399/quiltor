@@ -45,6 +45,7 @@ export const LINKS = [
   "lint:zizmor",
   "lint:stylelint",
   "lint:markdown",
+  "check:markdown-links",
   "lint:knip",
   "lint:typos",
   "test:tools",

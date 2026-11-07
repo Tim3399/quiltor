@@ -19,6 +19,8 @@
     "playwright.oidc.config.ts",
     "tests/playwright/**/*.ts",
     "tests/e2e/**/*.ts",
+    "tests/world/**/*.ts",
+    "tests/world/*.d.mts",
     "tests/e2e-oidc/**/*.ts",
     "tests/audit/support/toolbar-row.ts",
     "tests/design/**/*.ts",

@@ -150,3 +150,72 @@ Adding a new distribution target may add:
 
 It must not require moving or branching manuscript, story-world, timeline or
 assistant product logic.
+
+## Source tree
+
+```text
+apps/                        visible shells and native project roots
+├── web/server.py            source-checkout bootstrap
+└── mobile/{ios,android}/     future native mobile host scaffolds
+
+src/quiltor/
+├── domain/story_world/      pure world logic, chronology, and validation
+├── application/             shared use cases and domain-facing ports
+├── modules/                 assistant, writing aid, identity, and commerce
+├── infrastructure/          SQLite, backup, inference, PDF, platform adapters
+├── resources/sidecars/      shipped PDF and inference subprocess assets
+├── bootstrap/               composition root for concrete adapters
+├── delivery/http/routes/    HTTP endpoints grouped by capability
+└── hosts/                   web server, desktop, CLI, and MCP
+
+services/backup-server/      independently deployable backup service
+contracts/                   versioned application and native-bridge contracts
+crates/                      pure Rust timeline kernel and FFI foundation
+distribution/                target profiles, builds, installers, stores, signing
+tools/                       quality, evaluation, and documentation tooling
+
+packages/client/src/
+├── app/                     composition, shell, session, navigation, overlays
+├── config/                  application configuration and branding
+├── design/                  design tokens and presentation foundations
+├── i18n/                    locale runtime, provider, and catalog loader
+├── modules/
+│   ├── manuscript/          editor and writing aids
+│   ├── story-world/         figures, places, timeline, and world management
+│   ├── storyboard/          independent visual planning workspace
+│   ├── graph/               shared graph interaction and presentation
+│   ├── assistant/           local assistant
+│   ├── identity/            sign-in and identity
+│   ├── backup/              local backup restoration
+│   ├── history/             history and snapshots
+│   ├── search/              search and navigation
+│   ├── notes/               linked notes
+│   └── world-references/    reference projections and backlinks
+├── platform/                application ports, HTTP transport, host adapters
+└── shared/                  domain-neutral foundations only
+
+locales/                      contributor-friendly UI translation packs
+```
+
+Dependency direction is intentional:
+
+```text
+Hosts/Delivery → Application use cases → Domain
+Bootstrap → Application ports + concrete infrastructure adapters
+Domain/Application ↛ infrastructure/delivery/hosts
+```
+
+The normative target component model and current-state assessment live in
+[`docs/architecture/target-component-model.md`](target-component-model.md).
+The approved implementation sequence, complexity triggers and exit gates live
+in [`docs/architecture/implementation-plan.md`](implementation-plan.md).
+
+The normal server path stays small and local; additional capabilities are added through clearly separated modules and distribution extras.
+
+Python application services and SQLite remain the authoritative implementation and storage
+path. The Rust crates currently provide a small pure timeline kernel and its ABI/FFI
+foundation; they do not yet replace Python persistence or provide complete native mobile
+hosts. Manuscript, Story World, and Storyboard are independently revisioned documents.
+Figures, Places, and Timeline project the same Story World; Storyboard remains separate
+author-owned planning data. The session, transaction and inference rework described in the
+architecture plan is a target picture and must not be read as already implemented.
