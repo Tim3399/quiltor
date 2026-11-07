@@ -53,7 +53,11 @@ class DocumentRepository(Protocol):
         state: dict[str, Any],
         expected_revision: int | None,
         database: Path,
-    ) -> int: ...
+        *,
+        promote: bool = True,
+    ) -> int:
+        """`promote=False` keeps a preview of the example world a preview (T-214-5a)."""
+        ...
 
     def log_assistant_interaction(
         self,

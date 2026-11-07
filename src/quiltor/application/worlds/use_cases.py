@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.application.worlds.ports import WorldRepository
-from quiltor.application.worlds.types import OpenedWorld, WorldPaths
+from quiltor.application.worlds.types import OpenedWorld, WorldPaths, WorldSummary
 
 
 class WorldUseCases:
@@ -29,15 +30,34 @@ class WorldUseCases:
     def is_valid_id(self, world_id: str) -> bool:
         return self._worlds.is_valid_id(world_id)
 
-    def list(self, owner_sub: str | None = None) -> list[dict[str, str]]:
+    def list(self, owner_sub: str | None = None) -> list[dict[str, Any]]:
         return [world.public() for world in self._worlds.list(owner_sub)]
 
-    def list_trash(self, owner_sub: str) -> list[dict[str, str]]:
+    def list_trash(self, owner_sub: str) -> list[dict[str, Any]]:
         return [world.public() for world in self._worlds.list_trash(owner_sub)]
 
-    def create(self, title: str, backup_url: str, owner_sub: str) -> dict[str, str]:
+    def create(self, title: str, backup_url: str, owner_sub: str) -> dict[str, Any]:
         with self._observer.observe("persistence", "create_world"):
             return self._worlds.create(title, backup_url, owner_sub).public()
+
+    def create_preview(self, title: str, owner_sub: str) -> WorldSummary:
+        """A world marked as a preview of the example world, hidden from the list."""
+        with self._observer.observe("persistence", "create_preview"):
+            return self._worlds.create_preview(title, owner_sub)
+
+    def discard_preview(self, world_id: str, owner_sub: str | None) -> None:
+        """Remove a preview; ValueError when the world has become real meanwhile."""
+        with self._observer.observe("persistence", "discard_preview"):
+            self._worlds.discard_preview(world_id, owner_sub)
+
+    def discard_expired_previews(self) -> list[str]:
+        with self._observer.observe("persistence", "discard_expired_previews"):
+            return self._worlds.discard_expired_previews()
+
+    def finish_promotion(self, world_id: str) -> dict[str, Any]:
+        """After the first change of a preview: a real world with a title of its own."""
+        with self._observer.observe("persistence", "finish_promotion"):
+            return self._worlds.finish_promotion(world_id).public()
 
     def set_backup_url(self, world_id: str, backup_url: str) -> str:
         """Store the world's own sync target; empty removes it. Returns the stored value."""

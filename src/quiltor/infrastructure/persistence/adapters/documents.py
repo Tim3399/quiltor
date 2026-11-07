@@ -59,9 +59,13 @@ class SQLiteDocumentRepository:
         state: dict[str, Any],
         expected_revision: int | None,
         database: Path,
+        *,
+        promote: bool = True,
     ) -> int:
         try:
-            return revisions.save_with_revision(kind, state, expected_revision, db_path=database)
+            return revisions.save_with_revision(
+                kind, state, expected_revision, db_path=database, promote=promote
+            )
         except revisions.ConflictError as exc:
             raise RevisionConflict(kind, exc.expected, exc.actual, str(exc)) from exc
         except revisions.StoryTimeConflictError as exc:

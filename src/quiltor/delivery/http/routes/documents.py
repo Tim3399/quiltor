@@ -116,6 +116,12 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
             raise
 
     updated_revision = saved.revision
+    # The write above already made a preview of the example world real, in its own
+    # transaction; this gives it its title "(2)" if needed and tells the client (T-214-5a).
+    promoted = None
+    if getattr(request.world, "preview", False):
+        with app.lock:
+            promoted = app.finish_promotion(request.world.id)
     now = datetime.now().strftime("%H:%M:%S")
     if kind == "manuscript":
         chapters = payload["chapters"]
@@ -135,6 +141,7 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
             "zeit": now,
             "revision": updated_revision,
             **({"warnings": list(saved.warnings)} if saved.warnings else {}),
+            **({"world": promoted} if promoted is not None else {}),
         },
         headers={"ETag": f'"{updated_revision}"'},
     )

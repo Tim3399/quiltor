@@ -72,6 +72,8 @@ def set_sync_target(handler, request: Request, app) -> None:
         payload = handler._read_json_body()
     except Exception as exc:
         return handler.send_exception(exc)
+    if getattr(request.world, "preview", False):
+        return handler.send_api_error(409, error_code="world.preview", retryable=False)
     value = payload.get("backupUrl") if isinstance(payload, dict) else None
     if not isinstance(value, str) or len(value) > 2048:
         return handler.send_exception(SyncRequestInvalid(params={"field": "backupUrl"}))
@@ -153,6 +155,9 @@ def synchronize(handler, request: Request, app) -> None:
     world = handler.world_from_body(request.session, payload)
     if world is None:
         return
+    if getattr(world, "preview", False):
+        # A preview of the example world is never synchronised (T-214-5a).
+        return handler.send_api_error(409, error_code="world.preview", retryable=False)
     if not world.backup.endpoint_url:
         return _send_failure(handler, SyncGatewayFailure("sync.unconfigured", status=409))
     action = payload.get("action")
