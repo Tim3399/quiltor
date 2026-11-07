@@ -24,6 +24,7 @@ from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldReposi
 from quiltor.infrastructure.persistence.project_archive import SQLiteProjectTransferRepository
 from quiltor.infrastructure.persistence.sqlite import (
     manuscript,
+    migrations,
     place_map_images,
     revisions,
     story_world,
@@ -31,6 +32,7 @@ from quiltor.infrastructure.persistence.sqlite import (
     world_catalog,
 )
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
+from quiltor.infrastructure.persistence.sqlite.connection import connection
 from tests.python.narrowing import present
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -188,6 +190,51 @@ class ProjectTransferTests(unittest.TestCase):
             node for node in storyboards.load(database)["nodes"] if node["id"] == "reference-mara"
         )
         self.assertFalse(card.get("text"))
+
+    def test_an_archive_from_325_counts_the_card_texts_it_has_to_drop(self):
+        _title, archive = self.transfer.export(self.created.id, "alice")
+
+        def as_325(manifest: dict) -> None:
+            nodes = manifest["documents"]["storyboards"]["payload"]["nodes"]
+            nodes.append(
+                {
+                    "id": "reference-ghost",
+                    "boardId": nodes[0]["boardId"],
+                    "kind": "reference",
+                    "target": {"kind": "chapter", "id": "gone"},
+                    "label": "Verwaist",
+                    "x": 0,
+                    "y": 0,
+                    "text": "Niemand liest das mehr.",
+                }
+            )
+
+        imported = self.transfer.import_archive(rewrite_manifest(archive, as_325), "alice")
+
+        database = world_catalog.world_db_path(imported.id, paths=self.paths)
+        with connection(database) as connected:
+            row = connected.execute(
+                "SELECT value FROM meta WHERE key=?", (migrations.DISCARDED_NOTES_META_KEY,)
+            ).fetchone()
+        self.assertIsNotNone(row, "the import keeps no record of the dropped card text")
+        protocol = json.loads(row[0])
+        self.assertEqual(
+            [(entry["targetKind"], entry["targetId"], entry["count"]) for entry in protocol],
+            [("chapter", "gone", 1)],
+        )
+        self.assertNotIn("Niemand", row[0])
+
+    def test_an_archive_without_dropped_card_text_leaves_no_record(self):
+        _title, archive = self.transfer.export(self.created.id, "alice")
+
+        imported = self.transfer.import_archive(archive, "alice")
+
+        database = world_catalog.world_db_path(imported.id, paths=self.paths)
+        with connection(database) as connected:
+            row = connected.execute(
+                "SELECT value FROM meta WHERE key=?", (migrations.DISCARDED_NOTES_META_KEY,)
+            ).fetchone()
+        self.assertIsNone(row)
 
     def test_preview_never_mutates_catalog(self):
         for kind, state in (

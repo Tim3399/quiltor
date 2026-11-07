@@ -159,6 +159,38 @@ class ReferenceNotePullTests(unittest.TestCase):
         for kind, document in expected.items():
             self.assertEqual(self.documents.load(kind, context_b.database), document, kind)
 
+    # F-177-9: a snapshot from a newer version names the problem, not a generic refusal.
+    def test_a_snapshot_from_a_newer_schema_says_so(self) -> None:
+        from quiltor.application.errors import SchemaNewerThanSupported
+        from quiltor.delivery.http.errors import from_exception
+
+        context_a, service_a = self.devices["a"]
+        self.documents.save(
+            "manuscript",
+            {"chapters": [{"id": "k1", "title": "A", "body": "T.", "note": ""}]},
+            None,
+            context_a.database,
+        )
+        with connection(context_a.database) as database:
+            database.execute(
+                "UPDATE meta SET value=? WHERE key='schema_version'",
+                (str(schema.SCHEMA_VERSION + 1),),
+            )
+        self.assertEqual(
+            service_a.synchronize(context_a, "owner", self.authorization, "sync")["state"], "synced"
+        )
+
+        with self.assertRaises(SchemaNewerThanSupported) as raised:
+            self._pull()
+
+        self.assertEqual(
+            raised.exception.params,
+            {"found": schema.SCHEMA_VERSION + 1, "supported": schema.SCHEMA_VERSION},
+        )
+        failure = from_exception(raised.exception)
+        self.assertEqual(failure.status, 400)
+        self.assertEqual(failure.code, "storage.schema_newer")
+
 
 if __name__ == "__main__":
     unittest.main()
