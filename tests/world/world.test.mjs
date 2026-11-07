@@ -9,8 +9,11 @@ import {
   exampleWorldTitle,
   harbourMapId,
   LANGUAGES,
+  PART_DICTIONARIES,
+  PARTS,
   structureKeys,
 } from "./index.mjs";
+import { IDS_FILE, renderIdsFile } from "./ids.mjs";
 import { renderShipFiles, SHIP_DIRECTORY, SHIP_FORMAT } from "./ship.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -122,12 +125,14 @@ test("no text of either language is empty", () => {
 });
 
 test("with every text replaced by its key the two worlds are identical", () => {
-  const [first, second] = LANGUAGES.map((lang) => buildExampleWorld(lang, { probe: true }));
+  const [first, second] = LANGUAGES.map((lang) =>
+    buildExampleWorld(lang, { include: PARTS, probe: true }),
+  );
   assert.deepEqual(second, first);
 });
 
 test("the finished worlds differ in language only", () => {
-  const [german, english] = LANGUAGES.map((lang) => buildExampleWorld(lang));
+  const [german, english] = LANGUAGES.map((lang) => buildExampleWorld(lang, { include: PARTS }));
   assert.deepEqual(identityDifferences(german, english), []);
   assert.notEqual(german.manuscript.chapters[0].body, english.manuscript.chapters[0].body);
   assert.notEqual(exampleWorldTitle("de"), exampleWorldTitle("en"));
@@ -143,7 +148,7 @@ test("the language-independent comparison notices a changed identity field", () 
 
 test("every reference, mention and mark hits what it names, in both languages", () => {
   for (const lang of LANGUAGES) {
-    const { manuscript, figures, storyboards } = buildExampleWorld(lang);
+    const { manuscript, figures, storyboards } = buildExampleWorld(lang, { include: PARTS });
     const spans = [];
     for (const chapter of manuscript.chapters) {
       for (const mention of chapter.mentions ?? []) spans.push([chapter.body, mention]);
@@ -292,13 +297,136 @@ test("the shipped world is the base world and nothing else", () => {
     assert.deepEqual(shipped.storyWorld, base.figures, lang);
     assert.deepEqual(shipped.storyboards, base.storyboards, lang);
     // Ids of the check part start with "x-"; none of them may ever ship.
-    const ids = [...everyString(shipped)].filter(([path]) =>
-      /\.(id|elementId|from|to|target\.id)$/.test(path),
-    );
+    // Every string is searched, not only the id fields: a parentFolderId or a card target
+    // naming the check part would ship it just the same.
     assert.deepEqual(
-      ids.filter(([, value]) => value.startsWith("x-")),
+      [...everyString(shipped)].filter(([, value]) => /^(item-)?x-/.test(value)),
       [],
       `${lang}: a check-part id ships`,
     );
   }
+});
+
+/** Every id the world gives out, with the list it comes from. */
+function worldIds({ manuscript, figures, storyboards }) {
+  return [
+    ...manuscript.chapters.map((chapter) => `chapter:${chapter.id}`),
+    ...manuscript.trash.map((entry) => `chapter:${entry.chapter.id}`),
+    ...manuscript.structure.folders.map((folder) => `folder:${folder.id}`),
+    ...manuscript.structure.items.map((item) => `item:${item.id}`),
+    ...figures.nodes.map((node) => `node:${node.id}`),
+    ...figures.edges.map((edge) => `edge:${edge.id}`),
+    ...figures.timeline.map((moment) => `moment:${moment.id}`),
+    ...figures.presence.map((entry) => `presence:${entry.id}`),
+    ...storyboards.boards.map((board) => `board:${board.id}`),
+    ...storyboards.nodes.map((card) => `card:${card.id}`),
+    ...storyboards.edges.map((edge) => `boardEdge:${edge.id}`),
+  ];
+}
+
+const bareId = (entry) => entry.slice(entry.indexOf(":") + 1);
+
+test("with every part the ids stay unique and every board target exists", () => {
+  for (const lang of LANGUAGES) {
+    const world = buildExampleWorld(lang, { include: PARTS });
+    const ids = worldIds(world);
+    assert.deepEqual(
+      ids.filter((id, index) => ids.indexOf(id) !== index),
+      [],
+      `${lang}: ids given out twice`,
+    );
+    const boards = new Set(world.storyboards.boards.map((board) => board.id));
+    for (const card of world.storyboards.nodes) assert.ok(boards.has(card.boardId), card.id);
+  }
+});
+
+test("the check part only appends: the base world is a prefix of every list", () => {
+  const base = buildExampleWorld("de");
+  const all = buildExampleWorld("de", { include: PARTS });
+  const lists = (world) => ({
+    chapters: world.manuscript.chapters,
+    trash: world.manuscript.trash,
+    folders: world.manuscript.structure.folders,
+    items: world.manuscript.structure.items,
+    nodes: world.figures.nodes,
+    edges: world.figures.edges,
+    timeline: world.figures.timeline,
+    presence: world.figures.presence,
+    boards: world.storyboards.boards,
+    cards: world.storyboards.nodes,
+    boardEdges: world.storyboards.edges,
+  });
+  const [before, after] = [lists(base), lists(all)];
+  for (const [name, list] of Object.entries(before)) {
+    assert.deepEqual(after[name].slice(0, list.length), list, `${name} of the base world changed`);
+  }
+});
+
+test("every id of the check part starts with x-, and no base id does", () => {
+  const baseIds = new Set(worldIds(buildExampleWorld("de")));
+  const added = worldIds(buildExampleWorld("de", { include: PARTS })).filter(
+    (id) => !baseIds.has(id),
+  );
+  assert.ok(added.length >= 15, `only ${added.length} ids in the check part`);
+  for (const id of added) {
+    assert.ok(/^x-|^item-x-/.test(bareId(id)), `${id} is in the check part without x-`);
+  }
+  for (const id of baseIds) assert.ok(!bareId(id).startsWith("x-"), `${id} is a base id with x-`);
+});
+
+test("base and check part share no id and no text key", () => {
+  const baseIds = worldIds(buildExampleWorld("de")).map(bareId);
+  // What the check part adds, counted: an id the part repeats is still an addition.
+  const added = worldIds(buildExampleWorld("de", { include: PARTS })).map(bareId);
+  for (const id of baseIds) added.splice(added.indexOf(id), 1);
+  const baseSet = new Set(baseIds);
+  assert.deepEqual(
+    added.filter((id) => baseSet.has(id)),
+    [],
+    "ids of the check part that the base world already uses",
+  );
+  for (const lang of LANGUAGES) {
+    const baseKeys = Object.keys(PART_DICTIONARIES.base[lang]);
+    const edgeKeys = new Set(Object.keys(PART_DICTIONARIES.edge[lang]));
+    assert.deepEqual(
+      baseKeys.filter((key) => edgeKeys.has(key)),
+      [],
+      `${lang}: text keys in both parts`,
+    );
+  }
+});
+
+test("the check part carries the edge cases the suites rely on", () => {
+  for (const lang of LANGUAGES) {
+    const { manuscript, figures, storyboards } = buildExampleWorld(lang, { include: PARTS });
+    const node = (id) => figures.nodes.find((item) => item.id === id);
+    const cluster = figures.nodes.filter((item) => item.id.startsWith("x-cluster-"));
+    assert.equal(cluster.length, 8, lang);
+    assert.equal(cluster.filter((item) => item.important).length, 1, lang);
+    const spread = (key) =>
+      Math.max(...cluster.map((item) => item[key])) - Math.min(...cluster.map((item) => item[key]));
+    assert.ok(spread("x") <= 60 && spread("y") <= 60, `${lang}: the cluster is not stacked`);
+    assert.ok(node("x-long-name").name.length >= 60, lang);
+    assert.ok(!/\s/.test(node("x-long-name").name), `${lang}: the long name can be broken`);
+    assert.ok(node("x-long-place").name.length >= 50, lang);
+    assert.equal(node("x-long-place").parentPlaceId, "nordhafen", lang);
+    assert.ok(node("x-long-org").name.includes("'") || lang === "de", lang);
+    assert.equal(node("x-empty-note").profile.notes, "", lang);
+    assert.equal(manuscript.chapters.find((item) => item.id === "x-empty-chapter").body, "");
+    const orphan = manuscript.trash.find((entry) => entry.chapter.id === "x-trash-orphan");
+    const folders = new Set(manuscript.structure.folders.map((folder) => folder.id));
+    assert.ok(!folders.has(orphan.treeItem.parentFolderId), `${lang}: the orphan has a folder`);
+    const card = (id) => storyboards.nodes.find((item) => item.id === id);
+    assert.ok(!figures.nodes.some((item) => item.id === card("x-ref-deleted").target.id));
+    assert.equal(card("x-ref-trashed").target.id, "c-prologue", lang);
+  }
+});
+
+test("the typed ids are what the test world renders; run npm run world:update", () => {
+  const target = join(repositoryRoot, IDS_FILE);
+  assert.ok(existsSync(target), `${IDS_FILE} is missing; run npm run world:update`);
+  assert.ok(
+    readFileSync(target).equals(renderIdsFile()),
+    `${IDS_FILE} is stale; run npm run world:update`,
+  );
 });

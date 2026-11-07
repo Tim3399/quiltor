@@ -10,21 +10,28 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describeWorld } from "./parts/base.mjs";
+import { describeEdge } from "./parts/edge.mjs";
 import { texts as baseDe } from "./texts/base.de.mjs";
 import { texts as baseEn } from "./texts/base.en.mjs";
+import { texts as edgeDe } from "./texts/edge.de.mjs";
+import { texts as edgeEn } from "./texts/edge.en.mjs";
 
 export const LANGUAGES = ["de", "en"];
 
 /** The parts of the world in build order; `base` is always built first. */
-const PARTS = ["base"];
+export const PARTS = ["base", "edge"];
 
 /** The dictionary of every part, per language. */
-const PART_DICTIONARIES = {
+export const PART_DICTIONARIES = {
   base: { de: baseDe, en: baseEn },
+  edge: { de: edgeDe, en: edgeEn },
 };
 
+/** What each part appends to the world built so far. */
+const DESCRIBE = { edge: describeEdge };
+
 /** Every text of a language, all parts together. A key that two parts share is an error. */
-function dictionary(lang, parts = PARTS) {
+function dictionary(lang, parts) {
   const merged = {};
   for (const part of parts) {
     const texts = PART_DICTIONARIES[part]?.[lang];
@@ -37,7 +44,10 @@ function dictionary(lang, parts = PARTS) {
   return merged;
 }
 
-export const DICTIONARIES = Object.fromEntries(LANGUAGES.map((lang) => [lang, dictionary(lang)]));
+/** Every text of every part, per language. */
+export const DICTIONARIES = Object.fromEntries(
+  LANGUAGES.map((lang) => [lang, dictionary(lang, PARTS)]),
+);
 
 /** The picture behind the city level. Upload it first; its id is the SHA-256 of the file. */
 export const HARBOUR_MAP_FILE = join(dirname(fileURLToPath(import.meta.url)), "harbour-map.png");
@@ -122,7 +132,9 @@ export function buildExampleWorld(
     },
   };
 
-  return describeWorld(api, harbourMapId());
+  const world = describeWorld(api, harbourMapId());
+  for (const part of parts) if (part !== "base") DESCRIBE[part](api, world);
+  return world;
 }
 
 /** The name the world is created under; it is spoken, not part of the structure. */
