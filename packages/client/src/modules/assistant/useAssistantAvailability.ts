@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { applicationErrorMessage, quiltorClient } from "../../platform";
+import { useStatusTick } from "../../shared/hooks/useStatusTick";
 
-const STATUS_POLL_MS = 15000;
 const INSTALL_POLL_MS = 1000;
 
 export type AssistantAvailability = {
@@ -49,12 +49,12 @@ export function useAssistantAvailability() {
   useEffect(() => {
     mountedRef.current = true;
     checkStatus();
-    const interval = window.setInterval(checkStatus, STATUS_POLL_MS);
     return () => {
       mountedRef.current = false;
-      window.clearInterval(interval);
     };
   }, [checkStatus]);
+
+  useStatusTick(checkStatus);
 
   // Installation continues server-side while the drawer is closed. Polling always
   // re-synchronizes from the gateway so remounting cannot reset visible progress.
