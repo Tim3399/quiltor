@@ -212,7 +212,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        claimed = present(self.store.claim_next())
+        claimed = present(self.store.claim_next_server())
         self.assertEqual(claimed["id"], job["id"])
         self.assertEqual(claimed["status"], "running")
 
@@ -241,7 +241,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        self.store.claim_next()
+        self.store.claim_next_server()
         result = {"ok": True, "message": "done", "proposals": [], "sources": []}
         terminal = present(self.store.finish_success(job["id"], result, "interaction-1"))
 
@@ -286,7 +286,7 @@ class AssistantJobLimitTests(unittest.TestCase):
     def test_a_running_job_counts_as_open(self):
         self._submit("a")
         self._submit("b")
-        present(self.store.claim_next())
+        present(self.store.claim_next_server())
         with self.assertRaises(TooManyOpenJobs):
             self._submit("c")
 

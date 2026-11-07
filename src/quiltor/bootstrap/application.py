@@ -77,7 +77,11 @@ from quiltor.infrastructure.platform.runtime_target import (
 )
 from quiltor.infrastructure.writing_assistance import build_writing_assistance
 from quiltor.modules.assistant import AssistantRuntime
-from quiltor.modules.assistant.jobs import AssistantJobRunner
+from quiltor.modules.assistant.jobs import (
+    DEFAULT_CLIENT_JOB_SLOTS,
+    MAX_CLIENT_JOB_SLOTS,
+    AssistantJobRunner,
+)
 from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngine
 from quiltor.modules.commerce.contract import EntitlementProvider
 from quiltor.modules.identity.auth import IdentityConfiguration, validate_master_token
@@ -380,6 +384,20 @@ def build_assistant_installation(
     return LocalAssistantInstallation(capabilities, home=selected_home)
 
 
+def assistant_client_job_slots(configured: str) -> int:
+    """QUILTOR_ASSISTANT_CLIENT_JOBS: how many client-engine jobs run at once (T-61)."""
+    configured = configured.strip()
+    if not configured:
+        return DEFAULT_CLIENT_JOB_SLOTS
+    if not (configured.isascii() and configured.isdigit()) or not (
+        1 <= int(configured) <= MAX_CLIENT_JOB_SLOTS
+    ):
+        raise RuntimeError(
+            f"QUILTOR_ASSISTANT_CLIENT_JOBS must be a whole number from 1 to {MAX_CLIENT_JOB_SLOTS}."
+        )
+    return int(configured)
+
+
 def build_assistant_services(
     *,
     base: Path,
@@ -407,6 +425,11 @@ def build_assistant_services(
         world_access=ApplicationAssistantWorldAccess(assistant),
         structured_logger=observability.logger,
         metrics=observability.metrics,
+        # No client engine before T-61 Teil 2: such a job fails as unavailable.
+        client_runtime_factory=None,
+        client_slots=assistant_client_job_slots(
+            os.environ.get("QUILTOR_ASSISTANT_CLIENT_JOBS", "")
+        ),
     )
     return AssistantServices(runtime, jobs)
 

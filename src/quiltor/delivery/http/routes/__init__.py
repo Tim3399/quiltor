@@ -31,9 +31,10 @@ otherwise sit far from the route they govern are stated with it:
     runs. Two routes decide it from their body instead: `POST /api/backup` with
     `push` and `POST /api/worlds/create` with a `backupUrl`.
     tests/python/test_device_sync_routes.py holds the table.
-  - **`premium=True`** means the session must pass `app.identity.is_premium`.
-    The dispatch checks it before resolving any world, so an account without
-    the role cannot even probe which worlds exist. Locally it always passes.
+  - There is no premium option. The assistant's job route decides from its
+    body which engine computes the job, and only the server engine needs the
+    role (T-61), so `POST /api/assistant/jobs` checks it itself, before the
+    world. The other job routes are bound to the caller's own jobs.
 
 The `app` argument is the concrete WebApplication owned by the HTTP server
 instance. Routes never import a composition root or process-global store.
@@ -56,7 +57,6 @@ class Registration:
     auth_only: bool = False
     operator_only: bool = False
     device_sync: bool = False
-    premium: bool = False
 
 
 @dataclass

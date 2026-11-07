@@ -970,15 +970,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.log_rejection("sync.forbidden_hosted", route=path)
             return self.send_api_error(403, error_code="sync.forbidden_hosted", retryable=False)
 
-        if registration.premium and (
-            session is None or not self.application.identity.is_premium(session)
-        ):
-            # Same form as the two refusals above: the body stays unread (D-38).
-            self._discard_unread_body()
-            return self.send_api_error(
-                403, error_code="assistant.premium_required", retryable=False
-            )
-
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:
             # Resolved before the route runs, so a refusal here leaves the body unread.

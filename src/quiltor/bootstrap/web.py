@@ -98,6 +98,8 @@ class AssistantRouteServices:
     # None where one person owns the server: the limit only protects a shared one.
     max_open_jobs: int | None
     installable: bool = True
+    # Whether jobs may name a client engine (T-61, QUILTOR_ASSISTANT_CLIENT_AI).
+    client_ai: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +168,18 @@ DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
 MAX_ASSISTANT_MAX_OPEN_JOBS = 100
 
 
+def assistant_client_ai(configured: str) -> bool:
+    """QUILTOR_ASSISTANT_CLIENT_AI: `1` lets users run jobs on their own engine, `0` or
+    unset does not. Off by default until the relay that executes such jobs exists (T-61
+    Teil 3); a server that accepted them before would queue work nobody can compute."""
+    configured = configured.strip()
+    if configured in {"", "0"}:
+        return False
+    if configured == "1":
+        return True
+    raise RuntimeError("QUILTOR_ASSISTANT_CLIENT_AI must be 0 or 1.")
+
+
 def assistant_max_open_jobs(configured: str) -> int:
     """QUILTOR_ASSISTANT_MAX_OPEN_JOBS, or the default when unset or empty."""
     configured = configured.strip()
@@ -222,6 +236,8 @@ class WebApplication:
     operation_profile: str = LOCAL
     # How many queued or running assistant jobs one account may have (OIDC only).
     assistant_max_open_jobs: int = DEFAULT_ASSISTANT_MAX_OPEN_JOBS
+    # Whether a job may name a client engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
+    assistant_client_ai: bool = False
 
     @property
     def installable(self) -> bool:
@@ -316,6 +332,7 @@ class WebApplication:
                 self.identity,
                 self.assistant_max_open_jobs if self.identity.multi_user else None,
                 self.installable,
+                self.assistant_client_ai,
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
@@ -453,6 +470,7 @@ def build_web_application(
         assistant_max_open_jobs=assistant_max_open_jobs(
             os.environ.get("QUILTOR_ASSISTANT_MAX_OPEN_JOBS", "")
         ),
+        assistant_client_ai=assistant_client_ai(os.environ.get("QUILTOR_ASSISTANT_CLIENT_AI", "")),
     )
 
 

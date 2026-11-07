@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 
@@ -23,6 +24,15 @@ from quiltor.modules.assistant.ports import (
 )
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
+
+#: How many jobs on client engines may run at once in one process (T-61). Each one is a
+#: thread that mostly waits for a browser; one per account is enforced by the store.
+DEFAULT_CLIENT_JOB_SLOTS = 8
+MAX_CLIENT_JOB_SLOTS = 64
+
+#: Builds the runtime that computes one client-engine job, or None when this build has
+#: no client engine yet. Its runtime must not share state with the server runtime.
+ClientRuntimeFactory = Callable[[dict[str, Any]], Any]
 
 
 def _stale_world_result(
@@ -155,7 +165,12 @@ def assistant_error_status(exc: Exception) -> int:
 
 
 class AssistantJobRunner:
-    """Single worker around an assistant runtime; every adapter is injected."""
+    """Workers around an assistant runtime; every adapter is injected.
+
+    One thread runs the server engine's jobs, one at a time. Jobs on a client engine (T-61)
+    run beside it in a bounded pool, each with a runtime of its own from
+    `client_runtime_factory`; without a factory such a job fails as unavailable.
+    """
 
     def __init__(
         self,
@@ -166,19 +181,27 @@ class AssistantJobRunner:
         world_access: AssistantWorldAccess,
         structured_logger: StructuredLogger,
         metrics: Metrics,
+        client_runtime_factory: ClientRuntimeFactory | None = None,
+        client_slots: int = DEFAULT_CLIENT_JOB_SLOTS,
     ) -> None:
+        if not 1 <= client_slots <= MAX_CLIENT_JOB_SLOTS:
+            raise ValueError(f"client_slots must be from 1 to {MAX_CLIENT_JOB_SLOTS}.")
         self.assistant = assistant
         self._store_factory = store_factory
         self.interaction_logger = interaction_logger
         self.world_access = world_access
         self.structured_logger = structured_logger
         self.metrics = metrics
+        self.client_runtime_factory = client_runtime_factory
+        self._client_slots = threading.BoundedSemaphore(client_slots)
         self._store: AssistantJobStore | None = None
         self._store_lock = threading.Lock()
         self._wake = threading.Event()
+        self._client_wake = threading.Event()
         self._stop = threading.Event()
         self._start_lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._client_thread: threading.Thread | None = None
 
     @property
     def store(self) -> AssistantJobStore:
@@ -198,13 +221,18 @@ class AssistantJobRunner:
                 target=self._run, name="quiltor-assistant-jobs", daemon=True
             )
             self._thread.start()
+            self._client_thread = threading.Thread(
+                target=self._run_clients, name="quiltor-assistant-client-jobs", daemon=True
+            )
+            self._client_thread.start()
 
     def close(self, timeout: float = 2.0) -> None:
         self._stop.set()
         self._wake.set()
-        thread = self._thread
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=timeout)
+        self._client_wake.set()
+        for thread in (self._thread, self._client_thread):
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=timeout)
 
     def submit(self, **kwargs: Any) -> tuple[dict[str, Any], bool]:
         self.start()
@@ -212,6 +240,7 @@ class AssistantJobRunner:
         if result[1]:
             self.metrics.increment("assistant_jobs_submitted")
         self._wake.set()
+        self._client_wake.set()
         return result
 
     def get(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None:
@@ -247,32 +276,73 @@ class AssistantJobRunner:
 
     def _run(self) -> None:
         while not self._stop.is_set():
-            job = self.store.claim_next()
+            job = self.store.claim_next_server()
             if job is None:
                 self._wake.wait(timeout=0.5)
                 self._wake.clear()
                 continue
-            try:
-                self._execute(job)
-            except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
-                # Recording the failure is best effort.
-                with suppress(Exception):
-                    self.store.finish_failure(
-                        str(job["id"]),
-                        str(exc),
-                        classify_assistant_error(exc),
-                        assistant_error_status(exc),
-                    )
-                self.metrics.increment("assistant_jobs_failed", error=type(exc).__name__)
-                self.structured_logger.event(
-                    "error",
-                    "assistant.worker_failed",
-                    job_id=str(job["id"]),
-                    error_type=type(exc).__name__,
-                )
+            self._execute_guarded(job, self.assistant)
             self._wake.set()
 
-    def _execute(self, job: dict[str, Any]) -> None:
+    def _run_clients(self) -> None:
+        while not self._stop.is_set():
+            if not self._client_slots.acquire(timeout=0.5):
+                continue
+            job = None
+            try:
+                job = self.store.claim_next_client()
+            finally:
+                if job is None:
+                    self._client_slots.release()
+            if job is None:
+                self._client_wake.wait(timeout=0.5)
+                self._client_wake.clear()
+                continue
+            threading.Thread(
+                target=self._run_client_job,
+                args=(job,),
+                name=f"quiltor-assistant-client-job-{job['id']}",
+                daemon=True,
+            ).start()
+
+    def _run_client_job(self, job: dict[str, Any]) -> None:
+        try:
+            factory = self.client_runtime_factory
+            runtime = factory(job) if factory is not None else None
+            if runtime is None:
+                self._fail(job, InferenceUnavailableError("No client engine is available yet."))
+                return
+            self._execute_guarded(job, runtime)
+        except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the pool
+            self._fail(job, exc)
+        finally:
+            self._client_slots.release()
+            self._client_wake.set()
+
+    def _execute_guarded(self, job: dict[str, Any], assistant: Any) -> None:
+        try:
+            self._execute(job, assistant)
+        except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
+            self._fail(job, exc)
+
+    def _fail(self, job: dict[str, Any], exc: Exception) -> None:
+        # Recording the failure is best effort.
+        with suppress(Exception):
+            self.store.finish_failure(
+                str(job["id"]),
+                str(exc),
+                classify_assistant_error(exc),
+                assistant_error_status(exc),
+            )
+        self.metrics.increment("assistant_jobs_failed", error=type(exc).__name__)
+        self.structured_logger.event(
+            "error",
+            "assistant.worker_failed",
+            job_id=str(job["id"]),
+            error_type=type(exc).__name__,
+        )
+
+    def _execute(self, job: dict[str, Any], assistant: Any) -> None:
         started = time.monotonic()
         job_id = str(job["id"])
         payload = self.store.request_for(job_id)
@@ -282,8 +352,8 @@ class AssistantJobRunner:
         try:
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("The world for this assistant job no longer exists.")
-            self.assistant.reload()
-            result = self.assistant.complete(
+            assistant.reload()
+            result = assistant.complete(
                 question,
                 payload.get("manuscript") or {},
                 payload.get("figures") or {},
@@ -389,7 +459,10 @@ class AssistantJobRunner:
 
 
 __all__ = [
+    "DEFAULT_CLIENT_JOB_SLOTS",
+    "MAX_CLIENT_JOB_SLOTS",
     "AssistantJobRunner",
+    "ClientRuntimeFactory",
     "IdempotencyConflict",
     "TooManyOpenJobs",
     "assistant_error_status",
