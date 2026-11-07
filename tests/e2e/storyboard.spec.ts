@@ -305,7 +305,14 @@ test("a world reference can be dragged onto the empty storyboard centre", async 
   await expect(referenceCard).toHaveCount(1);
   await expect(referenceCard).toContainText("Ohne Titel");
 
-  const noteSaved = waitForSuccessfulStoryboardWrite(page, referenceNote);
+  // The card shows the chapter's one note, so the note is saved with the manuscript (T-177).
+  const noteSaved = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/manuscript") &&
+      response.request().method() === "PUT" &&
+      Boolean(response.request().postData()?.includes(referenceNote)) &&
+      response.ok(),
+  );
   await referenceCard.getByRole("textbox", { name: "Notiz zu Ohne Titel" }).fill(referenceNote);
   const noteResponse = await noteSaved;
   expect(noteResponse.status()).toBe(200);

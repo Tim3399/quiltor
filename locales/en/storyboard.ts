@@ -31,6 +31,7 @@ export const storyboard = {
   storyboardNoteFocusTitle: "Storyboard note · {context}",
   storyboardNodeNoteEditorLabel: "Note for {name}",
   storyboardNodeNotePlaceholder: "Note",
+  storyboardElementDeleted: "Element deleted",
   storyboardNodeNoteFocusTitle: "Note for {name} · {context}",
   storyboardNoteFocusOpen: "Open note in focus mode",
   storyboardNoteFocusClose: "Back to storyboard",

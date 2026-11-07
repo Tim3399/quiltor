@@ -162,6 +162,33 @@ class ProjectTransferTests(unittest.TestCase):
                 with self.assertRaises(PermissionError):
                     destination_worlds.open(imported.id, "alice")
 
+    def test_an_archive_from_325_moves_reference_card_text_onto_the_element_note(self):
+        _title, archive = self.transfer.export(self.created.id, "alice")
+
+        def as_325(manifest: dict) -> None:
+            nodes = manifest["documents"]["storyboards"]["payload"]["nodes"]
+            card = next(node for node in nodes if node["id"] == "reference-mara")
+            card.update(
+                text="Mara hütet das Archiv.", noteMarks=[{"from": 0, "to": 4, "kind": "bold"}]
+            )
+
+        imported = self.transfer.import_archive(rewrite_manifest(archive, as_325), "alice")
+
+        database = world_catalog.world_db_path(imported.id, paths=self.paths)
+        mara = next(node for node in story_world.load(database)["nodes"] if node["id"] == "mara")
+        self.assertEqual(
+            mara["profile"]["notes"],
+            "Kennt das Archiv.\n\n— Aus Storyboard „Main Storyboard“ —\nMara hütet das Archiv.",
+        )
+        offset = len("Kennt das Archiv.\n\n— Aus Storyboard „Main Storyboard“ —\n")
+        self.assertIn(
+            {"from": offset, "to": offset + 4, "kind": "bold"}, mara["profile"]["noteMarks"]
+        )
+        card = next(
+            node for node in storyboards.load(database)["nodes"] if node["id"] == "reference-mara"
+        )
+        self.assertFalse(card.get("text"))
+
     def test_preview_never_mutates_catalog(self):
         for kind, state in (
             ("manuscript", self.manuscript),

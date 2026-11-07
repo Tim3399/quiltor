@@ -24,6 +24,7 @@ import {
   isGraphDeleteShortcut,
   positionGraphRelationshipEdgeLabels,
 } from "../graph";
+import type { ElementNote, ElementNoteTarget } from "../notes";
 import { type WorldReferenceCandidate, worldReferenceKey } from "../world-references";
 import type {
   StoryboardBoard,
@@ -70,6 +71,14 @@ export type StoryboardWorkspaceProps = {
   onChange: (value: StoryboardState, options?: { separateHistoryStep?: boolean }) => void;
   candidates: readonly WorldReferenceCandidate[];
   onOpenReference: (target: WorldReferenceTarget) => void;
+  /** The one note of the element a reference card shows; null once it is deleted. */
+  elementNote?: (target: ElementNoteTarget) => ElementNote | null;
+  onElementNoteChange?: (
+    target: ElementNoteTarget,
+    text: string,
+    noteReferences: NoteReference[],
+    noteMarks: NoteMark[],
+  ) => void;
   targetId?: string;
   targetRequestId?: number;
   onUndo?: () => void;
@@ -91,6 +100,8 @@ function StoryboardWorkspaceInner({
   onChange,
   candidates,
   onOpenReference,
+  elementNote,
+  onElementNoteChange,
   targetId,
   targetRequestId,
   onUndo,
@@ -280,6 +291,9 @@ function StoryboardWorkspaceInner({
             boardContext: noteBoardContext,
             onPatch: patchNode,
             onNoteChange: changeNote,
+            onElementNoteChange,
+            elementNote:
+              item.kind === "reference" && elementNote ? elementNote(item.target) : undefined,
             onOpenReference: openReference,
             onOpenBoard: openBoard,
           },
@@ -292,7 +306,9 @@ function StoryboardWorkspaceInner({
       allCandidates,
       boards,
       changeNote,
+      elementNote,
       noteBoardContext,
+      onElementNoteChange,
       openBoard,
       openReference,
       patchNode,
