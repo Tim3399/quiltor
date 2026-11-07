@@ -1,80 +1,29 @@
 import type { Page } from "@playwright/test";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
-import { encodeStoryWorldDocument } from "./support/application-api";
+import { exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
 import { putVersioned } from "./support/seed";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { expect, test } from "./support/world-fixture";
 
 // T-177: a reference card shows its element's note, which is often long and carries headings
 // and reference marks. The note must stay inside its own area: nothing of it may cover the
 // card's "Original öffnen", and that button must stay clickable.
-
-const LONG_NOTE =
-  "Mara Venn\nKartographin zwischen Pflicht und Neugier.\n\nWas sie antreibt\nMara will herausfinden, weshalb die Karten ihres Vaters eine Küste zeigen.\n\nSpuren\nIven Rook kennt den Zugang zum Archiv.";
+//
+// Mara's note in the test world has the headings and the references; only the card's size is
+// the test's own, so the world's storyboards are stored again with her card resized.
 
 async function seed(page: Page, height: number, width = 240) {
-  const world = await createTestWorld(page, `Kartennotiz ${crypto.randomUUID()}`);
-  const iven = LONG_NOTE.indexOf("Iven Rook");
-  const drive = LONG_NOTE.indexOf("Was sie antreibt");
-  await putVersioned(page, `/api/state?world=${world.id}`, (revision) =>
-    encodeStoryWorldDocument(
-      {
-        nodes: [
-          {
-            id: "mara",
-            type: "person",
-            name: "Mara Venn",
-            x: 0,
-            y: 0,
-            profile: {
-              notes: LONG_NOTE,
-              noteMarks: [
-                { from: 0, to: 9, kind: "heading", level: 1 },
-                { from: drive, to: drive + 16, kind: "heading", level: 2 },
-              ],
-              noteReferences: [
-                {
-                  id: "ref-iven",
-                  target: { kind: "entity", id: "iven" },
-                  from: iven,
-                  to: iven + 9,
-                  surface: "Iven Rook",
-                },
-              ],
-            },
-          },
-          { id: "iven", type: "person", name: "Iven Rook", x: 300, y: 0 },
-        ],
-        edges: [],
-      },
-      revision,
-    ),
-  );
+  const world = await seedExampleWorld(page, { open: false });
+  const storyboards = exampleWorldDocuments().storyboards;
+  const card = storyboards.nodes.find((node) => node.id === world.ids.cards.referenceMara);
+  if (!card) throw new Error("The test world has lost Mara's reference card.");
+  Object.assign(card, { width, height });
   await putVersioned(page, `/api/storyboards?world=${world.id}`, (revision) =>
-    encodeStoryboardsV1(
-      {
-        boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
-        nodes: [
-          {
-            id: "reference-mara",
-            boardId: "main-storyboard",
-            kind: "reference",
-            target: { kind: "entity", id: "mara" },
-            label: "Mara Venn",
-            x: 120,
-            y: 120,
-            width,
-            height,
-          },
-        ],
-        edges: [],
-      },
-      revision,
-    ),
+    encodeStoryboardsV1(storyboards, revision),
   );
   await page.goto(`/?world=${world.id}`);
   await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
-  return page.locator('[data-storyboard-node-kind="reference"]');
+  return page.locator(`.react-flow__node[data-id="${world.ids.cards.referenceMara}"]`);
 }
 
 for (const [label, height, width] of [

@@ -17,6 +17,8 @@ const CLUSTER = Array.from({ length: 8 }, (_, index) => ({
 
 /** A board that holds every card of the check part, so the base boards stay as they are. */
 const BOARD = "x-board";
+/** The board of the two overlapping notes. */
+const LAYERS = "x-layers";
 
 export function describeEdge(api, world) {
   const { t } = api;
@@ -164,10 +166,35 @@ export function describeEdge(api, world) {
     width: 260,
     height: 190,
   });
-  storyboards.boards.push({ id: BOARD, title: t("board.x.title") });
+  storyboards.boards.push(
+    { id: BOARD, title: t("board.x.title") },
+    // The two overlapping notes have a board of their own: moving a card forward renumbers
+    // the layers of the whole board, and the layer spec reads those numbers.
+    { id: LAYERS, title: t("board.x-layers.title") },
+  );
   storyboards.nodes.push(
     reference("x-ref-deleted", { kind: "entity", id: "x-gone" }, "card.x-gone.label", 60),
     reference("x-ref-trashed", { kind: "chapter", id: "c-prologue" }, "ch.prologue.title", 380),
+    // A second card on the chapter the main board already shows (T-177: one note, two cards),
+    // and a card on a side character, which the figure inspector lists as a backlink.
+    reference("x-ref-storm-again", { kind: "chapter", id: "c-storm" }, "ch.c5.title", 700),
+    reference("x-ref-ada", { kind: "entity", id: "ada" }, "card.x-ada.label", 1020),
+    // Two notes overlapping each other, the front one one layer up, on their own board.
+    ...[
+      { id: "x-layer-back", x: 60, y: 420, zIndex: 1, key: "x-layer-back" },
+      { id: "x-layer-front", x: 140, y: 480, zIndex: 2, key: "x-layer-front" },
+    ].map((spec) => ({
+      id: spec.id,
+      boardId: LAYERS,
+      kind: "note",
+      label: t(`card.${spec.key}.label`),
+      text: t(`card.${spec.key}.text`),
+      zIndex: spec.zIndex,
+      x: spec.x,
+      y: spec.y,
+      width: 280,
+      height: 210,
+    })),
   );
 
   return world;
@@ -198,5 +225,11 @@ export const PURPOSE = {
   "x-trash-orphan": "chapter in the bin whose folder no longer exists",
   "x-board": "board holding every card of the check part",
   "x-ref-deleted": "reference card to an element that does not exist (T-177)",
+  "x-ref-storm-again":
+    "second card on the chapter the main board shows; one note, two cards (T-177)",
+  "x-ref-ada": "card on a side character, listed as a backlink in the figure inspector",
+  "x-layers": "board holding only the two overlapping notes",
+  "x-layer-back": "note overlapped by x-layer-front, one layer below it",
+  "x-layer-front": "note overlapping x-layer-back, one layer above it",
   "x-ref-trashed": "reference card to a chapter in the bin (T-177)",
 };

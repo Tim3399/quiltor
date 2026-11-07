@@ -1,14 +1,13 @@
 import { readFileSync } from "node:fs";
 import type { Locator, Page } from "@playwright/test";
-import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
-import { encodeStoryWorldDocument } from "./support/application-api";
 import {
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedExampleWorld } from "./support/example-world";
+import { expect, test } from "./support/world-fixture";
 
 /*
  * The same command must stand in the same place in every state of a node.
@@ -223,22 +222,11 @@ test("Map: the collapsed card and the toolbar list their commands in the same or
 
 test("Figure: the card carries no commands of its own", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "Command geometry uses the fixed wide canvas.");
-  const world = await createTestWorld(page, `Command order figure ${crypto.randomUUID()}`);
-  const worldId = encodeURIComponent(world.id);
-  const response = await page.request.get(`/api/state?world=${worldId}`);
-  const revision = Number((response.headers().etag || '"0"').replaceAll('"', ""));
-  const saved = await page.request.put(`/api/state?world=${worldId}`, {
-    headers: { "If-Match": `"${revision}"` },
-    data: encodeStoryWorldDocument(
-      { nodes: [{ id: "ada", name: "Ada", type: "person", x: 160, y: 180 }], edges: [] },
-      revision,
-    ),
-  });
-  expect(saved.ok()).toBe(true);
-  await page.goto(`/?world=${worldId}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  const world = await seedExampleWorld(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  const card = page.locator(".react-flow__node .story-node").filter({ hasText: "Ada" });
+  const card = page
+    .locator(".react-flow__node .story-node")
+    .filter({ hasText: world.text("el.ada.name") });
   await expect(card).toBeVisible();
   // Unselected and selected must agree -- today both offer none. A command added to the card
   // has to be added to this test, with its place compared, rather than slip in unobserved.
@@ -252,90 +240,13 @@ test("Storyboard: every card lists its commands in the same order selected and n
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "Command geometry uses the fixed wide canvas.");
-  const world = await createTestWorld(page, `Command order storyboard ${crypto.randomUUID()}`);
-  const worldId = encodeURIComponent(world.id);
-  const stateResponse = await page.request.get(`/api/state?world=${worldId}`);
-  const stateRevision = Number((stateResponse.headers().etag || '"0"').replaceAll('"', ""));
-  expect(
-    (
-      await page.request.put(`/api/state?world=${worldId}`, {
-        headers: { "If-Match": `"${stateRevision}"` },
-        data: encodeStoryWorldDocument(
-          { nodes: [{ id: "ada", name: "Ada", type: "person", x: 160, y: 180 }], edges: [] },
-          stateRevision,
-        ),
-      })
-    ).ok(),
-  ).toBe(true);
-  const boardResponse = await page.request.get(`/api/storyboards?world=${worldId}`);
-  const boardRevision = Number((boardResponse.headers().etag || '"0"').replaceAll('"', ""));
-  const card = { width: 280, height: 220 };
-  expect(
-    (
-      await page.request.put(`/api/storyboards?world=${worldId}`, {
-        headers: { "If-Match": `"${boardRevision}"` },
-        data: encodeStoryboardsV1(
-          {
-            boards: [
-              { id: "main-storyboard", title: "Main Storyboard" },
-              { id: "second-board", title: "Zweiter Akt" },
-            ],
-            nodes: [
-              {
-                id: "n-note",
-                boardId: "main-storyboard",
-                kind: "note",
-                x: 40,
-                y: 40,
-                text: "Eine Notiz",
-                ...card,
-              },
-              {
-                id: "n-reference",
-                boardId: "main-storyboard",
-                kind: "reference",
-                target: { kind: "entity", id: "ada" },
-                label: "Ada im Garten",
-                x: 360,
-                y: 40,
-                ...card,
-              },
-              {
-                id: "n-board",
-                boardId: "main-storyboard",
-                kind: "storyboard",
-                target: { kind: "storyboard", id: "second-board" },
-                label: "Zweiter Akt",
-                x: 680,
-                y: 40,
-                ...card,
-              },
-              {
-                id: "n-group",
-                boardId: "main-storyboard",
-                kind: "group",
-                label: "Gruppe",
-                x: 40,
-                y: 340,
-                width: 400,
-                height: 260,
-              },
-            ],
-            edges: [],
-          },
-          boardRevision,
-        ),
-      })
-    ).ok(),
-  ).toBe(true);
-
-  await page.goto(`/?world=${worldId}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  // The main board of the test world carries a card of every kind.
+  await seedExampleWorld(page);
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
   await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
 
   for (const kind of ["note", "reference", "storyboard", "group"]) {
-    const node = page.locator(`[data-storyboard-node-kind="${kind}"]`);
+    const node = page.locator(`[data-storyboard-node-kind="${kind}"]`).first();
     await expect(node).toBeVisible();
     // Park the pointer on empty canvas first: a card's commands may depend on hover.
     await page.mouse.move(5, 5);

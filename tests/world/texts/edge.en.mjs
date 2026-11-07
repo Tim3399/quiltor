@@ -74,5 +74,11 @@ export const texts = {
   "ch.x-orphan.body": "A draft from a folder that no longer exists.",
   "folder.x-gone": "Deleted folder",
   "board.x.title": "Check part",
+  "board.x-layers.title": "Layers",
+  "card.x-ada.label": "Ada in the Garden",
+  "card.x-layer-back.label": "Rear card",
+  "card.x-layer-back.text": "Rear card",
+  "card.x-layer-front.label": "Front card",
+  "card.x-layer-front.text": "Front card",
   "card.x-gone.label": "Vanished figure",
 };

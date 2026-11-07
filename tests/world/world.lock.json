@@ -1318,6 +1318,10 @@
       "id": "x-board",
       "title": "⟦board.x.title⟧"
     },
+    "world.storyboards.boards[x-layers]": {
+      "id": "x-layers",
+      "title": "⟦board.x-layers.title⟧"
+    },
     "world.storyboards.edges[board-edge-eight]": {
       "boardId": "second-board",
       "directed": true,
@@ -1594,6 +1598,45 @@
       "y": 340,
       "zIndex": 1
     },
+    "world.storyboards.nodes[x-layer-back]": {
+      "boardId": "x-layers",
+      "height": 210,
+      "id": "x-layer-back",
+      "kind": "note",
+      "label": "⟦card.x-layer-back.label⟧",
+      "text": "⟦card.x-layer-back.text⟧",
+      "width": 280,
+      "x": 60,
+      "y": 420,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-layer-front]": {
+      "boardId": "x-layers",
+      "height": 210,
+      "id": "x-layer-front",
+      "kind": "note",
+      "label": "⟦card.x-layer-front.label⟧",
+      "text": "⟦card.x-layer-front.text⟧",
+      "width": 280,
+      "x": 140,
+      "y": 480,
+      "zIndex": 2
+    },
+    "world.storyboards.nodes[x-ref-ada]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-ada",
+      "kind": "reference",
+      "label": "⟦card.x-ada.label⟧",
+      "target": {
+        "id": "ada",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 1020,
+      "y": 60,
+      "zIndex": 1
+    },
     "world.storyboards.nodes[x-ref-deleted]": {
       "boardId": "x-board",
       "height": 190,
@@ -1606,6 +1649,21 @@
       },
       "width": 260,
       "x": 60,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-ref-storm-again]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-storm-again",
+      "kind": "reference",
+      "label": "⟦ch.c5.title⟧",
+      "target": {
+        "id": "c-storm",
+        "kind": "chapter"
+      },
+      "width": 260,
+      "x": 700,
       "y": 60,
       "zIndex": 1
     },
@@ -1635,6 +1693,11 @@
       "de": "Die Überfahrt",
       "en": "The Crossing",
       "translatedFrom": "e91d053afbf6384b"
+    },
+    "board.x-layers.title": {
+      "de": "Ebenen",
+      "en": "Layers",
+      "translatedFrom": "2695c43b918921cd"
     },
     "board.x.title": {
       "de": "Prüfteil",
@@ -1786,10 +1849,35 @@
       "en": "The Guild closes the harbour.\n\nA search for answers becomes the decision to leave together.",
       "translatedFrom": "618d2f3075c9ef3f"
     },
+    "card.x-ada.label": {
+      "de": "Ada im Garten",
+      "en": "Ada in the Garden",
+      "translatedFrom": "48575aacd90b4f8a"
+    },
     "card.x-gone.label": {
       "de": "Verschwundene Figur",
       "en": "Vanished figure",
       "translatedFrom": "1df912e4fb7d5539"
+    },
+    "card.x-layer-back.label": {
+      "de": "Hintere Karte",
+      "en": "Rear card",
+      "translatedFrom": "911d1813e234c25a"
+    },
+    "card.x-layer-back.text": {
+      "de": "Hintere Karte",
+      "en": "Rear card",
+      "translatedFrom": "911d1813e234c25a"
+    },
+    "card.x-layer-front.label": {
+      "de": "Vordere Karte",
+      "en": "Front card",
+      "translatedFrom": "bc1a35576a506b78"
+    },
+    "card.x-layer-front.text": {
+      "de": "Vordere Karte",
+      "en": "Front card",
+      "translatedFrom": "bc1a35576a506b78"
     },
     "ch.c1.body": {
       "de": "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv wie eine Erinnerung aus Glas.\n\nMara blieb am Ende des Stegs stehen. Heute würde sie erfahren, weshalb die Karten seit drei Nächten ihre Linien veränderten.\n\nUnter ihrem Mantel trug sie das letzte Blatt aus dem Nachlass ihres Vaters. Die Küstenlinie darauf endete nicht am Meer. Sie führte weiter, als hätte jemand einen Weg durch das Wasser gezeichnet.\n\nAm Tor des Gezeitenarchivs löste sich ein Mann aus dem Schatten. Er hielt keine Lampe, obwohl die Fenster hinter ihm dunkel waren.\n\n»Du bist spät«, sagte Iven Rook.\n\nMara betrachtete die Salzspuren auf seinen Stiefeln. »Du hast auf jemand anderen gewartet.«\n\nEr antwortete nicht. Über dem Hafen schlug die erste Glocke, und auf dem Blatt in ihrer Tasche verschob sich eine Linie.",

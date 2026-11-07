@@ -74,24 +74,29 @@ for the README and ships as the example world; the edge part (ids `x-...`) never
 
 ## Storyboards
 
-| Id                  | Part | Board           | Kind       | Label or target              | Purpose                                                  |
-| ------------------- | ---- | --------------- | ---------- | ---------------------------- | -------------------------------------------------------- |
-| `main-storyboard`   | base |                 | board      | Der Weg durch den Nebel      |                                                          |
-| `second-board`      | base |                 | board      | Die Überfahrt                |                                                          |
-| `x-board`           | edge |                 | board      | Prüfteil                     | board holding every card of the check part               |
-| `group-act-one`     | base | main-storyboard | group      | I · Nordhafen                |                                                          |
-| `group-act-two`     | base | main-storyboard | group      | II · Kartennebel             |                                                          |
-| `note-arrival`      | base | main-storyboard | note       | Ankunft & erste Spur         |                                                          |
-| `reference-mara`    | base | main-storyboard | reference  | entity:mara                  |                                                          |
-| `note-rumour`       | base | main-storyboard | note       | Gerüchte                     |                                                          |
-| `reference-archive` | base | main-storyboard | reference  | place:archive                |                                                          |
-| `note-turn`         | base | main-storyboard | note       | Wendepunkt                   |                                                          |
-| `reference-chapter` | base | main-storyboard | reference  | chapter:c-storm              |                                                          |
-| `board-crossing`    | base | main-storyboard | storyboard | storyboard:second-board      |                                                          |
-| `note-sea`          | base | second-board    | note       | Jenseits der bekannten Küste |                                                          |
-| `reference-atlas`   | base | second-board    | reference  | entity:atlas                 |                                                          |
-| `note-crossing`     | base | second-board    | note       | Die Laterne                  |                                                          |
-| `reference-tilo`    | base | second-board    | reference  | entity:tilo                  |                                                          |
-| `board-north`       | base | second-board    | storyboard | storyboard:main-storyboard   |                                                          |
-| `x-ref-deleted`     | edge | x-board         | reference  | entity:x-gone                | reference card to an element that does not exist (T-177) |
-| `x-ref-trashed`     | edge | x-board         | reference  | chapter:c-prologue           | reference card to a chapter in the bin (T-177)           |
+| Id                  | Part | Board           | Kind       | Label or target              | Purpose                                                                      |
+| ------------------- | ---- | --------------- | ---------- | ---------------------------- | ---------------------------------------------------------------------------- |
+| `main-storyboard`   | base |                 | board      | Der Weg durch den Nebel      |                                                                              |
+| `second-board`      | base |                 | board      | Die Überfahrt                |                                                                              |
+| `x-board`           | edge |                 | board      | Prüfteil                     | board holding every card of the check part                                   |
+| `x-layers`          | edge |                 | board      | Ebenen                       | board holding only the two overlapping notes                                 |
+| `group-act-one`     | base | main-storyboard | group      | I · Nordhafen                |                                                                              |
+| `group-act-two`     | base | main-storyboard | group      | II · Kartennebel             |                                                                              |
+| `note-arrival`      | base | main-storyboard | note       | Ankunft & erste Spur         |                                                                              |
+| `reference-mara`    | base | main-storyboard | reference  | entity:mara                  |                                                                              |
+| `note-rumour`       | base | main-storyboard | note       | Gerüchte                     |                                                                              |
+| `reference-archive` | base | main-storyboard | reference  | place:archive                |                                                                              |
+| `note-turn`         | base | main-storyboard | note       | Wendepunkt                   |                                                                              |
+| `reference-chapter` | base | main-storyboard | reference  | chapter:c-storm              |                                                                              |
+| `board-crossing`    | base | main-storyboard | storyboard | storyboard:second-board      |                                                                              |
+| `note-sea`          | base | second-board    | note       | Jenseits der bekannten Küste |                                                                              |
+| `reference-atlas`   | base | second-board    | reference  | entity:atlas                 |                                                                              |
+| `note-crossing`     | base | second-board    | note       | Die Laterne                  |                                                                              |
+| `reference-tilo`    | base | second-board    | reference  | entity:tilo                  |                                                                              |
+| `board-north`       | base | second-board    | storyboard | storyboard:main-storyboard   |                                                                              |
+| `x-ref-deleted`     | edge | x-board         | reference  | entity:x-gone                | reference card to an element that does not exist (T-177)                     |
+| `x-ref-trashed`     | edge | x-board         | reference  | chapter:c-prologue           | reference card to a chapter in the bin (T-177)                               |
+| `x-ref-storm-again` | edge | x-board         | reference  | chapter:c-storm              | second card on the chapter the main board shows; one note, two cards (T-177) |
+| `x-ref-ada`         | edge | x-board         | reference  | entity:ada                   | card on a side character, listed as a backlink in the figure inspector       |
+| `x-layer-back`      | edge | x-layers        | note       | Hintere Karte                | note overlapped by x-layer-front, one layer below it                         |
+| `x-layer-front`     | edge | x-layers        | note       | Vordere Karte                | note overlapping x-layer-back, one layer above it                            |

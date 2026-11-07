@@ -85,6 +85,7 @@ export const WORLD = {
     mainStoryboard: "main-storyboard",
     secondBoard: "second-board",
     xBoard: "x-board",
+    xLayers: "x-layers",
   },
   cards: {
     groupActOne: "group-act-one",
@@ -103,5 +104,9 @@ export const WORLD = {
     boardNorth: "board-north",
     xRefDeleted: "x-ref-deleted",
     xRefTrashed: "x-ref-trashed",
+    xRefStormAgain: "x-ref-storm-again",
+    xRefAda: "x-ref-ada",
+    xLayerBack: "x-layer-back",
+    xLayerFront: "x-layer-front",
   },
 } as const;

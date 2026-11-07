@@ -73,5 +73,11 @@ export const texts = {
   "ch.x-orphan.body": "Ein Entwurf aus einem Ordner, den es nicht mehr gibt.",
   "folder.x-gone": "Gelöschter Ordner",
   "board.x.title": "Prüfteil",
+  "board.x-layers.title": "Ebenen",
+  "card.x-ada.label": "Ada im Garten",
+  "card.x-layer-back.label": "Hintere Karte",
+  "card.x-layer-back.text": "Hintere Karte",
+  "card.x-layer-front.label": "Vordere Karte",
+  "card.x-layer-front.text": "Vordere Karte",
   "card.x-gone.label": "Verschwundene Figur",
 };
