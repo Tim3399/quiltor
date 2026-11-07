@@ -9,8 +9,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import socket
 import tempfile
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,6 +23,7 @@ from quiltor import resources
 from quiltor.infrastructure.inference import engine as engine_module
 from quiltor.infrastructure.inference.runtimes import llamacpp, mlx
 from quiltor.infrastructure.inference.shared.contract import count_tokens, invoke_chat
+from tests.python import late_body
 
 KEY = "sidecar-test-key-0123456789"
 CHAT_PAYLOAD = {"messages": [{"role": "user", "content": "Hallo"}]}
@@ -318,6 +321,122 @@ class BridgeHandlerTests(unittest.TestCase):
 
         with urllib.request.urlopen(f"{self.url}/health", timeout=5) as response:
             self.assertEqual(response.status, 200)
+
+
+class BridgeRefusalBodyTests(unittest.TestCase):
+    """A refused request still gets its whole answer, even when its body comes late.
+
+    The bridge answers 401, 404 and 503 before it reads the body. Closing a socket with unread
+    bytes resets the connection on Windows, and the client loses the answer that was already on
+    its way -- the same failure the server's early refusals had (D-38). See
+    tests/python/late_body.py for why the body is sent after the headers; sent like this, it
+    happens every time the bridge forgets to drop the body.
+    """
+
+    BODY = json.dumps({"content": "zwei Worte"}).encode()
+
+    def setUp(self):
+        env = patch.dict(os.environ, {"QUILTOR_SIDECAR_KEY": KEY})
+        env.start()
+        self.addCleanup(env.stop)
+        self.bridge = _load_bridge()
+        self.bridge.STATE.update(ready=True, tokenizer=None)
+        self.bridge.Handler.log_message = lambda *_args: None
+        server, _url = _serve(self.bridge.Handler)
+        self.port = server.server_address[1]
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+
+    def _post(self, path: str, *, key: str | None = None, body: bytes | None = None, **options):
+        headers = {"Content-Type": "application/json"}
+        if key is not None:
+            headers["Authorization"] = f"Bearer {key}"
+        return late_body.send(
+            self.port,
+            "POST",
+            path,
+            headers=headers,
+            body=self.BODY if body is None else body,
+            **options,
+        )
+
+    def test_a_missing_key_gets_its_whole_401(self):
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._post("/tokenize")
+                self.assertEqual(answer.status, 401, answer.body[:200])
+                self.assertEqual(answer.json()["error"], "invalid api key")
+
+    def test_a_wrong_key_gets_its_whole_401_even_with_a_large_body(self):
+        large = json.dumps({"content": "wort " * 8000}).encode()
+        self.assertGreater(len(large), 32 * 1024)
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._post("/v1/chat/completions", key="wrong", body=large)
+                self.assertEqual(answer.status, 401, answer.body[:200])
+
+    def test_an_unknown_route_gets_its_whole_404(self):
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._post("/no-such-route", key=KEY)
+                self.assertEqual(answer.status, 404, answer.body[:200])
+
+    def test_a_bridge_that_is_still_loading_gets_its_whole_503(self):
+        self.bridge.STATE.update(ready=False)
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = self._post("/tokenize", key=KEY)
+                self.assertEqual(answer.status, 503, answer.body[:200])
+
+    def _refusal_with_an_open_connection(self, length: int) -> tuple[bytes, float]:
+        """A request that promises `length` bytes, never sends them and never hangs up."""
+        head = (
+            "POST /tokenize HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
+            f"Content-Length: {length}\r\n\r\n"
+        )
+        deadline = self.bridge.REFUSED_BODY_DISCARD_TIMEOUT_SECONDS + 2
+        with socket.create_connection(("127.0.0.1", self.port), timeout=deadline) as client:
+            started = time.monotonic()
+            client.sendall(head.encode())
+            response = b""
+            while chunk := client.recv(65536):
+                response += chunk
+            return response, time.monotonic() - started
+
+    def test_an_oversized_content_length_is_not_waited_for(self):
+        response, elapsed = self._refusal_with_an_open_connection(
+            self.bridge.REFUSED_BODY_DISCARD_LIMIT + 1
+        )
+        self.assertTrue(response.startswith(b"HTTP/1.0 401"), response[:80])
+        self.assertLess(elapsed, 1.0)
+
+    def test_a_trickled_body_is_given_up_on_as_a_whole(self):
+        """One byte every 1.5 s never trips a per-read timeout; the one deadline holds."""
+        answer = late_body.trickle(
+            self.port,
+            "/tokenize",
+            headers={"Content-Type": "application/json"},
+            length=100,
+            interval=1.5,
+            deadline=10.0,
+        )
+        self.assertEqual(answer.status, 401, answer.body[:200])
+        self.assertLess(answer.elapsed, self.bridge.REFUSED_BODY_DISCARD_TIMEOUT_SECONDS + 1.5)
+
+    def test_a_promised_body_that_never_comes_is_given_up_on(self):
+        response, elapsed = self._refusal_with_an_open_connection(100)
+        self.assertTrue(response.startswith(b"HTTP/1.0 401"), response[:80])
+        self.assertLess(elapsed, self.bridge.REFUSED_BODY_DISCARD_TIMEOUT_SECONDS + 2)
+
+    def test_a_request_with_the_right_key_is_still_answered(self):
+        class Tokenizer:
+            def encode(self, text):
+                return list(range(len(text.split())))
+
+        self.bridge.STATE.update(tokenizer=Tokenizer())
+        answer = self._post("/tokenize", key=KEY)
+        self.assertEqual(answer.status, 200, answer.body[:200])
+        self.assertEqual(answer.json(), {"tokens": [0, 1]})
 
 
 if __name__ == "__main__":
