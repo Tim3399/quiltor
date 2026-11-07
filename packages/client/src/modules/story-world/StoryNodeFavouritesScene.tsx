@@ -8,7 +8,7 @@ import { StoryNodeCard, StoryNodeIdentity } from "./StoryNodeCard";
 
 /**
  * Overview scene for T-129: forty ordinary markers packed so tightly that they overlap, and
- * three favourites standing among them. The favourites come FIRST in the array on purpose --
+ * four favourites standing among them, one with a name too long for its pill. The favourites come FIRST in the array on purpose --
  * without a z-index they would be drawn first and every later marker would cover them, which
  * is the defect this scene exists to catch.
  *
@@ -23,6 +23,15 @@ const FAVOURITES: readonly FigureNode[] = [
   { id: "fav-libelle", name: "Libelle", type: "ort", important: true, x: 1120, y: 700 },
   { id: "fav-hafen", name: "Hafenmeisterei", type: "ort", important: true, x: 1640, y: 780 },
   { id: "fav-mole", name: "Nördliche Mole", type: "ort", important: true, x: 1120, y: 940 },
+  // Wider than the 140px a pill may take, so its name has to be cut with an ellipsis.
+  {
+    id: "fav-lang",
+    name: "Die nördliche Hafenmeisterei am äußersten Kai der Gezeitenbucht",
+    type: "ort",
+    important: true,
+    x: 1640,
+    y: 940,
+  },
 ];
 
 const ORDINARY: readonly FigureNode[] = Array.from({ length: 40 }, (_, index) => ({

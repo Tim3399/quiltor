@@ -591,7 +591,8 @@ test("At overview LOD, places share markers and priority pills with figures", as
     visualHeight: 32,
     radius: "16px",
     monogramDisplay: "none",
-    nameDisplay: "flex",
+    // A block, because only a block container shows the ellipsis of a name that is too long.
+    nameDisplay: "block",
   });
   expect(priorityMarker?.boxShadow).not.toBe("none");
 });

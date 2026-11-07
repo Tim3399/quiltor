@@ -25,6 +25,26 @@ async function zoomTo(page: Page, tier: "detail" | "compact" | "overview") {
   await expect(surface).toHaveClass(new RegExp(`\\bzoom-${tier}\\b`));
 }
 
+test("A favourite pin on the place map is neither stacked nor lifted on hover (T-129 R7)", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "wide", "The stacking does not depend on the viewport.");
+  const state = expandedMapState();
+  const pinned = state.nodes.find((place) => place.id === "graufurth")!;
+  pinned.placeDisplay = "pin";
+  pinned.important = true;
+  await mockExpandedMapWorld(page, state);
+  await openExpandedMapWorld(page);
+  const node = page.locator('.react-flow__node[data-id="graufurth"]');
+  await expect(node.locator(".place-node-pin")).toBeVisible();
+  await expect(node).toHaveClass(/place-on-map/);
+  const stacking = () => node.evaluate((element) => getComputedStyle(element).zIndex);
+  expect(await stacking()).toBe("0");
+  await node.locator(".place-node-pin").hover();
+  // Neither the favourite's 4 nor the hover lift of the story-node graphs (500).
+  expect(await stacking()).toBe("0");
+});
+
 test("Pin detail levels reduce the actual footprint while keeping the geographic tip fixed", async ({
   page,
 }, info) => {

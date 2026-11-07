@@ -58,6 +58,57 @@ describe("place canvas model", () => {
     });
   });
 
+  it("does not stack a favourite that stands on a place map, as a pin or as a card", () => {
+    const standing = (id: string, placeDisplay?: "pin"): FigureNode => ({
+      id,
+      x: 0,
+      y: 0,
+      mapU: 0.5,
+      mapV: 0.5,
+      parentPlaceId: "map",
+      name: id,
+      type: "ort",
+      important: true,
+      ...(placeDisplay ? { placeDisplay } : {}),
+    });
+    const onMap = [standing("pin", "pin"), standing("card")];
+    const nodes = createPlaceFlowNodes({
+      nodes: onMap,
+      places: onMap,
+      host: { x: 0, y: 0, width: 800, height: 400 },
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      measuring: false,
+      measureSelection: [],
+      zoomTier: "detail",
+      viewportZoom: 1,
+      t,
+    });
+
+    expect(nodes.map((node) => node.zIndex)).toEqual([0, 0]);
+    // The mark the stylesheet leaves out of the hover lift.
+    expect(nodes.map((node) => node.className)).toEqual(["place-on-map", "place-on-map"]);
+  });
+
+  it("marks a place that stands on no map neither way, so the favourite rule applies", () => {
+    const [node] = createPlaceFlowNodes({
+      nodes: [places[1]],
+      places: [places[1]],
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      measuring: false,
+      measureSelection: [],
+      zoomTier: "overview",
+      viewportZoom: 0.2,
+      t,
+    });
+
+    expect(node.zIndex).toBe(4);
+    expect(node.className).toBeUndefined();
+  });
+
   it("marks exactly the first measurement selection", () => {
     const nodes = createPlaceFlowNodes({
       nodes: places,

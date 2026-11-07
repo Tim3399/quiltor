@@ -4,7 +4,7 @@ const favouriteIds = ["fav-libelle", "fav-hafen", "fav-mole"];
 
 async function openScene(page: Page, theme: "light" | "dark" = "light") {
   await page.goto(`/?scene=story-node-favourites&theme=${theme}`);
-  await expect(page.locator(".react-flow__node")).toHaveCount(43);
+  await expect(page.locator(".react-flow__node")).toHaveCount(44);
   await expect(page.locator('[data-id="fav-libelle"] .story-node')).toBeVisible();
 }
 
@@ -110,6 +110,29 @@ test("only the surface of a favourite is translucent, and it turns solid on hove
 
   await page.locator(pill).hover();
   expect((await alphaOf(pill)).surface).toBe(1);
+});
+
+test("a name too long for its pill is cut with an ellipsis and stays whole in the tooltip", async ({
+  page,
+}) => {
+  for (const theme of ["light", "dark"] as const) {
+    await openScene(page, theme);
+    const pill = page.locator('[data-id="fav-lang"] .story-node');
+    const name = pill.locator("strong");
+    // The ellipsis only works on a block container: on a flex box the text is cut hard,
+    // in the middle of a letter, whatever `text-overflow` says.
+    const cut = await name.evaluate((element) => ({
+      display: getComputedStyle(element).display,
+      textOverflow: getComputedStyle(element).textOverflow,
+      truncated: element.scrollWidth > element.clientWidth,
+      title: element.getAttribute("title"),
+    }));
+    expect(cut.truncated, `${theme}: the name fits, so nothing is tested`).toBe(true);
+    expect(cut.display).toBe("block");
+    expect(cut.textOverflow).toBe("ellipsis");
+    expect(cut.title).toBe("Die nördliche Hafenmeisterei am äußersten Kai der Gezeitenbucht");
+    expect((await pill.boundingBox())?.width).toBeLessThanOrEqual(140);
+  }
 });
 
 test("a favourite is a gold-bordered pill holding its whole name, on both themes", async ({

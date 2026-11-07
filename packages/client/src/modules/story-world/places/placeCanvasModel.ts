@@ -71,10 +71,15 @@ export function createPlaceFlowNodes({
   return standing.map((place) => {
     const pin = isPlaceDisplayPin(place);
     const pinSize = placePinSize(zoomTier, viewportZoom);
+    // A place standing on a map -- as a pin or as a card -- belongs to the map, not to the
+    // story-node graphs the favourite stacking (T-129, D-73 R7) is written for. A pin is only
+    // ever drawn on a map, and `host` is the map it stands on.
+    const onMap = pin || host !== undefined;
     return {
       id: place.id,
       type: "place",
-      zIndex: storyNodeZIndex(place.important),
+      zIndex: storyNodeZIndex(onMap ? undefined : place.important),
+      ...(onMap ? { className: "place-on-map" } : {}),
       // The anchor says where the place stands -- not where the corner of its card lies. It
       // has always been stored from the card's centre but drawn as its top-left corner: every
       // drag therefore moved the place an extra half card down and to the right. With this
