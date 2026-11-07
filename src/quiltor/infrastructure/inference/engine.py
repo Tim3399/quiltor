@@ -36,9 +36,12 @@ class LocalInferenceEngine:
         self.process: subprocess.Popen[str] | None = None
         self.log_path: Path | None = None
         self.models_error: str | None = None
-        # One key per start, held in memory only and never logged: a local process or a page in
-        # the browser must not reach the sidecar without it (T-58 P4, D-37). An explicit
-        # QUILTOR_AI_URL starts no sidecar, so there is nothing of ours to authorise there.
+        # Three cases, and only the last one starts anything (T-58 P4, D-37, F-58-10):
+        # - an external endpoint (QUILTOR_AI_KEY): the provider is the model, no sidecar, no key;
+        # - QUILTOR_AI_URL without a key: it names a runtime that is already running, and
+        #   select.start_runtime starts nothing -- there is no sidecar of ours to give a key to;
+        # - no QUILTOR_AI_URL: Quiltor starts the sidecar itself, with a fresh random key held in
+        #   memory only and never logged, so no local process or browser page reaches it.
         self._sidecar_key: str | None = (
             None if os.environ.get("QUILTOR_AI_URL") else secrets.token_urlsafe(32)
         )

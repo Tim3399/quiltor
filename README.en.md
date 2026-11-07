@@ -418,7 +418,11 @@ POST /v1/chat/completions
 
 `/v1/chat/completions` must actually enforce the strict JSON schemas requested by Quiltor.
 
-A runtime Quiltor starts itself (llama-server or the MLX bridge) receives a random key through its environment on every start and answers only `/health` without it. Quiltor creates this key internally; there is no setting for it.
+There are three cases:
+
+- **External endpoint** (`QUILTOR_AI_URL` with `QUILTOR_AI_KEY` or `QUILTOR_AI_KEY_FILE`): Quiltor starts nothing and sends the provider's key.
+- **`QUILTOR_AI_URL` without a key:** the address names a runtime that is already running. Quiltor starts none of its own and sends no key. Whoever starts that runtime secures it, for example with `--api-key`.
+- **No `QUILTOR_AI_URL`:** Quiltor starts the runtime itself (llama-server or the MLX bridge). It receives a random key through its environment on every start and answers only `/health` without it. Quiltor creates this key internally; there is no setting for it.
 
 #### External AI endpoint (OpenAI-compatible)
 
