@@ -91,6 +91,33 @@
       ]
     },
     {
+      "name": "application.capabilities",
+      "version": 1,
+      "owner": "quiltor/application",
+      "compatibility": {
+        "policy": "major-versioned",
+        "rule": "The root is strict; instance and user accept further booleans, so a new flag is additive. Changing or removing a flag requires a new version."
+      },
+      "schema": "application-api/capabilities/v1.schema.json",
+      "fixtures": [
+        {
+          "path": "fixtures/application-api/capabilities/local.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/capabilities/desktop.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        },
+        {
+          "path": "fixtures/application-api/capabilities/hosted.v1.json",
+          "mediaType": "application/json",
+          "role": "example"
+        }
+      ]
+    },
+    {
       "name": "application.history",
       "version": 1,
       "owner": "quiltor/application",

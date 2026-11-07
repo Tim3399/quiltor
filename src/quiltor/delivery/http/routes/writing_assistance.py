@@ -13,7 +13,7 @@ def status(handler, request: Request, app) -> None:
     status = app.writing_assistance.status()
     grammar = status.get("grammar")
     if isinstance(grammar, dict):
-        status = {**status, "grammar": {**grammar, "installable": app.installable}}
+        status = {**status, "grammar": {**grammar, "installable": app.grammar_installable}}
     handler.send_json({"ok": True, **status, "installable": app.installable})
 
 

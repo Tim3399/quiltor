@@ -160,6 +160,18 @@ class IdentityRouteServices:
 class WritingAssistanceRouteServices:
     writing_assistance: WritingAssistanceService
     installable: bool = True
+    grammar_installable: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilitiesRouteServices:
+    """The facts GET /api/capabilities reports, already decided (T-102)."""
+
+    multi_user: bool
+    syncable: bool
+    assistant_install: bool
+    writing_data_install: bool
+    grammar_install: bool
 
 
 DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
@@ -199,6 +211,25 @@ def operation_profile_for(*, multi_user: bool, process_role: ProcessRole | None)
     if process_role is ProcessRole.DESKTOP:
         return DESKTOP
     return LOCAL
+
+
+def assistant_installable(app: WebApplication) -> bool:
+    """Whether a request may install the assistant runtime and model (T-101).
+
+    The status route and GET /api/capabilities both report this, so the two
+    answers cannot drift apart (T-102).
+    """
+    return app.installable
+
+
+def writing_data_installable(app: WebApplication) -> bool:
+    """Whether a request may install the dictionary data (T-101, T-102)."""
+    return app.installable
+
+
+def grammar_installable(app: WebApplication) -> bool:
+    """Whether a request may install LanguageTool (T-101, T-102)."""
+    return app.installable
 
 
 @dataclass(slots=True)
@@ -315,7 +346,7 @@ class WebApplication:
                 self.lock,
                 self.identity,
                 self.assistant_max_open_jobs if self.identity.multi_user else None,
-                self.installable,
+                assistant_installable(self),
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
@@ -350,7 +381,19 @@ class WebApplication:
                 self.application.backups.restore_version,
             )
         if path.startswith("/api/writing-assistance"):
-            return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
+            return WritingAssistanceRouteServices(
+                self.writing_assistance,
+                writing_data_installable(self),
+                grammar_installable(self),
+            )
+        if path == "/api/capabilities":
+            return CapabilitiesRouteServices(
+                self.identity.multi_user,
+                self.syncable,
+                assistant_installable(self),
+                writing_data_installable(self),
+                grammar_installable(self),
+            )
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
 
