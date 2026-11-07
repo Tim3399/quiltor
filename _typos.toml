@@ -243,6 +243,7 @@ ordner = "ordner"
 
 [type.germantest.extend-words]
 ist = "ist"
+deine = "deine"
 oder = "oder"
 als = "als"
 ein = "ein"

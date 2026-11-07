@@ -33,6 +33,35 @@ describe("SaveStatus", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("offers to sign in again before retry, and only in the error phase", () => {
+    const signIn = vi.fn();
+    const { rerender } = render(
+      <SaveStatus
+        phase="error"
+        label="Nicht gespeichert"
+        error="Deine Anmeldung ist abgelaufen."
+        signInLabel="In neuem Tab anmelden"
+        onSignIn={signIn}
+        retryLabel="Erneut versuchen"
+        onRetry={() => undefined}
+      />,
+    );
+    const buttons = screen.getAllByRole("button").map((button) => button.textContent);
+    expect(buttons).toEqual(["In neuem Tab anmelden", "Erneut versuchen"]);
+    fireEvent.click(screen.getByRole("button", { name: "In neuem Tab anmelden" }));
+    expect(signIn).toHaveBeenCalledOnce();
+
+    rerender(
+      <SaveStatus
+        phase="saved"
+        label="Gespeichert"
+        signInLabel="In neuem Tab anmelden"
+        onSignIn={signIn}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "In neuem Tab anmelden" })).toBeNull();
+  });
+
   it("shows a selectable error id only in the error phase and announces it", () => {
     const { container, rerender } = render(
       <SaveStatus
