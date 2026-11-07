@@ -229,23 +229,48 @@
 .story-node.zoom-overview:not(.is-important) strong {
   display: none;
 }
+/* A favourite in the overview (T-129, D-73, D-101): a rounded pill with its name inside and a
+   gold border as the mark -- ordinary elements stay round markers. The name is always there,
+   at every zoom. Only the surface is 88% opaque, so what lies underneath still shows through;
+   text and border stay solid. Hover, focus and selection make the surface solid again. The
+   gold border is the mark; the star would say it twice, so it is left out here. */
 .story-node.zoom-overview.is-important {
-  width: 116px;
-  height: 34px;
-  min-height: 34px;
-  padding: var(--space-7) var(--space-9);
-  border-width: 1px;
-  border-left-width: 3px;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--elevation-1) var(--node-shadow);
+  --favourite-surface-opacity: 88%;
+  --favourite-height: 32px;
+  width: auto;
+  max-width: 140px;
+  height: var(--favourite-height);
+  min-height: var(--favourite-height);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-12);
+  border: 2px solid var(--gold);
+  border-radius: calc(var(--favourite-height) / 2);
+  background: color-mix(in srgb, var(--paper) var(--favourite-surface-opacity), transparent);
 }
-.story-node.zoom-overview.is-important .node-kind,
-.story-node.zoom-overview.is-important .node-monogram,
-.story-node.zoom-overview.is-important small {
+.story-node.zoom-overview.is-important:is(:hover, :focus-within, .selected) {
+  --favourite-surface-opacity: 100%;
+}
+.story-node.zoom-overview.is-important :is(.node-kind, small, .node-monogram, .importance-mark) {
   display: none;
 }
 .story-node.zoom-overview.is-important strong {
-  font: 600 var(--font-size-body-compact) var(--ui);
+  color: var(--ink);
+  font: 600 var(--font-size-label-compact) / 1.6 var(--ui);
+}
+/* The ellipsis sits on the name's own element: text-overflow reaches only a block container,
+   and the strong around it is a flex box that also holds a symbol. A name too long for the
+   pill is cut with "..." here, and the symbol beside it (skull, pin) keeps its size and
+   place instead of being cut off with the text. */
+.story-node.zoom-overview.is-important .node-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.story-node.zoom-overview.is-important strong svg {
+  flex: none;
 }
 .story-node.zoom-overview .node-guests {
   display: none;
@@ -271,8 +296,7 @@
   }
 
   .story-node.zoom-overview.is-important {
-    height: 44px;
-    min-height: 44px;
+    --favourite-height: 44px;
   }
 }
 .flow-area.zoom-overview .react-flow__edge-path {
@@ -313,4 +337,15 @@
   .figure-layout > .world-overview {
     display: none;
   }
+}
+
+/* Hover and focus lift a node above the favourites (T-129). React Flow writes z-index inline on
+   the wrapper, so nothing but !important reaches it; a selected node keeps its own 1000.
+   Whatever stands on a place map (pin or card) keeps the map's own stacking: the model marks
+   those wrappers `place-on-map`, and the rule of the story-node graphs does not reach them. */
+.react-flow__node:is(.react-flow__node-story, .react-flow__node-place:not(.place-on-map)):not(
+  .selected
+):is(:hover, :focus-within) {
+  /* biome-ignore lint/complexity/noImportantStyles: React Flow sets z-index inline on its node wrapper. */
+  z-index: var(--z-graph-node-raised) !important;
 }

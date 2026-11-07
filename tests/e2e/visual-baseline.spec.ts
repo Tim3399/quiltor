@@ -286,6 +286,125 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+/*
+ * The overview with favourites (T-129): round markers, two favourites -- one with a short name,
+ * one whose long name is cut off -- and a favourite lying over ordinary markers.
+ *
+ * The overview is the zoom tier below 0.34, and its markers keep their size while the world
+ * shrinks. So the positions are laid out in screen units and divided by OVERVIEW_ZOOM: two
+ * far-off corner anchors make the fit land close to that zoom in every project, and the
+ * cluster between them is spaced tighter than a marker is wide. Nothing is random; the
+ * screenshot is the same every run.
+ */
+const OVERVIEW_ZOOM = 0.25;
+const LONG_FAVOURITE = "Die nördliche Hafenmeisterei am äußersten Kai der Gezeitenbucht";
+const OVERVIEW_NAMES = [
+  "Anselm",
+  "Berit",
+  "Cornelius",
+  "Dorothea",
+  "Emil",
+  "Frieda",
+  "Gesine",
+  "Hilmar",
+  "Ingrid",
+  "Jasper",
+  "Kaspar",
+  "Lotte",
+  "Marthe",
+  "Nikolai",
+  "Ottilie",
+  "Pelle",
+  "Quirin",
+  "Rosalind",
+] as const;
+
+function overviewFavouritesWorld(canvas: { width: number; height: number }) {
+  const at = (screenX: number, screenY: number) => ({
+    x: Math.round(screenX / OVERVIEW_ZOOM),
+    y: Math.round(screenY / OVERVIEW_ZOOM),
+  });
+  const middle = { x: canvas.width / 2, y: canvas.height / 2 };
+  const nodes = [
+    // Favourites first in the array: without a z-index every later marker would cover them.
+    {
+      id: "fav-libelle",
+      name: "Libelle",
+      type: "ort" as const,
+      important: true,
+      ...at(middle.x - 40, middle.y - 10),
+    },
+    {
+      id: "fav-lang",
+      name: LONG_FAVOURITE,
+      type: "ort" as const,
+      important: true,
+      ...at(middle.x + 20, middle.y + 36),
+    },
+    { id: "anker-nw", name: "Nordwesten", type: "ort" as const, ...at(20, 20) },
+    {
+      id: "anker-so",
+      name: "Südosten",
+      type: "ort" as const,
+      ...at(canvas.width - 20, canvas.height - 20),
+    },
+    ...Array.from({ length: 18 }, (_, index) => ({
+      id: `ort-${index}`,
+      name: OVERVIEW_NAMES[index],
+      type: index % 5 === 0 ? ("person" as const) : ("ort" as const),
+      // A tight lattice with a deterministic wobble; the first rows sit under "Libelle".
+      ...at(
+        middle.x - 100 + (index % 6) * 26 + ((index * 7) % 5),
+        middle.y - 40 + Math.floor(index / 6) * 28 + ((index * 11) % 5),
+      ),
+    })),
+  ];
+  return { nodes, edges: [], timeline: [], presence: [] };
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`${theme}: the overview keeps favourites above ordinary markers`, async ({ page }) => {
+    test.skip(!BOOTSTRAP && !hasBaselines(), `No baseline set exists for ${process.platform}.`);
+    await page.addInitScript((selected) => {
+      localStorage.setItem("quiltor-theme", selected);
+      localStorage.setItem("quiltor-interface-language", "de");
+    }, theme);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
+    await mockWorkshopRoutes(page, {
+      version: "baseline",
+      world: {
+        id: "baseline",
+        title: "Der gläserne Atlas",
+        backupUrl: "",
+        updated: "2026-08-09T12:00:00Z",
+      },
+      documents: {
+        manuscript,
+        storyWorld: overviewFavouritesWorld({
+          width: viewport.width * 0.8,
+          height: viewport.height * 0.6,
+        }),
+      },
+      assistant: { reason: "Baseline", chunks: 3 },
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+    await page.getByRole("button", { name: "Figuren", exact: true }).click();
+    await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
+    await fitUntilSettled(page);
+    await expect(page.locator(".figure-workspace .flow-area")).toHaveClass(/zoom-overview/);
+    await expect(page.locator(".figure-workspace .story-node.is-important")).toHaveCount(2);
+    await expect(page.locator(".figure-workspace .flow-area")).toHaveScreenshot(
+      `${theme}-overview-favourites.png`,
+      {
+        animations: "disabled",
+        ...LEINWAND_TOLERANZ,
+      },
+    );
+  });
+}
+
 test("Performance baseline for start, workspace switch and a large chapter", async ({
   page,
 }, testInfo) => {
