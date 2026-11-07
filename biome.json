@@ -43,6 +43,7 @@
       "**/*.jsonc",
       "**/*.css",
       "!team/roles.json",
+      "!src/quiltor/resources/example_world/*.json",
       "!.claude/settings.json"
     ]
   },

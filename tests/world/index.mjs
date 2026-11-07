@@ -1,16 +1,43 @@
-// The example world of the README screenshots, built from one structure and one dictionary
-// per language. See structure.mjs for what is fixed and texts.<lang>.mjs for what is spoken.
+// The test world: one structure per part and one dictionary per part and language. Every
+// suite, the README pictures and the shipped example world are built from it. See
+// parts/<part>.mjs for what is fixed and texts/<part>.<lang>.mjs for what is spoken.
+//
+// The base world is the one that is photographed and shipped; further parts are appended
+// after it and never ship.
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describeWorld } from "./structure.mjs";
-import { texts as de } from "./texts.de.mjs";
-import { texts as en } from "./texts.en.mjs";
+import { describeWorld } from "./parts/base.mjs";
+import { texts as baseDe } from "./texts/base.de.mjs";
+import { texts as baseEn } from "./texts/base.en.mjs";
 
 export const LANGUAGES = ["de", "en"];
-export const DICTIONARIES = { de, en };
+
+/** The parts of the world in build order; `base` is always built first. */
+const PARTS = ["base"];
+
+/** The dictionary of every part, per language. */
+const PART_DICTIONARIES = {
+  base: { de: baseDe, en: baseEn },
+};
+
+/** Every text of a language, all parts together. A key that two parts share is an error. */
+function dictionary(lang, parts = PARTS) {
+  const merged = {};
+  for (const part of parts) {
+    const texts = PART_DICTIONARIES[part]?.[lang];
+    if (!texts) throw new Error(`The ${part} part has no ${lang} texts.`);
+    for (const [key, text] of Object.entries(texts)) {
+      if (key in merged) throw new Error(`The text "${key}" is defined by two parts.`);
+      merged[key] = text;
+    }
+  }
+  return merged;
+}
+
+export const DICTIONARIES = Object.fromEntries(LANGUAGES.map((lang) => [lang, dictionary(lang)]));
 
 /** The picture behind the city level. Upload it first; its id is the SHA-256 of the file. */
 export const HARBOUR_MAP_FILE = join(dirname(fileURLToPath(import.meta.url)), "harbour-map.png");
@@ -22,18 +49,26 @@ export function harbourMapId() {
 /**
  * Builds the world for one language.
  *
- * With `probe` every text is replaced by its key and every reference by an empty span, so that
- * two languages can be compared for everything that is not language. `used` collects the keys
- * the structure asked for.
+ * `include` names the parts to build; `base` is always among them. With `probe` every text
+ * is replaced by its key and every reference by an empty span, so that two languages can be
+ * compared for everything that is not language. `used` collects the keys the structure
+ * asked for.
  */
-export function buildExampleWorld(lang, { probe = false, used = new Set() } = {}) {
-  const dictionary = DICTIONARIES[lang];
-  if (!dictionary) throw new Error(`Unknown example world language "${lang}".`);
+export function buildExampleWorld(
+  lang,
+  { include = ["base"], probe = false, used = new Set() } = {},
+) {
+  if (!LANGUAGES.includes(lang)) throw new Error(`Unknown example world language "${lang}".`);
+  for (const part of include) {
+    if (!PARTS.includes(part)) throw new Error(`Unknown part of the test world "${part}".`);
+  }
+  const parts = PARTS.filter((part) => part === "base" || include.includes(part));
+  const texts = dictionary(lang, parts);
 
   const t = (key) => {
     used.add(key);
     if (probe) return `⟦${key}⟧`;
-    const text = dictionary[key];
+    const text = texts[key];
     if (typeof text !== "string") throw new Error(`The ${lang} texts have no "${key}".`);
     return text;
   };
@@ -99,9 +134,9 @@ export function exampleWorldTitle(lang) {
 }
 
 /** The dictionary keys the world uses: the structure's and the world title. */
-export function structureKeys() {
+export function structureKeys(include = PARTS) {
   const used = new Set(["world.title"]);
-  buildExampleWorld("de", { probe: true, used });
+  buildExampleWorld("de", { include, probe: true, used });
   return used;
 }
 

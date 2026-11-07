@@ -164,7 +164,7 @@ test("a picture edited after the capture no longer matches its manifest", () => 
 
 test("a changed example world makes the pictures of both languages stale", () => {
   const root = workspace();
-  const texts = join(root, "tools/documentation/example_world/texts.en.mjs");
+  const texts = join(root, "src/quiltor/resources/example_world/en.json");
   writeFileSync(texts, `${readFileSync(texts, "utf8")}\n// edited`);
   const violations = checkReadmeScreenshots(root);
   for (const language of SCREENSHOT_LANGUAGES) {
@@ -179,7 +179,7 @@ test("a changed example world makes the pictures of both languages stale", () =>
 
 test("a changed harbour map makes the pictures stale", () => {
   const root = workspace();
-  const map = join(root, "tools/documentation/example_world/harbour-map.png");
+  const map = join(root, "src/quiltor/resources/example_world/harbour-map.png");
   const bytes = readFileSync(map);
   bytes[bytes.length - 20] ^= 0xff;
   writeFileSync(map, bytes);
@@ -188,7 +188,7 @@ test("a changed harbour map makes the pictures stale", () => {
 
 test("line endings alone do not make the pictures stale", () => {
   const root = workspace();
-  const texts = join(root, "tools/documentation/example_world/texts.de.mjs");
+  const texts = join(root, "src/quiltor/resources/example_world/de.json");
   writeFileSync(texts, readFileSync(texts, "utf8").replace(/\n/g, "\r\n"));
   assert.deepEqual(checkReadmeScreenshots(root), []);
 });

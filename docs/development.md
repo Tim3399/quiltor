@@ -129,7 +129,7 @@ entry in [`locales/index.ts`](../locales/index.ts). No other registry or UI code
 the i18n check automatically enforces directory-to-registry parity. See
 [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
-The seven README screenshots come from a fixed example world at 1440 × 900 pixels, taken in German and in English, each language with its own interface and its own example world (`tools/documentation/example_world/`). They are retaken automatically with every release: `npm run set-version` starts an isolated server for it and writes `docs/screenshots/<language>/manifest.json` per language (version, a checksum per image, a checksum of the script and demo data); the release preflight and `npm run check` refuse images that do not match `VERSION`. By hand:
+The seven README screenshots come from a fixed example world at 1440 × 900 pixels, taken in German and in English, each language with its own interface and its own example world: the base of the test world in `tests/world/`, as shipped in `src/quiltor/resources/example_world/` (`npm run world:update` writes it). They are retaken automatically with every release: `npm run set-version` starts an isolated server for it and writes `docs/screenshots/<language>/manifest.json` per language (version, a checksum per image, a checksum of the script and demo data); the release preflight and `npm run check` refuse images that do not match `VERSION`. By hand:
 
 ```bash
 npm run screenshots:readme

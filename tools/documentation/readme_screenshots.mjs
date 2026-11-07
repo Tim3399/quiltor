@@ -45,16 +45,18 @@ export const DOCUMENT_LANGUAGES = {
 };
 export const REFERENCING_DOCUMENTS = Object.keys(DOCUMENT_LANGUAGES);
 
-/** What a picture is a function of, besides the product itself. */
+/**
+ * What a picture is a function of, besides the product itself. The world is the shipped base
+ * world (tests/world/ship.mjs), not its sources: a part that is never photographed can grow,
+ * and the sources can be reworded, without making the pictures stale.
+ */
 export const CAPTURE_INPUTS = [
   "tools/documentation/capture_readme.mjs",
   "tools/documentation/readme_screenshots.mjs",
   "tools/documentation/settle.mjs",
-  "tools/documentation/example_world/index.mjs",
-  "tools/documentation/example_world/structure.mjs",
-  "tools/documentation/example_world/texts.de.mjs",
-  "tools/documentation/example_world/texts.en.mjs",
-  "tools/documentation/example_world/harbour-map.png",
+  "src/quiltor/resources/example_world/de.json",
+  "src/quiltor/resources/example_world/en.json",
+  "src/quiltor/resources/example_world/harbour-map.png",
 ];
 
 const IMAGE_LINK = /\]\((?:\.\/)?docs\/screenshots\/([^)\s]+\.png)\)/g;

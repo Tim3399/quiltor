@@ -1,15 +1,9 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium, expect } from "@playwright/test";
-import {
-  buildExampleWorld,
-  DICTIONARIES,
-  exampleWorldTitle,
-  HARBOUR_MAP_FILE,
-  harbourMapId,
-} from "./example_world/index.mjs";
 import {
   buildManifest,
   CAPTURE_VIEWPORT,
@@ -24,7 +18,8 @@ import { settleUntilStable } from "./settle.mjs";
  *   node tools/documentation/capture_readme.mjs --lang de|en
  *
  * Takes the README pictures of one language into docs/screenshots/<lang>/ (or
- * $QUILTOR_SCREENSHOT_DIR/<lang>/) from the example world in that language, with the
+ * $QUILTOR_SCREENSHOT_DIR/<lang>/) from the shipped example world in that language
+ * (src/quiltor/resources/example_world/<lang>.json, written by npm run world:update), with the
  * interface in that language.
  */
 
@@ -85,8 +80,15 @@ if (!SCREENSHOT_LANGUAGES.includes(lang)) {
   throw new Error(`Pass --lang with one of: ${SCREENSHOT_LANGUAGES.join(", ")}.`);
 }
 const ui = INTERFACE[lang];
-const words = DICTIONARIES[lang];
-const { figures, manuscript, storyboards } = buildExampleWorld(lang);
+const SHIP_DIRECTORY = "src/quiltor/resources/example_world";
+const shipped = JSON.parse(readFileSync(join(SHIP_DIRECTORY, `${lang}.json`), "utf8"));
+const { manuscript, storyWorld: figures, storyboards } = shipped;
+const mapBytes = readFileSync(join(SHIP_DIRECTORY, shipped.mapImage.file));
+if (createHash("sha256").update(mapBytes).digest("hex") !== shipped.mapImage.id) {
+  throw new Error(`The shipped harbour map is not the one ${lang}.json names.`);
+}
+const nameOf = (id) => figures.nodes.find((node) => node.id === id).name;
+const momentTitle = (id) => figures.timeline.find((moment) => moment.id === id).title;
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:8125";
 const output = resolve(process.env.QUILTOR_SCREENSHOT_DIR || "docs/screenshots", lang);
@@ -129,7 +131,7 @@ try {
 
   const created = await checkedJson(
     await context.request.post("/api/worlds/create", {
-      data: { title: exampleWorldTitle(lang), backupUrl: "" },
+      data: { title: shipped.title, backupUrl: "" },
       timeout: 10_000,
     }),
     "Create screenshot world",
@@ -143,12 +145,13 @@ try {
   // The city level is drawn on the harbour map; the world refers to it by its SHA-256.
   const map = await checkedJson(
     await context.request.post(`/api/place-maps?world=${encodeURIComponent(worldId)}`, {
-      data: { data: readFileSync(HARBOUR_MAP_FILE).toString("base64") },
+      data: { data: mapBytes.toString("base64") },
       timeout: 10_000,
     }),
     "Upload the harbour map",
   );
-  if (map.id !== harbourMapId()) throw new Error("The harbour map was stored under another id.");
+  if (map.id !== shipped.mapImage.id)
+    throw new Error("The harbour map was stored under another id.");
 
   for (const [endpoint, contract, payload] of [
     ["state", "quiltor.story-world", figures],
@@ -240,7 +243,7 @@ try {
 
   await viewMenu.click();
   await page.getByRole("menuitem", { name: ui.showTime, exact: true }).click();
-  await page.getByRole("button", { name: words["moment.t2.title"], exact: true }).click();
+  await page.getByRole("button", { name: momentTitle("t2"), exact: true }).click();
   // The drag pans the empty board upward; it must never grab a card and move it.
   const onCard = await page.evaluate(
     ([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest(".react-flow__node")),
@@ -254,7 +257,10 @@ try {
   await capture("timeline-playback");
 
   await page.getByRole("button", { name: ui.timeline, exact: true }).click();
-  await page.locator(".story-moment").filter({ hasText: words["moment.t6.title"] }).click();
+  await page
+    .locator(".story-moment")
+    .filter({ hasText: momentTitle("t6") })
+    .click();
   await capture("timeline-manager");
 
   await page.getByRole("button", { name: ui.places, exact: true }).click();
@@ -281,9 +287,7 @@ try {
   const inspector = page.getByRole("complementary", { name: ui.figureInspector });
   await inspector.getByRole("tab", { name: ui.profile, exact: true }).click();
   await inspector.getByRole("button", { name: ui.openNoteFocus, exact: true }).click();
-  await page
-    .getByRole("textbox", { name: ui.noteFor(words["el.mara.name"]), exact: true })
-    .waitFor();
+  await page.getByRole("textbox", { name: ui.noteFor(nameOf("mara")), exact: true }).waitFor();
   await capture("shared-notes");
   if (captures.join() !== README_VIEWS.join() || failures.length)
     throw new Error(`Incomplete capture: ${failures.join("\n")}`);

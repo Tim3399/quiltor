@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   buildExampleWorld,
   DICTIONARIES,
@@ -7,7 +10,10 @@ import {
   harbourMapId,
   LANGUAGES,
   structureKeys,
-} from "./example_world/index.mjs";
+} from "./index.mjs";
+import { renderShipFiles, SHIP_DIRECTORY, SHIP_FORMAT } from "./ship.mjs";
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 /*
  * Which fields of the world are language and which are identity.
@@ -193,12 +199,12 @@ test("the world has the scope the screenshots rely on", () => {
     );
     assert.deepEqual(
       [kinds("person"), kinds("tier"), kinds("organisation"), kinds("objekt"), kinds("ort")],
-      [4, 1, 2, 2, 5],
+      [6, 1, 2, 2, 5],
       lang,
     );
-    assert.equal(figures.nodes.length, 14, lang);
+    assert.equal(figures.nodes.length, 16, lang);
     assert.equal(figures.nodes.filter((node) => node.important).length, 2, lang);
-    assert.equal(figures.edges.length, 12, lang);
+    assert.equal(figures.edges.length, 14, lang);
     assert.equal(figures.edges.filter((edge) => edge.versions).length, 3, lang);
     assert.equal(figures.timeline.length, 8, lang);
     assert.equal(figures.presence.length, 8, lang);
@@ -259,4 +265,40 @@ test("every id of the world is used once and every target exists", () => {
     strings.every(([, value]) => !value.includes("⟦")),
     "a probe marker leaked",
   );
+});
+
+test("an unknown part of the world is refused", () => {
+  assert.throws(() => buildExampleWorld("de", { include: ["nonsense"] }), /Unknown part/);
+});
+
+test("the shipped files are what the test world renders; run npm run world:update", () => {
+  for (const [path, bytes] of Object.entries(renderShipFiles())) {
+    const target = join(repositoryRoot, path);
+    assert.ok(existsSync(target), `${path} is missing; run npm run world:update`);
+    assert.ok(readFileSync(target).equals(bytes), `${path} is stale; run npm run world:update`);
+  }
+});
+
+test("the shipped world is the base world and nothing else", () => {
+  for (const lang of LANGUAGES) {
+    const shipped = JSON.parse(
+      readFileSync(join(repositoryRoot, SHIP_DIRECTORY, `${lang}.json`), "utf8"),
+    );
+    const base = buildExampleWorld(lang, { include: ["base"] });
+    assert.equal(shipped.format, SHIP_FORMAT, lang);
+    assert.equal(shipped.title, exampleWorldTitle(lang), lang);
+    assert.equal(shipped.mapImage.id, harbourMapId(), lang);
+    assert.deepEqual(shipped.manuscript, base.manuscript, lang);
+    assert.deepEqual(shipped.storyWorld, base.figures, lang);
+    assert.deepEqual(shipped.storyboards, base.storyboards, lang);
+    // Ids of the check part start with "x-"; none of them may ever ship.
+    const ids = [...everyString(shipped)].filter(([path]) =>
+      /\.(id|elementId|from|to|target\.id)$/.test(path),
+    );
+    assert.deepEqual(
+      ids.filter(([, value]) => value.startsWith("x-")),
+      [],
+      `${lang}: a check-part id ships`,
+    );
+  }
 });

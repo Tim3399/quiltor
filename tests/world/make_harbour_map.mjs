@@ -3,7 +3,7 @@
 // Drawn from nothing but arithmetic, so it carries no rights of anyone else and the same run
 // always gives the same bytes. The map image's id in the world is the SHA-256 of that file.
 //
-//   node tools/documentation/example_world/make_harbour_map.mjs
+//   node tests/world/make_harbour_map.mjs
 
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";

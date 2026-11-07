@@ -1,8 +1,13 @@
-// The structure of the example world, once for every language: ids, positions, assignments,
-// relationships, times and cards. Words never appear here, only the keys of texts.<lang>.mjs.
+// The structure of the base world, once for every language: ids, positions, assignments,
+// relationships, times and cards. Words never appear here, only the keys of
+// texts/base.<lang>.mjs.
 //
-// A branch on the language belongs in the texts, never in here: example_world.test.mjs builds
-// both worlds with the texts replaced by their keys and requires them to be identical.
+// A branch on the language belongs in the texts, never in here: world.test.mjs builds both
+// worlds with the texts replaced by their keys and requires them to be identical.
+//
+// This is the world the README photographs and Quiltor ships. Content that is not meant to be
+// seen belongs in another part. The graph keeps four columns (x 80, 460, 840, 1220) and four
+// rows (y 80, 310, 540, 770): a fifth row would make "fit" zoom below the detail tier.
 
 /** One element of the world: where it sits in the graph and what kind it is. */
 const ELEMENTS = [
@@ -55,6 +60,10 @@ const ELEMENTS = [
     accent: "ink",
     place: { parentPlaceId: "nordhafen", mapU: 0.59, mapV: 0.62, placeDisplay: "pin" },
   },
+  // Two side characters with one directed and one undirected relationship. Nordhafen has a
+  // picture of its own and is not drawn in the graph, so (460, 770) is free.
+  { id: "ada", type: "person", x: 80, y: 770, accent: "rose" },
+  { id: "bela", type: "person", x: 460, y: 770, accent: "gold" },
 ];
 
 /** Months of the Tide Reckoning: the number of days is identity, the names are texts. */
@@ -254,6 +263,8 @@ export function describeWorld(api, mapImageId) {
     edge("e10", "mara", "blatt"),
     edge("e11", "blatt", "atlas"),
     edge("e12", "tilo", "faehrsteg"),
+    edge("e13", "ada", "bela"),
+    edge("e14", "ada", "bela", { directed: false }),
   ];
 
   const timeline = MOMENTS.map((moment, index) => ({

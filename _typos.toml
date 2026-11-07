@@ -54,7 +54,8 @@ extend-exclude = [
   # German dictionary excerpts (Wiktionary records, an OpenThesaurus file, a word list) the
   # writing-data build reads as its sources.
   "tests/python/fixtures/writing-data/**",
-  "tools/documentation/example_world/texts.de.mjs",
+  "tests/world/texts/*.de.mjs",
+  "src/quiltor/resources/example_world/de.json",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 
   # The browser-inference test page is German interface text for testers, and its prompt

@@ -1,0 +1,1299 @@
+{
+  "format": "quiltor.example-world.v1",
+  "lang": "de",
+  "manuscript": {
+    "activeSymbols": [
+      "…",
+      "—",
+      "»",
+      "«"
+    ],
+    "chapters": [
+      {
+        "body": "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv wie eine Erinnerung aus Glas.\n\nMara blieb am Ende des Stegs stehen. Heute würde sie erfahren, weshalb die Karten seit drei Nächten ihre Linien veränderten.\n\nUnter ihrem Mantel trug sie das letzte Blatt aus dem Nachlass ihres Vaters. Die Küstenlinie darauf endete nicht am Meer. Sie führte weiter, als hätte jemand einen Weg durch das Wasser gezeichnet.\n\nAm Tor des Gezeitenarchivs löste sich ein Mann aus dem Schatten. Er hielt keine Lampe, obwohl die Fenster hinter ihm dunkel waren.\n\n»Du bist spät«, sagte Iven Rook.\n\nMara betrachtete die Salzspuren auf seinen Stiefeln. »Du hast auf jemand anderen gewartet.«\n\nEr antwortete nicht. Über dem Hafen schlug die erste Glocke, und auf dem Blatt in ihrer Tasche verschob sich eine Linie.",
+        "id": "c-arrival",
+        "mentions": [
+          {
+            "confidence": 1,
+            "elementId": "iven",
+            "from": 587,
+            "id": "m-iven",
+            "source": "deterministic",
+            "surface": "Iven Rook",
+            "to": 596
+          }
+        ],
+        "note": "Die Unruhe der Stadt nur andeuten. Das Archiv als stillen Gegenpol etablieren.",
+        "storyTime": {
+          "startMomentId": "t1"
+        },
+        "title": "Die Ankunft"
+      },
+      {
+        "body": "Im Lesesaal wartete bereits der Hüter der Karten. Auf dem langen Tisch lag ein Atlas, dessen Seiten dünner waren als Eis.\n\nIven legte Maras Blatt neben die erste Karte. Beide Küstenlinien begannen zu leuchten. Draußen zogen Wolken über den Hafen, doch hier fiel das Licht von unten durch das Glas.\n\nAm Rand der Linie lag ein Lichtsaum, so fein, dass man ihn für eine Spiegelung hielt. »Das hat er nie gezeigt«, sagte Iven leise. Dann schlug er das Buch zu, als hätte er schon zu viel gesagt.",
+        "id": "c-archive",
+        "marks": [
+          {
+            "from": 325,
+            "kind": "italic",
+            "to": 334
+          }
+        ],
+        "note": "Erstes Zusammentreffen mit der Kartographengilde.",
+        "storyTime": {
+          "startMomentId": "t2"
+        },
+        "title": "Das Archiv"
+      },
+      {
+        "body": "Mara breitete das Blatt auf dem Tisch aus und strich es mit dem Handrücken glatt. Die Tinte war an einer Stelle verlaufen, als wäre sie noch nass gewesen, als ihr Vater die Feder zur Seite legte.\n\nSie las die Küstenlinie wie einen Brief: erst den Anfang, dann die Stellen, an denen die Hand gezittert hatte. Der Atlas antwortete jedem Strich mit einem Schimmer.\n\n***\n\nSpät am Abend zählte Iven die Lampen im Lesesaal. Es waren weniger als am Morgen, und keiner von beiden fragte, wer sie mitgenommen hatte.",
+        "id": "c-sheet",
+        "note": "Das Blatt als Brief des Vaters lesen lassen.",
+        "storyTime": {
+          "startMomentId": "t3"
+        },
+        "title": "Das letzte Blatt"
+      },
+      {
+        "body": "Am Salzmarkt sprach niemand laut über die Karten, und gerade deshalb hörte Mara überall davon. Eine Händlerin behauptete, die Küste habe sich über Nacht um eine Bootslänge verschoben. Ein Junge verkaufte Kreidestriche, die angeblich den Weg durch den Nebel wiesen.\n\nOda Brandt stand am Rand des Platzes und zählte die Fässer, ohne hinzusehen. »Wer nach dem Archiv fragt, fragt mich bald nach Brücken«, sagte sie. »Und die sind morgen gesperrt.«\n\nMara kaufte einen der Kreidestriche. Er zeichnete eine Linie, die ins Wasser führte.",
+        "id": "c-market",
+        "note": "Gerüchte streuen. Oda Brandt als Gegenspielerin ohne Feindschaft einführen.",
+        "storyTime": {
+          "startMomentId": "t4"
+        },
+        "title": "Gerüchte am Salzmarkt"
+      },
+      {
+        "body": "Der Hafenrat hatte die Brücken sperren lassen. Nur am Gezeitenarchiv brannte noch Licht. Mara wusste nun, dass die Gilde nicht nach einer verlorenen Route suchte. Sie wollte verhindern, dass jemand sie fand.",
+        "id": "c-storm",
+        "note": "Konflikt zwischen Gilde und Hafenrat zuspitzen.",
+        "storyTime": {
+          "startMomentId": "t5"
+        },
+        "title": "Vor dem Sturm"
+      },
+      {
+        "body": "Die Gilde kam bei Tagesanbruch, in dunklen Mänteln und mit versiegelten Mappen. Ihr Sprecher las Iven Rooks Namen vor, als wäre er ein Urteil.\n\nIven stand zwischen den Regalen und rührte sich nicht. Mara sah, wie seine Hand zum Schlüsselbund ging und wieder sank.\n\n***\n\nIm Hof des Archivs fand sie ihn später auf einer Treppenstufe. »Ich habe für sie gezeichnet«, sagte er. »Zwanzig Jahre lang. Ich wusste nur nicht, wofür.« Mara setzte sich neben ihn und sagte nichts.",
+        "id": "c-break",
+        "note": "Ivens Seitenwechsel zeigen, aber nicht erklären.",
+        "storyTime": {
+          "startMomentId": "t6"
+        },
+        "title": "Bruch mit der Gilde"
+      },
+      {
+        "body": "Am Fährsteg lag nur ein Boot ohne Namen, mit einer Laterne am Bug. Tilo Krey prüfte die Leinen, als hätte er auf sie gewartet.\n\n»Bei dieser Strömung bringe ich euch bis zur Klippe«, sagte er. »Weiter fährt keine Fähre.« Lumen setzte sich auf den Mast und blickte voraus.\n\nIm Nebel ließ Tilo das Ruder los und legte es Mara in die Hände. Er stieg ins Beiboot, hob die Laterne und rief ihr nach, sie solle der Linie folgen. Das Licht entfernte sich und kehrte nicht zurück.",
+        "id": "c-crossing",
+        "note": "Tilos Abschied leise halten. Kein Pathos, nur die Laterne.",
+        "title": "Die Überfahrt"
+      },
+      {
+        "body": "Bei Tagesanbruch lösten sie die Leinen. Hinter ihnen versank die Leuchtturmklippe im Nebel. Vor ihnen zeigte der Atlas zum ersten Mal eine offene Küste.\n\nMara legte das letzte Blatt auf die aufgeschlagene Seite. Die beiden Linien liefen ineinander, und über dem Wasser entstand ein Weg aus Licht.",
+        "id": "c-coast",
+        "note": "Offen enden: Der Weg ist da, was an seinem Ende liegt, bleibt ungesagt.",
+        "title": "Die offene Küste"
+      }
+    ],
+    "structure": {
+      "folders": [
+        {
+          "id": "act-one",
+          "title": "I · Nordhafen"
+        },
+        {
+          "id": "act-two",
+          "title": "II · Kartennebel"
+        }
+      ],
+      "items": [
+        {
+          "folderId": "act-one",
+          "id": "folder-one",
+          "kind": "folder",
+          "position": 0
+        },
+        {
+          "folderId": "act-two",
+          "id": "folder-two",
+          "kind": "folder",
+          "position": 1
+        },
+        {
+          "chapterId": "c-arrival",
+          "id": "item-c-arrival",
+          "kind": "chapter",
+          "parentFolderId": "act-one",
+          "position": 0
+        },
+        {
+          "chapterId": "c-archive",
+          "id": "item-c-archive",
+          "kind": "chapter",
+          "parentFolderId": "act-one",
+          "position": 1
+        },
+        {
+          "chapterId": "c-sheet",
+          "id": "item-c-sheet",
+          "kind": "chapter",
+          "parentFolderId": "act-one",
+          "position": 2
+        },
+        {
+          "chapterId": "c-market",
+          "id": "item-c-market",
+          "kind": "chapter",
+          "parentFolderId": "act-one",
+          "position": 3
+        },
+        {
+          "chapterId": "c-storm",
+          "id": "item-c-storm",
+          "kind": "chapter",
+          "parentFolderId": "act-two",
+          "position": 0
+        },
+        {
+          "chapterId": "c-break",
+          "id": "item-c-break",
+          "kind": "chapter",
+          "parentFolderId": "act-two",
+          "position": 1
+        },
+        {
+          "chapterId": "c-crossing",
+          "id": "item-c-crossing",
+          "kind": "chapter",
+          "parentFolderId": "act-two",
+          "position": 2
+        },
+        {
+          "chapterId": "c-coast",
+          "id": "item-c-coast",
+          "kind": "chapter",
+          "parentFolderId": "act-two",
+          "position": 3
+        }
+      ]
+    },
+    "trash": [
+      {
+        "chapter": {
+          "body": "Dieser Prolog verriet schon auf der ersten Seite, wohin der Atlas führt. Er wurde gestrichen.",
+          "id": "c-prologue",
+          "note": "Zu früh zu viel erklärt.",
+          "title": "Prolog: Was der Atlas wusste"
+        },
+        "deletedAt": "2026-01-12T09:30:00.000Z",
+        "originalFolderPath": [
+          {
+            "id": "act-one",
+            "title": "I · Nordhafen"
+          }
+        ],
+        "treeItem": {
+          "chapterId": "c-prologue",
+          "id": "item-c-prologue",
+          "kind": "chapter",
+          "parentFolderId": "act-one",
+          "position": 4
+        }
+      }
+    ],
+    "words": [
+      {
+        "d": "Schimmernde Grenze auf alten Karten",
+        "w": "Lichtsaum"
+      },
+      {
+        "d": "Zentrales Archiv der Stadt",
+        "w": "Gezeitenarchiv"
+      },
+      {
+        "d": "Dunstband, in dem Küstenlinien unlesbar werden",
+        "w": "Kartennebel"
+      },
+      {
+        "d": "Schwache Gezeit, in der die Karten stillhalten",
+        "w": "Nipptide"
+      },
+      {
+        "d": "Trockenfallender Weg durch das Hafenbecken",
+        "w": "Ebbpfad"
+      }
+    ]
+  },
+  "mapImage": {
+    "file": "harbour-map.png",
+    "id": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9"
+  },
+  "storyWorld": {
+    "edges": [
+      {
+        "directed": true,
+        "from": "mara",
+        "id": "e1",
+        "label": "misstraut",
+        "lineStyle": "solid",
+        "to": "iven",
+        "versions": [
+          {
+            "active": true,
+            "label": "arbeitet mit",
+            "momentId": "t2"
+          },
+          {
+            "active": true,
+            "label": "vertraut",
+            "momentId": "t6"
+          }
+        ]
+      },
+      {
+        "color": "gold",
+        "directed": true,
+        "from": "mara",
+        "id": "e2",
+        "label": "trägt",
+        "lineStyle": "solid",
+        "to": "atlas"
+      },
+      {
+        "directed": true,
+        "from": "iven",
+        "id": "e3",
+        "label": "hütet",
+        "lineStyle": "solid",
+        "to": "archive"
+      },
+      {
+        "directed": true,
+        "from": "gilde",
+        "id": "e4",
+        "label": "beauftragt",
+        "lineStyle": "dashed",
+        "to": "iven",
+        "versions": [
+          {
+            "active": true,
+            "color": "rose",
+            "label": "verfolgt",
+            "momentId": "t6"
+          }
+        ]
+      },
+      {
+        "directed": false,
+        "from": "mara",
+        "id": "e5",
+        "label": "verbunden",
+        "lineStyle": "solid",
+        "to": "lumen"
+      },
+      {
+        "directed": true,
+        "from": "gilde",
+        "id": "e6",
+        "label": "beansprucht",
+        "lineStyle": "dashed",
+        "to": "atlas"
+      },
+      {
+        "directed": true,
+        "from": "oda",
+        "id": "e7",
+        "label": "leitet",
+        "lineStyle": "solid",
+        "to": "rat"
+      },
+      {
+        "directed": true,
+        "from": "rat",
+        "id": "e8",
+        "label": "duldet",
+        "lineStyle": "dashed",
+        "to": "gilde",
+        "versions": [
+          {
+            "active": true,
+            "label": "stützt",
+            "momentId": "t5"
+          }
+        ]
+      },
+      {
+        "directed": true,
+        "from": "tilo",
+        "id": "e9",
+        "label": "setzt über",
+        "lineStyle": "solid",
+        "to": "mara"
+      },
+      {
+        "directed": true,
+        "from": "mara",
+        "id": "e10",
+        "label": "erbt",
+        "lineStyle": "solid",
+        "to": "blatt"
+      },
+      {
+        "directed": true,
+        "from": "blatt",
+        "id": "e11",
+        "label": "öffnet",
+        "lineStyle": "solid",
+        "to": "atlas"
+      },
+      {
+        "directed": true,
+        "from": "tilo",
+        "id": "e12",
+        "label": "betreibt",
+        "lineStyle": "solid",
+        "to": "faehrsteg"
+      },
+      {
+        "directed": true,
+        "from": "ada",
+        "id": "e13",
+        "label": "führt",
+        "lineStyle": "solid",
+        "to": "bela"
+      },
+      {
+        "directed": false,
+        "from": "ada",
+        "id": "e14",
+        "label": "kennt",
+        "lineStyle": "solid",
+        "to": "bela"
+      }
+    ],
+    "mapScale": {
+      "unitLabel": "km",
+      "unitsPer100px": 0.5
+    },
+    "nodes": [
+      {
+        "accent": "ink",
+        "id": "oda",
+        "label": "Hafenmeisterin",
+        "name": "Oda Brandt",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-oda",
+              "key": "Rolle",
+              "value": "Hafenmeisterin"
+            }
+          ],
+          "notes": "Oda lässt die Brücken sperren, wenn der Rat es verlangt. Persönlich glaubt sie nicht an die Gerüchte über den Atlas."
+        },
+        "sub": "Ordnet den Verkehr im Hafen, notfalls mit Ketten.",
+        "type": "person",
+        "x": 80,
+        "y": 80
+      },
+      {
+        "accent": "ink",
+        "id": "rat",
+        "label": "Behörde",
+        "name": "Hafenrat",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-rat",
+              "key": "Rolle",
+              "value": "Behörde"
+            }
+          ],
+          "notes": "Der Rat tagt im Hafenhaus und hört auf die Gilde, wenn es um Karten geht."
+        },
+        "sub": "Entscheidet, wer den Hafen verlassen darf.",
+        "type": "organisation",
+        "x": 460,
+        "y": 80
+      },
+      {
+        "accent": "ink",
+        "id": "gilde",
+        "label": "Organisation",
+        "name": "Kartographengilde",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-gilde",
+              "key": "Rolle",
+              "value": "Organisation"
+            }
+          ],
+          "notes": "Die Gilde zeichnet jede Route, die der Hafen kennt, und streicht jede, die er nicht kennen soll."
+        },
+        "sub": "Kontrolliert die offiziellen Seewege.",
+        "type": "organisation",
+        "x": 840,
+        "y": 80
+      },
+      {
+        "accent": "gold",
+        "id": "atlas",
+        "important": true,
+        "label": "Artefakt",
+        "name": "Der gläserne Atlas",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-atlas",
+              "key": "Rolle",
+              "value": "Artefakt"
+            }
+          ],
+          "notes": "Der Atlas lässt sich nur öffnen, wenn das letzte Blatt aus Maras Nachlass neben ihm liegt."
+        },
+        "sub": "Seine Linien reagieren auf kommende Entscheidungen.",
+        "type": "objekt",
+        "x": 1220,
+        "y": 80
+      },
+      {
+        "accent": "rose",
+        "id": "blatt",
+        "label": "Nachlass",
+        "name": "Das letzte Blatt",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-blatt",
+              "key": "Rolle",
+              "value": "Nachlass"
+            }
+          ],
+          "notes": "Maras Vater zeichnete das Blatt in seiner letzten Nacht. An einer Stelle ist die Tinte verlaufen."
+        },
+        "sub": "Eine Küstenlinie, die nicht am Meer endet.",
+        "type": "objekt",
+        "x": 1220,
+        "y": 310
+      },
+      {
+        "accent": "moss",
+        "id": "nordhafen",
+        "label": "Stadt",
+        "mapHeight": 320,
+        "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+        "mapImageU": 0.5,
+        "mapImageV": 0.5,
+        "mapImageZoom": 1,
+        "mapScale": {
+          "unitLabel": "km",
+          "unitsPer100px": 0.15
+        },
+        "mapWidth": 480,
+        "mapX": 300,
+        "mapY": 300,
+        "name": "Nordhafen",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-nordhafen",
+              "key": "Rolle",
+              "value": "Stadt"
+            }
+          ],
+          "notes": "Nordhafen liegt an einem Becken, das bei Ebbe fast trockenfällt. Alle Gassen laufen auf das Wasser zu."
+        },
+        "sub": "Eine Hafenstadt zwischen Salzmarkt und Archiv.",
+        "type": "ort",
+        "x": 460,
+        "y": 770
+      },
+      {
+        "accent": "rose",
+        "id": "iven",
+        "label": "Archivar",
+        "name": "Iven Rook",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-iven",
+              "key": "Rolle",
+              "value": "Archivar"
+            }
+          ],
+          "notes": "Iven hütet das Archiv seit zwanzig Wintern. Was er über die Gilde weiß, sagt er nur, wenn man ihn zweimal fragt."
+        },
+        "sub": "Bewahrt die verbotenen Küstenkarten.",
+        "type": "person",
+        "x": 460,
+        "y": 310
+      },
+      {
+        "accent": "gold",
+        "aliases": [
+          {
+            "alias": "Die Kartenleserin",
+            "source": "manual"
+          }
+        ],
+        "id": "mara",
+        "important": true,
+        "label": "Kartographin",
+        "name": "Mara Venn",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-mara",
+              "key": "Rolle",
+              "value": "Kartographin"
+            },
+            {
+              "id": "field-mara-origin",
+              "key": "Herkunft",
+              "value": "Nordhafen"
+            }
+          ],
+          "noteMarks": [
+            {
+              "from": 0,
+              "kind": "heading",
+              "level": 1,
+              "to": 9
+            },
+            {
+              "from": 54,
+              "kind": "heading",
+              "level": 2,
+              "to": 70
+            },
+            {
+              "from": 174,
+              "kind": "heading",
+              "level": 2,
+              "to": 193
+            },
+            {
+              "from": 392,
+              "kind": "heading",
+              "level": 2,
+              "to": 404
+            }
+          ],
+          "noteReferences": [
+            {
+              "from": 194,
+              "id": "ref-iven",
+              "surface": "Iven Rook",
+              "target": {
+                "id": "iven",
+                "kind": "entity"
+              },
+              "to": 203
+            },
+            {
+              "from": 225,
+              "id": "ref-archive",
+              "surface": "Gezeitenarchiv",
+              "target": {
+                "id": "archive",
+                "kind": "place"
+              },
+              "to": 239
+            },
+            {
+              "from": 262,
+              "id": "ref-atlas-open",
+              "surface": "Öffnung des Atlas",
+              "target": {
+                "id": "t2",
+                "kind": "timeline"
+              },
+              "to": 279
+            },
+            {
+              "from": 326,
+              "id": "ref-tilo",
+              "surface": "Tilo Krey",
+              "target": {
+                "id": "tilo",
+                "kind": "entity"
+              },
+              "to": 335
+            }
+          ],
+          "notes": "Mara Venn\nKartographin zwischen Pflicht und Neugier.\n\nWas sie antreibt\nMara will herausfinden, weshalb die Karten ihres Vaters eine Küste zeigen, die es nicht geben dürfte.\n\nSpuren im Nordhafen\nIven Rook kennt den Zugang zum Gezeitenarchiv. Er hilft ihr bei der Öffnung des Atlas, verschweigt aber seine Verbindung zur Gilde. Tilo Krey bringt sie über das Wasser, wenn es sonst niemand tut.\n\nOffene Frage\nWird sie ihm vertrauen, wenn die letzte sichere Route verschwindet?"
+        },
+        "sub": "Liest Veränderungen in lebenden Karten.",
+        "type": "person",
+        "x": 840,
+        "y": 310
+      },
+      {
+        "accent": "moss",
+        "id": "lumen",
+        "label": "Küstenvogel",
+        "name": "Lumen",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-lumen",
+              "key": "Rolle",
+              "value": "Küstenvogel"
+            }
+          ],
+          "notes": "Lumen folgt Mara, seit sie im Nordhafen angekommen ist. Wo er kreist, bleibt die Luft über dem Wasser klar."
+        },
+        "sub": "Findet Wege durch den Kartennebel.",
+        "type": "tier",
+        "x": 1220,
+        "y": 540
+      },
+      {
+        "accent": "ink",
+        "id": "leuchtturm",
+        "label": "Ort",
+        "mapX": 900,
+        "mapY": 480,
+        "name": "Leuchtturmklippe",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-leuchtturm",
+              "key": "Rolle",
+              "value": "Ort"
+            }
+          ],
+          "notes": "Der Turm brennt seit der Gründung der Stadt. Wer ihn aus den Augen verliert, hat die bekannte Küste verlassen."
+        },
+        "sub": "Letzter fester Punkt vor dem Kartennebel.",
+        "type": "ort",
+        "x": 80,
+        "y": 540
+      },
+      {
+        "accent": "gold",
+        "id": "salzmarkt",
+        "label": "Ort",
+        "mapU": 0.15,
+        "mapV": 0.55,
+        "name": "Salzmarkt",
+        "parentPlaceId": "nordhafen",
+        "placeDisplay": "pin",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-salzmarkt",
+              "key": "Rolle",
+              "value": "Ort"
+            }
+          ],
+          "notes": "Am Salzmarkt erfährt man früher von Veränderungen als im Hafenhaus. Die Gerüchte über die Karten begannen hier."
+        },
+        "sub": "Hier wird getauscht, geflüstert und gelauscht.",
+        "type": "ort",
+        "x": 80,
+        "y": 310
+      },
+      {
+        "accent": "moss",
+        "id": "archive",
+        "label": "Ort",
+        "mapU": 0.42,
+        "mapV": 0.5,
+        "name": "Gezeitenarchiv",
+        "parentPlaceId": "nordhafen",
+        "placeDisplay": "card",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-archive",
+              "key": "Rolle",
+              "value": "Ort"
+            }
+          ],
+          "notes": "Im Lesesaal liegen die Karten, die nie gedruckt wurden. Nur wer Iven kennt, darf sie sehen."
+        },
+        "sub": "Ein gläserner Bau direkt über dem Wasser.",
+        "type": "ort",
+        "x": 460,
+        "y": 540
+      },
+      {
+        "accent": "moss",
+        "diedMomentId": "t7",
+        "id": "tilo",
+        "label": "Fährmann",
+        "name": "Tilo Krey",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-tilo",
+              "key": "Rolle",
+              "value": "Fährmann"
+            }
+          ],
+          "notes": "Tilo setzt über, wen der Rat nicht ziehen lassen will. Seine Fähre hat keinen Namen, nur eine Laterne."
+        },
+        "sub": "Kennt jede Strömung zwischen Steg und Klippe.",
+        "type": "person",
+        "x": 840,
+        "y": 540
+      },
+      {
+        "accent": "ink",
+        "id": "faehrsteg",
+        "label": "Ort",
+        "mapU": 0.59,
+        "mapV": 0.62,
+        "name": "Fährsteg",
+        "parentPlaceId": "nordhafen",
+        "placeDisplay": "pin",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-faehrsteg",
+              "key": "Rolle",
+              "value": "Ort"
+            }
+          ],
+          "notes": "Tilos Fähre liegt am Ende des Stegs. Bei Nebel hört man die Glocke, bevor man das Holz sieht."
+        },
+        "sub": "Der letzte Steg vor dem offenen Wasser.",
+        "type": "ort",
+        "x": 840,
+        "y": 770
+      },
+      {
+        "accent": "rose",
+        "id": "ada",
+        "label": "Lotsin",
+        "name": "Ada",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-ada",
+              "key": "Rolle",
+              "value": "Lotsin"
+            }
+          ],
+          "notes": "Ada kennt die Fahrrinne besser als jede Karte und vertraut Bela blind."
+        },
+        "sub": "Bringt jedes Schiff sicher durch die Sandbänke.",
+        "type": "person",
+        "x": 80,
+        "y": 770
+      },
+      {
+        "accent": "gold",
+        "id": "bela",
+        "label": "Netzflickerin",
+        "name": "Bela",
+        "profile": {
+          "fields": [
+            {
+              "id": "field-bela",
+              "key": "Rolle",
+              "value": "Netzflickerin"
+            }
+          ],
+          "notes": "Bela folgt Ada auf jede Fahrt, auch wenn sie das Wasser fürchtet."
+        },
+        "sub": "Hört am Kai alles, was die Fischer erzählen.",
+        "type": "person",
+        "x": 460,
+        "y": 770
+      }
+    ],
+    "presence": [
+      {
+        "elementId": "mara",
+        "id": "presence-1",
+        "momentId": "t1",
+        "placeId": "archive"
+      },
+      {
+        "elementId": "iven",
+        "id": "presence-2",
+        "momentId": "t1",
+        "placeId": "archive"
+      },
+      {
+        "elementId": "mara",
+        "id": "presence-3",
+        "momentId": "t2",
+        "placeId": "archive"
+      },
+      {
+        "elementId": "iven",
+        "id": "presence-4",
+        "momentId": "t2",
+        "placeId": "archive"
+      },
+      {
+        "elementId": "oda",
+        "id": "presence-5",
+        "momentId": "t4",
+        "placeId": "salzmarkt"
+      },
+      {
+        "elementId": "mara",
+        "id": "presence-6",
+        "momentId": "t4",
+        "placeId": "salzmarkt"
+      },
+      {
+        "elementId": "tilo",
+        "id": "presence-7",
+        "momentId": "t7",
+        "placeId": "faehrsteg"
+      },
+      {
+        "elementId": "mara",
+        "id": "presence-8",
+        "momentId": "t8",
+        "placeId": "leuchtturm"
+      }
+    ],
+    "timeSystem": {
+      "displayFormat": "{weekdayName}, {day}. {monthName} {year} {era}",
+      "epochDay": 7,
+      "epochMonth": 3,
+      "epochTime": 0,
+      "epochWeekday": 2,
+      "epochYear": 214,
+      "eraAbbreviation": "n. G.",
+      "eraName": "nach der Gründung",
+      "id": "gezeitenrechnung",
+      "kind": "custom",
+      "months": [
+        {
+          "dayCount": 30,
+          "name": "Ebbmond",
+          "shortName": "Ebb"
+        },
+        {
+          "dayCount": 29,
+          "name": "Flutmond",
+          "shortName": "Flu"
+        },
+        {
+          "dayCount": 31,
+          "name": "Nippmond",
+          "shortName": "Nip"
+        },
+        {
+          "dayCount": 30,
+          "name": "Springmond",
+          "shortName": "Spr"
+        },
+        {
+          "dayCount": 28,
+          "name": "Strandmond",
+          "shortName": "Str"
+        },
+        {
+          "dayCount": 31,
+          "name": "Nebelmond",
+          "shortName": "Neb"
+        },
+        {
+          "dayCount": 30,
+          "name": "Sturmmond",
+          "shortName": "Stu"
+        },
+        {
+          "dayCount": 29,
+          "name": "Stillmond",
+          "shortName": "Sti"
+        }
+      ],
+      "name": "Gezeitenrechnung",
+      "unit": "day",
+      "weekdays": [
+        {
+          "name": "Erstflut",
+          "shortName": "Ers"
+        },
+        {
+          "name": "Zweitflut",
+          "shortName": "Zwe"
+        },
+        {
+          "name": "Ebbtag",
+          "shortName": "Ebb"
+        },
+        {
+          "name": "Tiefwasser",
+          "shortName": "Tie"
+        },
+        {
+          "name": "Hochwasser",
+          "shortName": "Hoc"
+        },
+        {
+          "name": "Ruhetag",
+          "shortName": "Ruh"
+        }
+      ]
+    },
+    "timeline": [
+      {
+        "id": "t1",
+        "note": "Mara erreicht die Stadt und sucht das Archiv.",
+        "position": 0,
+        "precision": "day",
+        "time": 0,
+        "title": "Ankunft im Nordhafen"
+      },
+      {
+        "id": "t2",
+        "note": "Die erste verborgene Route erscheint.",
+        "position": 1,
+        "precision": "day",
+        "time": 3,
+        "title": "Öffnung des Atlas"
+      },
+      {
+        "id": "t3",
+        "note": "Mara liest die Küstenlinie ihres Vaters.",
+        "position": 2,
+        "precision": "day",
+        "time": 6,
+        "title": "Das letzte Blatt"
+      },
+      {
+        "id": "t4",
+        "note": "In der Stadt heißt es, die Karten veränderten sich.",
+        "position": 3,
+        "precision": "day",
+        "time": 9,
+        "title": "Gerüchte am Salzmarkt"
+      },
+      {
+        "id": "t5",
+        "note": "Der Hafenrat lässt die Brücken schließen.",
+        "position": 4,
+        "precision": "day",
+        "time": 12,
+        "title": "Der Hafen wird gesperrt"
+      },
+      {
+        "id": "t6",
+        "note": "Die Gilde erklärt Iven und Mara zu Verrätern.",
+        "position": 5,
+        "precision": "day",
+        "time": 15,
+        "title": "Bruch mit der Gilde"
+      },
+      {
+        "id": "t7",
+        "note": "Tilo bringt sie durch den Kartennebel zur Klippe.",
+        "position": 6,
+        "precision": "day",
+        "time": 18,
+        "title": "Die Überfahrt"
+      },
+      {
+        "id": "t8",
+        "note": "Der Weg über das Wasser wird sichtbar.",
+        "position": 7,
+        "precision": "day",
+        "time": 22,
+        "title": "Die offene Küste"
+      }
+    ]
+  },
+  "storyboards": {
+    "boards": [
+      {
+        "id": "main-storyboard",
+        "title": "Der Weg durch den Nebel"
+      },
+      {
+        "id": "second-board",
+        "title": "Die Überfahrt"
+      }
+    ],
+    "edges": [
+      {
+        "boardId": "main-storyboard",
+        "directed": true,
+        "id": "board-edge-one",
+        "label": "Figur",
+        "sourceNodeId": "note-arrival",
+        "targetNodeId": "reference-mara"
+      },
+      {
+        "boardId": "main-storyboard",
+        "directed": true,
+        "id": "board-edge-two",
+        "label": "sucht Antworten",
+        "sourceNodeId": "reference-mara",
+        "targetNodeId": "reference-archive"
+      },
+      {
+        "boardId": "main-storyboard",
+        "directed": true,
+        "id": "board-edge-three",
+        "label": "führt zu",
+        "sourceNodeId": "note-rumour",
+        "targetNodeId": "reference-archive"
+      },
+      {
+        "boardId": "main-storyboard",
+        "directed": true,
+        "id": "board-edge-four",
+        "sourceNodeId": "note-turn",
+        "targetNodeId": "reference-chapter"
+      },
+      {
+        "boardId": "main-storyboard",
+        "directed": true,
+        "id": "board-edge-five",
+        "label": "Aufbruch",
+        "sourceNodeId": "reference-chapter",
+        "targetNodeId": "board-crossing"
+      },
+      {
+        "boardId": "second-board",
+        "directed": true,
+        "id": "board-edge-six",
+        "label": "zeigt",
+        "sourceNodeId": "note-sea",
+        "targetNodeId": "reference-atlas"
+      },
+      {
+        "boardId": "second-board",
+        "directed": true,
+        "id": "board-edge-seven",
+        "label": "Fährmann",
+        "sourceNodeId": "note-crossing",
+        "targetNodeId": "reference-tilo"
+      },
+      {
+        "boardId": "second-board",
+        "directed": true,
+        "id": "board-edge-eight",
+        "label": "zurück",
+        "sourceNodeId": "note-crossing",
+        "targetNodeId": "board-north"
+      }
+    ],
+    "nodes": [
+      {
+        "boardId": "main-storyboard",
+        "height": 620,
+        "id": "group-act-one",
+        "kind": "group",
+        "label": "I · Nordhafen",
+        "text": "Vom ersten Hinweis zum gemeinsamen Aufbruch.",
+        "width": 760,
+        "x": 30,
+        "y": 30,
+        "zIndex": 0
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 620,
+        "id": "group-act-two",
+        "kind": "group",
+        "label": "II · Kartennebel",
+        "text": "Hinaus über das Wasser, wo die Karten enden.",
+        "width": 650,
+        "x": 830,
+        "y": 30,
+        "zIndex": 0
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 190,
+        "id": "note-arrival",
+        "kind": "note",
+        "label": "Ankunft & erste Spur",
+        "noteReferences": [
+          {
+            "from": 40,
+            "id": "story-ref-mara",
+            "surface": "Mara Venn",
+            "target": {
+              "id": "mara",
+              "kind": "entity"
+            },
+            "to": 49
+          },
+          {
+            "from": 59,
+            "id": "story-ref-archive",
+            "surface": "Gezeitenarchiv",
+            "target": {
+              "id": "archive",
+              "kind": "place"
+            },
+            "to": 73
+          }
+        ],
+        "text": "Ein fremder Hafen, eine lebende Karte.\n\nMara Venn sucht im Gezeitenarchiv nach dem Nachlass ihres Vaters.",
+        "width": 330,
+        "x": 70,
+        "y": 190,
+        "zIndex": 1
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 190,
+        "id": "reference-mara",
+        "kind": "reference",
+        "label": "Mara Venn",
+        "target": {
+          "id": "mara",
+          "kind": "entity"
+        },
+        "width": 260,
+        "x": 460,
+        "y": 190,
+        "zIndex": 1
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 180,
+        "id": "note-rumour",
+        "kind": "note",
+        "label": "Gerüchte",
+        "text": "Am Salzmarkt wird geflüstert, dass die Küste wandert.\n\nOda Brandt hört mit.",
+        "width": 330,
+        "x": 70,
+        "y": 430,
+        "zIndex": 1
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 180,
+        "id": "reference-archive",
+        "kind": "reference",
+        "label": "Gezeitenarchiv",
+        "target": {
+          "id": "archive",
+          "kind": "place"
+        },
+        "width": 260,
+        "x": 460,
+        "y": 430,
+        "zIndex": 1
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 190,
+        "id": "note-turn",
+        "kind": "note",
+        "label": "Wendepunkt",
+        "text": "Die Gilde sperrt den Hafen.\n\nAus einer Suche nach Antworten wird die Entscheidung, gemeinsam aufzubrechen.",
+        "width": 330,
+        "x": 870,
+        "y": 190,
+        "zIndex": 1
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 180,
+        "id": "reference-chapter",
+        "kind": "reference",
+        "label": "Vor dem Sturm",
+        "target": {
+          "id": "c-storm",
+          "kind": "chapter"
+        },
+        "width": 240,
+        "x": 870,
+        "y": 430,
+        "zIndex": 1
+      },
+      {
+        "boardId": "main-storyboard",
+        "height": 180,
+        "id": "board-crossing",
+        "kind": "storyboard",
+        "label": "II · Die Überfahrt",
+        "target": {
+          "id": "second-board",
+          "kind": "storyboard"
+        },
+        "text": "Aufbruch ins Unbekannte.",
+        "width": 250,
+        "x": 1190,
+        "y": 430,
+        "zIndex": 1
+      },
+      {
+        "boardId": "second-board",
+        "height": 200,
+        "id": "note-sea",
+        "kind": "note",
+        "label": "Jenseits der bekannten Küste",
+        "text": "Welche Linien bleiben auf dem Atlas, wenn das Land hinter ihnen verschwindet?",
+        "width": 340,
+        "x": 60,
+        "y": 60,
+        "zIndex": 1
+      },
+      {
+        "boardId": "second-board",
+        "height": 200,
+        "id": "reference-atlas",
+        "kind": "reference",
+        "label": "Der gläserne Atlas",
+        "target": {
+          "id": "atlas",
+          "kind": "entity"
+        },
+        "width": 260,
+        "x": 480,
+        "y": 60,
+        "zIndex": 1
+      },
+      {
+        "boardId": "second-board",
+        "height": 190,
+        "id": "note-crossing",
+        "kind": "note",
+        "label": "Die Laterne",
+        "text": "Tilo gibt das Ruder ab und bleibt im Beiboot zurück. Nur sein Licht bleibt sichtbar.",
+        "width": 340,
+        "x": 60,
+        "y": 340,
+        "zIndex": 1
+      },
+      {
+        "boardId": "second-board",
+        "height": 190,
+        "id": "reference-tilo",
+        "kind": "reference",
+        "label": "Tilo Krey",
+        "target": {
+          "id": "tilo",
+          "kind": "entity"
+        },
+        "width": 260,
+        "x": 480,
+        "y": 340,
+        "zIndex": 1
+      },
+      {
+        "boardId": "second-board",
+        "height": 190,
+        "id": "board-north",
+        "kind": "storyboard",
+        "label": "I · Nordhafen",
+        "target": {
+          "id": "main-storyboard",
+          "kind": "storyboard"
+        },
+        "text": "Zurück zum Anfang der Geschichte.",
+        "width": 260,
+        "x": 800,
+        "y": 340,
+        "zIndex": 1
+      }
+    ]
+  },
+  "title": "Der gläserne Atlas"
+}

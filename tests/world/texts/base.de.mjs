@@ -1,4 +1,4 @@
-// German texts of the example world: key -> text. The structure lives in structure.mjs.
+// German texts of the example world: key -> text. The structure lives in parts/base.mjs.
 
 export const texts = {
   "world.title": "Der gläserne Atlas",
@@ -102,6 +102,14 @@ export const texts = {
   "el.tilo.notes":
     "Tilo setzt über, wen der Rat nicht ziehen lassen will. Seine Fähre hat keinen Namen, nur eine Laterne.",
 
+  "el.ada.name": "Ada",
+  "el.ada.label": "Lotsin",
+  "el.ada.sub": "Bringt jedes Schiff sicher durch die Sandbänke.",
+  "el.ada.notes": "Ada kennt die Fahrrinne besser als jede Karte und vertraut Bela blind.",
+  "el.bela.name": "Bela",
+  "el.bela.label": "Netzflickerin",
+  "el.bela.sub": "Hört am Kai alles, was die Fischer erzählen.",
+  "el.bela.notes": "Bela folgt Ada auf jede Fahrt, auch wenn sie das Wasser fürchtet.",
   "el.lumen.name": "Lumen",
   "el.lumen.label": "Küstenvogel",
   "el.lumen.sub": "Findet Wege durch den Kartennebel.",
@@ -177,6 +185,8 @@ export const texts = {
   "edge.e10.label": "erbt",
   "edge.e11.label": "öffnet",
   "edge.e12.label": "betreibt",
+  "edge.e13.label": "führt",
+  "edge.e14.label": "kennt",
 
   "moment.t1.title": "Ankunft im Nordhafen",
   "moment.t1.note": "Mara erreicht die Stadt und sucht das Archiv.",

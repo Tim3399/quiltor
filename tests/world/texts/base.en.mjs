@@ -1,4 +1,4 @@
-// English texts of the example world: key -> text. The structure lives in structure.mjs.
+// English texts of the example world: key -> text. The structure lives in parts/base.mjs.
 // Names of people stay (Mara Venn, Iven Rook); names of places are translated.
 
 export const texts = {
@@ -103,6 +103,14 @@ export const texts = {
   "el.tilo.notes":
     "Tilo takes across whoever the Council does not want to let go. His ferry has no name, only a lantern.",
 
+  "el.ada.name": "Ada",
+  "el.ada.label": "Harbour pilot",
+  "el.ada.sub": "Brings every ship safely through the sandbanks.",
+  "el.ada.notes": "Ada knows the channel better than any map and trusts Bela blindly.",
+  "el.bela.name": "Bela",
+  "el.bela.label": "Net mender",
+  "el.bela.sub": "Hears everything the fishermen tell on the quay.",
+  "el.bela.notes": "Bela follows Ada on every voyage, even though she fears the water.",
   "el.lumen.name": "Lumen",
   "el.lumen.label": "Coastal bird",
   "el.lumen.sub": "Finds ways through the map fog.",
@@ -178,6 +186,8 @@ export const texts = {
   "edge.e10.label": "inherits",
   "edge.e11.label": "opens",
   "edge.e12.label": "runs",
+  "edge.e13.label": "guides",
+  "edge.e14.label": "knows",
 
   "moment.t1.title": "Arrival in North Harbour",
   "moment.t1.note": "Mara reaches the city and looks for the archive.",

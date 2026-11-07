@@ -228,6 +228,12 @@
       "reason": "The program workflow-docker-shell-lint runs (npm run lint:actionlint and the others); its arguments and lock list decide what the job checks, so a change to it must run the job. workflow_contract.py derives such programs from the job and requires lint for each."
     },
     {
+      "name": "test-world",
+      "patterns": ["tests/world/**"],
+      "groups": ["checks", "browser", "client", "python"],
+      "reason": "The one test world every suite is built from: the product and design suites seed it, client unit tests may import it, npm run check tests it and the backend suite reads the path rules. tools/** would select neither browser nor client, so a change to the world would skip the suites that use it."
+    },
+    {
       "name": "tools",
       "patterns": ["tools/**", "docs/screenshots/**"],
       "groups": ["checks", "python"],

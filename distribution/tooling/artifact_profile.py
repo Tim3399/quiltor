@@ -36,6 +36,10 @@ FIXED_RESOURCE_SOURCES = {
         "src/quiltor/resources/sidecars/inference/mlx/requirements.lock"
     ),
     "contracts/mcp/tools.v1.json": Path("contracts/fixtures/mcp/tools.v1.json"),
+    # The example world, generated from tests/world/ by npm run world:update.
+    "example_world/de.json": Path("src/quiltor/resources/example_world/de.json"),
+    "example_world/en.json": Path("src/quiltor/resources/example_world/en.json"),
+    "example_world/harbour-map.png": Path("src/quiltor/resources/example_world/harbour-map.png"),
     "legal/LICENSE": Path("LICENSE"),
     "legal/THIRD-PARTY-NOTICES.md": Path("THIRD-PARTY-NOTICES.md"),
 }
@@ -53,6 +57,9 @@ SDIST_FIXED_SOURCES = {
     "src/quiltor/resources/sidecars/README.md",
     "src/quiltor/resources/sidecars/inference/mlx/bridge.py",
     "src/quiltor/resources/sidecars/inference/mlx/requirements.lock",
+    "src/quiltor/resources/example_world/de.json",
+    "src/quiltor/resources/example_world/en.json",
+    "src/quiltor/resources/example_world/harbour-map.png",
     "distribution/tooling/hatch_build.py",
     "distribution/tooling/profile_contract.py",
     "distribution/profiles/python-package.json",
