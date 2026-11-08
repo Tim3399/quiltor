@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import { readUiLocale } from "../../i18n";
+import { loginUrl } from "../../modules/identity";
 import { type IdentityLogoutResult, quiltorClient } from "../../platform";
 
 // `sub` keys the drafts a refused save keeps on this device (T-58 P7b).
 type ShellAccount = { sub?: string; email?: string; name?: string };
 
 export function logoutDestination(result: IdentityLogoutResult): string {
-  return result.logoutUrl || "/login";
+  return result.logoutUrl || loginUrl(readUiLocale());
 }
 
 export function useShellStatus() {

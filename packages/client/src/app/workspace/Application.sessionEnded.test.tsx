@@ -151,7 +151,7 @@ describe("typing after the session ended", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "In neuem Tab anmelden" }));
-    expect(open).toHaveBeenCalledWith("/login");
+    expect(open).toHaveBeenCalledWith("/login?ui_locales=de");
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
     await waitFor(() => expect(readDraft(ADA, "manuscript")).toBeNull());

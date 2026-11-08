@@ -254,6 +254,33 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
         self.assertIn("code_challenge_method=S256", headers["Location"])
         self.assertTrue(any(c.startswith("quiltor_login_state=") for c in set_cookies))
 
+    def test_login_forwards_a_known_interface_language(self):
+        for requested, expected in [("en", "en"), ("de", "de"), ("%20DE%20", "de")]:
+            status, headers, _, _ = self._request("GET", f"/login?ui_locales={requested}")
+            self.assertEqual(status, 302)
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(headers["Location"]).query)
+            self.assertEqual(query.get("ui_locales"), [expected], requested)
+
+    def test_login_drops_any_other_language_without_failing(self):
+        for path in [
+            "/login?ui_locales=fr",
+            "/login?ui_locales=",
+            "/login?ui_locales=de%20fr",
+            "/login?ui_locales=en%26prompt%3Dnone",
+            "/login?ui_locales=en&prompt=none",
+            "/login?ui_locales=zz-unsinn",
+        ]:
+            status, headers, _, _ = self._request("GET", path)
+            self.assertEqual(status, 302, path)
+            location = headers["Location"]
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(location).query)
+            self.assertNotIn("prompt", query, path)
+            if path == "/login?ui_locales=en&prompt=none":
+                # The language itself is fine; only the extra parameter must not pass.
+                self.assertEqual(query.get("ui_locales"), ["en"], path)
+            else:
+                self.assertNotIn("ui_locales", query, path)
+
     def test_callback_with_mismatched_state_is_rejected_without_creating_a_session(self):
         """Sent back to the app, not a JSON dead end -- SignInGate reads
         ?authError off the URL and shows something to read and a retry."""
