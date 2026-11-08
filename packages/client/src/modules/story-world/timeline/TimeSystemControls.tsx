@@ -64,6 +64,10 @@ export function TimeSystemControls({
           label={t("timelineConfigureTime")}
           icon={<Settings2 />}
           size="regular"
+          // The least used control gives way first: up to 900px it keeps only its icon (name in
+          // aria-label and title), so a long calendar name never pushes undo and redo out of
+          // the one-row strip (T-218).
+          collapseAt="medium"
           aria-haspopup="dialog"
           aria-expanded={settingsOpen}
           aria-controls={settingsOpen ? settingsPanelId : undefined}
