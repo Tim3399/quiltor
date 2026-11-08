@@ -839,8 +839,7 @@ export function App() {
       if (workspace.execute(command)) return;
       // The palette ids stay what they were; each now names a way into the versions dialog.
       const versions = versionsOptionsForCommand(command);
-      // A preview is neither synced nor versioned, so the palette leads nowhere there either.
-      if (versions && !openPreviewRef.current) overlays.open("versions", versions);
+      if (versions) overlays.open("versions", versions);
     },
     [overlays.close, overlays.open, workspace.execute],
   );
@@ -1041,6 +1040,7 @@ export function App() {
             flushAll={flushAll}
             onDocumentsReplaced={releaseReplacedDocuments}
             syncAvailable={shell.syncAvailable === true}
+            versionsAvailable={!session.world.preview}
             pendingRename={pendingRename}
             onManuscriptChange={manuscriptHistory.change}
             onCloseRename={() => setPendingRename(null)}

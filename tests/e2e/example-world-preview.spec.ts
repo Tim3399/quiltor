@@ -121,6 +121,27 @@ test.describe("example world preview", () => {
     await expect(versions).toBeVisible();
   });
 
+  test("the palette offers no versions in a preview, but after the first change", async ({
+    page,
+  }) => {
+    const entries = page.getByRole("option", {
+      name: /Versionen öffnen|Version festhalten|Automatische Sicherungen öffnen/,
+    });
+    const openPalette = async () => {
+      await page.getByRole("button", { name: "Suche öffnen" }).click();
+      await expect(page.getByRole("option").first()).toBeVisible();
+    };
+    await page.goto("/");
+    await openExampleFromHelp(page);
+    await openPalette();
+    await expect(entries).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await (await typeIntoFirstChapter(page)).finished();
+    await expect(page.getByRole("status").filter({ hasText: PREVIEW_BAR })).toHaveCount(0);
+    await openPalette();
+    await expect(entries).toHaveCount(3);
+  });
+
   test("leaving it unchanged discards it", async ({ page }) => {
     await page.goto("/");
     const id = await openExampleFromHelp(page);
