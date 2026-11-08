@@ -81,7 +81,9 @@ def _assert_icons_served(test: unittest.TestCase, port: int, headers: dict | Non
         test.assertGreaterEqual(len(hrefs), 3, "index.html must link the icons")
         for href in hrefs:
             test.assertTrue(href.startswith("./"), f"{href} must be relative for sub-path proxies")
-        for path in ["/favicon.ico", *(f"/{href[2:]}" for href in hrefs)]:
+        # /email-logo.png is linked from no page: its path is a contract with the
+        # Keycloak mails, which load it from https://quiltor.app (T-175).
+        for path in ["/favicon.ico", "/email-logo.png", *(f"/{href[2:]}" for href in hrefs)]:
             conn.request("GET", path, headers=dict(headers or {}))
             response = conn.getresponse()
             body = response.read()
@@ -89,6 +91,8 @@ def _assert_icons_served(test: unittest.TestCase, port: int, headers: dict | Non
             content_type = response.getheader("Content-Type") or ""
             test.assertTrue(content_type.startswith("image/"), f"{path}: {content_type}")
             test.assertGreater(len(body), 100, path)
+            if path == "/email-logo.png":
+                test.assertTrue(content_type.startswith("image/png"), content_type)
     finally:
         conn.close()
 
