@@ -31,6 +31,12 @@ export const WORLD = {
     xLongPlace: "x-long-place",
     xLongOrg: "x-long-org",
     xEmptyNote: "x-empty-note",
+    xWeltkarte: "x-weltkarte",
+    xGraufurth: "x-graufurth",
+    xNordhafen: "x-nordhafen",
+    xTannenhain: "x-tannenhain",
+    xInselkarte: "x-inselkarte",
+    xInselhafen: "x-inselhafen",
   },
   relationships: {
     e1: "e1",
@@ -79,6 +85,7 @@ export const WORLD = {
     mainStoryboard: "main-storyboard",
     secondBoard: "second-board",
     xBoard: "x-board",
+    xLayers: "x-layers",
   },
   cards: {
     groupActOne: "group-act-one",
@@ -97,5 +104,9 @@ export const WORLD = {
     boardNorth: "board-north",
     xRefDeleted: "x-ref-deleted",
     xRefTrashed: "x-ref-trashed",
+    xRefStormAgain: "x-ref-storm-again",
+    xRefAda: "x-ref-ada",
+    xLayerBack: "x-layer-back",
+    xLayerFront: "x-layer-front",
   },
 } as const;

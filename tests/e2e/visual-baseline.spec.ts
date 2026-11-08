@@ -178,7 +178,7 @@ for (const theme of ["light", "dark"] as const) {
       .getByRole("button", { name: "Orte", exact: true })
       .evaluate((element) => element.scrollIntoView({ block: "nearest", inline: "center" }));
     await selectMapChild(page);
-    await expect(page.locator('.place-map-chrome[data-map-id="weltkarte"]')).toBeVisible();
+    await expect(page.locator('.place-map-chrome[data-map-id="x-weltkarte"]')).toBeVisible();
     await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");
     await expect(page).toHaveScreenshot(`${theme}-expanded-map.png`, {
       animations: "disabled",

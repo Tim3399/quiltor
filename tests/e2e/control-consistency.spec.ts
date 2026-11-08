@@ -1,51 +1,11 @@
 import type { Page } from "@playwright/test";
-import type { FigureState } from "../../packages/client/src/modules/story-world";
-import { mockRequiredWorldDocuments } from "./support/application-api";
-import { createTestWorld, expect, test } from "./support/world-fixture";
-
-const storyWorld: FigureState = {
-  nodes: [
-    {
-      id: "mara",
-      x: 120,
-      y: 120,
-      type: "person",
-      name: "Mara Venn",
-      label: "Kartographin",
-      sub: "Liest lebende Karten.",
-    },
-  ],
-  edges: [],
-  timeline: [{ id: "arrival", title: "Ankunft", time: 0, position: 0 }],
-  presence: [],
-  timeSystem: {
-    id: "primary",
-    name: "Gregorianisch",
-    kind: "gregorian",
-    unit: "day",
-    eraName: "",
-    eraAbbreviation: "",
-    epochTime: 0,
-    epochYear: 2024,
-    epochMonth: 1,
-    epochDay: 1,
-    epochWeekday: 0,
-    displayFormat: "",
-    months: [],
-    weekdays: [],
-  },
-};
+import { seedExampleWorld } from "./support/example-world";
+import { expect, test } from "./support/world-fixture";
 
 async function openWorld(page: Page) {
-  await mockRequiredWorldDocuments(page, {
-    manuscript: {
-      chapters: [{ id: "chapter", title: "Prolog", body: "Nebel.", note: "" }],
-    },
-    storyWorld,
-  });
-  const world = await createTestWorld(page, "Kontrollkonsistenz");
-  await page.goto(`/?world=${world.id}`);
+  const world = await seedExampleWorld(page);
   await page.getByRole("textbox", { name: "Kapiteltitel" }).waitFor();
+  return world;
 }
 
 async function visualState(page: Page, accessibleName: string) {
@@ -66,7 +26,9 @@ test("priority and timeline controls keep visible states and usable targets", as
     testInfo.project.name === "regular",
     "Wide and compact cover regular and touch targets.",
   );
-  await openWorld(page);
+  const world = await openWorld(page);
+  // A figure that is not a favourite yet; Mara already is one.
+  const figure = world.text("el.iven.name");
   const expectedHeight = testInfo.project.name === "compact" ? 44 : 36;
 
   for (const theme of ["light", "dark"] as const) {
@@ -74,7 +36,7 @@ test("priority and timeline controls keep visible states and usable targets", as
     await page.reload();
 
     await page.getByRole("button", { name: "Figuren", exact: true }).click();
-    await page.locator(".story-node", { hasText: "Mara Venn" }).dispatchEvent("click");
+    await page.locator(".story-node", { hasText: figure }).dispatchEvent("click");
     const priority = page.getByRole("button", { name: "Figur favorisieren" });
     await expect(priority).toHaveAttribute("aria-pressed", "false");
     await priority.evaluate(async (button) => {

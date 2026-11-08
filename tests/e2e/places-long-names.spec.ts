@@ -1,27 +1,30 @@
-import type { FigureNode } from "../../packages/client/src/modules/story-world/model";
-import { encodeStoryWorldDocument } from "./support/application-api";
-import { putVersioned } from "./support/seed";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedExampleWorld } from "./support/example-world";
+import { expect, test } from "./support/world-fixture";
 
 // T-124: a long place name was cut with an ellipsis in two spots that offered no way to read
 // it: the inspector's pin/card action (its label carries the name) and the name on the map
 // node. The action now wraps its label; the node name carries the full name as its title.
-
-const name = "Halligwarftsiedlung am äußersten Rand des nordfriesischen Wattenmeeres";
-const place: FigureNode = { id: "warft", type: "ort", name, x: 80, y: 80 };
+//
+// The test world's check part has such a place, a pin on the city level of Nordhafen.
 
 test("a long place name stays readable in the inspector action and on the map node", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.addInitScript(() => localStorage.setItem("quiltor-interface-language", "de"));
-  const world = await createTestWorld(page, `Orte-Langname ${testInfo.project.name}`);
-  await putVersioned(page, `/api/state?world=${world.id}`, (revision) =>
-    encodeStoryWorldDocument({ nodes: [place], edges: [], timeline: [], presence: [] }, revision),
-  );
-  await page.goto(`/?world=${world.id}`);
-  await expect(page.getByLabel("Kapiteltext")).toBeVisible();
+  const world = await seedExampleWorld(page, { include: ["base", "edge"] });
+  const name = world.text("el.x-long-place.name");
   await page.getByRole("button", { name: "Orte", exact: true }).click();
-  const node = page.locator(`.react-flow__node[data-id="${place.id}"] .story-node`);
+  // On a narrow canvas the world fits so far out that the cards are circles without their
+  // commands; step in until the city offers to be opened.
+  const open = page.getByRole("button", { name: `${world.text("el.nordhafen.name")} öffnen` });
+  await expect
+    .poll(async () => {
+      if (!(await open.isVisible())) await page.locator(".react-flow__controls-zoomin").click();
+      return open.isVisible();
+    })
+    .toBe(true);
+  await open.click();
+  const node = page.locator(`.react-flow__node[data-id="${world.ids.figures.xLongPlace}"]`);
   await expect(node.locator("strong")).toHaveAttribute("title", name);
   await node.click({ position: { x: 12, y: 12 } });
   const inspector = page.locator('[aria-label="Orte-Inspector"]').filter({ visible: true });
