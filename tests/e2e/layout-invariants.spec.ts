@@ -487,12 +487,12 @@ for (const workspace of workspaces) {
     // test would check precisely the state in which the interesting panels are missing.
     // Below the column width the controls are a sheet, not a panel; there is nothing to
     // align there, so the step falls away.
-    const spalten = (page.viewportSize()?.width ?? 0) > 820;
-    if (spalten && workspace === "Figuren") {
+    const twoColumns = (page.viewportSize()?.width ?? 0) > 820;
+    if (twoColumns && workspace === "Figuren") {
       await page.locator(".world-overview__item").first().click();
       await expect(page.locator(".figure-inspector")).toBeVisible();
     }
-    if (spalten && workspace === "Orte") {
+    if (twoColumns && workspace === "Orte") {
       await page.locator(".story-node").first().click();
       await expect(page.locator(".places-inspector")).toBeVisible();
     }

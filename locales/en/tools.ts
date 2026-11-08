@@ -1,5 +1,4 @@
 export const tools = {
-  cloudTitle: "Cloud synchronization",
   cloudManualExplanation:
     "Syncing transfers your versions to a server so you can keep writing on other devices. It starts only when you trigger it.",
   cloudLocalIndependence:
