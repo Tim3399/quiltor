@@ -140,7 +140,7 @@ def build_mcp_application_services(
     observer = UseCaseObserver(observability.logger, observability.metrics)
     return McpApplicationServices(
         worlds=WorldUseCases(worlds, observer),
-        documents=DocumentUseCases(documents, local_backups, observer),
+        documents=DocumentUseCases(documents, local_backups, observer, SQLitePlaceMapRepository()),
         story_world=StoryWorldUseCases(),
     )
 
@@ -178,7 +178,7 @@ def build_application_services(
     )
     return ApplicationServices(
         worlds=WorldUseCases(worlds, observer),
-        documents=DocumentUseCases(documents, local_backups, observer),
+        documents=DocumentUseCases(documents, local_backups, observer, SQLitePlaceMapRepository()),
         place_maps=PlaceMapUseCases(SQLitePlaceMapRepository()),
         project_transfer=ProjectTransferUseCases(
             SQLiteProjectTransferRepository(selected_paths), observer

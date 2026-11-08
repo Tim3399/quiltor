@@ -21,6 +21,7 @@ from quiltor.application.backups import BackupRepository
 from quiltor.application.documents import DocumentKind, DocumentLocation, DocumentUseCases
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
+from quiltor.infrastructure.persistence.adapters.place_maps import SQLitePlaceMapRepository
 from quiltor.infrastructure.persistence.sqlite import schema
 
 SHIP = Path(__file__).resolve().parents[2] / "src/quiltor/resources/example_world"
@@ -94,6 +95,7 @@ class ShippedExampleWorldTests(unittest.TestCase):
                     SQLiteDocumentRepository(),
                     cast(BackupRepository, _Backups()),
                     cast(UseCaseObserver, _Observer()),
+                    SQLitePlaceMapRepository(),
                 )
                 for field, kind, _ in DOCUMENTS:
                     current = documents.load(kind, location.database).revision
