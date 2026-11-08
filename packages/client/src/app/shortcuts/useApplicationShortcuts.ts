@@ -15,6 +15,7 @@ export function useApplicationShortcuts({
   redoFigures,
   undoStoryboards,
   redoStoryboards,
+  versionsAvailable = true,
 }: {
   focus: boolean;
   setFocus: (focus: boolean) => void;
@@ -27,6 +28,8 @@ export function useApplicationShortcuts({
   redoFigures: () => void;
   undoStoryboards: () => void;
   redoStoryboards: () => void;
+  /** False while the open world is an example preview: the shortcut opens no versions. */
+  versionsAvailable?: boolean;
 }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -38,7 +41,7 @@ export function useApplicationShortcuts({
       }
       if (modifier && event.shiftKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        openOverlay("versions", { tab: "versions", focusNote: true });
+        if (versionsAvailable) openOverlay("versions", { tab: "versions", focusNote: true });
         return;
       }
       if (modifier && event.key.toLowerCase() === "s") {
@@ -81,6 +84,7 @@ export function useApplicationShortcuts({
     undoFigures,
     undoManuscript,
     undoStoryboards,
+    versionsAvailable,
     workspace,
   ]);
 }

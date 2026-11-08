@@ -844,6 +844,8 @@ export function App() {
     [overlays.close, overlays.open, workspace.execute],
   );
 
+  // A preview is neither synced nor versioned (§11.4.3): menu, palette and shortcut all follow this.
+  const versionsAvailable = session.world?.preview !== true;
   useApplicationShortcuts({
     focus: workspace.focus,
     setFocus: workspace.setFocus,
@@ -856,6 +858,7 @@ export function App() {
     redoFigures: figureHistory.redo,
     undoStoryboards: storyboardHistory.undo,
     redoStoryboards: storyboardHistory.redo,
+    versionsAvailable,
   });
 
   return (
@@ -905,9 +908,7 @@ export function App() {
             onTheme={toggleTheme}
             onSearch={() => overlays.open("palette")}
             onVersions={
-              session.world.preview
-                ? undefined
-                : () => overlays.open("versions", { tab: "versions" })
+              versionsAvailable ? () => overlays.open("versions", { tab: "versions" }) : undefined
             }
             onExportProject={() => setProjectExportOpen(true)}
             onGettingStarted={() => setGettingStartedOpen(true)}
@@ -1040,7 +1041,7 @@ export function App() {
             flushAll={flushAll}
             onDocumentsReplaced={releaseReplacedDocuments}
             syncAvailable={shell.syncAvailable === true}
-            versionsAvailable={!session.world.preview}
+            versionsAvailable={versionsAvailable}
             pendingRename={pendingRename}
             onManuscriptChange={manuscriptHistory.change}
             onCloseRename={() => setPendingRename(null)}
