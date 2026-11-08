@@ -88,6 +88,35 @@ describe("useHistoryState", () => {
     expect(result.current.value).toBeNull();
   });
 
+  it("keeps at most 80 steps and drops the oldest first", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    const { result } = renderHook(() => useHistoryState<{ text: string }>());
+    act(() => result.current.load({ text: "Schritt 0" }));
+    for (let step = 1; step <= 90; step += 1) {
+      act(() =>
+        result.current.change({ text: `Schritt ${step}` }, { separateHistoryStep: true }),
+      );
+    }
+
+    let undone = 0;
+    while (result.current.canUndo) {
+      act(() => result.current.undo());
+      undone += 1;
+    }
+
+    expect(undone).toBe(80);
+    expect(result.current.value?.text).toBe("Schritt 10");
+  });
+
+  it("takes a change before any load as the start, with nothing to undo", () => {
+    const { result } = renderHook(() => useHistoryState<{ text: string }>());
+    act(() => result.current.change({ text: "Vor dem Laden" }));
+
+    expect(result.current.value?.text).toBe("Vor dem Laden");
+    expect([result.current.canUndo, result.current.canRedo]).toEqual([false, false]);
+  });
+
   it("forgets the history when another document is loaded", () => {
     vi.useFakeTimers();
     vi.setSystemTime(1_000);
