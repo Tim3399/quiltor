@@ -8,6 +8,7 @@ import { App } from "../Application";
 import type { LoadedWorldDocuments, WorldBinding } from "../world/useWorldSession";
 
 const actions = vi.hoisted(() => ({ close: vi.fn(), logout: vi.fn() }));
+const capabilities = vi.hoisted(() => ({ signOut: true }));
 
 vi.mock("../world/useWorldSession", () => ({
   useWorldSession: (load: (documents: LoadedWorldDocuments, binding: WorldBinding) => void) => {
@@ -37,6 +38,11 @@ vi.mock("../world/useWorldSession", () => ({
 }));
 vi.mock("../shell/useShellStatus", () => ({
   useShellStatus: () => ({ account: { email: "author@example.org" }, logout: actions.logout }),
+}));
+vi.mock("../shell/useCapabilities", () => ({
+  useCapabilities: () => ({
+    instance: { multiUser: true, signOut: capabilities.signOut, deviceSync: true },
+  }),
 }));
 vi.mock("../shell/useTheme", () => ({
   useTheme: () => ({
@@ -72,6 +78,22 @@ afterEach(() => {
   vi.restoreAllMocks();
   actions.close.mockClear();
   actions.logout.mockClear();
+  capabilities.signOut = true;
+});
+
+describe("signing out (T-102)", () => {
+  it("is offered only where the server says signing out exists", async () => {
+    capabilities.signOut = false;
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    await screen.findByRole("button", { name: "original" });
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    expect(screen.getByRole("menuitem", { name: "Zur Weltauswahl" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "Abmelden" })).toBeNull();
+  });
 });
 
 describe("application save barriers", () => {

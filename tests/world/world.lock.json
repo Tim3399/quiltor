@@ -715,6 +715,61 @@
       "x": 1980,
       "y": 310
     },
+    "world.figures.nodes[x-graufurth]": {
+      "accent": "ink",
+      "id": "x-graufurth",
+      "label": "⟦el.x-graufurth.label⟧",
+      "mapU": 0.3,
+      "mapV": 0.4,
+      "name": "⟦el.x-graufurth.name⟧",
+      "parentPlaceId": "x-weltkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-graufurth.sub⟧",
+      "type": "ort",
+      "x": 1980,
+      "y": 770
+    },
+    "world.figures.nodes[x-inselhafen]": {
+      "accent": "ink",
+      "id": "x-inselhafen",
+      "label": "⟦el.x-inselhafen.label⟧",
+      "mapU": 0.5,
+      "mapV": 0.5,
+      "name": "⟦el.x-inselhafen.name⟧",
+      "parentPlaceId": "x-inselkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-inselhafen.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 770
+    },
+    "world.figures.nodes[x-inselkarte]": {
+      "accent": "ink",
+      "id": "x-inselkarte",
+      "label": "⟦el.x-inselkarte.label⟧",
+      "mapExpanded": true,
+      "mapHeight": 500,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapWidth": 600,
+      "mapX": 900,
+      "mapY": 900,
+      "name": "⟦el.x-inselkarte.name⟧",
+      "pinned": true,
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-inselkarte.notes⟧"
+      },
+      "sub": "⟦el.x-inselkarte.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 540
+    },
     "world.figures.nodes[x-long-name]": {
       "accent": "ink",
       "id": "x-long-name",
@@ -759,6 +814,65 @@
       "sub": "⟦el.x-long-place.sub⟧",
       "type": "ort",
       "x": 1600,
+      "y": 540
+    },
+    "world.figures.nodes[x-nordhafen]": {
+      "accent": "ink",
+      "id": "x-nordhafen",
+      "label": "⟦el.x-nordhafen.label⟧",
+      "mapU": 0.7,
+      "mapV": 0.4,
+      "name": "⟦el.x-nordhafen.name⟧",
+      "parentPlaceId": "x-weltkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-nordhafen.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 80
+    },
+    "world.figures.nodes[x-tannenhain]": {
+      "accent": "ink",
+      "id": "x-tannenhain",
+      "label": "⟦el.x-tannenhain.label⟧",
+      "mapU": 0.48,
+      "mapV": 0.7,
+      "name": "⟦el.x-tannenhain.name⟧",
+      "parentPlaceId": "x-weltkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-tannenhain.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 310
+    },
+    "world.figures.nodes[x-weltkarte]": {
+      "accent": "ink",
+      "id": "x-weltkarte",
+      "label": "⟦el.x-weltkarte.label⟧",
+      "mapExpanded": true,
+      "mapHeight": 680,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapScale": {
+        "unitLabel": "km",
+        "unitsPer100px": 25
+      },
+      "mapWidth": 1000,
+      "mapX": 200,
+      "mapY": 900,
+      "name": "⟦el.x-weltkarte.name⟧",
+      "pinned": true,
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-weltkarte.notes⟧"
+      },
+      "sub": "⟦el.x-weltkarte.sub⟧",
+      "type": "ort",
+      "x": 1980,
       "y": 540
     },
     "world.figures.presence[presence-1]": {
@@ -1204,6 +1318,10 @@
       "id": "x-board",
       "title": "⟦board.x.title⟧"
     },
+    "world.storyboards.boards[x-layers]": {
+      "id": "x-layers",
+      "title": "⟦board.x-layers.title⟧"
+    },
     "world.storyboards.edges[board-edge-eight]": {
       "boardId": "second-board",
       "directed": true,
@@ -1480,6 +1598,45 @@
       "y": 340,
       "zIndex": 1
     },
+    "world.storyboards.nodes[x-layer-back]": {
+      "boardId": "x-layers",
+      "height": 210,
+      "id": "x-layer-back",
+      "kind": "note",
+      "label": "⟦card.x-layer-back.label⟧",
+      "text": "⟦card.x-layer-back.text⟧",
+      "width": 280,
+      "x": 60,
+      "y": 420,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-layer-front]": {
+      "boardId": "x-layers",
+      "height": 210,
+      "id": "x-layer-front",
+      "kind": "note",
+      "label": "⟦card.x-layer-front.label⟧",
+      "text": "⟦card.x-layer-front.text⟧",
+      "width": 280,
+      "x": 140,
+      "y": 480,
+      "zIndex": 2
+    },
+    "world.storyboards.nodes[x-ref-ada]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-ada",
+      "kind": "reference",
+      "label": "⟦card.x-ada.label⟧",
+      "target": {
+        "id": "ada",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 1020,
+      "y": 60,
+      "zIndex": 1
+    },
     "world.storyboards.nodes[x-ref-deleted]": {
       "boardId": "x-board",
       "height": 190,
@@ -1492,6 +1649,21 @@
       },
       "width": 260,
       "x": 60,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-ref-storm-again]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-storm-again",
+      "kind": "reference",
+      "label": "⟦ch.c5.title⟧",
+      "target": {
+        "id": "c-storm",
+        "kind": "chapter"
+      },
+      "width": 260,
+      "x": 700,
       "y": 60,
       "zIndex": 1
     },
@@ -1521,6 +1693,11 @@
       "de": "Die Überfahrt",
       "en": "The Crossing",
       "translatedFrom": "e91d053afbf6384b"
+    },
+    "board.x-layers.title": {
+      "de": "Ebenen",
+      "en": "Layers",
+      "translatedFrom": "2695c43b918921cd"
     },
     "board.x.title": {
       "de": "Prüfteil",
@@ -1672,10 +1849,35 @@
       "en": "The Guild closes the harbour.\n\nA search for answers becomes the decision to leave together.",
       "translatedFrom": "618d2f3075c9ef3f"
     },
+    "card.x-ada.label": {
+      "de": "Ada im Garten",
+      "en": "Ada in the Garden",
+      "translatedFrom": "48575aacd90b4f8a"
+    },
     "card.x-gone.label": {
       "de": "Verschwundene Figur",
       "en": "Vanished figure",
       "translatedFrom": "1df912e4fb7d5539"
+    },
+    "card.x-layer-back.label": {
+      "de": "Hintere Karte",
+      "en": "Rear card",
+      "translatedFrom": "911d1813e234c25a"
+    },
+    "card.x-layer-back.text": {
+      "de": "Hintere Karte",
+      "en": "Rear card",
+      "translatedFrom": "911d1813e234c25a"
+    },
+    "card.x-layer-front.label": {
+      "de": "Vordere Karte",
+      "en": "Front card",
+      "translatedFrom": "bc1a35576a506b78"
+    },
+    "card.x-layer-front.text": {
+      "de": "Vordere Karte",
+      "en": "Front card",
+      "translatedFrom": "bc1a35576a506b78"
     },
     "ch.c1.body": {
       "de": "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv wie eine Erinnerung aus Glas.\n\nMara blieb am Ende des Stegs stehen. Heute würde sie erfahren, weshalb die Karten seit drei Nächten ihre Linien veränderten.\n\nUnter ihrem Mantel trug sie das letzte Blatt aus dem Nachlass ihres Vaters. Die Küstenlinie darauf endete nicht am Meer. Sie führte weiter, als hätte jemand einen Weg durch das Wasser gezeichnet.\n\nAm Tor des Gezeitenarchivs löste sich ein Mann aus dem Schatten. Er hielt keine Lampe, obwohl die Fenster hinter ihm dunkel waren.\n\n»Du bist spät«, sagte Iven Rook.\n\nMara betrachtete die Salzspuren auf seinen Stiefeln. »Du hast auf jemand anderen gewartet.«\n\nEr antwortete nicht. Über dem Hafen schlug die erste Glocke, und auf dem Blatt in ihrer Tasche verschob sich eine Linie.",
@@ -2412,6 +2614,56 @@
       "en": "Points nowhere.",
       "translatedFrom": "4960abbd20e0a314"
     },
+    "el.x-graufurth.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-graufurth.name": {
+      "de": "Graufurth",
+      "en": "Graufurth",
+      "translatedFrom": "d179a27d6dba24b1"
+    },
+    "el.x-graufurth.sub": {
+      "de": "An der nördlichen Küste.",
+      "en": "On the northern coast.",
+      "translatedFrom": "70f43b3cbc0dbbfb"
+    },
+    "el.x-inselhafen.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-inselhafen.name": {
+      "de": "Inselhafen",
+      "en": "Island Harbour",
+      "translatedFrom": "f2fee7b9ba04ad29"
+    },
+    "el.x-inselhafen.sub": {
+      "de": "Auf der vorgelagerten Insel.",
+      "en": "On the island off the coast.",
+      "translatedFrom": "ebe1eafe9b3b80f9"
+    },
+    "el.x-inselkarte.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-inselkarte.name": {
+      "de": "Inselkarte",
+      "en": "Island Map",
+      "translatedFrom": "265b2ee86af92dbd"
+    },
+    "el.x-inselkarte.notes": {
+      "de": "Eine zweite Karte neben der Weltkarte.",
+      "en": "A second map beside the world map.",
+      "translatedFrom": "4293c226f0e584e7"
+    },
+    "el.x-inselkarte.sub": {
+      "de": "Die vorgelagerten Inseln.",
+      "en": "The islands off the coast.",
+      "translatedFrom": "730c9a199cc08bbb"
+    },
     "el.x-long-name.label": {
       "de": "Stellvertreterin",
       "en": "Deputy",
@@ -2471,6 +2723,56 @@
       "de": "Ein Name, der auf keine Karte passt.",
       "en": "A name that fits on no map.",
       "translatedFrom": "a876fd9fbd6d72ce"
+    },
+    "el.x-nordhafen.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-nordhafen.name": {
+      "de": "Nordhafen",
+      "en": "North Harbour",
+      "translatedFrom": "57db917c0ba83e86"
+    },
+    "el.x-nordhafen.sub": {
+      "de": "An der nördlichen Küste.",
+      "en": "On the northern coast.",
+      "translatedFrom": "70f43b3cbc0dbbfb"
+    },
+    "el.x-tannenhain.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-tannenhain.name": {
+      "de": "Tannenhain",
+      "en": "Tannenhain",
+      "translatedFrom": "9eb858446ce41f53"
+    },
+    "el.x-tannenhain.sub": {
+      "de": "An der nördlichen Küste.",
+      "en": "On the northern coast.",
+      "translatedFrom": "70f43b3cbc0dbbfb"
+    },
+    "el.x-weltkarte.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-weltkarte.name": {
+      "de": "Weltkarte",
+      "en": "World Map",
+      "translatedFrom": "e730154ddc48c707"
+    },
+    "el.x-weltkarte.notes": {
+      "de": "Die Karte, auf der die Werkstatt ihre Orte misst.",
+      "en": "The map on which the workshop measures its places.",
+      "translatedFrom": "9d5c98e4eb6381d1"
+    },
+    "el.x-weltkarte.sub": {
+      "de": "Die Küsten des Nordens.",
+      "en": "The coasts of the north.",
+      "translatedFrom": "6bebed2ee31cc8b9"
     },
     "field.origin": {
       "de": "Herkunft",

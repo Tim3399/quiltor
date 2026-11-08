@@ -32,6 +32,11 @@ vi.mock("../world/useWorldSession", () => ({
 vi.mock("../shell/useShellStatus", () => ({
   useShellStatus: () => ({ account: shell.account, logout: shell.logout }),
 }));
+vi.mock("../shell/useCapabilities", () => ({
+  useCapabilities: () => ({
+    instance: { multiUser: true, signOut: true, deviceSync: true },
+  }),
+}));
 vi.mock("../shell/useTheme", () => ({
   useTheme: () => ({
     theme: "light",

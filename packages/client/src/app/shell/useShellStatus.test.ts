@@ -14,29 +14,32 @@ describe("logout destination", () => {
   });
 });
 
-describe("device sync availability", () => {
+describe("shell account", () => {
   function shellWith(current: () => Promise<unknown>) {
     vi.spyOn(quiltorClient.application.identity, "current").mockImplementation(
       current as typeof quiltorClient.application.identity.current,
     );
     vi.spyOn(quiltorClient.application.metadata, "version").mockResolvedValue({
-      version: "3.25.0",
+      version: "3.26.0",
     } as Awaited<ReturnType<typeof quiltorClient.application.metadata.version>>);
     return renderHook(() => useShellStatus());
   }
 
-  it("is unknown until whoami answers, then follows the server", async () => {
-    let answer!: (value: unknown) => void;
-    const { result } = shellWith(() => new Promise((resolve) => (answer = resolve)));
-    expect(result.current.syncAvailable).toBeNull();
-    answer({ ok: true, multiUser: true, syncAvailable: false });
-    await waitFor(() => expect(result.current.syncAvailable).toBe(false));
+  // The account keys the drafts a refused save keeps (T-58 P7b); signing out is a
+  // capability of its own now (T-102), so the account must not follow it (F-102-3).
+  it("keeps the signed-in user of a shared server, whatever else whoami says", async () => {
+    const { result } = shellWith(() =>
+      Promise.resolve({ ok: true, sub: "alice", multiUser: true, syncAvailable: false }),
+    );
+    await waitFor(() => expect(result.current.account?.sub).toBe("alice"));
   });
 
-  it("keeps local behavior for a server that does not say or cannot be asked", async () => {
-    const quiet = shellWith(() => Promise.resolve({ ok: true }));
-    await waitFor(() => expect(quiet.result.current.syncAvailable).toBe(true));
+  it("has no account where there is only one user or whoami fails", async () => {
+    const local = shellWith(() => Promise.resolve({ ok: true, sub: "local", multiUser: false }));
+    await waitFor(() => expect(local.result.current.version).toBe("3.26.0"));
+    expect(local.result.current.account).toBeNull();
     const failing = shellWith(() => Promise.reject(new Error("offline")));
-    await waitFor(() => expect(failing.result.current.syncAvailable).toBe(true));
+    await waitFor(() => expect(failing.result.current.version).toBe("3.26.0"));
+    expect(failing.result.current.account).toBeNull();
   });
 });

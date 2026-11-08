@@ -433,10 +433,11 @@ describe("TextWorkspace editor, search and versions", () => {
     expect(writeText).toHaveBeenCalledWith("Welt");
   });
 
-  // T-159: every transaction makes CodeMirror drop a DOM selection it has not read yet and
-  // write its own back. A re-render that changes nothing must therefore not reach the view:
-  // otherwise one that lands between "select all" and typing puts the text in front of the
-  // old chapter text instead of replacing it ("Nach Reload vorhandenAnfang").
+  // T-159: a transaction that redraws, or one that reaches a view whose observer has never
+  // read a selection, makes CodeMirror drop a DOM selection it has not read yet and write its
+  // own back. A re-render that changes nothing must therefore not reach the view: otherwise
+  // one that lands between "select all" and typing puts the text in front of the old chapter
+  // text instead of replacing it ("Nach Reload vorhandenAnfang").
   it("sends the editor no transaction when the workspace re-renders with unchanged input", async () => {
     const props = {
       manuscript,
@@ -451,6 +452,38 @@ describe("TextWorkspace editor, search and versions", () => {
     const view = renderWorkspace(props);
     const editor = codeMirrorView(view.container);
     await waitFor(() => expect(editor.state.doc.length).toBeGreaterThan(0));
+    const update = vi.spyOn(editor, "update");
+
+    view.rerender(
+      <TestProviders>
+        <TextWorkspace {...props} />
+      </TestProviders>,
+    );
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  // T-162: with the version panel open the surface hands the read-only editor empty
+  // decorations. Those must be the editor's own stable constants, not a fresh `[]` per render.
+  it("sends the editor no transaction when the workspace re-renders with versions open", async () => {
+    vi.spyOn(historyApi, "log").mockResolvedValue({ ok: true, commits: [] });
+    const props = {
+      manuscript,
+      figures,
+      onChange: vi.fn(),
+      focus: false,
+      onFocus: vi.fn(),
+      viewportMode: "wide" as const,
+      binderOpen: true,
+      inspectorOpen: true,
+    };
+    const view = renderWorkspace(props);
+    const toolbar = within(within(view.container).getByRole("toolbar", { name: "Manuskript" }));
+    fireEvent.click(toolbar.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Versionen" }));
+    await waitFor(() => expect(historyApi.log).toHaveBeenCalled());
+    const editor = codeMirrorView(view.container);
+    await waitFor(() => expect(editor.contentDOM.getAttribute("aria-readonly")).toBe("true"));
     const update = vi.spyOn(editor, "update");
 
     view.rerender(

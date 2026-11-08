@@ -1,8 +1,8 @@
 import type { Locator, Page, Response } from "@playwright/test";
-import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
 import { encodeStoryWorldDocument } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
+import { seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 function waitForSuccessfulStoryboardWrite(page: Page, payloadMarker: string) {
@@ -20,6 +20,13 @@ async function openStoryboard(page: Page, worldId: string) {
   await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
   await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
+}
+
+async function selectBoard(page: Page, title: string) {
+  const boardSelect = page.getByRole("combobox", { name: "Storyboard auswählen" });
+  await boardSelect.click();
+  await page.getByRole("option", { name: title, exact: true }).click();
+  await expect(boardSelect).toContainText(title);
 }
 
 async function openStoryboardLibrary(page: Page) {
@@ -686,63 +693,20 @@ test("a figure backlink opens the exact storyboard card", async ({ page }, testI
     "Target navigation is viewport-independent and only needs one run.",
   );
 
-  const world = await createTestWorld(page, `Storyboard Backlink E2E ${crypto.randomUUID()}`);
-  const worldId = encodeURIComponent(world.id);
-  const storyWorldResponse = await page.request.get(`/api/state?world=${worldId}`);
-  const storyWorldRevision = Number(
-    (storyWorldResponse.headers().etag || '"0"').replaceAll('"', ""),
-  );
-  const storyWorldSaved = await page.request.put(`/api/state?world=${worldId}`, {
-    headers: { "If-Match": `"${storyWorldRevision}"` },
-    data: encodeStoryWorldDocument(
-      {
-        nodes: [{ id: "ada", name: "Ada", type: "person", x: 160, y: 180 }],
-        edges: [],
-      },
-      storyWorldRevision,
-    ),
-  });
-  expect(storyWorldSaved.ok()).toBe(true);
-
-  const storyboardResponse = await page.request.get(`/api/storyboards?world=${worldId}`);
-  const storyboardRevision = Number(
-    (storyboardResponse.headers().etag || '"0"').replaceAll('"', ""),
-  );
-  const storyboardSaved = await page.request.put(`/api/storyboards?world=${worldId}`, {
-    headers: { "If-Match": `"${storyboardRevision}"` },
-    data: encodeStoryboardsV1(
-      {
-        boards: [
-          { id: "main-storyboard", title: "Main Storyboard" },
-          { id: "second-board", title: "Zweiter Akt" },
-        ],
-        nodes: [
-          {
-            id: "reference-ada",
-            boardId: "second-board",
-            kind: "reference",
-            target: { kind: "entity", id: "ada" },
-            label: "Ada im Garten",
-            x: 420,
-            y: 240,
-          },
-        ],
-        edges: [],
-      },
-      storyboardRevision,
-    ),
-  });
-  expect(storyboardSaved.ok()).toBe(true);
-
-  await page.goto(`/?world=${worldId}`);
-  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  // The side character Ada has a card on the check board of the test world.
+  const world = await seedExampleWorld(page, { include: ["base", "edge"] });
+  const cardLabel = world.text("card.x-ada.label");
+  const boardTitle = world.text("board.x.title");
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await page.locator(".story-node").filter({ hasText: "Ada" }).click();
+  await page
+    .locator(".story-node")
+    .filter({ hasText: world.text("el.ada.name") })
+    .click();
 
   const inspector = page.getByRole("complementary", { name: "Figuren-Inspector" });
   await inspector.getByRole("tab", { name: "Steckbrief" }).click();
   const backlink = inspector.getByRole("button", {
-    name: "Storyboard – Ada im Garten – Zweiter Akt",
+    name: `Storyboard – ${cardLabel} – ${boardTitle}`,
     exact: true,
   });
   await expect(backlink).toBeVisible();
@@ -753,11 +717,11 @@ test("a figure backlink opens the exact storyboard card", async ({ page }, testI
     "page",
   );
   await expect(page.getByRole("combobox", { name: "Storyboard auswählen" })).toContainText(
-    "Zweiter Akt",
+    boardTitle,
   );
   const selectedCard = page.locator('[data-storyboard-node-kind="reference"].is-selected');
   await expect(selectedCard).toHaveCount(1);
-  await expect(selectedCard).toContainText("Ada im Garten");
+  await expect(selectedCard).toContainText(cardLabel);
 });
 
 test("storyboard cards are dragged by the head; the note content stays a working surface", async ({
@@ -950,52 +914,16 @@ test("overlapping storyboard cards keep their front-to-back order", async ({ pag
     "Layer ordering is viewport-independent and only needs one run.",
   );
 
-  const world = await createTestWorld(page, `Storyboard Layers E2E ${crypto.randomUUID()}`);
-  const worldId = encodeURIComponent(world.id);
-  const storyboardResponse = await page.request.get(`/api/storyboards?world=${worldId}`);
-  const storyboardRevision = Number(
-    (storyboardResponse.headers().etag || '"0"').replaceAll('"', ""),
-  );
-  const storyboardSaved = await page.request.put(`/api/storyboards?world=${worldId}`, {
-    headers: { "If-Match": `"${storyboardRevision}"` },
-    data: encodeStoryboardsV1(
-      {
-        boards: [{ id: "main-storyboard", title: "Main Storyboard" }],
-        nodes: [
-          {
-            id: "layer-back",
-            boardId: "main-storyboard",
-            kind: "note",
-            x: 180,
-            y: 160,
-            width: 280,
-            height: 210,
-            zIndex: 1,
-            text: "Hintere Karte",
-          },
-          {
-            id: "layer-front",
-            boardId: "main-storyboard",
-            kind: "note",
-            x: 260,
-            y: 220,
-            width: 280,
-            height: 210,
-            zIndex: 2,
-            text: "Vordere Karte",
-          },
-        ],
-        edges: [],
-      },
-      storyboardRevision,
-    ),
-  });
-  expect(storyboardSaved.ok()).toBe(true);
+  // The layers board of the test world holds two overlapping notes, the front one a layer up.
+  const world = await seedExampleWorld(page, { include: ["base", "edge"], open: false });
+  const back = world.ids.cards.xLayerBack;
+  const front = world.ids.cards.xLayerFront;
 
   await openStoryboard(page, world.id);
+  await selectBoard(page, world.text("board.x-layers.title"));
 
-  const backCard = page.locator('.react-flow__node[data-id="layer-back"]');
-  const frontCard = page.locator('.react-flow__node[data-id="layer-front"]');
+  const backCard = page.locator(`.react-flow__node[data-id="${back}"]`);
+  const frontCard = page.locator(`.react-flow__node[data-id="${front}"]`);
   await expect(backCard).toBeVisible();
   await expect(frontCard).toBeVisible();
 
@@ -1024,25 +952,25 @@ test("overlapping storyboard cards keep their front-to-back order", async ({ pag
     click: () => openToolbarOverflow(page, "Storyboard-Werkzeuge", "Element nach hinten"),
   };
 
-  const movedForward = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
+  const movedForward = waitForSuccessfulStoryboardWrite(page, `"id":"${back}"`);
   await moveForward.click();
   expect((await movedForward).ok()).toBe(true);
   await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeGreaterThan(0);
 
   let persisted = await loadedStoryboard(page, world.id);
-  expect(persisted.payload.nodes.find(({ id }) => id === "layer-back")?.zIndex).toBe(1);
-  expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(0);
+  expect(persisted.payload.nodes.find(({ id }) => id === back)?.zIndex).toBe(1);
+  expect(persisted.payload.nodes.find(({ id }) => id === front)?.zIndex).toBe(0);
 
-  const movedBackward = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
+  const movedBackward = waitForSuccessfulStoryboardWrite(page, `"id":"${back}"`);
   await moveBackward.click();
   expect((await movedBackward).ok()).toBe(true);
   await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeLessThan(0);
 
   persisted = await loadedStoryboard(page, world.id);
-  expect(persisted.payload.nodes.find(({ id }) => id === "layer-back")?.zIndex).toBe(0);
-  expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(1);
+  expect(persisted.payload.nodes.find(({ id }) => id === back)?.zIndex).toBe(0);
+  expect(persisted.payload.nodes.find(({ id }) => id === front)?.zIndex).toBe(1);
 
-  const movedForwardForReload = waitForSuccessfulStoryboardWrite(page, '"id":"layer-back"');
+  const movedForwardForReload = waitForSuccessfulStoryboardWrite(page, `"id":"${back}"`);
   await moveForward.click();
   expect((await movedForwardForReload).ok()).toBe(true);
   await expect.poll(() => renderedLayerDelta(backCard, frontCard)).toBeGreaterThan(0);
@@ -1051,9 +979,10 @@ test("overlapping storyboard cards keep their front-to-back order", async ({ pag
   await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
   await page.getByRole("toolbar", { name: "Storyboard-Werkzeuge" }).waitFor();
+  await selectBoard(page, world.text("board.x-layers.title"));
 
-  const reloadedBackCard = page.locator('.react-flow__node[data-id="layer-back"]');
-  const reloadedFrontCard = page.locator('.react-flow__node[data-id="layer-front"]');
+  const reloadedBackCard = page.locator(`.react-flow__node[data-id="${back}"]`);
+  const reloadedFrontCard = page.locator(`.react-flow__node[data-id="${front}"]`);
   await expect(reloadedBackCard).toBeVisible();
   await expect(reloadedFrontCard).toBeVisible();
   await expect
@@ -1061,8 +990,8 @@ test("overlapping storyboard cards keep their front-to-back order", async ({ pag
     .toBeGreaterThan(0);
 
   persisted = await loadedStoryboard(page, world.id);
-  expect(persisted.payload.nodes.find(({ id }) => id === "layer-back")?.zIndex).toBe(1);
-  expect(persisted.payload.nodes.find(({ id }) => id === "layer-front")?.zIndex).toBe(0);
+  expect(persisted.payload.nodes.find(({ id }) => id === back)?.zIndex).toBe(1);
+  expect(persisted.payload.nodes.find(({ id }) => id === front)?.zIndex).toBe(0);
 });
 
 test("the layer controls stay reachable in the compact storyboard", async ({ page }, testInfo) => {

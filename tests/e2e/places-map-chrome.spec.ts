@@ -20,7 +20,7 @@ test("Expanded map identity survives child selection and clearing the selection"
 }) => {
   await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
-  const chrome = page.locator('.place-map-chrome[data-map-id="weltkarte"]');
+  const chrome = page.locator('.place-map-chrome[data-map-id="x-weltkarte"]');
   await expect(chrome).toBeVisible();
   await expect(chrome.locator(".place-map-chrome__name")).toHaveText("Weltkarte");
   await expect(chrome.locator(".place-map-chrome__footer")).toContainText("25 km");
@@ -61,7 +61,7 @@ test("Expanded header keeps crop, lock, enter and collapse actions on the same m
   await expect(chrome.locator(".place-map-chrome__name")).toHaveText("Weltkarte");
   await chrome.getByRole("button", { name: "Bild vergrößern" }).click();
   await expect
-    .poll(() => fixture.savedState().nodes.find((node) => node.id === "weltkarte")?.mapImageZoom)
+    .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapImageZoom)
     .toBeGreaterThan(1);
   await chrome.getByRole("button", { name: "Bild in Weltkarte fertig anpassen" }).click();
   await chrome.getByRole("button", { name: "Weltkarte lösen", exact: true }).click();
@@ -81,10 +81,10 @@ test("Expanded header keeps crop, lock, enter and collapse actions on the same m
   await expect(chrome).toHaveCount(0);
   await closePlaceSheet(page);
   await expect
-    .poll(() => fixture.savedState().nodes.find((node) => node.id === "weltkarte")?.mapExpanded)
+    .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapExpanded)
     .toBe(false);
-  await expect(page.locator('.react-flow__node-placeMap[data-id="weltkarte"]')).toHaveCount(0);
-  const card = page.locator('.react-flow__node[data-id="weltkarte"]');
+  await expect(page.locator('.react-flow__node-placeMap[data-id="x-weltkarte"]')).toHaveCount(0);
+  const card = page.locator('.react-flow__node[data-id="x-weltkarte"]');
   await expect(card.locator(".story-node.is-map")).toBeVisible();
   // The node can be clipped at the compact viewport edge, where a generic node click may
   // choose one of its nested map-action buttons as the first reachable hit target.
@@ -108,18 +108,18 @@ test("Footer scale edits persist through the map state and update map measuremen
   await editor.getByRole("textbox", { name: "Einheit" }).fill("km");
   await page.keyboard.press("Escape");
   await expect
-    .poll(() => fixture.savedState().nodes.find((node) => node.id === "weltkarte")?.mapScale)
+    .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapScale)
     .toEqual({ unitsPer100px: 50, unitLabel: "km" });
   await expect(chrome.locator(".place-map-chrome__footer")).toContainText("50 km");
   await expect(chrome.locator(".place-map-chrome__grid .place-map-chrome__value")).toHaveText(
     "24 km",
   );
-  const map = fixture.savedState().nodes.find((node) => node.id === "weltkarte");
+  const map = fixture.savedState().nodes.find((node) => node.id === "x-weltkarte");
   expect(map).toMatchObject({ mapWidth: 1000, mapHeight: 680 });
-  expect(fixture.savedState().nodes.find((node) => node.id === "graufurth")).toMatchObject({
+  expect(fixture.savedState().nodes.find((node) => node.id === "x-graufurth")).toMatchObject({
     mapU: 0.3,
     mapV: 0.4,
-    parentPlaceId: "weltkarte",
+    parentPlaceId: "x-weltkarte",
   });
 
   await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
@@ -156,26 +156,26 @@ test("Only the active expanded map owns chrome and collapse falls back to the re
   await mockExpandedMapWorld(page, expandedMapState({ secondMap: true }));
   await openExpandedMapWorld(page);
   await page
-    .locator('.react-flow__node[data-id="weltkarte"]')
+    .locator('.react-flow__node[data-id="x-weltkarte"]')
     .click({ position: { x: 100, y: 100 } });
-  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "weltkarte");
+  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "x-weltkarte");
   await page.getByRole("button", { name: "Auswahl schließen" }).click();
   await page
-    .locator('.react-flow__node[data-id="inselkarte"]')
+    .locator('.react-flow__node[data-id="x-inselkarte"]')
     .click({ position: { x: 100, y: 100 } });
   await expect(page.locator(".place-map-chrome")).toHaveCount(1);
-  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "inselkarte");
+  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "x-inselkarte");
   await page.getByRole("button", { name: "Auswahl schließen" }).click();
-  await page.locator('.react-flow__node[data-id="graufurth"]').click();
-  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "weltkarte");
+  await page.locator('.react-flow__node[data-id="x-graufurth"]').click();
+  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "x-weltkarte");
   await page.getByRole("button", { name: "Auswahl schließen" }).click();
-  await page.locator('.react-flow__node[data-id="inselhafen"]').click();
-  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "inselkarte");
+  await page.locator('.react-flow__node[data-id="x-inselhafen"]').click();
+  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "x-inselkarte");
   await page
     .locator(".place-map-chrome")
     .getByRole("button", { name: "Inselkarte einklappen" })
     .click();
-  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "weltkarte");
+  await expect(page.locator(".place-map-chrome")).toHaveAttribute("data-map-id", "x-weltkarte");
 });
 
 test("Chrome follows pan and zoom and disappears when its map leaves the canvas", async ({
@@ -184,7 +184,7 @@ test("Chrome follows pan and zoom and disappears when its map leaves the canvas"
   await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
   const chrome = page.locator(".place-map-chrome");
-  const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
+  const map = page.locator('.react-flow__node-placeMap[data-id="x-weltkarte"]');
   const before = await map.boundingBox();
   expect(before).not.toBeNull();
   await page.locator(".react-flow__controls-zoomin").click();
@@ -247,7 +247,7 @@ test("Map edges remain resizable and child anchors stay on the world surface", a
   test.skip(testInfo.project.name !== "wide", "The side-edge drag needs the wide canvas.");
   const fixture = await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
-  const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
+  const map = page.locator('.react-flow__node-placeMap[data-id="x-weltkarte"]');
   await map.click({ position: { x: 100, y: 150 } });
   const edge = map.locator(".place-map-node__line.left");
   await expect(edge).toBeVisible();
@@ -268,13 +268,13 @@ test("Map edges remain resizable and child anchors stay on the world surface", a
   await page.mouse.move(grip.x - 60, grip.y, { steps: 10 });
   await page.mouse.up();
   await expect
-    .poll(() => fixture.savedState().nodes.find((node) => node.id === "weltkarte")?.mapWidth)
+    .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapWidth)
     .toBeGreaterThan(1000);
-  expect(fixture.savedState().nodes.find((node) => node.id === "graufurth")).toMatchObject({
+  expect(fixture.savedState().nodes.find((node) => node.id === "x-graufurth")).toMatchObject({
     mapU: 0.3,
     mapV: 0.4,
   });
-  const anchor = await page.locator('.react-flow__node[data-id="graufurth"]').boundingBox();
+  const anchor = await page.locator('.react-flow__node[data-id="x-graufurth"]').boundingBox();
   const rect = await map.boundingBox();
   if (!anchor || !rect) throw new Error("Resized map or child anchor has no geometry");
   expect((anchor.x + anchor.width / 2 - rect.x) / rect.width).toBeCloseTo(0.3, 2);
@@ -298,7 +298,7 @@ for (const side of ["left", "right", "top", "bottom"] as const) {
     test.skip(testInfo.project.name !== "wide", "The edge drag needs the wide canvas.");
     const fixture = await mockExpandedMapWorld(page);
     await openExpandedMapWorld(page);
-    const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
+    const map = page.locator('.react-flow__node-placeMap[data-id="x-weltkarte"]');
     // Selecting opens the inspector, which would cover the right edge of a map
     // that fills the view. Zooming out first (that click clears the selection)
     // brings all four edges into open canvas.
@@ -357,7 +357,7 @@ for (const side of ["left", "right", "top", "bottom"] as const) {
     expect(now[OPPOSITE[side]]).toBeCloseTo(was[OPPOSITE[side]], 0);
     await expect
       .poll(() => {
-        const saved = fixture.savedState().nodes.find((node) => node.id === "weltkarte");
+        const saved = fixture.savedState().nodes.find((node) => node.id === "x-weltkarte");
         return { x: (saved?.mapX ?? 0) < 0, y: (saved?.mapY ?? 0) < 0 };
       })
       .toEqual({ x: side === "left", y: side === "top" });

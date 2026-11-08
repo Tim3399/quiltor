@@ -1,12 +1,12 @@
 import type { Locator, Page } from "@playwright/test";
-import { mockRequiredWorldDocuments } from "./support/application-api";
+import { seedExampleWorld } from "./support/example-world";
 import {
   closePlaceSheet,
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
 } from "./support/expanded-map-fixture";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { expect, test } from "./support/world-fixture";
 
 async function expectContained(locator: Locator, page: Page) {
   await expect(locator).toBeVisible();
@@ -26,49 +26,12 @@ for (const theme of ["light", "dark"] as const) {
     if (testInfo.project.name === "compact")
       await page.setViewportSize({ width: 320, height: 844 });
     await page.addInitScript((selected) => localStorage.setItem("quiltor-theme", selected), theme);
-    const world = await createTestWorld(page, "Lesbare Werkstatt");
-    await mockRequiredWorldDocuments(page, {
-      manuscript: {
-        chapters: [
-          { id: "c1", title: "Ankunft", body: "Der Morgen liegt still über dem Hafen.", note: "" },
-          { id: "c2", title: "Aufbruch", body: "Mara öffnet die Karte.", note: "" },
-        ],
-        words: [],
-        activeSymbols: ["…"],
-      },
-      storyWorld: {
-        nodes: [
-          {
-            id: "mara",
-            type: "person",
-            x: 120,
-            y: 120,
-            name: "Mara Venn",
-            label: "Kartographin",
-            sub: "Liest lebende Karten.",
-          },
-          {
-            id: "ivo",
-            type: "person",
-            x: 480,
-            y: 120,
-            name: "Ivo",
-            label: "Archivar",
-            sub: "Hütet das Hafenarchiv.",
-          },
-        ],
-        edges: [{ id: "e1", from: "mara", to: "ivo", label: "vertraut", directed: true }],
-        timeline: [
-          {
-            id: "t1",
-            title: "Ankunft am Hafen",
-            date: "1847-09-03",
-            note: "Mara erreicht den Hafen.",
-          },
-        ],
-        presence: [],
-      },
-    });
+    const world = await seedExampleWorld(page, { open: false });
+    // A chapter of one paragraph, a relationship without time versions, the first moment.
+    const chapterTitle = world.text("ch.c5.title");
+    const chapterBody = world.text("ch.c5.body");
+    const edgeLabel = world.text("edge.e3.label");
+    const momentTitle = world.text("moment.t1.title");
     await page.goto(`/?world=${world.id}`);
     await expect(page.getByLabel("Kapiteltext")).toBeVisible();
     await page.getByRole("button", { name: "Fokus", exact: true }).click();
@@ -77,11 +40,11 @@ for (const theme of ["light", "dark"] as const) {
     await picker.click();
     const chapters = page.locator(".focus-chapter-list");
     await expectContained(chapters, page);
-    const secondChapter = chapters.getByRole("button", { name: /Aufbruch/ });
+    const secondChapter = chapters.getByRole("button", { name: chapterTitle });
     await secondChapter.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByLabel("Kapiteltext")).toBeFocused();
-    await expect(page.getByLabel("Kapiteltext")).toHaveText("Mara öffnet die Karte.");
+    await expect(page.getByLabel("Kapiteltext")).toHaveText(chapterBody);
     await expect(secondChapter).toHaveAttribute("aria-current", "page");
     await page.getByRole("button", { name: "Kapitelauswahl schließen" }).click();
     await page.getByRole("button", { name: "Details öffnen" }).click();
@@ -91,10 +54,10 @@ for (const theme of ["light", "dark"] as const) {
     await page.screenshot({ path: testInfo.outputPath(`focus-reading-${theme}.png`) });
     await page.getByRole("button", { name: "Details schließen" }).click();
     await page.getByRole("button", { name: /Fokusmodus verlassen/ }).click();
-    await expect(page.getByLabel("Kapiteltext")).toHaveText("Mara öffnet die Karte.");
+    await expect(page.getByLabel("Kapiteltext")).toHaveText(chapterBody);
 
     await page.getByRole("button", { name: "Figuren", exact: true }).click();
-    const relationship = page.locator(".graph-edge-label__text").filter({ hasText: "vertraut" });
+    const relationship = page.locator(".graph-edge-label__text").filter({ hasText: edgeLabel });
     await expect(relationship).toHaveCSS("font-size", "12px");
     // At hand width the graph initially fits both cards in its overview zoom, which hides labels.
     await expect
@@ -107,8 +70,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(relationship).toBeVisible();
     const strip = page.locator(".timeline-strip");
     await expectContained(strip, page);
-    await expect(strip.locator(".timeline-moment-copy b")).toHaveCSS("font-size", "12px");
-    const moment = strip.getByRole("button", { name: /Ankunft am Hafen/ });
+    await expect(strip.locator(".timeline-moment-copy b").first()).toHaveCSS("font-size", "12px");
+    const moment = strip.getByRole("button", { name: momentTitle });
     await moment.click();
     await expect(moment).toHaveAttribute("aria-pressed", "true");
     const dateWidth = await strip
@@ -137,7 +100,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.addInitScript((selected) => localStorage.setItem("quiltor-theme", selected), theme);
     await mockExpandedMapWorld(page, expandedMapState({ expanded: false }));
     await openExpandedMapWorld(page);
-    await page.locator('.react-flow__node[data-id="weltkarte"]').click();
+    await page.locator('.react-flow__node[data-id="x-weltkarte"]').click();
     const name = page.locator(".place-map-toolbar__name");
     await expect(name).toHaveText("Weltkarte");
     await expect(name).toHaveCSS("font-size", "14px");

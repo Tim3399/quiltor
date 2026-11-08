@@ -2,6 +2,7 @@ import type {
   ApplicationGateway,
   AssistantGateway,
   BackupGateway,
+  CapabilitiesGateway,
   DocumentsGateway,
   HistoryGateway,
   IdentityGateway,
@@ -21,6 +22,7 @@ export type ApplicationGatewayOverrides = {
   metadata?: Partial<MetadataGateway>;
   worlds?: Partial<WorldsGateway>;
   identity?: Partial<IdentityGateway>;
+  capabilities?: Partial<CapabilitiesGateway>;
   storyWorld?: Partial<StoryWorldGateway>;
   storyboards?: Partial<StoryboardsGateway>;
   manuscript?: Partial<ManuscriptGateway>;
@@ -65,6 +67,10 @@ export function createApplicationGatewayStub(
       current: () => notStubbed("identity.current"),
       logout: () => notStubbed("identity.logout"),
       ...overrides.identity,
+    },
+    capabilities: {
+      current: () => notStubbed("capabilities.current"),
+      ...overrides.capabilities,
     },
     storyWorld: {
       load: () => notStubbed("storyWorld.load"),

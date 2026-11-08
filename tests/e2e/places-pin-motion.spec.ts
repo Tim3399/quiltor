@@ -8,7 +8,7 @@ test("Place motion keeps the tip anchored through rapid keyboard toggles", async
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const fixture = await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
-  const node = page.locator('.react-flow__node[data-id="graufurth"]');
+  const node = page.locator('.react-flow__node[data-id="x-graufurth"]');
   const card = node.locator(".story-node");
   const bounds = await card.boundingBox();
   if (!bounds) throw new Error("The initial card has no geometry.");
@@ -55,8 +55,8 @@ test("Place motion keeps the tip anchored through rapid keyboard toggles", async
     1,
   );
   await expect
-    .poll(() => fixture.savedState().nodes.find((place) => place.id === "graufurth"))
-    .toMatchObject({ placeDisplay: "pin", parentPlaceId: "weltkarte", mapU: 0.3, mapV: 0.4 });
+    .poll(() => fixture.savedState().nodes.find((place) => place.id === "x-graufurth"))
+    .toMatchObject({ placeDisplay: "pin", parentPlaceId: "x-weltkarte", mapU: 0.3, mapV: 0.4 });
 });
 
 test("Reduced motion keeps place toggles immediate and keyboard accessible", async ({
@@ -66,7 +66,7 @@ test("Reduced motion keeps place toggles immediate and keyboard accessible", asy
   await page.emulateMedia({ reducedMotion: "reduce" });
   await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
-  const node = page.locator('.react-flow__node[data-id="graufurth"]');
+  const node = page.locator('.react-flow__node[data-id="x-graufurth"]');
   const toPin = node.getByRole("button", { name: "Ort Graufurth als Stecknadel anzeigen" });
   const toCard = node.getByRole("button", { name: "Ort Graufurth als Karte anzeigen" });
 

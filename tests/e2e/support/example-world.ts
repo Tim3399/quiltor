@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import type { Manuscript } from "../../../packages/client/src/modules/manuscript";
-import type { FigureState } from "../../../packages/client/src/modules/story-world";
+import type { FigureNode, FigureState } from "../../../packages/client/src/modules/story-world";
 import type { StoryboardState } from "../../../packages/client/src/modules/storyboard/model";
 import { decodeManuscriptV1 } from "../../../packages/client/src/platform/contracts/v1/manuscript";
 import { decodeStoryboardsV1 } from "../../../packages/client/src/platform/contracts/v1/storyboards";
@@ -116,6 +116,14 @@ export function exampleWorldDocuments({
 }
 
 /**
+ * The figures the figure graph draws as cards. A place with a picture of its own is a map and
+ * is not drawn there, so a spec that counts the cards on the graph counts these.
+ */
+export function drawnFigures(storyWorld: FigureState): FigureNode[] {
+  return storyWorld.nodes.filter((node) => !node.mapImageId);
+}
+
+/**
  * A whole mocked workshop with the test world: the documents of `exampleWorldDocuments` and
  * the harbour map under GET /api/place-map?id=<id>.
  */
@@ -131,9 +139,11 @@ export async function mockExampleWorld(
       updated: "2026-01-12T09:30:00Z",
     },
     version = "example-world",
+    assistant,
   }: ExampleWorldOptions & {
     world?: Parameters<typeof mockWorkshop>[1]["world"];
     version?: string;
+    assistant?: Parameters<typeof mockWorkshop>[1]["assistant"];
   } = {},
 ): Promise<{ ids: typeof WORLD; text: (key: string) => string }> {
   const mapId = harbourMapId();
@@ -143,6 +153,11 @@ export async function mockExampleWorld(
       ? route.fulfill({ contentType: "image/png", body: readFileSync(HARBOUR_MAP_FILE) })
       : route.fulfill({ status: 404, json: { ok: false } });
   });
-  await mockWorkshop(page, { world, version, documents: exampleWorldDocuments({ lang, include }) });
+  await mockWorkshop(page, {
+    world,
+    version,
+    documents: exampleWorldDocuments({ lang, include }),
+    ...(assistant ? { assistant } : {}),
+  });
   return { ids: WORLD, text: textOf(lang) };
 }

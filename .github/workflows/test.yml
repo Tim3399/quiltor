@@ -640,7 +640,8 @@ jobs:
   # tests run once per system, in slot 1, which the assignment counts as offset: 3.1 minutes on
   # Windows and 2.5 on macOS, measured in the run on 15e0b43.
   #
-  # Windows keeps eight slots and at most 100 product tests per slot: Chromium exhausted the
+  # Windows runs nine slots and at most 100 product tests per slot (eight slots hold at most 800 tests, and
+  # the suite reached 803 with T-220's drag spec): Chromium exhausted the
   # runner's network buffers after more than 115 product tests even with serialized browser
   # contexts. macOS runs four slots, the most the free plan's five concurrent macOS jobs allow next to
   # Core on macos-15 (T-160); with two its first slot took 13.5 minutes, with three 9 to 10.7.
@@ -679,52 +680,58 @@ jobs:
             diagnostics: macos-15-4-of-4
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 1 of 8
+            label: windows-2025 / slot 1 of 9
             slot: 1
-            slots: 8
-            diagnostics: windows-2025-1-of-8
+            slots: 9
+            diagnostics: windows-2025-1-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 2 of 8
+            label: windows-2025 / slot 2 of 9
             slot: 2
-            slots: 8
-            diagnostics: windows-2025-2-of-8
+            slots: 9
+            diagnostics: windows-2025-2-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 3 of 8
+            label: windows-2025 / slot 3 of 9
             slot: 3
-            slots: 8
-            diagnostics: windows-2025-3-of-8
+            slots: 9
+            diagnostics: windows-2025-3-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 4 of 8
+            label: windows-2025 / slot 4 of 9
             slot: 4
-            slots: 8
-            diagnostics: windows-2025-4-of-8
+            slots: 9
+            diagnostics: windows-2025-4-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 5 of 8
+            label: windows-2025 / slot 5 of 9
             slot: 5
-            slots: 8
-            diagnostics: windows-2025-5-of-8
+            slots: 9
+            diagnostics: windows-2025-5-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 6 of 8
+            label: windows-2025 / slot 6 of 9
             slot: 6
-            slots: 8
-            diagnostics: windows-2025-6-of-8
+            slots: 9
+            diagnostics: windows-2025-6-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 7 of 8
+            label: windows-2025 / slot 7 of 9
             slot: 7
-            slots: 8
-            diagnostics: windows-2025-7-of-8
+            slots: 9
+            diagnostics: windows-2025-7-of-9
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 8 of 8
+            label: windows-2025 / slot 8 of 9
             slot: 8
-            slots: 8
-            diagnostics: windows-2025-8-of-8
+            slots: 9
+            diagnostics: windows-2025-8-of-9
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 9 of 9
+            slot: 9
+            slots: 9
+            diagnostics: windows-2025-9-of-9
     env:
       PYTHONPATH: src
     steps:

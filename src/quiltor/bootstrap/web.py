@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from quiltor import resources
 from quiltor.application.backups import BackupAuthorization, WorldBackupContext
-from quiltor.application.capabilities import FeatureAvailability
+from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.application.documents import DocumentLocation
 from quiltor.bootstrap.application import (
     ApplicationServices,
@@ -168,6 +168,20 @@ class IdentityRouteServices:
 class WritingAssistanceRouteServices:
     writing_assistance: WritingAssistanceService
     installable: bool = True
+    grammar_installable: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilitiesRouteServices:
+    """The facts GET /api/capabilities reports, already decided (T-102)."""
+
+    multi_user: bool
+    syncable: bool
+    assistant_install: bool
+    writing_data_install: bool
+    grammar_install: bool
+    # Per session: may this account use the server-side assistant (T-58).
+    is_premium: Callable[[SessionData], bool] = lambda session: True
 
 
 DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
@@ -207,6 +221,34 @@ def operation_profile_for(*, multi_user: bool, process_role: ProcessRole | None)
     if process_role is ProcessRole.DESKTOP:
         return DESKTOP
     return LOCAL
+
+
+def assistant_installable(app: WebApplication) -> bool:
+    """Whether a request may install the assistant runtime and model (T-101).
+
+    The status route and GET /api/capabilities both report this, so the two
+    answers cannot drift apart (T-102).
+
+    Both axes count as well (T-102 D2, D-105 F7): without them the install
+    route starts nothing (`LocalAssistantInstallation.start_async` answers
+    False), so offering the button would be a promise the server cannot keep.
+    The Docker profile `web-self-hosted` is such a server (A-5 2.1).
+    """
+    return (
+        app.installable
+        and app.capabilities.is_available(Feature.LOCAL_INFERENCE)
+        and app.capabilities.is_available(Feature.CODE_DOWNLOAD)
+    )
+
+
+def writing_data_installable(app: WebApplication) -> bool:
+    """Whether a request may install the dictionary data (T-101, T-102)."""
+    return app.installable
+
+
+def grammar_installable(app: WebApplication) -> bool:
+    """Whether a request may install LanguageTool (T-101, T-102)."""
+    return app.installable
 
 
 @dataclass(slots=True)
@@ -329,7 +371,7 @@ class WebApplication:
                 self.lock,
                 self.identity,
                 self.assistant_max_open_jobs if self.identity.multi_user else None,
-                self.installable,
+                assistant_installable(self),
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
@@ -370,7 +412,20 @@ class WebApplication:
                 self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/writing-assistance"):
-            return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
+            return WritingAssistanceRouteServices(
+                self.writing_assistance,
+                writing_data_installable(self),
+                grammar_installable(self),
+            )
+        if path == "/api/capabilities":
+            return CapabilitiesRouteServices(
+                self.identity.multi_user,
+                self.syncable,
+                assistant_installable(self),
+                writing_data_installable(self),
+                grammar_installable(self),
+                self.identity.is_premium,
+            )
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
 
