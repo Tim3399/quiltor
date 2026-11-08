@@ -64,6 +64,7 @@ from quiltor.application.backups import WorldBackupContext as BackupContext
 from quiltor.application.backups.ports import SnapshotKind
 from quiltor.application.history import HistoryRevisionNotFound
 from quiltor.application.history.types import HistoryContext
+from quiltor.application.observability import StructuredLogger
 from quiltor.domain.text_offsets import utf16_offsets_to_indices
 
 FORMAT_VERSION = CURRENT_FORMAT_VERSION
@@ -453,9 +454,12 @@ class SnapshotStore:
         self,
         history_dir: Path | Callable[[], Path],
         remote_gateway: RemoteBackupGateway | None = None,
+        *,
+        structured_logger: StructuredLogger | None = None,
     ):
         self._history_dir = history_dir
         self._remote_gateway = remote_gateway
+        self._structured_logger = structured_logger
 
     @property
     def history_dir(self) -> Path:
@@ -867,7 +871,16 @@ class SnapshotStore:
         entry["id"] = manifest_identifier(entry, FORMAT_VERSION)
         entry = validate_manifest(entry, expected_world=ctx.root.name).document
         self._append_entry(ctx, entry)
-        self._append_label(ctx, entry["id"], kind)
+        try:
+            self._append_label(ctx, entry["id"], kind)
+        except OSError as error:
+            # The snapshot exists once its index line is written. A missing label only
+            # words the display, which then falls back to the stored name; a 500 here
+            # would make a retry say "already backed up" and skip the upload (T-165).
+            if self._structured_logger is not None:
+                self._structured_logger.event(
+                    "warning", "backup.label_failed", error_type=type(error).__name__
+                )
         log.append("Snapshot created.")
 
         warning = None

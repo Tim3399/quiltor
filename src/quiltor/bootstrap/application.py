@@ -168,7 +168,11 @@ def build_application_services(
             os.environ.get("QUILTOR_BACKUP_OIDC_ALLOW_INSECURE_LOOPBACK", "") == "1"
         ),
     )
-    history = SnapshotStore(lambda: worlds.data_directory / "history", remote_backups)
+    history = SnapshotStore(
+        lambda: worlds.data_directory / "history",
+        remote_backups,
+        structured_logger=observability.logger,
+    )
     synchronization = SynchronizationUseCases(
         worlds,
         documents,
