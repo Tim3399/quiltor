@@ -401,7 +401,7 @@ for (const viewport of [
         });
       }
 
-      await page.locator('.react-flow__node[data-id="graufurth"]').click();
+      await page.locator('.react-flow__node[data-id="x-graufurth"]').click();
       if (viewport.width <= 820) {
         const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
         await expect(sheet).toBeVisible();
