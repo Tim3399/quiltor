@@ -103,7 +103,7 @@ const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
  * rarer but did not remove it. A real design deviation moves thousands of pixels here, not
  * two -- the threshold separates them safely.
  */
-const LEINWAND_TOLERANZ = { maxDiffPixels: 24 } as const;
+const CANVAS_TOLERANCE = { maxDiffPixels: 24 } as const;
 
 /*
  * Wait until the canvas stands still.
@@ -113,7 +113,7 @@ const LEINWAND_TOLERANZ = { maxDiffPixels: 24 } as const;
  * elsewhere than in the reference. That looked like a design deviation and was a snapshot.
  * What is waited for is two identical transforms in a row.
  */
-async function stillstehendeLeinwand(page: Page) {
+async function waitForCanvasToSettle(page: Page) {
   const viewport = page.locator(".flow-area .react-flow__viewport").first();
   if ((await viewport.count()) === 0) return;
   let vorige: string | null = null;
@@ -146,7 +146,7 @@ async function fitUntilSettled(page: Page) {
   let previous: string | null = null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await fitView.click();
-    await stillstehendeLeinwand(page);
+    await waitForCanvasToSettle(page);
     const current = await viewport.getAttribute("style");
     if (current !== null && current === previous) return;
     previous = current;
@@ -182,7 +182,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");
     await expect(page).toHaveScreenshot(`${theme}-expanded-map.png`, {
       animations: "disabled",
-      ...LEINWAND_TOLERANZ,
+      ...CANVAS_TOLERANCE,
     });
   });
 
@@ -230,7 +230,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
       await fitUntilSettled(page);
     }
-    await stillstehendeLeinwand(page);
+    await waitForCanvasToSettle(page);
     if ((page.viewportSize()?.width ?? 0) < 720) {
       await expect(
         page.locator('.figure-workspace .react-flow__node[data-id="mara"] .story-node'),
@@ -241,7 +241,7 @@ for (const theme of ["light", "dark"] as const) {
     }
     await screenshotExpectation.toHaveScreenshot(`${theme}-figures.png`, {
       animations: "disabled",
-      ...LEINWAND_TOLERANZ,
+      ...CANVAS_TOLERANCE,
     });
 
     await page.getByRole("button", { name: "Timeline", exact: true }).click();
@@ -252,10 +252,10 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.getByRole("button", { name: "Orte", exact: true }).click();
     await expect(page.locator(".places-workspace")).toBeVisible();
-    await stillstehendeLeinwand(page);
+    await waitForCanvasToSettle(page);
     await screenshotExpectation.toHaveScreenshot(`${theme}-places.png`, {
       animations: "disabled",
-      ...LEINWAND_TOLERANZ,
+      ...CANVAS_TOLERANCE,
     });
 
     await page.keyboard.press("Control+KeyF");
@@ -399,7 +399,7 @@ for (const theme of ["light", "dark"] as const) {
       `${theme}-overview-favourites.png`,
       {
         animations: "disabled",
-        ...LEINWAND_TOLERANZ,
+        ...CANVAS_TOLERANCE,
       },
     );
   });
