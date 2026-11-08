@@ -38,7 +38,8 @@ for (const [label, height, width] of [
     const card = await seed(page, height, width);
     const open = card.getByRole("button", { name: "Original öffnen" });
     await expect(open).toBeVisible();
-    await expect(card.locator(".cm-line").first()).toBeVisible();
+    // The note opens with its card's title as a heading, which the card leaves out (T-185).
+    await expect(card.locator(".cm-line").filter({ hasText: "Kartographin" })).toBeVisible();
 
     const layout = await card.evaluate((element) => {
       const note = element.querySelector<HTMLElement>(".storyboard-node__note");

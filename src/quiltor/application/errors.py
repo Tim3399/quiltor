@@ -40,6 +40,24 @@ class InvalidApplicationInput(ApplicationError):
     code = "request.invalid"
 
 
+class SchemaNewerThanSupported(ApplicationError, ValueError):
+    """Stored data was written by a newer version than this one can read.
+
+    Raised for a world database, a restored version or a pulled snapshot whose schema is
+    ahead of this build. The author is told to update, instead of getting a generic
+    "invalid request". Still a ValueError: callers that already caught the old error keep
+    working.
+    """
+
+    code = "storage.schema_newer"
+
+    def __init__(self, found: int, supported: int) -> None:
+        super().__init__(
+            f"Database schema version {found} is newer than supported version {supported}.",
+            params={"found": found, "supported": supported},
+        )
+
+
 class ApplicationConflict(ApplicationError):
     code = "application.conflict"
     retryable = True
@@ -83,4 +101,5 @@ __all__ = [
     "ApplicationUnavailable",
     "InvalidApplicationInput",
     "PdfExportUnavailable",
+    "SchemaNewerThanSupported",
 ]

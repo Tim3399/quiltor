@@ -2,6 +2,7 @@ import type { ApplicationGateway } from "../application";
 import type { PlatformGateway } from "../PlatformGateway";
 import { createAssistantHttpGateway } from "./assistant";
 import { createBackupHttpGateway } from "./backup";
+import { createCapabilitiesHttpGateway } from "./capabilities";
 import {
   createDocumentsHttpGateway,
   createManuscriptHttpGateway,
@@ -26,6 +27,7 @@ export function createHttpApplicationGateway(platform: PlatformGateway): Applica
     metadata: createMetadataHttpGateway(),
     worlds: createWorldsHttpGateway(state),
     identity: createIdentityHttpGateway(),
+    capabilities: createCapabilitiesHttpGateway(),
     storyWorld: createStoryWorldHttpGateway(state),
     storyboards: createStoryboardsHttpGateway(state),
     manuscript: createManuscriptHttpGateway(state),

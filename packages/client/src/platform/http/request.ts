@@ -111,6 +111,7 @@ function localizedStructuredErrorMessage(
     return messages.cloudStaleComparison;
   if (code === "storage.full") return messages.errorStorageFull;
   if (code === "storage.locked") return messages.errorStorageLocked;
+  if (code === "storage.schema_newer") return messages.errorStorageSchemaNewer;
   if (code === "backup.preview_failed") return messages.errorBackupPreviewFailed;
   if (code === "backup_content_integrity") return messages.errorBackupContentIntegrity;
   if (code === "backup_content_unavailable") return messages.errorBackupContentUnavailable;

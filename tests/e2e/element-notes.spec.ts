@@ -193,6 +193,21 @@ test("a card whose element is gone says so and offers no editor", async ({ page 
   await expect(card.getByRole("textbox")).toHaveCount(0);
 });
 
+test("a card whose chapter sits in the trash says so instead of 'deleted'", async ({ page }) => {
+  const world = await seededWorld(page);
+  await page.goto(`/?world=${world.id}`);
+  await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  await openStoryboard(page, world.text("board.x.title"));
+
+  // The check board's card on the prologue, which the world keeps in the bin.
+  const card = page
+    .locator('[data-storyboard-node-kind="reference"]')
+    .filter({ hasText: world.text("ch.prologue.title") });
+  await expect(card.getByText("Kapitel im Papierkorb")).toBeVisible();
+  await expect(card.getByText("Element gelöscht")).toHaveCount(0);
+  await expect(card.getByRole("textbox")).toHaveCount(0);
+});
+
 test("the same chapter note edited in two tabs ends in a visible conflict (23)", async ({
   page,
   context,

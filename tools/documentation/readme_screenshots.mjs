@@ -24,9 +24,13 @@ export const README_VIEWS = [
   "world-graph",
   "timeline-playback",
   "timeline-manager",
+  "timeline-calendar",
   "places",
+  "places-map",
   "storyboard",
   "shared-notes",
+  "search",
+  "versions",
 ];
 
 /** Every language the pictures are taken in; each has its own folder and manifest. */

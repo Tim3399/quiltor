@@ -21,7 +21,10 @@ type ProfileLike = NoteRanges & { notes?: string };
 type FigureLike = { id: string; profile?: ProfileLike };
 type MomentLike = NoteRanges & { id: string; note?: string };
 
-export type ManuscriptNotes = { chapters: ChapterLike[] };
+export type ManuscriptNotes = {
+  chapters: ChapterLike[];
+  trash?: { chapter: { id: string } }[];
+};
 export type FigureNotes = { nodes: FigureLike[]; timeline?: MomentLike[] };
 
 function noteOf(text: string | undefined, ranges: NoteRanges): ElementNote {
@@ -49,6 +52,17 @@ export function resolveElementNote(
   // Places are figures of kind "ort": both kinds share the figure's profile note.
   const figure = figures.nodes.find((item) => item.id === target.id);
   return figure ? noteOf(figure.profile?.notes, figure.profile ?? {}) : null;
+}
+
+/**
+ * Whether `target` is a chapter that sits in the trash: gone from the book, but restorable
+ * with its note (F-177-10). A card then says so instead of "deleted".
+ */
+export function isChapterInTrash(target: ElementNoteTarget, manuscript: ManuscriptNotes): boolean {
+  return (
+    target.kind === "chapter" &&
+    (manuscript.trash ?? []).some((entry) => entry.chapter.id === target.id)
+  );
 }
 
 /** `manuscript` with the chapter's note replaced, or null when the chapter is gone. */
@@ -129,4 +143,32 @@ export function noteOwnerFamily(ownerKey: string): NoteFamily | null {
   if (kind === "entity" || kind === "place" || kind === "timeline") return "figures";
   if (kind === "storyboard") return "storyboards";
   return null;
+}
+
+function sameHeadingText(left: string, right: string): boolean {
+  const normalize = (text: string) => text.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  const wanted = normalize(right);
+  return wanted.length > 0 && normalize(left) === wanted;
+}
+
+/**
+ * How many leading lines a Storyboard card leaves out of its reading view (T-185): the first
+ * line of the note when it is a heading that repeats the card's title, plus the empty line
+ * after it. 0 when nothing is hidden. Display only -- the note itself is never changed.
+ *
+ * Whitespace and letter case do not count: a heading typed "MARA  VENN" still says what the
+ * card's title already says. Only the very first line qualifies; the same heading further down
+ * is content.
+ */
+export function titleHeadingLines(
+  note: Pick<ElementNote, "text"> & Partial<Pick<ElementNote, "noteMarks">>,
+  title: string,
+): number {
+  const end = note.text.indexOf("\n");
+  const lineEnd = end === -1 ? note.text.length : end;
+  const isHeading = (note.noteMarks ?? []).some(
+    (mark) => mark.kind === "heading" && mark.from === 0 && mark.to === lineEnd,
+  );
+  if (!isHeading || !sameHeadingText(note.text.slice(0, lineEnd), title)) return 0;
+  return note.text[lineEnd + 1] === "\n" ? 2 : 1;
 }

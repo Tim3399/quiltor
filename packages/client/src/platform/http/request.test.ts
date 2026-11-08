@@ -214,6 +214,7 @@ describe("HTTP application errors", () => {
     ["storage.read_only", "Speicher ist schreibgeschützt."],
     ["storage.full", "Nicht genug Speicherplatz."],
     ["storage.locked", "Das Projekt ist gerade für Schreibzugriffe gesperrt."],
+    ["storage.schema_newer", "Diese Daten stammen aus einer neueren Quiltor-Version."],
     ["backup.preview_failed", "Die Sicherung konnte nicht für die Vorschau geöffnet werden."],
     ["sync.forbidden_hosted", "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten."],
     ["install.forbidden_hosted", "Auf diesem Server richtet der Betreiber Erweiterungen ein."],

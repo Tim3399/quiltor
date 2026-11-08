@@ -22,6 +22,7 @@ import { Button, DropdownMenu, Field, IconButton, MenuItem, Popover } from "../.
 import { useI18n } from "../../i18n";
 import type { NoteHeadingLevel, NoteMark, NoteReference } from "../../shared";
 import { useLatest } from "../../shared/hooks/useLatest";
+import { pendingSelection, withPendingSelection } from "../../shared/pendingSelection";
 import {
   searchWorldReferences,
   type WorldReferenceCandidate,
@@ -404,6 +405,7 @@ export function ReferenceTextEditor({
       state: EditorState.create({
         doc: value,
         extensions: [
+          pendingSelection,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             "aria-label": ariaLabel,
@@ -545,11 +547,14 @@ export function ReferenceTextEditor({
     const nextReferences = reconcileNoteReferences(value, references);
     const currentText = view.state.doc.toString();
     setRenderedReferences(nextReferences);
-    view.dispatch({
-      ...(currentText === value ? {} : { changes: minimalChange(currentText, value) }),
-      effects: [setReferences.of(nextReferences), setNoteMarks.of(marks)],
-      annotations: controlledUpdate.of(true),
-    });
+    // Carries a native selection the view has not read yet when only decorations change (T-161).
+    view.dispatch(
+      withPendingSelection(view, {
+        ...(currentText === value ? {} : { changes: minimalChange(currentText, value) }),
+        effects: [setReferences.of(nextReferences), setNoteMarks.of(marks)],
+        annotations: controlledUpdate.of(true),
+      }),
+    );
   }, [marks, references, value]);
 
   useEffect(() => {

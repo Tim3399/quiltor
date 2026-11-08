@@ -1,8 +1,10 @@
 export {
   type ElementNote,
   type ElementNoteTarget,
+  isChapterInTrash,
   noteOwnerFamily,
   resolveElementNote,
+  titleHeadingLines,
   withChapterNote,
   withFigureNote,
 } from "./elementNotes";
