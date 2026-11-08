@@ -38,7 +38,6 @@ from quiltor.modules.identity.service import Identity
 from quiltor.modules.writing_assistance import WritingAssistanceService
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
-TOKEN_LEEWAY = 30
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,18 +314,14 @@ class WebApplication:
     def redeem_render_token(self, token: str) -> str | None:
         return self.identity.redeem_render_token(token)
 
-    def session_backup_token(self, session: SessionData | None) -> str:
-        if session is None:
-            return ""
-        return self.identity.auth.session_access_token(session.session_id, leeway=TOKEN_LEEWAY)
-
     def backup_authorization(
         self, base_url: str, session: SessionData | None
     ) -> BackupAuthorization:
+        # A hosted server offers no device sync (D-61), so no route reaches this there
+        # (T-87 S). Refuse rather than fall back to the local login: that credential
+        # belongs to whoever runs the process, not to the person asking (T-157).
         if self.identity.multi_user:
-            return self.backup_authorizer.authorize_hosted(
-                base_url, self.session_backup_token(session)
-            )
+            raise PermissionError("Device sync is not offered on a hosted server.")
         return self.backup_authorizer.authorize_local(base_url)
 
     def close(self) -> None:
@@ -476,12 +471,7 @@ def build_web_application(
         capabilities=capabilities,
         inference=inference,
     )
-    backup_authorizer = build_backup_authorizer(
-        application.backups,
-        expected_hosted_issuer=(
-            selected_identity.auth.issuer if selected_identity.multi_user else ""
-        ),
-    )
+    backup_authorizer = build_backup_authorizer(application.backups)
     version_file = resources.version_file()
     version = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "dev"
     return WebApplication(

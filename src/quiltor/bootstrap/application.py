@@ -215,16 +215,11 @@ def build_application_services(
     )
 
 
-def build_backup_authorizer(
-    backups: BackupUseCases,
-    *,
-    expected_hosted_issuer: str = "",
-) -> EndpointBoundBackupAuthorizer:
+def build_backup_authorizer(backups: BackupUseCases) -> EndpointBoundBackupAuthorizer:
     return EndpointBoundBackupAuthorizer(
         default_endpoint=backups.default_endpoint,
         environment_token=lambda: os.environ.get("QUILTOR_BACKUP_TOKEN", ""),
         endpoint_token=backups.access_token,
-        expected_hosted_issuer=expected_hosted_issuer,
     )
 
 
