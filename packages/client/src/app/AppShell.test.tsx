@@ -163,6 +163,38 @@ describe("AppShell", () => {
     }
   });
 
+  it("does not show a minute too little while the clock sits between two ticks", () => {
+    vi.useFakeTimers();
+    try {
+      // 29 s past a tick boundary, saved exactly five minutes ago.
+      const now = Date.UTC(2026, 8, 3, 12, 0, 29);
+      vi.setSystemTime(now);
+      render(
+        <I18nProvider>
+          <AppShell
+            title="Welt"
+            workspace="text"
+            onWorkspace={() => undefined}
+            phase="saved"
+            savedAt={now - 5 * 60_000}
+            retry={() => undefined}
+            theme="light"
+            onTheme={() => undefined}
+            onSearch={() => undefined}
+            onVersions={() => undefined}
+            onAssistant={() => undefined}
+            onExitWorld={() => undefined}
+          >
+            <div />
+          </AppShell>
+        </I18nProvider>,
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("vor 5 Min.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps the save state in the bar and the document facts in the status line", () => {
     vi.stubGlobal(
       "matchMedia",

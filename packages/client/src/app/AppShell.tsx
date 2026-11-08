@@ -45,6 +45,10 @@ const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
 // so it is stable between ticks (as useSyncExternalStore requires) and a render that happens
 // long after the last tick still sees the right time, without an effect to catch up. The timer
 // is armed for the next tick boundary and runs only while `active`.
+//
+// The tick only says when to render again; the age itself is measured from the real clock.
+// Measured from the tick boundary it would lag up to 30 s, and since relativeTime rounds down
+// the bar would show a minute too little for that long.
 const TICK_MS = 30_000;
 const readTick = () => Math.floor(Date.now() / TICK_MS);
 
@@ -67,7 +71,8 @@ function useMinuteTick(active: boolean) {
     },
     [active],
   );
-  return useSyncExternalStore(subscribe, readTick) * TICK_MS;
+  useSyncExternalStore(subscribe, readTick);
+  return Date.now();
 }
 
 export function AppShell({
