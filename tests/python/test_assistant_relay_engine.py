@@ -209,6 +209,74 @@ class RelayDeliveryTests(RelayTestCase):
         self.assertEqual(str(call.error), "cancelled")
 
 
+class RelayAfterTheJobTests(RelayTestCase):
+    """What happens once a job's engine is closed (T-61 Teil 2, Critic r1)."""
+
+    def _one_call(self) -> None:
+        call = Call(self.engine)
+        ticket = present(self.pick_up())
+        self.answer(ticket.token, _output("{}"))
+        call.join()
+        self.assertIsNone(call.error)
+
+    def test_after_close_the_next_call_ends_at_once_and_opens_no_ticket(self):
+        """F-61-12: a cancel between two model calls of the pipeline."""
+        self._one_call()
+        self.engine.close()
+        call = Call(self.engine)
+        call.join(timeout=1)
+        self.assertIsInstance(call.error, InferenceUnavailableError)
+        self.assertEqual(str(call.error), "cancelled")
+        self.assertEqual(
+            [t for t in self.tickets._tickets.values() if t.state in {"issued", "delivered"}], []
+        )
+
+    def test_the_own_session_polling_a_finished_job_is_no_failure(self):
+        """F-61-13: the browser does not know which ticket was the last one."""
+        for index in range(7):
+            job_id = f"job-{index}"
+            self.tickets.bind_job(job_id, **ALICE)
+            engine = RelayInferenceEngine(
+                self.tickets, job_id, {"kind": "webllm", "grammar": True}, clock=self.clock
+            )
+            call = Call(engine)
+            ticket = present(self.tickets.next_for(**ALICE, job_id=job_id, wait=2))
+            self.tickets.answer(ticket.token, **ALICE, answer=_output("{}"))
+            call.join()
+            engine.close()
+            started = time.monotonic()
+            self.assertIsNone(self.tickets.next_for(**ALICE, job_id=job_id, wait=2))
+            self.assertLess(time.monotonic() - started, 1)
+        # Still the right session after seven finished jobs: nothing was counted.
+        self.assertEqual(len(self.tickets._recent_failures(ALICE["session_id"])), 0)
+
+    def test_another_session_polling_a_finished_job_still_fails(self):
+        self._one_call()
+        self.engine.close()
+        stranger = {**ALICE, "session_id": "session-b"}
+        for _ in range(4):
+            with self.assertRaises(RelayTicketNotFound):
+                self.tickets.next_for(**stranger, job_id=JOB, wait=0)
+        with self.assertRaises(RelayTooManyFailures):
+            self.tickets.next_for(**stranger, job_id=JOB, wait=0)
+
+    def test_a_poll_waiting_while_the_job_ends_returns_at_once(self):
+        """The long poll stops when the job is released, not at its own deadline."""
+        result: list[Any] = []
+        poll = threading.Thread(
+            target=lambda: result.append(self.tickets.next_for(**ALICE, job_id=JOB, wait=10)),
+            daemon=True,
+        )
+        poll.start()
+        time.sleep(0.1)
+        started = time.monotonic()
+        self.engine.close()
+        poll.join(2)
+        self.assertFalse(poll.is_alive())
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertEqual(result, [None])
+
+
 class RelayOutputTests(RelayTestCase):
     def _answered(self, answer: dict[str, Any], payload: dict[str, Any] = PAYLOAD) -> Call:
         call = Call(self.engine, payload)

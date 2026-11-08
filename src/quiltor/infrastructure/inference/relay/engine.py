@@ -79,6 +79,9 @@ class RelayInferenceEngine:
         self._job_deadline = clock() + job_seconds
         self._job_seconds = job_seconds
         self._calibration = 1.0
+        # Set by close(): a closed engine opens no further ticket (F-61-12). The pipeline
+        # may call invoke again between two model calls after the job was cancelled.
+        self._closed = False
 
     @property
     def identity(self) -> str:
@@ -96,7 +99,11 @@ class RelayInferenceEngine:
         }
 
     def close(self) -> None:
-        """Release a waiting call (it raises at once) and forget the job's tickets."""
+        """Release a waiting call (it raises at once) and forget the job's tickets.
+
+        Every later call ends at once as cancelled, so nothing waits for a browser that
+        can no longer pick a ticket up."""
+        self._closed = True
         self._tickets.cancel(self._job_id)
         self._tickets.release_job(self._job_id)
 
@@ -125,6 +132,8 @@ class RelayInferenceEngine:
         self._calibration = min(CALIBRATION_MAX, max(CALIBRATION_MIN, blended))
 
     def invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self._closed:
+            raise InferenceUnavailableError("cancelled")
         if self._clock() >= self._job_deadline:
             raise InferenceTimeoutError(self._job_seconds)
         request = payload if self._engine.get("grammar") else json_object_fallback(payload)

@@ -37,6 +37,9 @@ JOB_SECONDS = 20 * 60.0
 TICKET_CAPACITY = 256
 FAILURE_LIMIT = 5
 FAILURE_WINDOW_SECONDS = 600.0
+#: How long a finished job is remembered, so its own session may still poll it once
+#: without that counting as a failure (the browser cannot know which ticket was the last).
+FINISHED_SECONDS = FAILURE_WINDOW_SECONDS
 #: How often a waiter looks at the clock even when nobody notifies it.
 _POLL_SECONDS = 0.05
 
@@ -109,6 +112,8 @@ class RelayTicketStore:
         self._bindings: dict[str, JobBinding] = {}
         self._expected_seq: dict[str, int] = {}
         self._cancelled_jobs: set[str] = set()
+        # job id -> (binding it had, until when it is remembered as finished)
+        self._finished: dict[str, tuple[JobBinding, float]] = {}
         self._tickets: dict[str, Ticket] = {}
         self._failures: dict[str, deque[float]] = {}
         self._closed = False
@@ -124,9 +129,15 @@ class RelayTicketStore:
             self._expected_seq.setdefault(job_id, 0)
 
     def release_job(self, job_id: str) -> None:
-        """Forget a finished job and every ticket it left."""
+        """Forget a finished job and every ticket it left.
+
+        Its binding is kept for a while as a finished marker: the job's own session still
+        polling it gets nothing, without a failure counted; anyone else still fails.
+        """
         with self._condition:
-            self._bindings.pop(job_id, None)
+            binding = self._bindings.pop(job_id, None)
+            if binding is not None:
+                self._finished[job_id] = (binding, self._clock() + FINISHED_SECONDS)
             self._expected_seq.pop(job_id, None)
             self._cancelled_jobs.discard(job_id)
             for token in [t for t, ticket in self._tickets.items() if ticket.job_id == job_id]:
@@ -221,13 +232,17 @@ class RelayTicketStore:
         like an unknown one.
         """
         deadline = self._clock() + wait
+        caller = JobBinding(sub, session_id, world_id)
         with self._condition:
             self._refuse_if_blocked(session_id)
+            self._forget_finished()
             binding = self._bindings.get(job_id)
-            if binding != JobBinding(sub, session_id, world_id):
+            if binding is None and self._finished.get(job_id, (None, 0.0))[0] == caller:
+                return None
+            if binding != caller:
                 self._fail(session_id, RelayTicketNotFound())
             while True:
-                if self._closed:
+                if self._closed or self._bindings.get(job_id) != caller:
                     return None
                 self._expire_overdue()
                 for ticket in self._tickets.values():
@@ -279,6 +294,11 @@ class RelayTicketStore:
                 and now >= ticket.answer_by
             ):
                 ticket.state = "expired"
+
+    def _forget_finished(self) -> None:
+        now = self._clock()
+        for job_id in [j for j, (_, until) in self._finished.items() if until <= now]:
+            self._finished.pop(job_id, None)
 
     def _recent_failures(self, session_id: str) -> deque[float]:
         failures = self._failures.setdefault(session_id, deque())
