@@ -1,5 +1,4 @@
 export const tools = {
-  cloudTitle: "Cloud-Synchronisation",
   cloudManualExplanation:
     "Der Abgleich überträgt deine Versionen zu einem Server, damit du auf anderen Geräten weiterschreiben kannst. Er startet nur, wenn du ihn auslöst.",
   cloudLocalIndependence:
