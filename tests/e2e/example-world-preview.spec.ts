@@ -106,6 +106,21 @@ test.describe("example world preview", () => {
     expect(await listedIds(page)).toContain(id);
   });
 
+  test("a preview offers no versions or sync until its first change", async ({ page }) => {
+    await page.goto("/");
+    await openExampleFromHelp(page);
+    const more = page.getByRole("button", { name: "Mehr" });
+    const versions = page.getByRole("menuitem", { name: "Versionen & Sicherungen" });
+    await more.click();
+    await expect(page.getByRole("menuitem", { name: "Zur Weltauswahl" })).toBeVisible();
+    await expect(versions).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await (await typeIntoFirstChapter(page)).finished();
+    await expect(page.getByRole("status").filter({ hasText: PREVIEW_BAR })).toHaveCount(0);
+    await more.click();
+    await expect(versions).toBeVisible();
+  });
+
   test("leaving it unchanged discards it", async ({ page }) => {
     await page.goto("/");
     const id = await openExampleFromHelp(page);

@@ -218,7 +218,11 @@ def delete_world(
     *,
     paths: config.SQLitePaths,
 ) -> None:
-    """Move a world to its owner's persistent trash."""
+    """Move a world to its owner's persistent trash.
+
+    A preview of the example world is discarded instead: it holds none of the author's work,
+    and in the trash it would be listed nowhere and never swept.
+    """
 
     if not WORLD_ID_RE.fullmatch(world_id):
         raise ValueError("Invalid world identifier.")
@@ -227,6 +231,9 @@ def delete_world(
         raise FileNotFoundError("This world does not exist.")
     if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
         raise PermissionError("This world belongs to a different account.")
+    if _preview_created_at(path):
+        _remove_world_files(world_id, path, paths=paths)
+        return
     with connection(path) as database:
         deleted_row = database.execute("SELECT value FROM meta WHERE key='deleted_at'").fetchone()
         if deleted_row and deleted_row[0]:

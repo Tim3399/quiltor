@@ -121,7 +121,8 @@ export function AppShell({
   navigationOpen?: boolean;
   onNavigation?: () => void;
   onSearch: () => void;
-  onVersions: () => void;
+  /** Left out while the open world is an example preview: it is neither synced nor versioned. */
+  onVersions?: () => void;
   onExportProject?: () => void;
   onGettingStarted?: () => void;
   onAssistant: () => void;
@@ -231,7 +232,9 @@ export function AppShell({
               onSelect={onExitWorld}
             />
             <MenuSeparator />
-            <MenuItem icon={<History />} label={t("versionsAndBackups")} onSelect={onVersions} />
+            {onVersions && (
+              <MenuItem icon={<History />} label={t("versionsAndBackups")} onSelect={onVersions} />
+            )}
             {onExportProject && (
               <MenuItem
                 icon={<Download />}

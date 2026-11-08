@@ -839,7 +839,8 @@ export function App() {
       if (workspace.execute(command)) return;
       // The palette ids stay what they were; each now names a way into the versions dialog.
       const versions = versionsOptionsForCommand(command);
-      if (versions) overlays.open("versions", versions);
+      // A preview is neither synced nor versioned, so the palette leads nowhere there either.
+      if (versions && !openPreviewRef.current) overlays.open("versions", versions);
     },
     [overlays.close, overlays.open, workspace.execute],
   );
@@ -904,7 +905,11 @@ export function App() {
             theme={theme}
             onTheme={toggleTheme}
             onSearch={() => overlays.open("palette")}
-            onVersions={() => overlays.open("versions", { tab: "versions" })}
+            onVersions={
+              session.world.preview
+                ? undefined
+                : () => overlays.open("versions", { tab: "versions" })
+            }
             onExportProject={() => setProjectExportOpen(true)}
             onGettingStarted={() => setGettingStartedOpen(true)}
             onAssistant={overlays.toggleAssistant}

@@ -290,6 +290,26 @@ class ExampleWorldPreviewRouteTests(unittest.TestCase):
         self.assertEqual(self._list(), [])
         self.assertEqual(self._open(world["id"])[0], 404)
 
+    def test_deleting_a_preview_discards_it_instead_of_trashing_it(self):
+        world = self._open_example()
+        status, answer, _ = self.server.json("POST", "/api/worlds/delete", {"id": world["id"]})
+        self.assertEqual((status, answer.get("ok")), (200, True), answer)
+        self.assertEqual(self._world_files(world["id"]), [])
+        self.assertEqual(
+            world_catalog.list_worlds(None, paths=self.paths, deleted=True, preview=None), []
+        )
+        self.assertEqual(world_catalog.list_worlds(None, paths=self.paths, preview=None), [])
+        self.assertEqual(self._open(world["id"])[0], 404)
+
+    def test_deleting_a_changed_example_world_still_trashes_it(self):
+        world = self._open_example()
+        self._change_manuscript(world["id"])
+        status, answer, _ = self.server.json("POST", "/api/worlds/delete", {"id": world["id"]})
+        self.assertEqual(status, 200, answer)
+        self.assertTrue(self._world_files(world["id"]))
+        status, trash, _ = self.server.json("GET", "/api/worlds/trash")
+        self.assertEqual([w["id"] for w in trash["worlds"]], [world["id"]])
+
     def test_leaving_a_changed_world_keeps_it(self):
         world = self._open_example()
         self._change_manuscript(world["id"])
