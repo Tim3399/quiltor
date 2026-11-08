@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import contextlib
+import errno
 import re
 import shutil
 import sqlite3
+import time
 import uuid
+from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -30,16 +33,51 @@ def world_db_path(world_id: str, *, paths: config.SQLitePaths) -> Path:
     return paths.worlds / f"{world_id}.sqlite3"
 
 
+# A file another handle still holds open cannot be removed on Windows; the handle is usually
+# a request that is about to finish (the page's own beacon, a read in flight). These waits add
+# up to about 1.5 s, which is longer than any such request takes and short enough to answer.
+_REMOVE_RETRY_DELAYS = (0.05, 0.1, 0.2, 0.4, 0.8)
+
+
+@contextlib.contextmanager
+def _open_existing(path: Path) -> Iterator[sqlite3.Connection]:
+    """A world's database, never made on the way: a missing one, or one that holds no world
+    (a file removed or half-removed meanwhile), is FileNotFoundError."""
+
+    try:
+        with connection(path, must_exist=True) as database:
+            yield database
+    except sqlite3.OperationalError as error:
+        message = str(error)
+        if "unable to open database file" in message or "no such table: meta" in message:
+            raise FileNotFoundError("This world does not exist.") from error
+        raise
+
+
 def get_world_owner(world_id: str, *, paths: config.SQLitePaths) -> str | None:
+    """The owner of a world, or None when there is no such world (any more).
+
+    A world that exists but cannot be read raises the sqlite error: that is a storage
+    failure, and it must not be mistaken for a world that belongs to somebody else.
+    """
+
     path = world_db_path(world_id, paths=paths)
     if not path.exists():
         return None
     try:
-        with connection(path) as database:
+        with _open_existing(path) as database:
             row = database.execute("SELECT value FROM meta WHERE key='owner_sub'").fetchone()
-        return row[0] if row and row[0] else config.LOCAL_OWNER
-    except sqlite3.Error:
+    except FileNotFoundError:
         return None
+    return row[0] if row and row[0] else config.LOCAL_OWNER
+
+
+def _require_owner(world_id: str, owner_sub: str | None, *, paths: config.SQLitePaths) -> None:
+    owner = get_world_owner(world_id, paths=paths)
+    if owner is None:
+        raise FileNotFoundError("This world does not exist.")
+    if owner_sub is not None and owner != owner_sub:
+        raise PermissionError("This world belongs to a different account.")
 
 
 def list_worlds(
@@ -229,12 +267,11 @@ def delete_world(
     path = world_db_path(world_id, paths=paths)
     if not path.exists():
         raise FileNotFoundError("This world does not exist.")
-    if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
-        raise PermissionError("This world belongs to a different account.")
+    _require_owner(world_id, owner_sub, paths=paths)
     if _preview_created_at(path):
         _remove_world_files(world_id, path, paths=paths)
         return
-    with connection(path) as database:
+    with _open_existing(path) as database:
         deleted_row = database.execute("SELECT value FROM meta WHERE key='deleted_at'").fetchone()
         if deleted_row and deleted_row[0]:
             raise FileNotFoundError("This world does not exist.")
@@ -271,6 +308,24 @@ def purge_world(
     _remove_world_files(world_id, path, paths=paths)
 
 
+def _retry_while_held(action: Callable[[], None]) -> None:
+    """Run a removal again while the file is held open; give up as "busy", not "forbidden".
+
+    Windows answers an unlink of an open file with PermissionError, which the API reports as
+    403 "belongs to a different account". Nothing here is about ownership, so what remains
+    after the last try is EBUSY (503, storage.locked): the caller may try again.
+    """
+
+    for delay in (*_REMOVE_RETRY_DELAYS, None):
+        try:
+            action()
+            return
+        except PermissionError as error:
+            if delay is None:
+                raise OSError(errno.EBUSY, "A file of this world is still in use.") from error
+            time.sleep(delay)
+
+
 def _remove_world_files(world_id: str, path: Path, *, paths: config.SQLitePaths) -> None:
     for directory in (
         paths.backups / world_id,
@@ -279,14 +334,14 @@ def _remove_world_files(world_id: str, path: Path, *, paths: config.SQLitePaths)
         paths.data / "profiles" / world_id,
     ):
         with contextlib.suppress(FileNotFoundError):
-            shutil.rmtree(directory)
+            _retry_while_held(lambda directory=directory: shutil.rmtree(directory))
     for database_file in (Path(f"{path}-wal"), Path(f"{path}-shm"), path):
-        database_file.unlink(missing_ok=True)
+        _retry_while_held(lambda database_file=database_file: database_file.unlink(missing_ok=True))
     _purge_migration_copies(world_id, paths=paths)
 
 
 def _preview_created_at(path: Path) -> str:
-    with connection(path) as database:
+    with _open_existing(path) as database:
         row = database.execute(
             "SELECT value FROM meta WHERE key=?", (config.PREVIEW_KEY,)
         ).fetchone()
@@ -310,8 +365,7 @@ def discard_preview_world(
     path = world_db_path(world_id, paths=paths)
     if not path.exists():
         raise FileNotFoundError("This world does not exist.")
-    if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
-        raise PermissionError("This world belongs to a different account.")
+    _require_owner(world_id, owner_sub, paths=paths)
     if not _preview_created_at(path):
         raise ValueError("Only a preview of the example world can be discarded.")
     _remove_world_files(world_id, path, paths=paths)
@@ -411,7 +465,7 @@ def _purge_migration_copies(world_id: str, *, paths: config.SQLitePaths) -> None
     )
     for candidate in paths.worlds.glob(f"{world_id}.pre-migration-v*.sqlite3*"):
         if copy_name.fullmatch(candidate.name):
-            candidate.unlink(missing_ok=True)
+            _retry_while_held(lambda candidate=candidate: candidate.unlink(missing_ok=True))
 
 
 def _require_trashed_world(
@@ -425,9 +479,8 @@ def _require_trashed_world(
     path = world_db_path(world_id, paths=paths)
     if not path.exists():
         raise FileNotFoundError("This world does not exist.")
-    if owner_sub is not None and get_world_owner(world_id, paths=paths) != owner_sub:
-        raise PermissionError("This world belongs to a different account.")
-    with connection(path) as database:
+    _require_owner(world_id, owner_sub, paths=paths)
+    with _open_existing(path) as database:
         deleted_row = database.execute("SELECT value FROM meta WHERE key='deleted_at'").fetchone()
     if not deleted_row or not deleted_row[0]:
         raise ValueError("Only trashed worlds can be restored or permanently deleted.")
