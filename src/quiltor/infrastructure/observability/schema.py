@@ -169,6 +169,9 @@ EVENTS: dict[str, frozenset[str]] = {
     "backup.remote_request_failed": frozenset({"request_id", "operation", "error_type"}),
     # Never email or name: `sub` is the one identifier an operator needs (D-49).
     "identity.login_without_roles": frozenset({"request_id", "sub", "roles_claim_present"}),
+    # modules/assistant/jobs.py, when the job queue itself fails under a worker: which
+    # worker (server or client) and the exception's type; the worker keeps running (T-61).
+    "assistant.claim_failed": frozenset({"operation", "error_type"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their

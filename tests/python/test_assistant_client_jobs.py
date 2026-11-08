@@ -189,7 +189,7 @@ class ClientJobRunnerTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def _runner(self, *, factory: bool = True) -> AssistantJobRunner:
-        def client_runtime(job: dict[str, Any]) -> _BlockingRuntime:
+        def client_runtime(job: dict[str, Any], request: dict[str, Any]) -> _BlockingRuntime:
             return self.clients.setdefault(job["_ownerSub"], _BlockingRuntime())
 
         return AssistantJobRunner(

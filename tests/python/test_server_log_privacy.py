@@ -415,6 +415,27 @@ class _PrivacyServer(_LiveServer):
             with self.assertRaises(RuntimeError):
                 gateway.worlds(f"https://{path}.example", MagicMock())
 
+    def scenario_assistant_claim(self):
+        # The job queue fails under a worker (T-61): the line names the worker and the
+        # exception's type, never its text, which can carry a path or a world's name.
+        from quiltor.modules.assistant import jobs as assistant_jobs
+
+        runner = assistant_jobs.AssistantJobRunner(
+            MagicMock(),
+            store_factory=MagicMock(),
+            interaction_logger=MagicMock(),
+            world_access=MagicMock(),
+            structured_logger=self.application.observability.logger,
+            metrics=MagicMock(),
+        )
+        failure = sqlite3.OperationalError(f"{CANARIES['exception']} {CANARIES['file_path']}.db")
+
+        def claim():
+            raise failure
+
+        with patch.object(assistant_jobs, "CLAIM_RETRY_SECONDS", 0):
+            self.assertIsNone(runner._claim(claim, "client"))
+
     SCENARIOS = (
         "scenario_content",
         "scenario_rejected_saves",
@@ -427,6 +448,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_operator_only",
         "scenario_backup",
         "scenario_backup_remote",
+        "scenario_assistant_claim",
     )
 
 

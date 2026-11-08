@@ -6,10 +6,10 @@ import os
 import secrets
 import sys
 import threading
-from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import Any, NoReturn, cast
 
 from quiltor import resources
 from quiltor.application.assistant import AssistantAuditUseCases
@@ -43,6 +43,7 @@ from quiltor.infrastructure.identity import (
 )
 from quiltor.infrastructure.inference.engine import LocalInferenceEngine
 from quiltor.infrastructure.inference.installation import LocalAssistantInstallation
+from quiltor.infrastructure.inference.relay import RelayInferenceEngine, RelayTicketStore
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
 from quiltor.infrastructure.observability import (
     InMemoryMetrics,
@@ -106,6 +107,8 @@ class ObservabilityServices:
 class AssistantServices:
     runtime: AssistantRuntime
     jobs: AssistantJobRunner
+    # Hands the model calls of client-engine jobs to the browser (T-61).
+    relay_tickets: RelayTicketStore = field(default_factory=RelayTicketStore)
 
 
 @dataclass(frozen=True, slots=True)
@@ -398,6 +401,44 @@ def assistant_client_job_slots(configured: str) -> int:
     return int(configured)
 
 
+#: A client runtime estimates tokens without a tokenizer, so its cache stays small.
+CLIENT_TOKEN_CACHE_BYTES = 256 * 1024
+
+
+def client_runtime_factory(
+    *,
+    base: Path,
+    data: Path,
+    progress: Any,
+    read_tools: Any,
+    tickets: RelayTicketStore,
+    debug_enabled: bool,
+    token_cache: Callable[[], Any],
+) -> Callable[[dict[str, Any], dict[str, Any]], AssistantRuntime]:
+    """Build a runtime of its own for each client-engine job (T-61, F6).
+
+    Its own token cache too (F-61-1): the shared cache keeps one identity and empties
+    itself on every change, so a client job running beside the server would otherwise
+    throw away the server's counts, and race them.
+    """
+
+    def build(job: dict[str, Any], request: dict[str, Any]) -> AssistantRuntime:
+        engine = request.get("engine")
+        if not isinstance(engine, dict):
+            engine = {"kind": job.get("engine"), "grammar": False}
+        return AssistantRuntime(
+            base,
+            data,
+            RelayInferenceEngine(tickets, str(job["id"]), engine),
+            progress=progress,
+            read_tools=read_tools,
+            token_cache=token_cache(),
+            debug_enabled=debug_enabled,
+        )
+
+    return build
+
+
 def build_assistant_services(
     *,
     base: Path,
@@ -408,15 +449,19 @@ def build_assistant_services(
     capabilities: FeatureAvailability,
     inference: InferenceEngine | None = None,
 ) -> AssistantServices:
+    progress = SQLiteAssistantProgressStore(data / "assistant-progress.sqlite3")
+    read_tools = StoryWorldReadTools()
+    debug_enabled = bool(os.environ.get("QUILTOR_AI_DEBUG"))
     runtime = AssistantRuntime(
         base,
         data,
         inference or LocalInferenceEngine(base, data, capabilities),
-        progress=SQLiteAssistantProgressStore(data / "assistant-progress.sqlite3"),
-        read_tools=StoryWorldReadTools(),
+        progress=progress,
+        read_tools=read_tools,
         token_cache=BoundedTokenCountCache(),
-        debug_enabled=bool(os.environ.get("QUILTOR_AI_DEBUG")),
+        debug_enabled=debug_enabled,
     )
+    tickets = RelayTicketStore()
     interactions = LockedAssistantInteractionLogger(assistant, lock)
     jobs = AssistantJobRunner(
         runtime,
@@ -425,13 +470,21 @@ def build_assistant_services(
         world_access=ApplicationAssistantWorldAccess(assistant),
         structured_logger=observability.logger,
         metrics=observability.metrics,
-        # No client engine before T-61 Teil 2: such a job fails as unavailable.
-        client_runtime_factory=None,
+        client_runtime_factory=client_runtime_factory(
+            base=base,
+            data=data,
+            progress=progress,
+            read_tools=read_tools,
+            tickets=tickets,
+            debug_enabled=debug_enabled,
+            # A fresh cache per job, never the server runtime's (F-61-1).
+            token_cache=lambda: BoundedTokenCountCache(max_bytes=CLIENT_TOKEN_CACHE_BYTES),
+        ),
         client_slots=assistant_client_job_slots(
             os.environ.get("QUILTOR_ASSISTANT_CLIENT_JOBS", "")
         ),
     )
-    return AssistantServices(runtime, jobs)
+    return AssistantServices(runtime, jobs, tickets)
 
 
 def build_writing_assistance_service(

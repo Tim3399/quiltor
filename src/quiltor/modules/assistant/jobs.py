@@ -30,9 +30,13 @@ TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 DEFAULT_CLIENT_JOB_SLOTS = 8
 MAX_CLIENT_JOB_SLOTS = 64
 
-#: Builds the runtime that computes one client-engine job, or None when this build has
-#: no client engine yet. Its runtime must not share state with the server runtime.
-ClientRuntimeFactory = Callable[[dict[str, Any]], Any]
+#: Builds the runtime that computes one client-engine job from the claimed job and its
+#: stored request, or None when there is no client engine. The runtime must not share
+#: state with the server runtime; its close() releases whatever waits for the browser.
+ClientRuntimeFactory = Callable[[dict[str, Any], dict[str, Any]], Any]
+
+#: Seconds a worker pauses after the queue itself failed (a locked database, say).
+CLAIM_RETRY_SECONDS = 1.0
 
 
 def _stale_world_result(
@@ -202,6 +206,10 @@ class AssistantJobRunner:
         self._start_lock = threading.Lock()
         self._thread: threading.Thread | None = None
         self._client_thread: threading.Thread | None = None
+        # Client jobs in flight: their threads, and their runtimes once built.
+        self._active_lock = threading.Lock()
+        self._active_threads: dict[str, threading.Thread] = {}
+        self._active_runtimes: dict[str, Any] = {}
 
     @property
     def store(self) -> AssistantJobStore:
@@ -227,12 +235,20 @@ class AssistantJobRunner:
             self._client_thread.start()
 
     def close(self, timeout: float = 2.0) -> None:
+        """Stop the workers. A client job still waiting for its browser is released (its
+        runtime closed, so the wait ends at once) and joined, so no thread outlives this."""
         self._stop.set()
         self._wake.set()
         self._client_wake.set()
-        for thread in (self._thread, self._client_thread):
+        with self._active_lock:
+            runtimes = list(self._active_runtimes.values())
+            threads = list(self._active_threads.values())
+        for runtime in runtimes:
+            self._close_runtime(runtime)
+        deadline = time.monotonic() + timeout
+        for thread in (self._thread, self._client_thread, *threads):
             if thread is not None and thread.is_alive():
-                thread.join(timeout=timeout)
+                thread.join(timeout=max(0.0, deadline - time.monotonic()))
 
     def submit(self, **kwargs: Any) -> tuple[dict[str, Any], bool]:
         self.start()
@@ -250,6 +266,13 @@ class AssistantJobRunner:
     def cancel(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None:
         self.start()
         result = self.store.cancel(job_id, owner_sub, world_id)
+        # A client job waits for its browser; release that wait now, so the account's one
+        # client slot is free at once and not only after the answer deadline (F-61-5).
+        if result is not None and result.get("cancelRequested"):
+            with self._active_lock:
+                runtime = self._active_runtimes.get(job_id)
+            if runtime is not None:
+                self._close_runtime(runtime)
         self._wake.set()
         return result
 
@@ -274,9 +297,20 @@ class AssistantJobRunner:
                 )
             time.sleep(0.25)
 
+    def _claim(self, claim: Callable[[], dict[str, Any] | None], worker: str):
+        """One claim; a failing queue (locked or unreadable) pauses the worker, never ends it."""
+        try:
+            return claim()
+        except Exception as exc:  # noqa: BLE001 - the worker must outlive a failing queue
+            self.structured_logger.event(
+                "error", "assistant.claim_failed", operation=worker, error_type=type(exc).__name__
+            )
+            self._stop.wait(timeout=CLAIM_RETRY_SECONDS)
+            return None
+
     def _run(self) -> None:
         while not self._stop.is_set():
-            job = self.store.claim_next_server()
+            job = self._claim(self.store.claim_next_server, "server")
             if job is None:
                 self._wake.wait(timeout=0.5)
                 self._wake.clear()
@@ -288,36 +322,52 @@ class AssistantJobRunner:
         while not self._stop.is_set():
             if not self._client_slots.acquire(timeout=0.5):
                 continue
-            job = None
-            try:
-                job = self.store.claim_next_client()
-            finally:
-                if job is None:
-                    self._client_slots.release()
+            job = self._claim(self.store.claim_next_client, "client")
             if job is None:
+                self._client_slots.release()
                 self._client_wake.wait(timeout=0.5)
                 self._client_wake.clear()
                 continue
-            threading.Thread(
+            job_id = str(job["id"])
+            thread = threading.Thread(
                 target=self._run_client_job,
                 args=(job,),
-                name=f"quiltor-assistant-client-job-{job['id']}",
+                name=f"quiltor-assistant-client-job-{job_id}",
                 daemon=True,
-            ).start()
+            )
+            with self._active_lock:
+                self._active_threads[job_id] = thread
+            thread.start()
 
     def _run_client_job(self, job: dict[str, Any]) -> None:
+        job_id = str(job["id"])
+        runtime = None
         try:
             factory = self.client_runtime_factory
-            runtime = factory(job) if factory is not None else None
+            if factory is not None:
+                runtime = factory(job, self.store.request_for(job_id))
             if runtime is None:
-                self._fail(job, InferenceUnavailableError("No client engine is available yet."))
+                self._fail(job, InferenceUnavailableError("No client engine is available."))
                 return
+            with self._active_lock:
+                self._active_runtimes[job_id] = runtime
+            if self._stop.is_set():
+                self._close_runtime(runtime)
             self._execute_guarded(job, runtime)
         except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the pool
             self._fail(job, exc)
         finally:
+            with self._active_lock:
+                self._active_runtimes.pop(job_id, None)
+                self._active_threads.pop(job_id, None)
+            if runtime is not None:
+                self._close_runtime(runtime)
             self._client_slots.release()
             self._client_wake.set()
+
+    def _close_runtime(self, runtime: Any) -> None:
+        with suppress(Exception):
+            runtime.close()
 
     def _execute_guarded(self, job: dict[str, Any], assistant: Any) -> None:
         try:
