@@ -3,6 +3,7 @@ import { PRODUCT_MARK } from "../config/branding";
 import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
 import { GettingStartedDialog } from "../modules/getting-started";
+import { loginUrl } from "../modules/identity";
 import { chaptersInBook, type Manuscript, wordCount } from "../modules/manuscript";
 import {
   type ElementNoteTarget,
@@ -85,7 +86,7 @@ function documentsBindingLoad({ worldId, generation }: WorldBinding) {
 }
 
 export function App() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { theme, preference, setPreference, toggleTheme } = useTheme();
   const manuscriptHistory = useHistoryState<Manuscript>();
   const figureHistory = useHistoryState<FigureState>();
@@ -861,7 +862,7 @@ export function App() {
               warning={mirrorWarnings[activeSaveFamily] ? t("backupMirrorFailed") : undefined}
               retry={activeSave.retry}
               signInRequired={activeSave.signInRequired}
-              onSignIn={() => quiltorClient.platform.externalNavigation.open("/login")}
+              onSignIn={() => quiltorClient.platform.externalNavigation.open(loginUrl(locale))}
               onRecover={() => setRecoveryFamily(activeSaveFamily)}
               theme={theme}
               onTheme={toggleTheme}
