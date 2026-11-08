@@ -219,6 +219,7 @@ export function PlaceNode({
       <StoryNodeCard
         zoomTier={data.zoomTier}
         viewportZoom={data.zoom}
+        style={{ "--place-card-zoom": Math.max(0.08, data.zoom) } as CSSProperties}
         kind="ort"
         important={!!item.important}
         selected={selected}

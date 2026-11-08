@@ -359,6 +359,24 @@
   opacity: 1;
 }
 
+/* On a fitted 390px canvas the card is drawn zoomed out, and its commands shrink with it: a
+   button measured 19px on screen, under the 24px a pointer target needs (WCAG 2.2 AA 2.5.8).
+   The glyph stays as small as it is; the hit area does not. It is centred on the button and
+   as large as 24 screen px takes in card px -- never smaller than the button, so at full
+   zoom it adds nothing -- and it is out of the flow, so the card's layout is unchanged.
+   Two neighbours stand 8 card px apart; where their areas touch at a far-out zoom, the later
+   one takes the strip between. */
+.place-node-shell .story-node .place-node__enter::after {
+  --place-card-target: 24px;
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, calc(var(--place-card-target) / var(--place-card-zoom, 1)));
+  height: max(100%, calc(var(--place-card-target) / var(--place-card-zoom, 1)));
+  transform: translate(-50%, -50%);
+}
+
 @media (pointer: coarse) {
   .place-node-shell .story-node .place-node__enter {
     opacity: 1;
