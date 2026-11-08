@@ -60,7 +60,8 @@ export const places = {
   deletePlaceBlockedManyChildren: "It contains {n} other places. Move or delete them first.",
   nearestDistancesHint:
     "Each place shows its three nearest distances. Select two places to add another one.",
-  selectDistanceTargetHint: "Select the second place for the targeted distance.",
+  selectDistanceTargetHint: "Select the second place or a point on the map.",
+  measurePointName: "Point",
   distanceEdgeLabel: "{from} – {to}: {distance}",
   stopMeasuring: "Stop measuring distance",
   favoritePlace: "Mark as favorite",

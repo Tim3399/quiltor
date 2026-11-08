@@ -63,7 +63,8 @@ export const places = {
     "Darin befinden sich {n} weitere Orte. Verschiebe oder lösche sie zuerst.",
   nearestDistancesHint:
     "Pro Ort werden die drei nächsten Distanzen angezeigt. Klicke zwei Orte für eine weitere Strecke.",
-  selectDistanceTargetHint: "Wähle den zweiten Ort für die gezielte Distanz.",
+  selectDistanceTargetHint: "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
+  measurePointName: "Punkt",
   distanceEdgeLabel: "{from} – {to}: {distance}",
   stopMeasuring: "Distanz messen beenden",
   favoritePlace: "Ort favorisieren",

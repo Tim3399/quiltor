@@ -13,6 +13,8 @@ import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { type ActivePlaceMapChromeProps, PlaceMapChromeOverlay } from "./PlaceMapChromeOverlay";
 import { PlaceMapFrameProvider } from "./PlaceMapFrameContext";
 import { PlaceMapNode } from "./PlaceMapNode";
+import { measureClickTarget } from "./placeCanvasModel";
+import { PlaceMeasurePoint } from "./PlaceMeasurePoint";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
 import { type PlaceCardData, type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
@@ -30,6 +32,7 @@ export function PlaceCanvas({
   onSelectPlace,
   onEnterPlace,
   onClearSelection,
+  onMeasurePoint,
   onStopMeasuring,
   onScale,
   mapTools,
@@ -47,6 +50,8 @@ export function PlaceCanvas({
   onSelectPlace: (id: string) => void;
   onEnterPlace: (id: string) => void;
   onClearSelection: () => void;
+  /** A free point on the surface, in flow units; offered only while measuring. */
+  onMeasurePoint?: (point: { x: number; y: number }) => void;
   onStopMeasuring: () => void;
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
   /** What the selected map offers, shown over the canvas rather than on the map. */
@@ -66,6 +71,30 @@ export function PlaceCanvas({
       onSelectPlace(id);
     },
     [onSelectPlace],
+  );
+
+  const measurePointAt = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      const point = controller.toFlowPosition({ x: event.clientX, y: event.clientY });
+      if (point && onMeasurePoint) onMeasurePoint(point);
+    },
+    [controller, onMeasurePoint],
+  );
+  // A laid-out map and the level's picture are nodes, so a click on them never
+  // reaches the pane. While measuring it is a free point there, not the map's middle.
+  const measureAwareNodeClick = useCallback(
+    (event: { clientX: number; clientY: number }, node: { id: string; type?: string }) => {
+      if (onMeasurePoint) {
+        const target = measureClickTarget(node.type ?? "", node.id);
+        if (target === "none") return;
+        if (target === "point") {
+          measurePointAt(event);
+          return;
+        }
+      }
+      onSelectPlace(node.id);
+    },
+    [measurePointAt, onMeasurePoint, onSelectPlace],
   );
 
   const levelTrail = <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />;
@@ -122,14 +151,19 @@ export function PlaceCanvas({
           </>
         }
         flowProps={{
-          nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
+          nodeTypes: {
+            ...placeNodeTypes,
+            placeMap: PlaceMapNode,
+            placeGround: PlaceGround,
+            measurePoint: PlaceMeasurePoint,
+          },
           nodesConnectable: true,
           fitViewOptions: controller.fitViewOptions,
           translateExtent: controller.translateExtent,
           onKeyDown: selectPlaceFromKeyboard,
           onInit: controller.onInit,
           onMove: (_, viewport) => controller.onMove(viewport),
-          onNodeClick: (_, node) => onSelectPlace(node.id),
+          onNodeClick: measureAwareNodeClick,
           // The ordinary gesture for one level down, so a level can be reached
           // without first selecting something to find out that it has one. The
           // canvas has to give the gesture up for it: React Flow's zoom claims
@@ -137,7 +171,8 @@ export function PlaceCanvas({
           // a surface built out of levels going down beats zooming in.
           onNodeDoubleClick: (_, node) => onEnterPlace(node.id),
           zoomOnDoubleClick: false,
-          onPaneClick: onClearSelection,
+          // Beside every map, while measuring, is still somewhere a point can be set.
+          onPaneClick: onMeasurePoint ? (event) => measurePointAt(event) : onClearSelection,
           onNodesChange: controller.onNodesChange,
           onNodeDragStart: (event, node) => controller.onNodeDragStart(event, node),
           onNodeDrag: (event, node) => controller.onNodeDrag(event, node),

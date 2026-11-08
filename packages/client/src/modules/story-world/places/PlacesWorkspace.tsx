@@ -13,7 +13,15 @@ import { PlaceInspector } from "./PlaceInspector";
 import type { MapBox } from "./PlaceMapNode";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
 import { PlaceToolbar } from "./PlaceToolbar";
-import { DEFAULT_MAP_WIDTH, isExpandedMap, mapBoxPatch } from "./placeCanvasModel";
+import {
+  DEFAULT_MAP_WIDTH,
+  isExpandedMap,
+  type MeasureTarget,
+  mapBoxPatch,
+  measurePointsOf,
+  measureSelectionOf,
+  nextMeasureTargets,
+} from "./placeCanvasModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
 import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
 import { formatDistance, formatScale } from "./placeMap";
@@ -79,7 +87,9 @@ function PlacesWorkspaceInner({
   // the canvas has to guess at: inside it a drag moves the picture.
   const [adjustingId, setAdjustingId] = useState<string | undefined>(undefined);
   const [measuring, setMeasuring] = useState(false);
-  const [measureSelection, setMeasureSelection] = useState<string[]>([]);
+  const [measureTargets, setMeasureTargets] = useState<MeasureTarget[]>([]);
+  const measureSelection = useMemo(() => measureSelectionOf(measureTargets), [measureTargets]);
+  const measurePoints = useMemo(() => measurePointsOf(measureTargets), [measureTargets]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
   const [blockedDeletion, setBlockedDeletion] = useState<{
     name: string;
@@ -112,14 +122,14 @@ function PlacesWorkspaceInner({
     setActiveMapState(undefined);
     setExpandRequest(undefined);
     setSelectedId(null);
-    setMeasureSelection([]);
+    setMeasureTargets([]);
   }, []);
   const goToLevel = useCallback((nextLevelId: string | undefined) => {
     setLevelId(nextLevelId);
     setActiveMapState(undefined);
     setExpandRequest(undefined);
     setSelectedId(null);
-    setMeasureSelection([]);
+    setMeasureTargets([]);
   }, []);
   // A level that vanished -- undone, or deleted with its contents -- would leave
   // the surface showing nothing and no way back. Fall out to the root instead.
@@ -142,12 +152,13 @@ function PlacesWorkspaceInner({
       const map = activePlaceMapForSelection(latestStateRef.current.nodes, levelId, id);
       if (map) setActiveMapState({ levelId, mapId: map.id });
       if (!measuring) return;
-      setMeasureSelection((current) =>
-        current.length === 1 && current[0] !== id ? [current[0], id] : [id],
-      );
+      setMeasureTargets((current) => nextMeasureTargets(current, { kind: "place", id }));
     },
     [levelId, measuring],
   );
+  const addMeasurePoint = useCallback((point: { x: number; y: number }) => {
+    setMeasureTargets((current) => nextMeasureTargets(current, { kind: "point", ...point }));
+  }, []);
   const mapImageUrl = useCallback(
     (imageId: string) => quiltorClient.application.placeMaps.sourceUrl(imageId),
     [],
@@ -205,6 +216,7 @@ function PlacesWorkspaceInner({
     levelId,
     measuring,
     measureSelection,
+    measurePoints,
     onOpenLevel: openLevel,
     mapImageUrl,
     onExpandMap: expandMap,
@@ -343,7 +355,7 @@ function PlacesWorkspaceInner({
     const closeMeasurement = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMeasuring(false);
-      setMeasureSelection([]);
+      setMeasureTargets([]);
     };
     document.addEventListener("keydown", closeMeasurement);
     return () => document.removeEventListener("keydown", closeMeasurement);
@@ -362,7 +374,7 @@ function PlacesWorkspaceInner({
 
   const stopMeasuring = () => {
     setMeasuring(false);
-    setMeasureSelection([]);
+    setMeasureTargets([]);
   };
   // From the latest state, not the render-time prop: two patches in one batch must both land.
   const patchSelected = (patch: Partial<FigureNode>) => {
@@ -461,7 +473,7 @@ function PlacesWorkspaceInner({
         hasGround={canvas.hasGround}
         onMeasuringToggle={() => {
           setMeasuring((value) => !value);
-          setMeasureSelection([]);
+          setMeasureTargets([]);
         }}
         onUndo={onUndo}
         onRedo={onRedo}
@@ -581,6 +593,7 @@ function PlacesWorkspaceInner({
             if (place) openLevel(place);
           }}
           onClearSelection={() => setSelectedId(null)}
+          onMeasurePoint={measuring ? addMeasurePoint : undefined}
           onStopMeasuring={stopMeasuring}
           onScale={patchScale}
         />

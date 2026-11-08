@@ -86,7 +86,7 @@ vi.mock("@xyflow/react", () => ({
     onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     onMove: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void;
     onNodeClick: (event: unknown, node: { id: string }) => void;
-    onPaneClick: () => void;
+    onPaneClick: (event: unknown) => void;
     onNodeDragStop: (
       event: unknown,
       node: { id: string; position: { x: number; y: number } },
@@ -106,7 +106,7 @@ vi.mock("@xyflow/react", () => ({
               data-testid={`place-node-${node.id}`}
               data-draggable={String(node.draggable !== false)}
               data-important={String(!!node.data.place.important)}
-              onClick={() => onNodeClick({}, node)}
+              onClick={(event) => onNodeClick(event, node)}
             >
               {node.data.place.name}
             </button>
@@ -135,7 +135,7 @@ vi.mock("@xyflow/react", () => ({
       <button type="button" onClick={() => onMove({}, { x: 0, y: 0, zoom: 0.2 })}>
         Testübersicht
       </button>
-      <button type="button" onClick={onPaneClick}>
+      <button type="button" onClick={(event) => onPaneClick(event)}>
         Testfläche
       </button>
     </div>
@@ -304,7 +304,7 @@ describe("PlacesWorkspace map overlays", () => {
 
     fireEvent.click(screen.getByTestId("place-node-a"));
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Wähle den zweiten Ort für die gezielte Distanz.",
+      "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
     );
     fireEvent.click(screen.getByTestId("place-node-f"));
 
@@ -363,7 +363,7 @@ describe("PlacesWorkspace map overlays", () => {
     fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
     fireEvent.keyDown(screen.getByRole("button", { name: "Ort: A" }), { key: "Enter" });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Wähle den zweiten Ort für die gezielte Distanz.",
+      "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Ort: F" }), { key: " " });
 
@@ -1008,5 +1008,100 @@ describe("place patches against the latest state (T-180)", () => {
       important: true,
       profile: expect.objectContaining({ notes: "Hafen" }),
     });
+  });
+});
+
+describe("measuring to a free point", () => {
+  const map = {
+    id: "weltkarte",
+    type: "ort" as const,
+    name: "Weltkarte",
+    x: 0,
+    y: 0,
+    mapImageId: "bild",
+    mapExpanded: true,
+    mapWidth: 1600,
+    mapHeight: 900,
+    mapScale: { unitsPer100px: 25, unitLabel: "km" },
+  };
+  const pin = {
+    id: "hafen",
+    type: "ort" as const,
+    name: "Hafen",
+    x: 0,
+    y: 0,
+    parentPlaceId: map.id,
+    mapU: 0.4,
+    mapV: 0.5,
+  };
+  const targeted = () =>
+    screen
+      .getAllByTestId("distance-edge")
+      .find((edge) => edge.dataset.className === "distance-edge is-targeted");
+
+  it("takes a click on the map as a point, not as the map's middle", () => {
+    const onChange = vi.fn();
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={onChange} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 100, clientY: 100 });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
+    );
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 400, clientY: 500 });
+
+    // 500 flow units on a map of 25 km per 100 px.
+    expect(targeted()).toHaveAttribute("aria-label", "Punkt – Punkt: 125 km");
+    // A point is never a place: it reaches neither the inspector nor the document.
+    expect(screen.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+    for (const [state] of onChange.mock.calls as [FigureState][])
+      expect(state.nodes.some((node) => node.id.startsWith("measure-point:"))).toBe(false);
+  });
+
+  it("measures from a pin to a point in the map's units", () => {
+    render(<ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 100, clientY: 100 });
+
+    expect(targeted()).toHaveAttribute(
+      "aria-label",
+      expect.stringMatching(/^Hafen – Punkt: [\d.]+ km$/),
+    );
+  });
+
+  it("sets a point beside the map, read in the level's units", () => {
+    render(<ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 1700,
+      clientY: 100,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 1700,
+      clientY: 400,
+    });
+
+    expect(targeted()).toHaveAttribute(
+      "aria-label",
+      "Punkt – Punkt: 300 Einheiten (kein Maßstab gesetzt)",
+    );
+  });
+
+  it("forgets its points when measuring stops", () => {
+    render(<ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 100, clientY: 100 });
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 400, clientY: 500 });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+
+    expect(
+      screen
+        .queryAllByTestId("distance-edge")
+        .some((edge) => edge.dataset.className?.includes("is-targeted")),
+    ).toBe(false);
   });
 });

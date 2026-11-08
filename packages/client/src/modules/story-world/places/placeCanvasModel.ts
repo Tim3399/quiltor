@@ -303,7 +303,39 @@ export function createMeasurementPoints(
 }
 
 /** Prefix of the helper nodes that stand for free measuring points. */
-const MEASURE_POINT_PREFIX = "measure-point:";
+export const MEASURE_POINT_PREFIX = "measure-point:";
+const MEASURE_POINT_SIZE = 12;
+
+/** One end of a measuring line as the author picked it: a place, or a point on the surface. */
+export type MeasureTarget = { kind: "place"; id: string } | { kind: "point"; x: number; y: number };
+
+function sameTarget(a: MeasureTarget, b: MeasureTarget): boolean {
+  if (a.kind === "place") return b.kind === "place" && a.id === b.id;
+  return b.kind === "point" && a.x === b.x && a.y === b.y;
+}
+
+/** The first pick starts a line, a different second one ends it, a third starts over. */
+export function nextMeasureTargets(
+  current: readonly MeasureTarget[],
+  next: MeasureTarget,
+): MeasureTarget[] {
+  return current.length === 1 && !sameTarget(current[0], next) ? [current[0], next] : [next];
+}
+
+/** The free points among the targets, in order: point n is drawn as `measure-point:n`. */
+export function measurePointsOf(targets: readonly MeasureTarget[]): { x: number; y: number }[] {
+  return targets.flatMap((target) =>
+    target.kind === "point" ? [{ x: target.x, y: target.y }] : [],
+  );
+}
+
+/** The ids the measuring line runs between, in the numbering of `measurePointsOf`. */
+export function measureSelectionOf(targets: readonly MeasureTarget[]): string[] {
+  let points = 0;
+  return targets.map((target) =>
+    target.kind === "place" ? target.id : `${MEASURE_POINT_PREFIX}${points++}`,
+  );
+}
 
 /**
  * What a click on a node means while measuring.
@@ -326,6 +358,11 @@ export function createMeasurePointNodes(points: readonly { x: number; y: number 
     id: `${MEASURE_POINT_PREFIX}${index}`,
     type: "measurePoint",
     position: { x: point.x, y: point.y },
+    // Centred on the point: the node has to have a size to be drawn at all, and its
+    // middle is where the line is taken from.
+    origin: [0.5, 0.5] as [number, number],
+    width: MEASURE_POINT_SIZE,
+    height: MEASURE_POINT_SIZE,
     draggable: false,
     selectable: false,
     focusable: false,

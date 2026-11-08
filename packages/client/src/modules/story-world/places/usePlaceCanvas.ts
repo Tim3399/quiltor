@@ -22,16 +22,18 @@ import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 import {
   createGroundNode,
   createMeasurementPoints,
+  createMeasurePointNodes,
   createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
   groundRect,
   isExpandedMap,
   isPlaceDisplayPin,
+  MEASURE_POINT_PREFIX,
 } from "./placeCanvasModel";
 import { type DragClientPoint, dragClientPoint, placeDropFrame } from "./placeDragModel";
 import type { ImageCrop } from "./placeImageCrop";
-import { placementForDrop, scaleForPair } from "./placeLevels";
+import { type MeasureEndpoint, placementForDrop, scaleForPoints } from "./placeLevels";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
 
 export type PlaceCanvasController = {
@@ -72,6 +74,8 @@ export type PlaceCanvasController = {
   /** Told how large the surface is, since the floor is measured from it. */
   onSurfaceResize: (size: { width: number; height: number }) => void;
   onNodesChange: (changes: NodeChange<PlaceFlowNode>[]) => void;
+  /** Where a point on screen lies on the surface, once the canvas is ready. */
+  toFlowPosition: (client: { x: number; y: number }) => { x: number; y: number } | undefined;
   onNodeDragStart: (event: MouseEvent | TouchEvent, node: PlaceFlowNode) => void;
   onNodeDrag: (event: MouseEvent | TouchEvent, node: PlaceFlowNode) => void;
   onNodeDragStop: (event: MouseEvent | TouchEvent, node: PlaceFlowNode) => void;
@@ -83,6 +87,7 @@ export function usePlaceCanvas({
   levelId,
   measuring,
   measureSelection,
+  measurePoints,
   onOpenLevel,
   mapImageUrl,
   onExpandMap: expandMap,
@@ -101,6 +106,8 @@ export function usePlaceCanvas({
   levelId: string | undefined;
   measuring: boolean;
   measureSelection: string[];
+  /** Free points set while measuring; point n is the node `measure-point:n`. */
+  measurePoints: readonly { x: number; y: number }[];
   onOpenLevel: (place: FigureNode) => void;
   /** Where a stored picture can be shown from. */
   mapImageUrl: (imageId: string) => string;
@@ -428,9 +435,22 @@ export function usePlaceCanvas({
     return () => window.clearTimeout(settle);
   }, [expandRequest, maps, minZoom, surface]);
 
+  const measurePointNodes = useMemo(
+    () => (measuring ? (createMeasurePointNodes(measurePoints) as PlaceFlowNode[]) : []),
+    [measuring, measurePoints],
+  );
   const measurablePoints = useMemo(
-    () => createMeasurementPoints([...nodes, ...pins], laidOutMaps),
-    [nodes, pins, laidOutMaps],
+    () => [
+      ...createMeasurementPoints([...nodes, ...pins], laidOutMaps),
+      ...measurePoints.map((point, index) => ({
+        id: `${MEASURE_POINT_PREFIX}${index}`,
+        name: t("measurePointName"),
+        mapX: point.x,
+        mapY: point.y,
+        free: true,
+      })),
+    ],
+    [nodes, pins, laidOutMaps, measurePoints, t],
   );
 
   const edges = useMemo(
@@ -442,16 +462,35 @@ export function usePlaceCanvas({
             // Called while the edges are built, so it reads the nodes of this render.
             scaleFor: (from, to) => {
               const nodes = state.nodes;
-              const first = nodes.find((node) => node.id === from);
-              const second = nodes.find((node) => node.id === to);
-              // Two points on the same laid-out map are read in that map's own
+              const endpoint = (id: string): MeasureEndpoint | undefined => {
+                if (id.startsWith(MEASURE_POINT_PREFIX)) {
+                  const point = measurePoints[Number(id.slice(MEASURE_POINT_PREFIX.length))];
+                  return point ? { point } : undefined;
+                }
+                const place = nodes.find((node) => node.id === id);
+                return place ? { place } : undefined;
+              };
+              const first = endpoint(from);
+              const second = endpoint(to);
+              // Two ends on the same laid-out map are read in that map's own
               // units; anything else in the units of the level they are on.
-              return first && second ? scaleForPair(nodes, first, second, levelScale) : levelScale;
+              return first && second
+                ? scaleForPoints(nodes, laidOutMaps, first, second, levelScale)
+                : levelScale;
             },
             t,
           })
         : [],
-    [measuring, measureSelection, measurablePoints, state.nodes, levelScale, t],
+    [
+      measuring,
+      measureSelection,
+      measurablePoints,
+      measurePoints,
+      laidOutMaps,
+      state.nodes,
+      levelScale,
+      t,
+    ],
   );
 
   /**
@@ -596,11 +635,13 @@ export function usePlaceCanvas({
   );
 
   return {
-    nodes: withMeasured([...(ground ? [ground] : []), ...maps, ...nodes, ...pins], measured).map(
-      (node) =>
-        node.id === dragPreview?.id && "measuring" in node.data
-          ? ({ ...node, data: { ...node.data, dragPreview: true } } as PlaceFlowNode)
-          : node,
+    nodes: withMeasured(
+      [...(ground ? [ground] : []), ...maps, ...nodes, ...pins, ...measurePointNodes],
+      measured,
+    ).map((node) =>
+      node.id === dragPreview?.id && "measuring" in node.data
+        ? ({ ...node, data: { ...node.data, dragPreview: true } } as PlaceFlowNode)
+        : node,
     ),
     edges,
     fitViewOptions,
@@ -681,6 +722,7 @@ export function usePlaceCanvas({
     translateExtent,
     minZoom,
     onSurfaceResize: setSurface,
+    toFlowPosition: (client) => flow.current?.screenToFlowPosition(client),
     onNodesChange: (changes) => {
       const current = latestFlowNodesRef.current;
       const session = dragSession.current;
