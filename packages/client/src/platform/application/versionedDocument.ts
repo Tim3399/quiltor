@@ -1,3 +1,5 @@
+import type { WorldInfo } from "../../modules/story-world";
+
 export interface VersionedDocument<T> {
   document: T;
   revision: number;
@@ -22,4 +24,6 @@ interface DocumentSaveResult {
   zeit: string;
   revision: number;
   warnings?: Array<"backup.mirror_failed">;
+  /** Present once: the save that made a preview of the example world a real world. */
+  world?: WorldInfo;
 }

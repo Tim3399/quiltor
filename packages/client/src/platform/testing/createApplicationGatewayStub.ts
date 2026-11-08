@@ -57,6 +57,8 @@ export function createApplicationGatewayStub(
       delete: () => notStubbed("worlds.delete"),
       restore: () => notStubbed("worlds.restore"),
       purge: () => notStubbed("worlds.purge"),
+      openExample: () => notStubbed("worlds.openExample"),
+      discardPreview: () => {},
       ...overrides.worlds,
     },
     identity: {

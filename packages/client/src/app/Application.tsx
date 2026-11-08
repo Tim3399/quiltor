@@ -16,7 +16,13 @@ import {
   RecoveryDialog,
   type RecoveryDocuments,
 } from "../modules/recovery";
-import { countBoardElements, type FigureState, kindLabel } from "../modules/story-world";
+import {
+  countBoardElements,
+  ExamplePreviewNotice,
+  type FigureState,
+  kindLabel,
+  type WorldInfo,
+} from "../modules/story-world";
 import type { StoryboardState } from "../modules/storyboard";
 import {
   buildWorldReferenceBacklinks,
@@ -83,7 +89,7 @@ function documentsBindingLoad({ worldId, generation }: WorldBinding) {
 }
 
 export function App() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { theme, preference, setPreference, toggleTheme } = useTheme();
   const manuscriptHistory = useHistoryState<Manuscript>();
   const figureHistory = useHistoryState<FigureState>();
@@ -295,14 +301,32 @@ export function App() {
   );
 
   const rememberMirrorWarning = useCallback(
-    (family: DocumentFamily, result: { warnings?: readonly string[] }) => {
+    (family: DocumentFamily, result: { warnings?: readonly string[]; world?: WorldInfo }) => {
       const failed = result.warnings?.includes("backup.mirror_failed") ?? false;
       setMirrorWarnings((current) =>
         current[family] === failed ? current : { ...current, [family]: failed },
       );
+      // The save that made a preview of the example world real: new title, bar gone.
+      if (result.world) session.adoptWorld(result.world);
       return result;
     },
-    [],
+    [session.adoptWorld],
+  );
+  // A save into a preview that no longer exists (left in another tab, or expired): say so
+  // instead of a bare "not found", and offer a fresh one.
+  const openPreviewRef = useLatest(session.world?.preview === true);
+  const noteVanishedPreview = useCallback(
+    (error: unknown): never => {
+      if (
+        openPreviewRef.current &&
+        error instanceof ApplicationGatewayError &&
+        error.category === "not_found"
+      ) {
+        session.markPreviewExpired();
+      }
+      throw error;
+    },
+    [session.markPreviewExpired],
   );
   // No request leaves for documents that are not bound to the world the gateway points at.
   // The check and the request start in the same synchronous step, so no select can slip between.
@@ -335,25 +359,31 @@ export function App() {
     async (value: Manuscript) =>
       rememberMirrorWarning(
         "manuscript",
-        await bound("manuscript", () => quiltorClient.application.manuscript.save(value)),
+        await bound("manuscript", () => quiltorClient.application.manuscript.save(value)).catch(
+          noteVanishedPreview,
+        ),
       ),
-    [bound, rememberMirrorWarning],
+    [bound, rememberMirrorWarning, noteVanishedPreview],
   );
   const saveFigures = useCallback(
     async (value: FigureState) =>
       rememberMirrorWarning(
         "figures",
-        await bound("figures", () => quiltorClient.application.storyWorld.save(value)),
+        await bound("figures", () => quiltorClient.application.storyWorld.save(value)).catch(
+          noteVanishedPreview,
+        ),
       ),
-    [bound, rememberMirrorWarning],
+    [bound, rememberMirrorWarning, noteVanishedPreview],
   );
   const saveStoryboards = useCallback(
     async (value: StoryboardState) =>
       rememberMirrorWarning(
         "storyboards",
-        await bound("storyboards", () => quiltorClient.application.storyboards.save(value)),
+        await bound("storyboards", () => quiltorClient.application.storyboards.save(value)).catch(
+          noteVanishedPreview,
+        ),
       ),
-    [bound, rememberMirrorWarning],
+    [bound, rememberMirrorWarning, noteVanishedPreview],
   );
   const manuscriptSave = useAutosave(manuscript, saveManuscript, undefined, manuscriptDraft);
   const figureSave = useAutosave(figures, saveFigures, undefined, figuresDraft);
@@ -759,6 +789,22 @@ export function App() {
     overlays.closeAssistant();
     session.close();
   }, [flushAll, overlays.close, overlays.closeAssistant, releaseDocuments, session.close]);
+  // The preview is gone, so there is nothing to save: release it and open a fresh one.
+  const openFreshExample = useCallback(async () => {
+    if (!releaseDocuments({ clear: true })) return;
+    setRecoveryFamily(null);
+    overlays.close();
+    overlays.closeAssistant();
+    session.close();
+    await session.openExample(locale);
+  }, [
+    locale,
+    overlays.close,
+    overlays.closeAssistant,
+    releaseDocuments,
+    session.close,
+    session.openExample,
+  ]);
   const logout = useCallback(async () => {
     try {
       await flushAll();
@@ -823,6 +869,7 @@ export function App() {
       theme={preference}
       onTheme={setPreference}
       onOpen={session.open}
+      onOpenExample={session.openExample}
       onCreate={session.create}
       onDelete={session.remove}
       trash={session.trash}
@@ -866,6 +913,14 @@ export function App() {
             onLogout={logout}
             version={shell.version}
             summary={summary}
+            notice={
+              session.world.preview ? (
+                <ExamplePreviewNotice
+                  expired={session.previewExpired}
+                  onOpenNew={() => void openFreshExample()}
+                />
+              ) : undefined
+            }
           >
             <NoteReferenceProvider
               candidates={noteReferenceCandidates}

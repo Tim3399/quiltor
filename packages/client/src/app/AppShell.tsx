@@ -98,6 +98,7 @@ export function AppShell({
   onLogout,
   version,
   summary,
+  notice,
   children,
 }: {
   title: string;
@@ -130,6 +131,8 @@ export function AppShell({
   version?: string;
   /** What is open in the active workspace: counts and position for the status bar. */
   summary?: React.ReactNode;
+  /** A row between the bar and the workspace, such as the example-world preview notice. */
+  notice?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { t, locale } = useI18n();
@@ -143,7 +146,7 @@ export function AppShell({
   const savedAgo = showSavedAgo && savedAt ? relativeTime(locale, savedAt, now) : null;
   const saveLabel = savedAgo ? t("savedAgo", { ago: savedAgo }) : t(SAVE_STATUS_LABEL_KEYS[phase]);
   return (
-    <div className="app-frame" data-workspace={workspace}>
+    <div className="app-frame" data-workspace={workspace} data-notice={notice ? "" : undefined}>
       <header className={`app-bar${phase === "error" ? " app-bar--save-error" : ""}`}>
         <div className="app-bar__leading">
           {navigationAvailable && (
@@ -282,6 +285,7 @@ export function AppShell({
           )}
         </div>
       </header>
+      {notice && <div className="app-notice">{notice}</div>}
       <main className="app-workspace">{children}</main>
       <StatusBar label={t("statusBar")} start={summary} />
     </div>
