@@ -4,10 +4,12 @@ import type { Translate } from "../../../i18n";
 import type { FigureNode } from "../model";
 import {
   createMeasurementPoints,
+  createMeasurePointNodes,
   createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
   mapBoxPatch,
+  measureClickTarget,
   PLACE_PIN_SCREEN_SIZES,
   placePinSize,
 } from "./placeCanvasModel";
@@ -377,5 +379,41 @@ describe("a card standing on a map", () => {
 
   it("ignores a drag that belongs to something else", () => {
     expect(build({ id: "welt", x: 120, y: 40 })[0].position).toEqual({ x: 500, y: 250 });
+  });
+});
+
+describe("what a click means while measuring", () => {
+  it("takes a click on a map or on the level's picture as a free point", () => {
+    expect(measureClickTarget("placeMap", "nordhafen")).toBe("point");
+    expect(measureClickTarget("placeGround", "ground:nordhafen")).toBe("point");
+  });
+
+  it("takes a click on a card or pin as the place itself", () => {
+    expect(measureClickTarget("place", "salzmarkt")).toBe("place");
+    expect(measureClickTarget("placePin", "salzmarkt")).toBe("place");
+  });
+
+  it("ignores a click on a point that is already set", () => {
+    expect(measureClickTarget("measurePoint", "measure-point:0")).toBe("none");
+    expect(measureClickTarget("placeMap", "measure-point:1")).toBe("none");
+  });
+
+  it("draws free points as fixed helpers that nothing can pick up", () => {
+    const nodes = createMeasurePointNodes([
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+    ]);
+    expect(nodes).toEqual([
+      expect.objectContaining({
+        id: "measure-point:0",
+        type: "measurePoint",
+        position: { x: 10, y: 20 },
+        draggable: false,
+        selectable: false,
+        focusable: false,
+        deletable: false,
+      }),
+      expect.objectContaining({ id: "measure-point:1", position: { x: 30, y: 40 } }),
+    ]);
   });
 });

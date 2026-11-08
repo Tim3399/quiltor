@@ -16,6 +16,7 @@ import {
   spreadAnchor,
   scaleForLevel,
   scaleForPair,
+  scaleForPoints,
   subtreeOf,
   wouldCycle,
 } from "./placeLevels";
@@ -455,5 +456,57 @@ describe("a map coming to rest", () => {
         grid: 48,
       }),
     ).toMatchObject({ mapX: 137, mapY: 70 });
+  });
+});
+
+describe("which scale a distance to a free point is read with", () => {
+  // Mirrors Nordhafen in the test world (tests/world/parts/base.mjs): a 1500 by 1000
+  // harbour plan at 0.15 km per 100 px, with the Salzmarkt pinned on it.
+  const harbour = { unitsPer100px: 0.15, unitLabel: "km" };
+  const level = { unitsPer100px: 0.5, unitLabel: "km" };
+  const nordhafen = place("nordhafen", {
+    mapExpanded: true,
+    mapX: 0,
+    mapY: 0,
+    mapWidth: 1500,
+    mapHeight: 1000,
+    mapScale: harbour,
+  });
+  const salzmarkt = place("salzmarkt", { parentPlaceId: "nordhafen", mapU: 0.15, mapV: 0.55 });
+  const elsewhere = place("elsewhere", { x: 3000, y: 0 });
+  const nodes = [nordhafen, salzmarkt, elsewhere];
+  const maps = [nordhafen];
+
+  it("reads a point and a pin on the same map in that map's scale", () => {
+    expect(
+      scaleForPoints(nodes, maps, { place: salzmarkt }, { point: { x: 900, y: 400 } }, level),
+    ).toEqual(harbour);
+  });
+
+  it("reads two points on the same map in that map's scale", () => {
+    expect(
+      scaleForPoints(
+        nodes,
+        maps,
+        { point: { x: 10, y: 10 } },
+        { point: { x: 900, y: 400 } },
+        level,
+      ),
+    ).toEqual(harbour);
+  });
+
+  it("reads a point beside the map in the level's scale", () => {
+    expect(
+      scaleForPoints(nodes, maps, { place: salzmarkt }, { point: { x: 2000, y: 400 } }, level),
+    ).toEqual(level);
+    expect(
+      scaleForPoints(nodes, maps, { place: elsewhere }, { point: { x: 900, y: 400 } }, level),
+    ).toEqual(level);
+  });
+
+  it("reads two places as before", () => {
+    expect(scaleForPoints(nodes, maps, { place: salzmarkt }, { place: elsewhere }, level)).toEqual(
+      level,
+    );
   });
 });

@@ -4,11 +4,14 @@ import type { MessageKey } from "../../../i18n";
 import {
   allMapDistances,
   formatDistance,
+  formatScale,
   mapDistance,
   mapDistancePair,
   nearestMapDistances,
   mapScaleBar,
+  parseScaleInput,
   physicalGridDistance,
+  scaleFromMeasurement,
 } from "./placeMap";
 
 const t = (key: MessageKey) => de[key];
@@ -148,5 +151,47 @@ describe("formatDistance", () => {
 
   it("rounds to two decimal places", () => {
     expect(formatDistance(333, t, { unitsPer100px: 1, unitLabel: "km" })).toBe("3.33 km");
+  });
+});
+
+describe("a scale taken from a measured stretch", () => {
+  it("turns a stretch of known length into units per hundred pixels", () => {
+    const scale = scaleFromMeasurement(150, 100, "km");
+    expect(scale?.unitLabel).toBe("km");
+    // Stored unrounded: the reading is rounded where it is shown, not where it is kept.
+    expect(scale?.unitsPer100px).toBe(200 / 3);
+  });
+
+  it("refuses a stretch too short to measure or a length that is not one", () => {
+    expect(scaleFromMeasurement(0, 100, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(0.5, 100, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(Number.NaN, 100, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(150, 0, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(150, -3, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(150, Number.NaN, "km")).toBeUndefined();
+  });
+});
+
+describe("reading a typed scale", () => {
+  it("accepts only a positive number, so the server's rule cannot be broken", () => {
+    expect(parseScaleInput("0")).toBeUndefined();
+    expect(parseScaleInput("-12")).toBeUndefined();
+    expect(parseScaleInput("")).toBeUndefined();
+    expect(parseScaleInput("  ")).toBeUndefined();
+    expect(parseScaleInput("abc")).toBeUndefined();
+    expect(parseScaleInput("0.0667")).toBe(0.0667);
+    expect(parseScaleInput("50")).toBe(50);
+  });
+});
+
+describe("formatScale", () => {
+  it("rounds the reading to three significant digits", () => {
+    expect(formatScale({ unitsPer100px: 200 / 3, unitLabel: "km" }, t)).toBe("66.7 km pro 100px");
+    expect(formatScale({ unitsPer100px: 0.066666, unitLabel: "km" }, t)).toBe(
+      "0.0667 km pro 100px",
+    );
+    expect(formatScale({ unitsPer100px: 0.15, unitLabel: "km" }, t)).toBe("0.15 km pro 100px");
+    expect(formatScale({ unitsPer100px: 1500, unitLabel: "m" }, t)).toBe("1500 m pro 100px");
+    expect(formatScale(undefined, t)).toBe("");
   });
 });

@@ -122,7 +122,33 @@ export function formatScale(
   t: (key: MessageKey) => string,
 ): string {
   if (!scale) return "";
-  return `${scale.unitsPer100px} ${scale.unitLabel} ${t("perHundredPx")}`;
+  // Three significant digits: a scale taken from a measured stretch is kept exact
+  // (66.666...), but nobody reads more of it than this.
+  const shown = Number(scale.unitsPer100px.toPrecision(3));
+  return `${shown} ${scale.unitLabel} ${t("perHundredPx")}`;
+}
+
+/**
+ * The scale that makes a measured stretch as long as the author says it is.
+ *
+ * `flowLength` is the stretch on the surface, in the same units every distance here
+ * is taken in. Under one unit it is a slip of the pointer, not a measurement.
+ */
+export function scaleFromMeasurement(
+  flowLength: number,
+  length: number,
+  unitLabel: string,
+): MapScale | undefined {
+  if (!Number.isFinite(flowLength) || flowLength < 1) return undefined;
+  if (!Number.isFinite(length) || length <= 0) return undefined;
+  return { unitsPer100px: (length * 100) / flowLength, unitLabel };
+}
+
+/** A typed scale, or nothing when it is not one the server would accept (> 0). */
+export function parseScaleInput(text: string): number | undefined {
+  if (!text.trim()) return undefined;
+  const value = Number(text);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 export function formatDistance(

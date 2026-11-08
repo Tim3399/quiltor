@@ -241,6 +241,33 @@ export function scaleForPair(
   return levelScale;
 }
 
+/** One end of a measured stretch: a place, or a free point on the surface. */
+export type MeasureEndpoint = { place: FigureNode } | { point: { x: number; y: number } };
+
+/**
+ * `scaleForPair` for stretches that may end at a free point.
+ *
+ * A place belongs to the map it is pinned on; a free point to the map it falls on.
+ * When both ends belong to the same laid-out map with a scale, that scale reads the
+ * stretch; anything else is read in the level's units.
+ */
+export function scaleForPoints(
+  nodes: readonly FigureNode[],
+  maps: readonly FigureNode[],
+  first: MeasureEndpoint,
+  second: MeasureEndpoint,
+  levelScale?: MapScale,
+): MapScale | undefined {
+  const hostOf = (end: MeasureEndpoint): string | undefined =>
+    "place" in end ? end.place.parentPlaceId : mapUnder(end.point, maps)?.id;
+  const host = hostOf(first);
+  if (host && host === hostOf(second)) {
+    const owner = nodes.find((node) => node.id === host);
+    if (owner?.mapExpanded && owner.mapScale) return owner.mapScale;
+  }
+  return levelScale;
+}
+
 /** The scale that governs the level `placeId`, or the world's when at the root. */
 export function scaleForLevel(
   nodes: readonly FigureNode[],

@@ -1,3 +1,4 @@
+import type { Node } from "@xyflow/react";
 import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
@@ -299,6 +300,38 @@ export function createMeasurementPoints(
       };
     }),
   ];
+}
+
+/** Prefix of the helper nodes that stand for free measuring points. */
+const MEASURE_POINT_PREFIX = "measure-point:";
+
+/**
+ * What a click on a node means while measuring.
+ *
+ * A laid-out map and the level's own picture are nodes too, so a click on them never
+ * reaches the pane: it has to be told apart here, by type, to become a free point
+ * rather than the map's middle. A point already set answers nothing, so its id never
+ * ends up as a selected place.
+ */
+export function measureClickTarget(nodeType: string, nodeId: string): "point" | "place" | "none" {
+  if (nodeId.startsWith(MEASURE_POINT_PREFIX)) return "none";
+  if (nodeType === "placeMap") return "point";
+  if (nodeType === "placeGround") return "point";
+  return "place";
+}
+
+/** Free measuring points as fixed helpers: drawn and measured to, never picked up. */
+export function createMeasurePointNodes(points: readonly { x: number; y: number }[]): Node[] {
+  return points.map((point, index) => ({
+    id: `${MEASURE_POINT_PREFIX}${index}`,
+    type: "measurePoint",
+    position: { x: point.x, y: point.y },
+    draggable: false,
+    selectable: false,
+    focusable: false,
+    deletable: false,
+    data: {},
+  }));
 }
 
 /**
