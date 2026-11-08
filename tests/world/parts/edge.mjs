@@ -216,7 +216,7 @@ export const PURPOSE = {
     "map opened out on the world level, 1000 x 680 with a 25 km scale; mocked alone by the map specs",
   "x-graufurth": "place standing on the opened-out map, the one the map specs select",
   "x-nordhafen":
-    "place standing on the opened-out map, 200 km from Graufurth; shares its name with the city",
+    "place standing on the opened-out map, 200 km from Graufurth; shares its name with the city, so it keeps no children: element-notes opens the city by 'Nordhafen öffnen'",
   "x-tannenhain": "place standing on the opened-out map near its lower edge",
   "x-inselkarte":
     "second opened-out map, 600 x 500, overlapping the first; the map specs add it on demand",

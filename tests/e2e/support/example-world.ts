@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import type { Manuscript } from "../../../packages/client/src/modules/manuscript";
-import type { FigureState } from "../../../packages/client/src/modules/story-world";
+import type { FigureNode, FigureState } from "../../../packages/client/src/modules/story-world";
 import type { StoryboardState } from "../../../packages/client/src/modules/storyboard/model";
 import { decodeManuscriptV1 } from "../../../packages/client/src/platform/contracts/v1/manuscript";
 import { decodeStoryboardsV1 } from "../../../packages/client/src/platform/contracts/v1/storyboards";
@@ -113,6 +113,14 @@ export function exampleWorldDocuments({
     storyboards: decodeStoryboardsV1(envelope("quiltor.storyboards", payloads.storyboards))
       .document,
   };
+}
+
+/**
+ * The figures the figure graph draws as cards. A place with a picture of its own is a map and
+ * is not drawn there, so a spec that counts the cards on the graph counts these.
+ */
+export function drawnFigures(storyWorld: FigureState): FigureNode[] {
+  return storyWorld.nodes.filter((node) => !node.mapImageId);
 }
 
 /**

@@ -11,7 +11,7 @@ import {
 } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
-import { exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
+import { drawnFigures, exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -2150,9 +2150,8 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
   await page.goto(`/?world=${world.id}`);
   await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  // A place with a picture of its own is a map, not a card on the figure graph.
   await expect(page.locator(".story-node")).toHaveCount(
-    exampleWorldDocuments().storyWorld.nodes.filter((node) => !node.mapImageId).length,
+    drawnFigures(exampleWorldDocuments().storyWorld).length,
   );
 
   // Select only the persisted relationship. Journey and presence overlays use synthetic IDs and

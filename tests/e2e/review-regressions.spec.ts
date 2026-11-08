@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { fulfillRevisionConflict } from "./support/application-api";
-import { exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
+import { drawnFigures, exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function returnToWorldSelection(page: Page) {
@@ -60,8 +60,7 @@ test("A malformed figure import is rejected before it can replace the current wo
 }) => {
   const world = await seedExampleWorld(page, { open: false });
   const figures = exampleWorldDocuments().storyWorld.nodes;
-  // A place with a picture of its own is a map, not a card on the figure graph.
-  const drawn = figures.filter((node) => !node.mapImageId).length;
+  const drawn = drawnFigures(exampleWorldDocuments().storyWorld).length;
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`/?world=${world.id}`);
