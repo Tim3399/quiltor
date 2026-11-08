@@ -424,7 +424,7 @@ export function CloudDialog({
         </>
       ) : (
         <Dialog
-          title={t("cloudTitle")}
+          title={t("versionsTabSync")}
           closeLabel={t("close")}
           onClose={() => {
             if (!hostBusy) onClose();

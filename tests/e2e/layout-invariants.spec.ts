@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { toolbarRowFindings } from "../audit/support/toolbar-row";
 import { mockWorkshop as mockWorkshopRoutes } from "./support/application-api";
+import { mockExampleWorld } from "./support/example-world";
 import {
   closePlaceSheet,
   mockExpandedMapWorld,
@@ -401,7 +402,7 @@ for (const viewport of [
         });
       }
 
-      await page.locator('.react-flow__node[data-id="graufurth"]').click();
+      await page.locator('.react-flow__node[data-id="x-graufurth"]').click();
       if (viewport.width <= 820) {
         const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
         await expect(sheet).toBeVisible();
@@ -486,12 +487,12 @@ for (const workspace of workspaces) {
     // test would check precisely the state in which the interesting panels are missing.
     // Below the column width the controls are a sheet, not a panel; there is nothing to
     // align there, so the step falls away.
-    const spalten = (page.viewportSize()?.width ?? 0) > 820;
-    if (spalten && workspace === "Figuren") {
+    const twoColumns = (page.viewportSize()?.width ?? 0) > 820;
+    if (twoColumns && workspace === "Figuren") {
       await page.locator(".world-overview__item").first().click();
       await expect(page.locator(".figure-inspector")).toBeVisible();
     }
-    if (spalten && workspace === "Orte") {
+    if (twoColumns && workspace === "Orte") {
       await page.locator(".story-node").first().click();
       await expect(page.locator(".places-inspector")).toBeVisible();
     }
@@ -566,6 +567,55 @@ test("Timeline: the toolbar stays one row with a wider font", async ({ page }) =
     await waitForSettledLayout(page);
     for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
       messages.push(`${width}px: ${finding.message}`);
+    }
+  }
+  expect(messages).toEqual([]);
+});
+
+/*
+ * The same toolbar with the test world's own calendar (T-218). Its name, "Gezeitenrechnung",
+ * is far longer than the label of relative time, and at 900 and 860px the strip used to scroll its create
+ * buttons over undo and redo. Each width checks the row rules and then asks the page what is
+ * actually under undo and redo.
+ */
+test("Timeline: the toolbar with a custom calendar keeps undo and redo in view with a wider font", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("quiltor-theme", "light");
+    localStorage.setItem("quiltor-interface-language", "de");
+  });
+  await mockExampleWorld(page);
+  await page.goto("/?world=example-world");
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await expect(page.locator(".timeline-toolbar")).toContainText("Gezeitenrechnung");
+  // Test-only: roughly 15 percent wider text than Segoe UI, more than the macOS difference.
+  await page.addStyleTag({
+    content: ".timeline-toolbar, .timeline-toolbar * { letter-spacing: 0.08em !important; }",
+  });
+  const start = page.viewportSize() ?? { width: 1440, height: 900 };
+  const messages: string[] = [];
+  for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+    await page.setViewportSize({ width, height: start.height });
+    await waitForSettledLayout(page);
+    for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+      messages.push(`${width}px: ${finding.message}`);
+    }
+    for (const name of ["Timeline rückgängig", "Timeline wiederholen"]) {
+      const covered = await page.getByRole("button", { name, exact: true }).evaluate((button) => {
+        const box = button.getBoundingClientRect();
+        const toolbar = button.closest(".timeline-toolbar")?.getBoundingClientRect();
+        if (!toolbar || box.width === 0) return "not rendered";
+        if (box.left < toolbar.left - 0.5 || box.right > toolbar.right + 0.5) {
+          return `outside the toolbar (${Math.round(box.left)}-${Math.round(box.right)})`;
+        }
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return hit && button.contains(hit)
+          ? ""
+          : `covered by ${hit?.closest("[class]")?.className}`;
+      });
+      if (covered) messages.push(`${width}px: ${name} is ${covered}`);
     }
   }
   expect(messages).toEqual([]);

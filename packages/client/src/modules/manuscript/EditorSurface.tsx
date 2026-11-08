@@ -37,6 +37,9 @@ import {
   type EditorTextSelection,
   type EditorViewSelection,
   ManuscriptEditor,
+  NO_ISSUES,
+  NO_MENTIONS,
+  NO_SEARCH_MATCHES,
   type ManuscriptEditorHandle,
 } from "./ManuscriptEditor";
 import type { Chapter, EntityMention, TextMark, WritingIssue } from "./model";
@@ -709,10 +712,10 @@ export function EditorSurface({
               <ManuscriptEditor
                 key={current.id}
                 value={historyOpen && historicalChapter ? historicalChapter.text : current.body}
-                mentions={historyOpen ? [] : current.mentions}
+                mentions={historyOpen ? NO_MENTIONS : current.mentions}
                 marks={historyOpen && historicalChapter ? historicalChapter.marks : current.marks}
-                issues={historyOpen ? [] : grammarIssues}
-                searchMatches={historyOpen ? [] : currentSearchMatches}
+                issues={historyOpen ? NO_ISSUES : grammarIssues}
+                searchMatches={historyOpen ? NO_SEARCH_MATCHES : currentSearchMatches}
                 // Asked when the editor creates its view, not while rendering: the restore
                 // target is one-time and is cleared once the restore has run, so a view that is
                 // created again later (new label after a language switch) must not replay it.
