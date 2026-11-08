@@ -154,6 +154,40 @@ async function fitUntilSettled(page: Page) {
   throw new Error("Fitting the canvas did not settle on one transform.");
 }
 
+/*
+ * Wait until the places canvas and every card on it stand still.
+ *
+ * On the compact viewport the places canvas fits once its cards are measured, and a card
+ * standing half outside the left edge (Graufurth) then lay a fraction of a pixel elsewhere
+ * from run to run: probed locally, 1 of 6 captures differed by 100 px around that card while
+ * the viewport transform had already been equal twice. Two identical readings of the
+ * viewport and of every card's rectangle in a row are what is waited for (T-231).
+ */
+async function waitForPlacesCanvasToStandStill(page: Page) {
+  let previous: string | null = null;
+  await expect
+    .poll(
+      async () => {
+        const current = await page.evaluate(() =>
+          JSON.stringify([
+            document
+              .querySelector(".places-flow-area .react-flow__viewport")
+              ?.getAttribute("style"),
+            [...document.querySelectorAll(".places-flow-area .react-flow__node")].map((node) => {
+              const rect = node.getBoundingClientRect();
+              return [node.getAttribute("data-id"), rect.x, rect.y, rect.width, rect.height];
+            }),
+          ]),
+        );
+        const still = current === previous;
+        previous = current;
+        return still;
+      },
+      { message: "The places canvas keeps moving its cards." },
+    )
+    .toBe(true);
+}
+
 for (const theme of ["light", "dark"] as const) {
   test(`${theme}: expanded map chrome remains attached while editing places`, async ({ page }) => {
     test.skip(!BOOTSTRAP && !hasBaselines(), `No baseline set exists for ${process.platform}.`);
@@ -180,6 +214,7 @@ for (const theme of ["light", "dark"] as const) {
     await selectMapChild(page);
     await expect(page.locator('.place-map-chrome[data-map-id="x-weltkarte"]')).toBeVisible();
     await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");
+    await waitForPlacesCanvasToStandStill(page);
     await expect(page).toHaveScreenshot(`${theme}-expanded-map.png`, {
       animations: "disabled",
       ...CANVAS_TOLERANCE,

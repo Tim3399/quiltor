@@ -880,3 +880,27 @@ What changed, and what did not:
 Most of the product suite's time is what the tests check -- persistence reloads, theme and
 viewport loops, axe scans, screenshots -- not duplicated setup. The brief expected minutes;
 locally it is about 11 % on the product suite and 44 % on the backend.
+
+## Generate visual baselines: why runs go red (T-231)
+
+Of the last 130 runs of the workflow, 16 are red (state of 2026-11-08, `gh run list`). Every red run
+falls into one of four groups; none is a fault of the workflow's logic.
+
+| Group                          | Runs                                                           | Job and line                                                                                                                                                       | Cause                                                                                                                                                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale expanded-map references  | 41324415522, 41327443566, 41328675806, 41418131871 | `bootstrap (ubuntu/macos)`, "Generate the missing baselines": `Snapshot: light-expanded-map.png`, 64 px, `dark-expanded-map.png`, 60 px, every run, every platform | a committed reference differed from the current design by the same pixel count each time: T-97 and T-104 changed the map chrome (see 4bb96a39). A constant count is a changed design, not noise                                                  |
+| Same, dark only                | 41487628680, 41503967136, 41504186728                          | strict verification, `dark-expanded-map-regular`, 25 px on ubuntu and macos                                                                                        | the "A snapshot doesn't exist" lines in these logs belong to the bootstrap pass, which expects them. The failing line is the 25 px dark reference, committed before T-124, again a constant count                                                |
+| Windows stuck on loading       | 41859545842                                                    | `bootstrap (windows-2025)`: `Locator: getByLabel('Kapiteltext')`, `Timeout: 5000ms`, four tests                                                                    | the first browser request waited 30.8 s on a cold Vite; fixed by `tools/dev/warm-vite.mjs` (5d434031). No Windows run since has failed for this reason                                                                                          |
+| Windows favourites             | 42390857160, 42392346266                                       | `bootstrap (windows-2025)`: `light-overview-favourites.png`, 27 px                                                                                                 | connection handles drawn in the overview (T-129 F3, 02bdb87e), fixed on 2026-11-07                                                                                                                                                             |
+| Red without a failed job       | 41420682381, 41859545842 (macos part), 41862696026, 41868308165, 41870500032, 41870510335           | `bootstrap (macos-15)` is `cancelled`, 0 steps; check-run annotation "The job was not acquired by Runner of type hosted even after multiple attempts"              | GitHub had no macOS arm64 runner (annotation: "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times"). The matrix runs one job at a time, so Windows waited 18 minutes behind it. Not solvable here |
+
+The `light-expanded-map` noise that remains is on the compact viewport only. Six captures per theme and viewport of
+the same state on win32 were byte-identical on wide and regular;
+compact differed in 1 of 6 light captures (100 px around the Graufurth card at the left edge,
+x 79-148, y 384-451) and 1 of 6 dark captures (33 px in the toolbar's overflow button, x 312-355,
+y 83-122). `waitForPlacesCanvasToStandStill` now waits for two identical readings of the
+viewport and every card's rectangle before the capture. The toolbar difference is not
+explained yet.
+
+Still open: five repeats of the expanded-map capture per platform with the new wait, and its
+mutation (remove the wait, expect a red repeat run); the compact toolbar difference.
