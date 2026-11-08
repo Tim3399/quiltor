@@ -708,7 +708,7 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     }
     if len(entries) != len(expected) or set(entries) != expected:
         raise WorkflowContractError(
-            "the full cross-platform matrix must run slots 1..4 on macOS and 1..8 on Windows, "
+            "the full cross-platform matrix must run slots 1..4 on macOS and 1..9 on Windows, "
             "each with both suites, one entry per slot, with unique diagnostics"
         )
     if "--shard=" in browser:
@@ -949,7 +949,7 @@ SLOT_RUN_EVIDENCE = (
     "path: test-results/reports/*.json",
 )
 # (runner, the system name tools/dev/test-shards.mjs takes, slots)
-CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 4), ("windows-2025", "windows", 8))
+CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 4), ("windows-2025", "windows", 9))
 LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
 FULL_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"

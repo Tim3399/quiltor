@@ -234,7 +234,7 @@ test("the workflow names a slot shape for every system", () => {
     workflowShapes().map(({ os, slots, maxTests }) => [os, slots, maxTests]),
     [
       ["linux", 6, Infinity],
-      ["windows", 8, 100],
+      ["windows", 9, 100],
       ["macos", 4, Infinity],
     ],
   );

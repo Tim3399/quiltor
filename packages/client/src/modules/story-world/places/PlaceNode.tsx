@@ -193,7 +193,14 @@ export function PlaceNode({
       className={`place-node-shell${displayTransition === "card" ? " is-display-transition" : ""}`}
       data-drag-preview={data.dragPreview ? "true" : undefined}
       data-map-clipped={appliedVisualClip ? "true" : undefined}
-      style={appliedVisualClip}
+      // The target area is the place's own business: the variable sits on the shell, not on
+      // StoryNodeCard, so places and figures keep sharing one card style contract.
+      style={
+        {
+          ...appliedVisualClip,
+          "--place-card-zoom": Math.max(0.08, data.zoom),
+        } as CSSProperties
+      }
       onAnimationEnd={(event) => {
         if (!(event.target instanceof Element)) return;
         if (!event.target.classList.contains("story-node")) return;
@@ -219,7 +226,6 @@ export function PlaceNode({
       <StoryNodeCard
         zoomTier={data.zoomTier}
         viewportZoom={data.zoom}
-        style={{ "--place-card-zoom": Math.max(0.08, data.zoom) } as CSSProperties}
         kind="ort"
         important={!!item.important}
         selected={selected}
