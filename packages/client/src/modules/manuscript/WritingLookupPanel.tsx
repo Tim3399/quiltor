@@ -21,9 +21,10 @@ import {
   type WritingAssistanceStatus,
   type WritingInstalledSource,
 } from "../../platform";
+import { installAllowed, useInstanceCapabilities } from "../../shared/capabilities";
+import { partOfSpeechLabel } from "./partOfSpeech";
 import type { AssistancePhase, WritingLocale } from "./WritingAidInspector.types";
 import { WritingTabScroller } from "./WritingTabScroller";
-import { partOfSpeechLabel } from "./partOfSpeech";
 import type { WritingTool } from "./workspaceTypes";
 
 const WRITING_TOOLS: WritingTool[] = ["lookup", "synonyms", "translate"];
@@ -97,6 +98,7 @@ export function WritingLookupPanel({
   onApplyValue,
 }: WritingLookupPanelProps) {
   const { t, locale } = useI18n();
+  const capabilities = useInstanceCapabilities();
   const toolLabel = (tool: WritingTool) =>
     tool === "lookup" ? t("dictionary") : tool === "synonyms" ? t("synonyms") : t("translate");
   const resultValues = (result: WritingAssistanceLookupResult) =>
@@ -197,7 +199,7 @@ export function WritingLookupPanel({
               headingLevel={3}
               size="compact"
               actions={
-                status?.installable === false ? (
+                !installAllowed(capabilities?.writingDataInstall, status?.installable) ? (
                   <p className="writing-data-state__note">{t("writingInstalledByOperator")}</p>
                 ) : status?.data?.available === false ? (
                   // No data release yet: an install button could only fail.

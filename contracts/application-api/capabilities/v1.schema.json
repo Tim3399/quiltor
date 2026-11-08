@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/capabilities/v1.schema.json",
+  "title": "Quiltor capabilities v1",
+  "description": "The answer of GET /api/capabilities: what the client may offer on this server (D-58, D-59). The client branches on these flags, never on an operation profile, which is deliberately not on the wire. `instance` holds facts that are the same for everyone on the server; `user` holds facts of the asking session. Both accept further booleans, so a new flag is additive; a client ignores flags it does not know.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "version", "instance", "user"],
+  "properties": {
+    "ok": { "const": true },
+    "version": { "const": 1 },
+    "instance": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" },
+      "required": [
+        "multiUser",
+        "signOut",
+        "deviceSync",
+        "assistantInstall",
+        "writingDataInstall",
+        "grammarInstall"
+      ],
+      "properties": {
+        "multiUser": {
+          "description": "More than one identity signs in here (OIDC). For diagnostics and wording only; branch on the flags below.",
+          "type": "boolean"
+        },
+        "signOut": {
+          "description": "The client may offer signing out.",
+          "type": "boolean"
+        },
+        "deviceSync": {
+          "description": "Worlds may sync with another device through a backup endpoint (D-61).",
+          "type": "boolean"
+        },
+        "assistantInstall": {
+          "description": "A request may install the assistant runtime and model on this server.",
+          "type": "boolean"
+        },
+        "writingDataInstall": {
+          "description": "A request may install the dictionary data on this server.",
+          "type": "boolean"
+        },
+        "grammarInstall": {
+          "description": "A request may install LanguageTool on this server.",
+          "type": "boolean"
+        }
+      }
+    },
+    "user": {
+      "description": "Flags of the asking session; they can change with a token refresh, so the client re-reads them.",
+      "type": "object",
+      "additionalProperties": { "type": "boolean" },
+      "properties": {
+        "serverAi": {
+          "description": "This session may use the server-side assistant (the premium role on a shared server, always locally). Allowed, not reachable: reachability stays in /api/assistant/status.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

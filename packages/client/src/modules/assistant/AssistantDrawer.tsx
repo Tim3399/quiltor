@@ -57,7 +57,7 @@ export function AssistantDrawer({
   );
   const endRef = useRef<HTMLDivElement>(null);
   const chapterPickerRef = useRef<HTMLButtonElement>(null);
-  const { status, installState, checkStatus, startInstall } = useAssistantAvailability();
+  const { status, installState, checkStatus, startInstall } = useAssistantAvailability(open);
   const {
     entries,
     sending,

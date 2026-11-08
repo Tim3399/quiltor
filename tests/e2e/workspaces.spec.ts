@@ -11,6 +11,7 @@ import {
 } from "./support/application-api";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
+import { drawnFigures, exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -2136,39 +2137,22 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
     "Edge selection and persistence only need a stable desktop viewport.",
   );
 
-  const world = await createTestWorld(page, `Figuren-Kanteneditor ${crypto.randomUUID()}`);
-  const relationshipId = "relationship-editor-e2e";
+  // Mara and Lumen of the test world are joined without a direction (e5), and by nothing
+  // else: a second directed relationship between the same two would be refused.
+  const world = await seedExampleWorld(page, { open: false });
+  const relationshipId = world.ids.relationships.e5;
+  const mara = world.ids.figures.mara;
+  const lumen = world.ids.figures.lumen;
+  const maraName = world.text("el.mara.name");
+  const lumenName = world.text("el.lumen.name");
   const label = `vertraut ${crypto.randomUUID()}`;
-  const initial = await page.request.get(`/api/state?world=${world.id}`);
-  const revision = initial.headers().etag || '"0"';
-  const saved = await page.request.put(`/api/state?world=${encodeURIComponent(world.id)}`, {
-    headers: { "If-Match": revision },
-    data: encodeStoryWorldDocument(
-      {
-        nodes: [
-          { id: "figure-ada", x: 120, y: 120, type: "person", name: "Ada" },
-          { id: "figure-bela", x: 520, y: 280, type: "person", name: "Bela" },
-        ],
-        edges: [
-          {
-            id: relationshipId,
-            from: "figure-ada",
-            to: "figure-bela",
-            label: "kennt",
-            active: true,
-            directed: false,
-          },
-        ],
-      },
-      Number(revision.replaceAll('"', "")),
-    ),
-  });
-  expect(saved.ok()).toBeTruthy();
 
   await page.goto(`/?world=${world.id}`);
   await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await expect(page.locator(".story-node")).toHaveCount(2);
+  await expect(page.locator(".story-node")).toHaveCount(
+    drawnFigures(exampleWorldDocuments().storyWorld).length,
+  );
 
   // Select only the persisted relationship. Journey and presence overlays use synthetic IDs and
   // must never open this editor.
@@ -2176,7 +2160,7 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
   await clickVisibleGraphEdge(page, relationship);
 
   const inspector = page.getByRole("region", { name: "Beziehung", exact: true });
-  await expect(inspector).toContainText("Ada ↔ Bela");
+  await expect(inspector).toContainText(`${maraName} ↔ ${lumenName}`);
   const inspectorBox = await inspector.boundingBox();
   const minimapBox = await page.locator(".react-flow__minimap").boundingBox();
   const surfacesOverlap = (
@@ -2234,14 +2218,14 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
     }
   ).payload.edges.find((edge) => edge.id === relationshipId);
   expect(directedEdge).toMatchObject({
-    from: "figure-ada",
-    to: "figure-bela",
+    from: mara,
+    to: lumen,
     label,
     directed: true,
     lineStyle: "dotted",
     relationshipKind: "kinship",
   });
-  await expect(inspector).toContainText("Ada → Bela");
+  await expect(inspector).toContainText(`${maraName} → ${lumenName}`);
 
   const reversedSaved = waitForSuccessfulStoryWorldWrite(page, label);
   await inspector.getByRole("button", { name: "Richtung umkehren" }).click();
@@ -2254,12 +2238,12 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
     }
   ).payload.edges.find((edge) => edge.id === relationshipId);
   expect(reversedEdge).toMatchObject({
-    from: "figure-bela",
-    to: "figure-ada",
+    from: lumen,
+    to: mara,
     label,
     directed: true,
   });
-  await expect(inspector).toContainText("Bela → Ada");
+  await expect(inspector).toContainText(`${lumenName} → ${maraName}`);
   await expect(relationship.locator(".react-flow__edge-path")).toHaveAttribute(
     "marker-end",
     /url\(['"]?#/,
@@ -2269,8 +2253,9 @@ test("a real figure relationship uses the shared edge editor and is preserved", 
   await page.reload();
   await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await expect(page.locator(".graph-edge-label")).toContainText(label);
-  await expect(page.locator(".graph-edge-label [data-edge-label-badge=kinship]")).toBeVisible();
+  const labelled = page.locator(".graph-edge-label").filter({ hasText: label });
+  await expect(labelled).toBeVisible();
+  await expect(labelled.locator("[data-edge-label-badge=kinship]")).toBeVisible();
   await expect(page.locator(`.react-flow__edge[data-id="${relationshipId}"]`)).toHaveClass(
     /edge-line-dotted/,
   );

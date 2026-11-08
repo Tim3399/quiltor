@@ -40,6 +40,16 @@ async function syncAvailability(page: Page, available: boolean) {
     const body = await response.json().catch(() => ({ ok: false }));
     await route.fulfill({ response, json: { ...body, syncAvailable: available } });
   });
+  // The client reads deviceSync from the capabilities since T-102; whoami is the
+  // fallback for a server without them, so both say the same here.
+  await page.route("**/api/capabilities", async (route: Route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: { ...body, instance: { ...body.instance, deviceSync: available } },
+    });
+  });
 }
 
 test("The menu groups the actions and keeps none of the old entries", async ({ page }) => {

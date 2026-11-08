@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/transient-network";
-import { mockWorkshop } from "./support/application-api";
+import { mockExampleWorld } from "./support/example-world";
 
 /*
  * On a phone the app bar holds the five workspace tabs and the assistant button side by
@@ -20,21 +20,7 @@ async function openWorld(page: Page) {
     localStorage.setItem("quiltor-theme", "light");
     localStorage.setItem("quiltor-interface-language", "de");
   });
-  await mockWorkshop(page, {
-    version: "mobile-tabs",
-    world,
-    documents: {
-      manuscript: {
-        chapters: [{ id: "c1", title: "Die Ankunft", body: "Der Morgen lag still.", note: "" }],
-        words: [],
-        activeSymbols: [],
-      },
-      storyWorld: {
-        nodes: [{ id: "mara", x: 120, y: 120, type: "person", name: "Mara Venn" }],
-        edges: [],
-      },
-    },
-  });
+  await mockExampleWorld(page, { version: "mobile-tabs", world });
   await page.goto("/");
   await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
   await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();

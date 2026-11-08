@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { applicationErrorMessage, quiltorClient } from "../../platform";
+import { ApplicationGatewayError, applicationErrorMessage, quiltorClient } from "../../platform";
+import { useStatusTick } from "../../shared/hooks/useStatusTick";
 
-const STATUS_POLL_MS = 15000;
 const INSTALL_POLL_MS = 1000;
 
 export type AssistantAvailability = {
@@ -22,14 +22,26 @@ export type AssistantInstallState = {
   error: string;
 };
 
-export function useAssistantAvailability() {
+/**
+ * `open` is whether the drawer is open. The 15 s status tick runs only then, plus one
+ * re-read when the window gains focus or becomes visible: a tick that outlives the
+ * drawer would keep the OIDC session alive past its idle limit (D-T-217-1). A 401 or
+ * 404 ends re-reading for good. The install poll below is exempt: it runs only while
+ * an installation is running, which ends on its own.
+ */
+export function useAssistantAvailability(open: boolean) {
   const [status, setStatus] = useState<AssistantAvailability | null>(null);
   const [installState, setInstallState] = useState<AssistantInstallState | null>(null);
   const installPollRef = useRef<number | undefined>(undefined);
   const hadRunningRef = useRef(false);
   const mountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+  const [stopped, setStopped] = useState(false);
 
   const checkStatus = useCallback(() => {
+    // focus and visibilitychange arrive together; one request answers both.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     quiltorClient.application.assistant
       .status()
       .then((nextStatus) => {
@@ -37,24 +49,42 @@ export function useAssistantAvailability() {
       })
       .catch((error) => {
         if (!mountedRef.current) return;
+        const category = error instanceof ApplicationGatewayError ? error.category : undefined;
+        if (category === "unauthorized" || category === "not_found") setStopped(true);
         setStatus({
           available: false,
           reason: applicationErrorMessage(error),
           installed: false,
           chunks: 0,
         });
+      })
+      .finally(() => {
+        inFlightRef.current = false;
       });
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
     checkStatus();
-    const interval = window.setInterval(checkStatus, STATUS_POLL_MS);
     return () => {
       mountedRef.current = false;
-      window.clearInterval(interval);
     };
   }, [checkStatus]);
+
+  useStatusTick(checkStatus, open && !stopped);
+
+  useEffect(() => {
+    if (stopped) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") checkStatus();
+    };
+    window.addEventListener("focus", checkStatus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", checkStatus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [stopped, checkStatus]);
 
   // Installation continues server-side while the drawer is closed. Polling always
   // re-synchronizes from the gateway so remounting cannot reset visible progress.
