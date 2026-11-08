@@ -99,7 +99,9 @@ class AssistantRouteServices:
     max_open_jobs: int | None
     installable: bool = True
     # Whether jobs may name a client engine (T-61, QUILTOR_ASSISTANT_CLIENT_AI).
-    client_ai: bool = False
+    client_ai: bool = True
+    # Hands the model calls of client-engine jobs to the browser (T-61).
+    relay_tickets: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,13 +171,12 @@ MAX_ASSISTANT_MAX_OPEN_JOBS = 100
 
 
 def assistant_client_ai(configured: str) -> bool:
-    """QUILTOR_ASSISTANT_CLIENT_AI: `1` lets users run jobs on their own engine, `0` or
-    unset does not. Off by default until the relay that executes such jobs exists (T-61
-    Teil 3); a server that accepted them before would queue work nobody can compute."""
+    """QUILTOR_ASSISTANT_CLIENT_AI: `1` or unset lets users run jobs on their own engine,
+    `0` does not. On by default since the relay routes exist (T-61 Teil 3)."""
     configured = configured.strip()
-    if configured in {"", "0"}:
+    if configured == "0":
         return False
-    if configured == "1":
+    if configured in {"", "1"}:
         return True
     raise RuntimeError("QUILTOR_ASSISTANT_CLIENT_AI must be 0 or 1.")
 
@@ -237,7 +238,7 @@ class WebApplication:
     # How many queued or running assistant jobs one account may have (OIDC only).
     assistant_max_open_jobs: int = DEFAULT_ASSISTANT_MAX_OPEN_JOBS
     # Whether a job may name a client engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
-    assistant_client_ai: bool = False
+    assistant_client_ai: bool = True
 
     @property
     def installable(self) -> bool:
@@ -333,6 +334,7 @@ class WebApplication:
                 self.assistant_max_open_jobs if self.identity.multi_user else None,
                 self.installable,
                 self.assistant_client_ai,
+                self.assistant_services.relay_tickets,
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(

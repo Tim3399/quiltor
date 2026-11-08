@@ -18,6 +18,10 @@ CLOUD = "cloud"
 ENGINE_KINDS = frozenset({SERVER, WEBLLM, CLOUD})
 CLIENT_ENGINE_KINDS = frozenset({WEBLLM, CLOUD})
 CLOUD_PROVIDERS = frozenset({"openai", "openrouter", "anthropic"})
+#: The error codes a browser may answer a model call with (T-61 relay).
+CLIENT_ERROR_CODES = frozenset(
+    {"context_too_large", "engine_unavailable", "provider_error", "cancelled"}
+)
 
 
 class InvalidEngine(ValueError):
@@ -72,6 +76,7 @@ def parse_engine(payload: dict[str, Any]) -> EngineChoice:
 
 __all__ = [
     "CLIENT_ENGINE_KINDS",
+    "CLIENT_ERROR_CODES",
     "CLOUD",
     "CLOUD_PROVIDERS",
     "ENGINE_KINDS",

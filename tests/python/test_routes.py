@@ -105,6 +105,7 @@ class RouteTableTests(unittest.TestCase):
             "/api/assistant/logs",
             "/api/assistant/job",
             "/api/assistant/progress",
+            "/api/assistant/relay/next",
         }
         actual = {path for path, entry in routes.GET.items() if entry.world}
         self.assertEqual(actual, expected)

@@ -110,6 +110,7 @@ def load() -> None:
     """
     from quiltor.delivery.http.routes import (  # noqa: F401
         assistant,
+        assistant_relay,
         backup,
         documents,
         history,

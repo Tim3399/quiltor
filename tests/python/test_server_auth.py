@@ -674,7 +674,7 @@ class PremiumGateTests(_LiveAuthServerTestCase):
         self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
 
     def test_with_the_switch_off_a_client_engine_is_refused_and_nothing_is_stored(self):
-        self.assertFalse(self.application.assistant_client_ai)  # the default (F-61-2)
+        self.application.assistant_client_ai = False
         session = self._login("user-paid")
         world_id = self._create_world(session)
         for engine in ({"kind": "webllm"}, {"kind": "cloud", "provider": "openrouter"}):

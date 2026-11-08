@@ -28,6 +28,7 @@ from quiltor.infrastructure.inference.relay.tickets import (
     RelayTicketStore,
 )
 from quiltor.infrastructure.inference.shared.contract import json_object_fallback
+from quiltor.modules.assistant.engines import CLIENT_ERROR_CODES
 from quiltor.modules.assistant.ports import (
     IncompleteInferenceResponse,
     InferenceContextTooLargeError,
@@ -46,10 +47,6 @@ CALIBRATION_MAX = 2.0
 SAFETY_MARGIN = 1.1
 #: How much a new measurement moves the calibration (exponential smoothing).
 SMOOTHING = 0.5
-
-CLIENT_ERROR_CODES = frozenset(
-    {"context_too_large", "engine_unavailable", "provider_error", "cancelled"}
-)
 
 
 def _prompt_text(payload: dict[str, Any]) -> str:
@@ -158,8 +155,11 @@ class RelayInferenceEngine:
                 raise InferenceContextTooLargeError("The browser's model window is too small.")
             if code == "cancelled":
                 raise InferenceUnavailableError("cancelled")
+            message = str(code) if code in CLIENT_ERROR_CODES else "client_error"
+            detail = error.get("detail")
+            # The relay route trimmed and cleaned it; it reaches only the job's owner.
             raise InferenceUnavailableError(
-                str(code) if code in CLIENT_ERROR_CODES else "client_error"
+                f"{message}: {detail}" if isinstance(detail, str) and detail else message
             )
 
         output = answer.get("output")

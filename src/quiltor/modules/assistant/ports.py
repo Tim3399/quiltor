@@ -26,6 +26,18 @@ class ClientJobRunning(RuntimeError):
         self.job_id = job_id
 
 
+class RelayTicketNotFound(LookupError):
+    """No relay ticket matches: unknown, someone else's, or not this session's (T-61)."""
+
+
+class RelayTicketExpired(LookupError):
+    """The relay ticket was answered, cancelled, or ran out of time (T-61)."""
+
+
+class RelayTooManyFailures(LookupError):
+    """The session has failed too often recently; refused without looking (T-61)."""
+
+
 class IdempotencyConflict(RuntimeError):
     """One idempotency key was reused for a different logical request."""
 
@@ -214,6 +226,9 @@ __all__ = [
     "InferenceTimeoutError",
     "InferenceUnavailableError",
     "JobStoreFactory",
+    "RelayTicketExpired",
+    "RelayTicketNotFound",
+    "RelayTooManyFailures",
     "TokenCountCache",
     "TooManyOpenJobs",
 ]

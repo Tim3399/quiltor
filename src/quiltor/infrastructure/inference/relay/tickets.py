@@ -27,6 +27,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from quiltor.modules.assistant.ports import (
+    RelayTicketExpired,
+    RelayTicketNotFound,
+    RelayTooManyFailures,
+)
+
 #: Seconds a browser has to pick up a ticket before the job counts as abandoned.
 DELIVER_SECONDS = 20.0
 #: Seconds a browser has to answer a ticket it picked up, by engine.
@@ -42,18 +48,6 @@ FAILURE_WINDOW_SECONDS = 600.0
 FINISHED_SECONDS = FAILURE_WINDOW_SECONDS
 #: How often a waiter looks at the clock even when nobody notifies it.
 _POLL_SECONDS = 0.05
-
-
-class RelayTicketNotFound(LookupError):
-    """No ticket matches: unknown, someone else's, or not this session's."""
-
-
-class RelayTicketExpired(LookupError):
-    """The ticket was answered, cancelled, or ran out of time."""
-
-
-class RelayTooManyFailures(LookupError):
-    """The session has failed too often recently; refused without looking."""
 
 
 class RelayDeliveryTimeout(TimeoutError):
@@ -114,6 +108,8 @@ class RelayTicketStore:
         self._cancelled_jobs: set[str] = set()
         # job id -> (binding it had, until when it is remembered as finished)
         self._finished: dict[str, tuple[JobBinding, float]] = {}
+        # ticket token -> job id, for the tickets of a finished job (F-61-16)
+        self._finished_tokens: dict[str, str] = {}
         self._tickets: dict[str, Ticket] = {}
         self._failures: dict[str, deque[float]] = {}
         self._closed = False
@@ -138,6 +134,9 @@ class RelayTicketStore:
             binding = self._bindings.pop(job_id, None)
             if binding is not None:
                 self._finished[job_id] = (binding, self._clock() + FINISHED_SECONDS)
+                for token, ticket in self._tickets.items():
+                    if ticket.job_id == job_id:
+                        self._finished_tokens[token] = job_id
             self._expected_seq.pop(job_id, None)
             self._cancelled_jobs.discard(job_id)
             for token in [t for t, ticket in self._tickets.items() if ticket.job_id == job_id]:
@@ -264,9 +263,20 @@ class RelayTicketStore:
         world_id: str,
         answer: dict[str, Any],
     ) -> Ticket:
-        """Hand the browser's answer to the waiting call. Each ticket answers once."""
+        """Hand the browser's answer to the waiting call. Each ticket answers once.
+
+        A late answer of the job's own session to a ticket of a finished job (cancelled
+        ones included: the runner releases them at once) is refused as expired without
+        counting (F-61-16): the browser may have finished computing just as the job
+        ended. Anyone else still fails as before.
+        """
+        caller = JobBinding(sub, session_id, world_id)
         with self._condition:
             self._refuse_if_blocked(session_id)
+            self._forget_finished()
+            finished_job = self._finished_tokens.get(token)
+            if finished_job is not None and self._finished.get(finished_job, (None,))[0] == caller:
+                raise RelayTicketExpired()
             ticket = self._tickets.get(token)
             if ticket is None or self._bindings.get(ticket.job_id) != JobBinding(
                 sub, session_id, world_id
@@ -299,6 +309,8 @@ class RelayTicketStore:
         now = self._clock()
         for job_id in [j for j, (_, until) in self._finished.items() if until <= now]:
             self._finished.pop(job_id, None)
+        for token in [t for t, j in self._finished_tokens.items() if j not in self._finished]:
+            self._finished_tokens.pop(token, None)
 
     def _recent_failures(self, session_id: str) -> deque[float]:
         failures = self._failures.setdefault(session_id, deque())

@@ -6,6 +6,7 @@ from typing import Any
 
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.routes.assistant_relay import session_key
 from quiltor.modules.assistant import (
     ASSISTANT_REPLY_LANGUAGES,
     DEFAULT_ASSISTANT_LANGUAGE,
@@ -251,6 +252,15 @@ def create_job(handler, request: Request, app) -> None:
             max_open=app.max_open_jobs,
             engine_kind=engine.kind,
         )
+        if engine.is_client and created:
+            # The session that submitted the job is the one browser that computes it; a
+            # retry (200) keeps the binding of the first request (T-61 Teil 3).
+            app.relay_tickets.bind_job(
+                job["id"],
+                sub=request.session.sub,
+                session_id=session_key(request.session),
+                world_id=world.id,
+            )
         handler.send_json(
             {
                 "ok": True,
