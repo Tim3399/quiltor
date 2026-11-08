@@ -8,6 +8,7 @@ below are the same lines either way (trivially satisfied when there is one user)
 
 from __future__ import annotations
 
+from quiltor.application.worlds.example import ExampleWorldFailed
 from quiltor.delivery.http.routes import Request, get, save
 
 
@@ -31,6 +32,50 @@ def create(handler, request: Request, app) -> None:
 @save("/api/worlds/open")
 def open_world(handler, request: Request, app) -> None:
     _open_or_create(handler, request, app, creating=False)
+
+
+@save("/api/worlds/open-example")
+def open_example(handler, request: Request, app) -> None:
+    """A fresh preview of the example world in the given language (T-214-5a, D-127).
+
+    It is not in the world list and becomes a real world with its first saved change. Every
+    call makes a new one: two tabs, two previews.
+    """
+    try:
+        payload = handler._read_json_body()
+    except (TypeError, ValueError) as exc:
+        return handler.send_exception(exc)
+    lang = payload.get("lang") if isinstance(payload, dict) else None
+    try:
+        with app.lock:
+            world = app.example_worlds.open(request.session.sub, lang)
+    except ExampleWorldFailed:
+        return handler.send_api_error(500, error_code="world.example_failed", retryable=True)
+    handler.send_json({"ok": True, "world": world})
+
+
+@save("/api/worlds/discard-preview")
+def discard_preview(handler, request: Request, app) -> None:
+    """Remove the caller's preview when its tab leaves it unchanged.
+
+    Sent as a beacon too, so it never fails loudly: a world that has become real meanwhile,
+    or is already gone, answers `discarded: false` and stays as it is. Only another account's
+    world is refused.
+    """
+    try:
+        payload = handler._read_json_body()
+    except (TypeError, ValueError) as exc:
+        return handler.send_exception(exc)
+    world_id = str(payload.get("id", "")) if isinstance(payload, dict) else ""
+    discarded = True
+    with app.lock:
+        try:
+            app.worlds.discard_preview(world_id, request.session.sub)
+        except PermissionError as exc:
+            return handler.send_exception(exc)
+        except (FileNotFoundError, ValueError):
+            discarded = False
+    handler.send_json({"ok": True, "discarded": discarded})
 
 
 @save("/api/worlds/delete")

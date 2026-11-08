@@ -35,6 +35,9 @@ export const common = {
     "Der Inhalt dieser Version konnte nicht abgerufen werden. Dein aktueller Stand ist unverändert.",
   errorSyncForbiddenHosted:
     "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten. Deine Versionen liegen bereits auf dem Server.",
+  errorWorldPreview:
+    "Die Beispielwelt wird erst gesichert und abgeglichen, wenn du etwas an ihr änderst.",
+  errorExampleWorldFailed: "Die Beispielwelt konnte nicht geöffnet werden.",
   errorInstallForbiddenHosted:
     "Auf diesem Server richtet der Betreiber Erweiterungen ein. Hier lässt sich nichts nachinstallieren.",
   errorSyncTargetInvalid:

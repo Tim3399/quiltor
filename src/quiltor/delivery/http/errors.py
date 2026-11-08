@@ -137,6 +137,8 @@ def _from_exception(error: Exception) -> HttpError:
             return for_status(503, code="storage.full")
         if error.errno == errno.EROFS:
             return for_status(503, code="storage.read_only")
+        if error.errno == errno.EBUSY:
+            return for_status(503, code="storage.locked")
     if isinstance(error, PermissionError):
         return for_status(403)
     if isinstance(error, FileNotFoundError):

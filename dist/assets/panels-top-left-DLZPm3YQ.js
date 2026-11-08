@@ -1,0 +1,5 @@
+<<<<<<<< HEAD:dist/assets/panels-top-left-hz2lU0nJ.js
+import{sn as e}from"./manuscript-CmB1D2pV.js";var t=e(`panels-top-left`,[[`rect`,{width:`18`,height:`18`,x:`3`,y:`3`,rx:`2`,key:`afitv7`}],[`path`,{d:`M3 9h18`,key:`1pudct`}],[`path`,{d:`M9 21V9`,key:`1oto5p`}]]);export{t};
+========
+import{on as e}from"./manuscript-_kjSU0NX.js";var t=e(`panels-top-left`,[[`rect`,{width:`18`,height:`18`,x:`3`,y:`3`,rx:`2`,key:`afitv7`}],[`path`,{d:`M3 9h18`,key:`1pudct`}],[`path`,{d:`M9 21V9`,key:`1oto5p`}]]);export{t};
+>>>>>>>> 514bbabe:dist/assets/panels-top-left-DLZPm3YQ.js

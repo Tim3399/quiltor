@@ -252,3 +252,12 @@
   padding: 0;
   list-style: none;
 }
+
+.world-example-open {
+  margin-top: var(--space-8);
+}
+
+.world-example-hint {
+  margin: var(--space-8) 0 0;
+  color: var(--muted);
+}

@@ -1,1 +1,5 @@
+<<<<<<<< HEAD:dist/assets/user-round-4hrdRFAq.js
 import{sn as e}from"./manuscript-CmB1D2pV.js";var t=e(`user-round`,[[`circle`,{cx:`12`,cy:`8`,r:`5`,key:`1hypcn`}],[`path`,{d:`M20 21a8 8 0 0 0-16 0`,key:`rfgkzh`}]]);export{t};
+========
+import{on as e}from"./manuscript-_kjSU0NX.js";var t=e(`user-round`,[[`circle`,{cx:`12`,cy:`8`,r:`5`,key:`1hypcn`}],[`path`,{d:`M20 21a8 8 0 0 0-16 0`,key:`rfgkzh`}]]);export{t};
+>>>>>>>> 514bbabe:dist/assets/user-round-VTZn9PHx.js

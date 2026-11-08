@@ -75,4 +75,21 @@ describe("SelectionCard", () => {
     fireEvent.click(button);
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it("draws a dashed edge only when asked, and keeps the label it is given", () => {
+    const { rerender } = render(
+      <SelectionCard
+        label="Atlas – Beispielwelt – öffnen"
+        title="Atlas"
+        dashed
+        onSelect={() => {}}
+      />,
+    );
+    const card = screen.getByRole("button", { name: "Atlas – Beispielwelt – öffnen" });
+    expect(card.closest(".selection-card")).toHaveClass("selection-card--dashed");
+    rerender(<SelectionCard label="Atlas öffnen" title="Atlas" onSelect={() => {}} />);
+    expect(
+      screen.getByRole("button", { name: "Atlas öffnen" }).closest(".selection-card"),
+    ).not.toHaveClass("selection-card--dashed");
+  });
 });
