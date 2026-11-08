@@ -38,14 +38,16 @@ import type { EntityMention, TextMark, TextMarkKind, WritingIssue } from "./mode
 
 const controlledUpdate = Annotation.define<boolean>();
 // Stable stand-ins for absent decoration props. A fresh `[]` default differs on every render
-// and made its effect dispatch a transaction each time. Every transaction makes CodeMirror
-// drop a DOM selection it has not read yet and write its own back, so one that landed between
-// "select all" and typing put the typed text in front of the old text (T-159).
-const NO_MENTIONS: EntityMention[] = [];
+// and made its effect dispatch a transaction each time. A transaction that redraws, or one
+// that reaches a view whose observer has never read a selection, makes CodeMirror drop a DOM
+// selection it has not read yet and write its own back, so one that landed between "select
+// all" and typing put the typed text in front of the old text (T-159). Callers that have
+// nothing to decorate pass these too instead of a fresh `[]`.
+export const NO_MENTIONS: EntityMention[] = [];
 const NO_MARKS: TextMark[] = [];
-const NO_ISSUES: WritingIssue[] = [];
+export const NO_ISSUES: WritingIssue[] = [];
 const NO_ENTITIES: FigureNode[] = [];
-const NO_SEARCH_MATCHES: Array<{ from: number; to: number }> = [];
+export const NO_SEARCH_MATCHES: Array<{ from: number; to: number }> = [];
 
 // Decoration props arrive from outside while the author may be mid-selection; each
 // transaction carries a native selection the view has not read yet (T-161).
