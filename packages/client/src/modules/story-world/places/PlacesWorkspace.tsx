@@ -6,7 +6,7 @@ import { applicationErrorMessage, quiltorClient, type StoredMapImage } from "../
 import type { Workspace } from "../../../shared";
 import { useLatest } from "../../../shared/hooks/useLatest";
 import { prunePresence } from "../figures/presence";
-import type { FigureNode, FigureState } from "../model";
+import type { FigureNode, FigureState, MapScale } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
@@ -88,8 +88,22 @@ function PlacesWorkspaceInner({
   const [adjustingId, setAdjustingId] = useState<string | undefined>(undefined);
   const [measuring, setMeasuring] = useState(false);
   const [measureTargets, setMeasureTargets] = useState<MeasureTarget[]>([]);
-  const measureSelection = useMemo(() => measureSelectionOf(measureTargets), [measureTargets]);
-  const measurePoints = useMemo(() => measurePointsOf(measureTargets), [measureTargets]);
+  // Setting a scale by measuring a stretch: whose scale, and the ends picked so far. The
+  // preview follows the pointer once one end is set, so the stretch is seen as it is drawn.
+  const [calibration, setCalibration] = useState<{
+    target: { kind: "map"; id: string } | { kind: "level" };
+    ends: MeasureTarget[];
+    preview?: { x: number; y: number };
+  } | null>(null);
+  const calibrating = calibration !== null;
+  // What the canvas draws a line between: the stretch while calibrating, else the distances.
+  const shownTargets = useMemo<MeasureTarget[]>(() => {
+    if (!calibration) return measureTargets;
+    const { ends, preview } = calibration;
+    return ends.length === 1 && preview ? [ends[0], { kind: "point", ...preview }] : ends;
+  }, [calibration, measureTargets]);
+  const measureSelection = useMemo(() => measureSelectionOf(shownTargets), [shownTargets]);
+  const measurePoints = useMemo(() => measurePointsOf(shownTargets), [shownTargets]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
   const [blockedDeletion, setBlockedDeletion] = useState<{
     name: string;
@@ -146,19 +160,39 @@ function PlacesWorkspaceInner({
   const selectedMap = selected?.mapImageId ? selected : null;
   // Crop belongs to the active surface, including while a child is selected.
   if (adjustingId && adjustingId !== activeMap?.id) setAdjustingId(undefined);
+  // An end of the stretch: a click on a place snaps to it, anywhere else is a free point.
+  const addCalibrationEnd = useCallback((end: MeasureTarget) => {
+    setCalibration((current) =>
+      current
+        ? { ...current, ends: nextMeasureTargets(current.ends, end), preview: undefined }
+        : current,
+    );
+  }, []);
   const selectPlace = useCallback(
     (id: string) => {
+      if (calibrating) {
+        addCalibrationEnd({ kind: "place", id });
+        return;
+      }
       setSelectedId(id);
       const map = activePlaceMapForSelection(latestStateRef.current.nodes, levelId, id);
       if (map) setActiveMapState({ levelId, mapId: map.id });
       if (!measuring) return;
       setMeasureTargets((current) => nextMeasureTargets(current, { kind: "place", id }));
     },
-    [levelId, measuring],
+    [levelId, measuring, calibrating, addCalibrationEnd],
   );
   const addMeasurePoint = useCallback((point: { x: number; y: number }) => {
     setMeasureTargets((current) => nextMeasureTargets(current, { kind: "point", ...point }));
   }, []);
+  const startCalibration = useCallback(
+    (target: { kind: "map"; id: string } | { kind: "level" }) => {
+      setMeasuring(false);
+      setMeasureTargets([]);
+      setCalibration({ target, ends: [] });
+    },
+    [],
+  );
   const mapImageUrl = useCallback(
     (imageId: string) => quiltorClient.application.placeMaps.sourceUrl(imageId),
     [],
@@ -214,9 +248,10 @@ function PlacesWorkspaceInner({
     state,
     places,
     levelId,
-    measuring,
+    measuring: measuring || calibrating,
     measureSelection,
     measurePoints,
+    measureMode: calibrating ? "calibrate" : "distances",
     onOpenLevel: openLevel,
     mapImageUrl,
     onExpandMap: expandMap,
@@ -372,6 +407,15 @@ function PlacesWorkspaceInner({
     return () => window.removeEventListener("keydown", finishCrop);
   }, [adjustingId]);
 
+  useEffect(() => {
+    if (!calibrating) return;
+    const cancelCalibration = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCalibration(null);
+    };
+    document.addEventListener("keydown", cancelCalibration);
+    return () => document.removeEventListener("keydown", cancelCalibration);
+  }, [calibrating]);
+
   const stopMeasuring = () => {
     setMeasuring(false);
     setMeasureTargets([]);
@@ -395,6 +439,22 @@ function PlacesWorkspaceInner({
     };
     latestStateRef.current = next;
     onChange(next);
+  };
+  // The unit the stretch's length is typed in: whatever the target already reads in.
+  const calibrationUnit = (target: { kind: "map"; id: string } | { kind: "level" }) => {
+    const scale =
+      target.kind === "map"
+        ? state.nodes.find((node) => node.id === target.id)?.mapScale
+        : levelScale;
+    return scale?.unitLabel ?? t("unitsDefault");
+  };
+  // The same target as the editor the stretch was started from, in one step.
+  const applyCalibration = (
+    target: { kind: "map"; id: string } | { kind: "level" },
+    scale: MapScale,
+  ) => {
+    if (target.kind === "map") patchPlace(target.id, { mapScale: scale });
+    else patchScale(scale);
   };
   const blockDeletionWithContents = (place: FigureNode): boolean => {
     const current = latestStateRef.current;
@@ -474,6 +534,7 @@ function PlacesWorkspaceInner({
         onMeasuringToggle={() => {
           setMeasuring((value) => !value);
           setMeasureTargets([]);
+          setCalibration(null);
         }}
         onUndo={onUndo}
         onRedo={onRedo}
@@ -534,6 +595,7 @@ function PlacesWorkspaceInner({
                   onCollapse: () => collapseMap(activeMap),
                   onEnter: () => openLevel(activeMap),
                   scale: activeMap.mapScale,
+                  onCalibrate: () => startCalibration({ kind: "map", id: activeMap.id }),
                   onScale: (patch) =>
                     patchPlace(activeMap.id, {
                       mapScale: {
@@ -593,7 +655,39 @@ function PlacesWorkspaceInner({
             if (place) openLevel(place);
           }}
           onClearSelection={() => setSelectedId(null)}
-          onMeasurePoint={measuring ? addMeasurePoint : undefined}
+          onMeasurePoint={
+            calibrating
+              ? (point) => addCalibrationEnd({ kind: "point", ...point })
+              : measuring
+                ? addMeasurePoint
+                : undefined
+          }
+          onCalibrateLevel={() => startCalibration({ kind: "level" })}
+          calibration={
+            calibration
+              ? {
+                  ends: calibration.ends.length,
+                  flowLength: calibration.ends.length === 2 ? canvas.targetedLength : undefined,
+                  defaultUnit: calibrationUnit(calibration.target),
+                  onStart: (start) =>
+                    setCalibration((current) =>
+                      current ? { ...current, ends: [start], preview: undefined } : current,
+                    ),
+                  onPreview: (point) =>
+                    setCalibration((current) =>
+                      current && current.ends.length === 1
+                        ? { ...current, preview: point }
+                        : current,
+                    ),
+                  onEnd: addCalibrationEnd,
+                  onApply: (scale) => {
+                    applyCalibration(calibration.target, scale);
+                    setCalibration(null);
+                  },
+                  onCancel: () => setCalibration(null),
+                }
+              : undefined
+          }
           onStopMeasuring={stopMeasuring}
           onScale={patchScale}
         />

@@ -200,14 +200,21 @@ describe.each(["expanded", "collapsed"] as const)("shared %s map scale editor", 
       target: { value: "50" },
     });
     expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 50 });
+    // Neither a negative number nor an empty field is a scale: nothing is written.
+    const calls = vi.mocked(options.onScale).mock.calls.length;
     fireEvent.change(within(editor).getByRole("spinbutton", { name: "Maßstab" }), {
       target: { value: "-12" },
     });
-    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.01 });
     fireEvent.change(within(editor).getByRole("spinbutton", { name: "Maßstab" }), {
       target: { value: "" },
     });
-    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.01 });
+    expect(options.onScale).toHaveBeenCalledTimes(calls);
+    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 50 });
+    // A measured city plan reads below the old floor of 0.01 and is written as it is.
+    fireEvent.change(within(editor).getByRole("spinbutton", { name: "Maßstab" }), {
+      target: { value: "0.0667" },
+    });
+    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.0667 });
     fireEvent.change(within(editor).getByRole("textbox", { name: "Einheit" }), {
       target: { value: "Meilen" },
     });

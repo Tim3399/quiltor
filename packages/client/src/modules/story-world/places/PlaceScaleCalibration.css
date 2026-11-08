@@ -1,0 +1,26 @@
+.places-scale-calibration__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6) var(--space-10);
+  align-items: end;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  pointer-events: auto;
+}
+
+.places-scale-calibration__length {
+  width: 12ch;
+}
+
+.places-scale-calibration__unit {
+  width: 10ch;
+}
+
+.places-scale-calibration__preview {
+  flex-basis: 100%;
+  min-height: 1lh;
+  color: var(--muted);
+  font-size: var(--font-size-numeric-legacy-compact);
+}

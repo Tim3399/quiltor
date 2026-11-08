@@ -18,10 +18,13 @@ export function createPlaceMeasurementEdges({
   points,
   selection,
   scaleFor,
+  nearest = true,
   t,
 }: {
   points: PlaceMeasurementPoint[];
   selection: string[];
+  /** The three nearest lines per place; off while a stretch is being drawn for a scale. */
+  nearest?: boolean;
   /**
    * What a distance between these two means, which is not one answer.
    *
@@ -34,7 +37,7 @@ export function createPlaceMeasurementEdges({
   t: Translate;
 }): Edge[] {
   const places = points.filter((point) => !point.free);
-  const pairs = new Map(nearestMapDistances(places).map((pair) => [pair.id, pair]));
+  const pairs = new Map(nearest ? nearestMapDistances(places).map((pair) => [pair.id, pair]) : []);
   const from = points.find((point) => point.id === selection[0]);
   const to = points.find((point) => point.id === selection[1]);
   const targeted = from && to ? mapDistancePair(from, to) : null;

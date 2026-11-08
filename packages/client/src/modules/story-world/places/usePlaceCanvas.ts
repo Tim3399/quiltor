@@ -34,6 +34,7 @@ import {
 import { type DragClientPoint, dragClientPoint, placeDropFrame } from "./placeDragModel";
 import type { ImageCrop } from "./placeImageCrop";
 import { type MeasureEndpoint, placementForDrop, scaleForPoints } from "./placeLevels";
+import { mapDistance } from "./placeMap";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
 
 export type PlaceCanvasController = {
@@ -74,6 +75,8 @@ export type PlaceCanvasController = {
   /** Told how large the surface is, since the floor is measured from it. */
   onSurfaceResize: (size: { width: number; height: number }) => void;
   onNodesChange: (changes: NodeChange<PlaceFlowNode>[]) => void;
+  /** The picked stretch in flow units, when two ends are picked. */
+  targetedLength: number | undefined;
   /** Where a point on screen lies on the surface, once the canvas is ready. */
   toFlowPosition: (client: { x: number; y: number }) => { x: number; y: number } | undefined;
   onNodeDragStart: (event: MouseEvent | TouchEvent, node: PlaceFlowNode) => void;
@@ -88,6 +91,7 @@ export function usePlaceCanvas({
   measuring,
   measureSelection,
   measurePoints,
+  measureMode = "distances",
   onOpenLevel,
   mapImageUrl,
   onExpandMap: expandMap,
@@ -108,6 +112,8 @@ export function usePlaceCanvas({
   measureSelection: string[];
   /** Free points set while measuring; point n is the node `measure-point:n`. */
   measurePoints: readonly { x: number; y: number }[];
+  /** Distances between places, or the one stretch a scale is measured from. */
+  measureMode?: "distances" | "calibrate";
   onOpenLevel: (place: FigureNode) => void;
   /** Where a stored picture can be shown from. */
   mapImageUrl: (imageId: string) => string;
@@ -459,6 +465,7 @@ export function usePlaceCanvas({
         ? createPlaceMeasurementEdges({
             points: measurablePoints,
             selection: measureSelection,
+            nearest: measureMode === "distances",
             // Called while the edges are built, so it reads the nodes of this render.
             scaleFor: (from, to) => {
               const nodes = state.nodes;
@@ -486,12 +493,22 @@ export function usePlaceCanvas({
       measureSelection,
       measurablePoints,
       measurePoints,
+      measureMode,
       laidOutMaps,
       state.nodes,
       levelScale,
       t,
     ],
   );
+
+  // The stretch between the two picked ends, in flow units, for a scale taken from it.
+  const targetedLength = useMemo(() => {
+    if (measureSelection.length !== 2) return undefined;
+    const [from, to] = measureSelection.map((id) =>
+      measurablePoints.find((point) => point.id === id),
+    );
+    return from && to ? mapDistance(from, to) : undefined;
+  }, [measureSelection, measurablePoints]);
 
   /**
    * What framing the level is supposed to show.
@@ -644,6 +661,7 @@ export function usePlaceCanvas({
         : node,
     ),
     edges,
+    targetedLength,
     fitViewOptions,
     zoomTier,
     dragPreview,
