@@ -207,17 +207,26 @@ class RelayRouteTests(RelayRouteTestCase):
         self.assertEqual((status, body["error"]["code"]), (410, "relay.ticket_expired"))
 
     def test_an_answer_above_the_limit_is_refused_unread(self):
+        """Refused on the declared length alone. Only the headers are sent: the server must
+        answer without waiting for a body, and a body it never reads would make Windows
+        reset the connection under the answer (D-38, plan F7)."""
         job = self._job()
-        request = self._ticket(job)
-        big = json.dumps(
-            {
-                "ticket": request["ticket"],
-                "output": {"content": "x" * (300 * 1024), "finishReason": "stop"},
-            }
-        ).encode("utf-8")
-        status, body = self._answer(None, raw=big)
-        self.assertEqual(status, 413)
-        self.assertEqual(body["error"]["code"], "relay.answer_too_large")
+        self._ticket(job)
+        for length in (str(300 * 1024), str(LIMIT + 1)):
+            with self.subTest(length=length):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    f"/api/assistant/relay/answer?world={self.world}",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Cookie": f"quiltor_session={self.alice}",
+                    },
+                    body=b"",
+                    length=length,
+                )
+                self.assertEqual(answer.status, 413, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "relay.answer_too_large")
 
     def test_an_answer_that_is_no_json_or_has_the_wrong_shape_is_400(self):
         job = self._job()
@@ -325,6 +334,27 @@ class RelayRouteTests(RelayRouteTestCase):
             {"ticket": "t", "error": {"code": "provider_error", "apiKey": "sk-LEAK"}}
         ) or ("", {})
         self.assertEqual(error, {"error": {"code": "provider_error"}})
+
+    def test_only_a_known_finish_reason_is_taken(self):
+        """F-61-18: stop and length pass, a missing one means stop, anything else is no
+        answer of ours."""
+        from quiltor.delivery.http.routes.assistant_relay import _answer_from
+
+        for reason in ("stop", "length"):
+            with self.subTest(reason=reason):
+                parsed = _answer_from(
+                    {"ticket": "t", "output": {"content": "{}", "finishReason": reason}}
+                )
+                self.assertEqual(parsed and parsed[1]["output"]["finishReason"], reason)
+        parsed = _answer_from({"ticket": "t", "output": {"content": "{}"}})
+        self.assertEqual(parsed and parsed[1]["output"]["finishReason"], "stop")
+        for reason in ("tool_calls", "content_filter", "", None, 1):
+            with self.subTest(reason=reason):
+                self.assertIsNone(
+                    _answer_from(
+                        {"ticket": "t", "output": {"content": "{}", "finishReason": reason}}
+                    )
+                )
 
     def test_a_browser_error_detail_is_trimmed_to_200_clean_characters(self):
         job = self._job()

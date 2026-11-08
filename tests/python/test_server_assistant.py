@@ -6,6 +6,7 @@ not part of this integration suite.
 """
 
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -16,7 +17,11 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import AssistantServices, build_identity, build_web_application
-from quiltor.bootstrap.web import assistant_max_open_jobs
+from quiltor.bootstrap.web import (
+    AssistantRouteServices,
+    assistant_client_ai,
+    assistant_max_open_jobs,
+)
 from quiltor.hosts.web import server
 from quiltor.infrastructure.persistence.assistant_interactions import (
     ApplicationAssistantWorldAccess,
@@ -564,6 +569,58 @@ class AssistantMaxOpenJobsSettingTests(unittest.TestCase):
                     str(raised.exception),
                     "QUILTOR_ASSISTANT_MAX_OPEN_JOBS must be a whole number from 1 to 100.",
                 )
+
+
+class AssistantClientAiSettingTests(unittest.TestCase):
+    """QUILTOR_ASSISTANT_CLIENT_AI: own-AI jobs are on unless switched off (T-61, F-61-17)."""
+
+    def test_unset_or_empty_means_on(self):
+        self.assertTrue(assistant_client_ai(""))
+        self.assertTrue(assistant_client_ai("  "))
+
+    def test_one_is_on_and_zero_is_off(self):
+        self.assertTrue(assistant_client_ai("1"))
+        self.assertTrue(assistant_client_ai(" 1 "))
+        self.assertFalse(assistant_client_ai("0"))
+
+    def test_anything_else_is_a_startup_error_without_the_value(self):
+        for text in ("yes", "true", "off", "2", "-1", "01"):
+            with self.subTest(text=text):
+                with self.assertRaises(RuntimeError) as raised:
+                    assistant_client_ai(text)
+                self.assertEqual(
+                    str(raised.exception), "QUILTOR_ASSISTANT_CLIENT_AI must be 0 or 1."
+                )
+
+    def test_a_server_started_without_the_variable_offers_own_ai(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            directories = AppDirectories(
+                data=root,
+                config=root / "config",
+                cache=root / "cache",
+                models=root / "models",
+                logs=root / "logs",
+                temp=root / "temp",
+            )
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key != "QUILTOR_ASSISTANT_CLIENT_AI"
+            }
+            with patch.dict(os.environ, environment, clear=True):
+                app = build_web_application(
+                    identity=build_identity(False),
+                    ensure_assistant_installed=False,
+                    inference=_UnavailableInference(),
+                    app_directories=directories,
+                )
+            try:
+                self.assertTrue(app.assistant_client_ai)
+                services = cast(AssistantRouteServices, app.route_services("/api/assistant/jobs"))
+                self.assertTrue(services.client_ai)
+            finally:
+                app.assistant_services.jobs.close()
 
 
 if __name__ == "__main__":
