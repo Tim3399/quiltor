@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
@@ -13,6 +12,8 @@ import {
   openExpandedMapWorld,
   selectMapChild,
 } from "./support/expanded-map-fixture";
+import { waitForPlacesCanvasToStandStill } from "./support/places-canvas";
+import { expect, test } from "./support/transient-network";
 
 const manuscript = {
   chapters: [
@@ -180,6 +181,7 @@ for (const theme of ["light", "dark"] as const) {
     await selectMapChild(page);
     await expect(page.locator('.place-map-chrome[data-map-id="x-weltkarte"]')).toBeVisible();
     await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");
+    await waitForPlacesCanvasToStandStill(page);
     await expect(page).toHaveScreenshot(`${theme}-expanded-map.png`, {
       animations: "disabled",
       ...CANVAS_TOLERANCE,
