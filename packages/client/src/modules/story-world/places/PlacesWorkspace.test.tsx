@@ -61,6 +61,7 @@ vi.mock("@xyflow/react", () => ({
     onKeyDown,
     onMove,
     onNodeClick,
+    onNodeDoubleClick,
     onNodeDragStop,
     onPaneClick,
   }: {
@@ -87,6 +88,7 @@ vi.mock("@xyflow/react", () => ({
     onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     onMove: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void;
     onNodeClick: (event: unknown, node: { id: string }) => void;
+    onNodeDoubleClick?: (event: unknown, node: { id: string }) => void;
     onPaneClick: (event: unknown) => void;
     onNodeDragStop: (
       event: unknown,
@@ -158,6 +160,9 @@ vi.mock("@xyflow/react", () => ({
               onClick={() => onNodeDragStop({}, { ...node, position: { x: 75, y: 85 } })}
             >
               Testziehen {node.data.place.name}
+            </button>
+            <button type="button" onClick={() => onNodeDoubleClick?.({}, node)}>
+              Testbetreten {node.data.place.name}
             </button>
           </div>
         ))}
@@ -1247,5 +1252,77 @@ describe("resizing a map with a scale", () => {
     fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
     expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
     expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+  });
+});
+
+describe("a calibration does not outlive its level", () => {
+  // Two levels: the world, and the harbour with its market inside.
+  const levels: FigureState = {
+    nodes: [
+      { id: "hafen", type: "ort", name: "Hafen", x: 0, y: 0 },
+      { id: "feld", type: "ort", name: "Feld", x: 400, y: 0 },
+      { id: "markt", type: "ort", name: "Markt", x: 0, y: 0, parentPlaceId: "hafen" },
+    ],
+    edges: [],
+  };
+
+  function startCalibration() {
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auf der Karte messen" }));
+    expect(screen.getByText("Maßstab messen: Setze den Anfang der Strecke.")).toBeInTheDocument();
+    // Both ends set: on the old level the stretch could now be applied.
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), { clientX: 0, clientY: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 300,
+      clientY: 0,
+    });
+    expect(screen.getByRole("button", { name: "Übernehmen" })).toBeInTheDocument();
+  }
+
+  const gone = () => {
+    expect(screen.queryByText("Setze das Ende der Strecke.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Übernehmen" })).not.toBeInTheDocument();
+  };
+
+  it("ends when a level is entered", () => {
+    const onChange = vi.fn();
+    render(<ControlledPlaces initialState={levels} onChange={onChange} />);
+    startCalibration();
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Hafen" }));
+    gone();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ends when the trail leads back up", () => {
+    const onChange = vi.fn();
+    render(<ControlledPlaces initialState={levels} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Hafen" }));
+    startCalibration();
+    fireEvent.click(screen.getByRole("button", { name: "Welt" }));
+    gone();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ends when the open level vanishes and the surface falls back to the root", () => {
+    const onChange = vi.fn();
+    const view = render(
+      <I18nProvider>
+        <PlacesWorkspace state={levels} onChange={onChange} onOpen={vi.fn()} />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Hafen" }));
+    startCalibration();
+    // Undone, or deleted with its contents: the harbour is no longer there.
+    view.rerender(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={{ ...levels, nodes: levels.nodes.filter((node) => node.id === "feld") }}
+          onChange={onChange}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    gone();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

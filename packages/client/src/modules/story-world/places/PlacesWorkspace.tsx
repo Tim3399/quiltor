@@ -158,6 +158,8 @@ function PlacesWorkspaceInner({
     setSelectedId(null);
     setMeasureTargets([]);
     setRescaleHint(null);
+    // A stretch measured on one level means nothing on another.
+    setCalibration(null);
   }, []);
   const goToLevel = useCallback((nextLevelId: string | undefined) => {
     setLevelId(nextLevelId);
@@ -166,11 +168,15 @@ function PlacesWorkspaceInner({
     setSelectedId(null);
     setMeasureTargets([]);
     setRescaleHint(null);
+    // A stretch measured on one level means nothing on another.
+    setCalibration(null);
   }, []);
   // A level that vanished -- undone, or deleted with its contents -- would leave
   // the surface showing nothing and no way back. Fall out to the root instead.
-  if (levelId && !state.nodes.some((node) => node.id === levelId && node.type === "ort"))
+  if (levelId && !state.nodes.some((node) => node.id === levelId && node.type === "ort")) {
     setLevelId(undefined);
+    setCalibration(null);
+  }
   // Looked up across the world rather than in the level's own list: a place
   // standing on a laid-out map belongs to that map's level, but it is drawn
   // here, on the map, and clicking something that is drawn has to select it.
