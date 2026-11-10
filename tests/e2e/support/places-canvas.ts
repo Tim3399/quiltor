@@ -64,5 +64,13 @@ export async function waitForPlacesCanvasToStandStill(page: Page) {
  * toolbar's scroll area, a composited scroller whose overflow button "Ortsaktionen" showed
  * its rounded corners in two rasters -- 1 of 10 real toHaveScreenshot captures per theme,
  * with its rectangle, colours, opacity and outline identical in all 20 runs.
+ * The map chrome joined them on linux: header and footer lie over the zoomed canvas, so
+ * Chromium gives them layers of their own, and the footer's bottom-right corner came out
+ * with 8 pixels one step apart in the bootstrap's second take of dark-expanded-map-regular
+ * (run 42771146866).
  */
-const RASTERED_LAYERS = [".places-flow-area .react-flow__viewport", ".places-toolbar .scroll-area"];
+const RASTERED_LAYERS = [
+  ".places-flow-area .react-flow__viewport",
+  ".places-toolbar .scroll-area",
+  ".place-map-chrome",
+];
