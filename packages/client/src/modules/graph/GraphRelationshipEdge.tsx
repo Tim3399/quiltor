@@ -208,6 +208,10 @@ export function positionGraphRelationshipEdgeLabels<EdgeType extends Edge>(
         target: route.target,
         idealCenter: route.idealCenter,
         size: graphEdgeLabelSize(label, badges.length),
+        // The rendered target is 44 screen pixels; at zoom 1 that is 44 canvas units.
+        ...(options.onLabelClick
+          ? { hitTarget: { width: INTERACTIVE_TARGET_SIZE, height: INTERACTIVE_TARGET_SIZE } }
+          : {}),
         pathPoints: route.pathPoints,
       },
     ];
