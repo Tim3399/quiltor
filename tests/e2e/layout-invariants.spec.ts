@@ -225,8 +225,7 @@ const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as cons
 
 // From the project's own width down: each project walks the widths below it, so the compact
 // project stays at the phone and the wide one covers every breakpoint in between.
-const WIDER_FONT =
-  '[role="toolbar"], [role="toolbar"] * { letter-spacing: 0.08em !important; }';
+const WIDER_FONT = '[role="toolbar"], [role="toolbar"] * { letter-spacing: 0.08em !important; }';
 
 const TOOLBAR_WIDTHS = [
   1440, 1280, 1180, 1100, 1024, 960, 900, 860, 820, 768, 719, 640, 560, 500, 430, 390, 360, 320,
