@@ -24,6 +24,7 @@ describe("place measurement graph", () => {
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
 
     expect(edges.map((edge) => edge.id)).toEqual(["distance:a:b", "distance:a:c", "distance:b:c"]);
@@ -59,6 +60,7 @@ describe("place measurement graph", () => {
       selection: ["a", "e"],
       scaleFor: () => undefined,
       t,
+      locale: "de",
     });
     const target = edges.find((edge) => edge.id === "distance:a:e");
 
@@ -79,12 +81,14 @@ describe("place measurement graph", () => {
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
     const afterPresentationChange = createPlaceMeasurementEdges({
       points: points.map((point) => ({ ...point })),
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
 
     expect(afterPresentationChange.map((edge) => edge.label)).toEqual(
@@ -110,6 +114,7 @@ describe("a distance in the units of what it crossed", () => {
           ? { unitsPer100px: 1, unitLabel: "km" }
           : { unitsPer100px: 25, unitLabel: "m" },
       t,
+      locale: "de",
     });
 
     const labels = new Map(edges.map((edge) => [edge.id, edge.label]));
@@ -130,6 +135,7 @@ describe("a distance to a free point", () => {
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
     expect(untargeted.map((edge) => edge.id)).toEqual([
       "distance:a:b",
@@ -144,6 +150,7 @@ describe("a distance to a free point", () => {
       selection: ["a", "measure-point:0"],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
     const targeted = edges.find((edge) => edge.className === "distance-edge is-targeted");
     expect(targeted).toMatchObject({

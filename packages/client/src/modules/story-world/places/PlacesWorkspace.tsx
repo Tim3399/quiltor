@@ -698,6 +698,7 @@ function PlacesWorkspaceInner({
                   selectedMap.mapWidth ?? DEFAULT_MAP_WIDTH,
                   t,
                   selectedMap.mapScale ?? levelScale,
+                  locale,
                 )}
                 onToggleAdjusting={() =>
                   setAdjustingId((current) =>
@@ -727,7 +728,7 @@ function PlacesWorkspaceInner({
           measureSelection={measureSelection}
           scale={levelScale}
           trail={trail}
-          trailScale={formatScale(levelScale, t)}
+          trailScale={formatScale(levelScale, t, locale)}
           onGoToLevel={goToLevel}
           onSelectPlace={selectPlace}
           onEnterPlace={(id) => {

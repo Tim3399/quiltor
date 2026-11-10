@@ -5,6 +5,7 @@ import type { MapScale } from "../model";
 import { PlaceMapActions, type PlaceMapActionsProps } from "./PlaceMapActions";
 import { PlaceMapScaleControl } from "./PlaceMapScaleControl";
 import { formatScale, mapScaleBar, physicalGridDistance } from "./placeMap";
+import { formatPlaceNumber } from "./placeNumber";
 import type {
   MapChromeLayout as PlaceMapChromeLayout,
   MapChromeSize as PlaceMapChromeSize,
@@ -44,14 +45,13 @@ export function PlaceMapChrome({
   const footerWidth = layout.width;
   const bar = mapScaleBar(scale, zoom);
   const gridDistance = physicalGridDistance(scale, GRID_SIZE);
-  const number = new Intl.NumberFormat(locale, { maximumSignificantDigits: 6 });
   const countLabel =
     placeCount === 1 ? t("placeMapOnePlace") : t("placeMapPlaceCount", { n: placeCount });
-  const scaleLabel = formatScale(scale, t) || t("placeMapNoScale");
+  const scaleLabel = formatScale(scale, t, locale) || t("placeMapNoScale");
   const gridLabel = !gridVisible
     ? t("placeMapGridOff")
     : gridDistance !== undefined && scale
-      ? `${number.format(gridDistance)} ${scale.unitLabel}`
+      ? `${formatPlaceNumber(gridDistance, locale, { significant: 6 })} ${scale.unitLabel}`
       : t("placeMapGridUnits", { n: GRID_SIZE });
 
   useLayoutEffect(() => {
@@ -138,7 +138,9 @@ export function PlaceMapChrome({
           <div className="place-map-chrome__cell place-map-chrome__places">
             <dt className="place-map-chrome__label">{t("placeMapPlaces")}</dt>
             <dd className="place-map-chrome__value">
-              <span className="place-map-chrome__reading">{number.format(placeCount)}</span>
+              <span className="place-map-chrome__reading">
+                {formatPlaceNumber(placeCount, locale, { significant: 6 })}
+              </span>
             </dd>
           </div>
           <div className="place-map-chrome__cell place-map-chrome__level">
@@ -154,12 +156,12 @@ export function PlaceMapChrome({
             style={{ width: bar.width }}
             role="img"
             aria-label={t("placeMapScaleBar", {
-              distance: `${number.format(bar.distance)} ${scale.unitLabel}`,
+              distance: `${formatPlaceNumber(bar.distance, locale, { significant: 6 })} ${scale.unitLabel}`,
             })}
           >
             <span className="place-map-chrome__scale-line" style={{ width: bar.width }} />
             <span className="place-map-chrome__scale-distance">
-              {number.format(bar.distance)} {scale.unitLabel}
+              {formatPlaceNumber(bar.distance, locale, { significant: 6 })} {scale.unitLabel}
             </span>
           </div>
         ) : null}

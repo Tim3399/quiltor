@@ -20,6 +20,7 @@ export function createPlaceMeasurementEdges({
   scaleFor,
   nearest = true,
   t,
+  locale,
 }: {
   points: PlaceMeasurementPoint[];
   selection: string[];
@@ -35,6 +36,7 @@ export function createPlaceMeasurementEdges({
    */
   scaleFor: (from: string, to: string) => FigureState["mapScale"];
   t: Translate;
+  locale: string;
 }): Edge[] {
   const places = points.filter((point) => !point.free);
   const pairs = new Map(nearest ? nearestMapDistances(places).map((pair) => [pair.id, pair]) : []);
@@ -45,7 +47,7 @@ export function createPlaceMeasurementEdges({
 
   const names = new Map(points.map((point) => [point.id, point.name]));
   return [...pairs.values()].map((pair) => {
-    const distance = formatDistance(pair.distance, t, scaleFor(pair.from, pair.to));
+    const distance = formatDistance(pair.distance, t, scaleFor(pair.from, pair.to), locale);
     return {
       id: pair.id,
       source: pair.from,
