@@ -98,10 +98,65 @@ class PinTests(unittest.TestCase):
             self.assertNotIn("/", model["file"])
             self.assertGreater(model["approximate_bytes"], 0)
 
+    def test_the_pins_name_exactly_the_approved_smollm2_and_nothing_else(self):
+        """Only SmolLM2 135M is approved for download; no second candidate, no fallback."""
+        models = script.load_pins()["models"]
+        self.assertEqual([m["name"] for m in models], ["smollm2-135m-instruct"])
+        self.assertEqual(models[0]["repo"], "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF")
+        self.assertEqual(list(script.APPROVED_MODELS), ["smollm2-135m-instruct"])
+
+    def test_a_second_or_other_model_in_the_pins_is_refused(self):
+        pins = json.loads(script.PINS_PATH.read_text(encoding="utf-8"))
+        qwen = {
+            "name": "qwen2.5-0.5b-instruct",
+            "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+            "file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+            "license": "Apache-2.0",
+            "approximate_bytes": 491000000,
+            "sha256": None,
+        }
+        swapped = dict(pins["models"][0], repo="someone/SmolLM2-135M-Instruct-GGUF")
+        for name, models in (
+            ("a fallback after SmolLM2", [*pins["models"], qwen]),
+            ("another model instead", [qwen]),
+            ("SmolLM2 from another repository", [swapped]),
+            ("no model", []),
+        ):
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "pins.json"
+                path.write_text(json.dumps(dict(pins, models=models)), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "exactly the approved models"):
+                    script.load_pins(path)
+
+    def test_main_never_tries_a_model_that_is_not_approved(self):
+        """Even if the pins check were bypassed, main downloads only what load_pins returned."""
+        pins = json.loads(script.PINS_PATH.read_text(encoding="utf-8"))
+        installed: list[str] = []
+
+        def refuse(home, release, model):
+            installed.append(model["name"])
+            raise OSError("no download in tests")
+
+        with (
+            patch.object(script, "install", side_effect=refuse),
+            redirect_stdout(io.StringIO()),
+            patch("sys.stderr", io.StringIO()),
+        ):
+            code = script.main(["--spike"])
+        self.assertEqual(code, 2)
+        self.assertEqual(installed, [m["name"] for m in pins["models"]])
+        self.assertEqual(installed, ["smollm2-135m-instruct"])
+
     def test_a_malformed_digest_is_refused(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder, "pins.json")
-            bad = {"models": [{"name": "m", "sha256": "ABC"}], "known_deviations": {}}
+            model = {
+                "name": "smollm2-135m-instruct",
+                "repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
+                "file": "smollm2-135m-instruct-q8_0.gguf",
+                "sha256": "ABC",
+            }
+            bad = {"models": [model], "known_deviations": {}}
             path.write_text(json.dumps(bad), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "sha256"):
                 script.load_pins(path)

@@ -106,8 +106,26 @@ class _Collector(unittest.TestResult):
 # --- Pins --------------------------------------------------------------------------------------
 
 
+# The only model whose download the user approved (T-179, D-4c): SmolLM2 135M, about 145 MB.
+# The pins must name exactly this one; any other model -- a second candidate, a fallback -- is
+# refused before anything is downloaded. Adding one is the user's decision, not a pins edit.
+APPROVED_MODELS = {
+    "smollm2-135m-instruct": (
+        "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
+        "smollm2-135m-instruct-q8_0.gguf",
+    ),
+}
+
+
 def load_pins(path: Path = PINS_PATH) -> dict[str, Any]:
     pins = json.loads(path.read_text(encoding="utf-8"))
+    named = [(m["name"], m["repo"], m["file"]) for m in pins["models"]]
+    approved = [(name, *source) for name, source in APPROVED_MODELS.items()]
+    if named != approved:
+        raise ValueError(
+            f"the pins must list exactly the approved models {approved}, not {named}; "
+            "a download beyond them needs the user's approval"
+        )
     for model in pins["models"]:
         sha = model["sha256"]
         if sha is not None and SHA256_RE.fullmatch(sha) is None:

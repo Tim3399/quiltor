@@ -8,14 +8,6 @@
       "license": "Apache-2.0 [unverified]",
       "approximate_bytes": 145000000,
       "sha256": null
-    },
-    {
-      "name": "qwen2.5-0.5b-instruct",
-      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
-      "file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
-      "license": "Apache-2.0 [unverified]",
-      "approximate_bytes": 491000000,
-      "sha256": null
     }
   ],
   "known_deviations": {

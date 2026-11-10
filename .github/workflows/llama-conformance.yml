@@ -47,9 +47,9 @@ jobs:
   conformance:
     name: llama-server ${{ matrix.release }}
     runs-on: ubuntu-24.04
-    # The runtime archive is about 20 MB; the candidate models are 145 MB and 491 MB. Resolving
+    # The runtime archive is about 20 MB; the one approved model is 145 MB. Resolving
     # and downloading takes minutes, loading a model seconds. The server waits up to three
-    # minutes for /health, so 30 minutes leaves room for two candidates and still stops a hang.
+    # minutes for /health, so 30 minutes leaves room and still stops a hang.
     timeout-minutes: 30
     strategy:
       fail-fast: false
