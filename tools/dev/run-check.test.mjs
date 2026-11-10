@@ -21,12 +21,13 @@ const pkg = JSON.parse(
 );
 
 // The chain `check` was before it became a runner: v3.22.1, 17 links; check:readme-screenshots joined
-// in v3.25.0, check:markdown-links in v3.26.0 (T-173).
+// in v3.25.0, check:markdown-links in v3.26.0 (T-173), check:keycloak-tokens in v3.26.0 (T-175).
 const FORMER_CHAIN = [
   "check:contracts",
   "check:architecture",
   "check:design",
   "check:design-system",
+  "check:keycloak-tokens",
   "check:i18n",
   "check:readme-screenshots",
   "check:platform",

@@ -34,6 +34,7 @@ export const LINKS = [
   "check:architecture",
   "check:design",
   "check:design-system",
+  "check:keycloak-tokens",
   "check:i18n",
   "check:readme-screenshots",
   "check:platform",
