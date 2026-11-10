@@ -695,7 +695,9 @@ def _valid_wire_profile(value: object) -> bool:
 
 
 def _valid_wire_node(node: JsonObject) -> bool:
-    if node.get("type", "person") not in _FIGURE_KINDS or node.get("accent", "ink") not in _ACCENTS:
+    if not (
+        _choice(node, "type", "person", _FIGURE_KINDS) and _choice(node, "accent", "ink", _ACCENTS)
+    ):
         return False
     if any(key in node and not isinstance(node[key], str) for key in ("label", "sub")):
         return False

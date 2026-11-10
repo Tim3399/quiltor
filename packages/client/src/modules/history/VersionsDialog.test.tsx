@@ -180,7 +180,9 @@ describe("VersionsDialog, holding on to a version", () => {
       .mockImplementation(async () => {
         calls.push("save");
         commits = [{ ...manual, hash: "commit-new", shortHash: "new0001", subject: "Neu" }, manual];
-        return {} as Awaited<ReturnType<typeof quiltorClient.application.backup.saveSnapshot>>;
+        return { created: true } as Awaited<
+          ReturnType<typeof quiltorClient.application.backup.saveSnapshot>
+        >;
       });
     renderDialog();
     await waitFor(() => expect(saveButton()).toBeEnabled());
@@ -198,12 +200,12 @@ describe("VersionsDialog, holding on to a version", () => {
   });
 
   it("says so when nothing changed, keeps the note and selects nothing", async () => {
-    // The server records no version without changes; its answer carries no hint, the log does not move.
+    // The server records no version without changes and says so in its answer.
     const save = vi
       .spyOn(quiltorClient.application.backup, "saveSnapshot")
-      .mockResolvedValue(
-        {} as Awaited<ReturnType<typeof quiltorClient.application.backup.saveSnapshot>>,
-      );
+      .mockResolvedValue({ created: false } as Awaited<
+        ReturnType<typeof quiltorClient.application.backup.saveSnapshot>
+      >);
     renderDialog();
     await within(states()).findByRole("button", { name: /Vor dem Umbau/ });
     await waitFor(() => expect(saveButton()).toBeEnabled());
@@ -222,6 +224,34 @@ describe("VersionsDialog, holding on to a version", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  // T-167: a second tab holds a version between opening and the click. The head moves, but this
+  // request wrote nothing, so the note stays and nothing is announced as held.
+  it("trusts the server's answer, not a head another tab moved", async () => {
+    const save = vi
+      .spyOn(quiltorClient.application.backup, "saveSnapshot")
+      .mockImplementation(async () => {
+        commits = [
+          { ...manual, hash: "commit-other", shortHash: "oth0001", subject: "Anderer Tab" },
+          manual,
+        ];
+        return { created: false } as Awaited<
+          ReturnType<typeof quiltorClient.application.backup.saveSnapshot>
+        >;
+      });
+    renderDialog();
+    await within(states()).findByRole("button", { name: /Vor dem Umbau/ });
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+    fireEvent.change(noteField(), { target: { value: "Meine Notiz" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(save).toHaveBeenCalledWith("Meine Notiz", false));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Seit der letzten Version hat sich nichts geändert.",
+      ),
+    );
+    expect(noteField()).toHaveValue("Meine Notiz");
   });
 
   it("keeps the server's suggestion out of the note and sends an empty note so the server names it", async () => {
@@ -283,6 +313,26 @@ describe("VersionsDialog, restoring a version", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dialog schließen" }));
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Quiltor neu laden" })).toBeVisible();
+  });
+
+  // T-166: the server keeps the current state as "before restore" first; when the restore then
+  // fails, that entry exists and the list has to show it without reopening the dialog.
+  it("reads the list again when a restore fails after the server kept the current state", async () => {
+    const { onDocumentsReplaced } = renderDialog();
+    await chooseManualVersion();
+    restore.mockImplementationOnce(async () => {
+      commits = [beforeRestore, manual];
+      throw new Error("Restore failed");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Diese Version wiederherstellen" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Wiederherstellen" }),
+    );
+    expect(await screen.findByText("Restore failed")).toBeVisible();
+    expect(
+      await within(states()).findByRole("button", { name: /Vor Wiederherstellung, 29\.10\.2026/ }),
+    ).toBeVisible();
+    expect(onDocumentsReplaced).not.toHaveBeenCalled();
   });
 
   it("sends nothing to the server when the open work could not be saved", async () => {

@@ -454,7 +454,7 @@ def _valid_time_system(raw: object) -> bool:
     if value.get("kind") == "gregorian":
         try:
             date(year, month, day)
-        except ValueError:
+        except (ValueError, OverflowError):
             return False
     elif value.get("kind") == "custom" and (
         month < 1 or month > len(day_counts) or day < 1 or day > day_counts[month - 1]
