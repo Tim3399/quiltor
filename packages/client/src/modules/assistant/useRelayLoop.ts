@@ -3,6 +3,11 @@ import type { AssistantRelayGateway, RelayAnswerV1, RelayRequestV1 } from "../..
 import type { ClientEngineExecutor, ClientEngineResult } from "./engines/types";
 
 const RETRY_MS = 1000;
+// The shortest a poll may take before the next one starts. relay/next is a long poll, but
+// the server answers 204 at once while a job is finished or cancelled and not yet released,
+// and a proxy may cut a poll short; without a floor the loop would fire as fast as the
+// server answers (F-61-24). A ticket never waits for it.
+const IDLE_FLOOR_MS = 1000;
 
 /** Why the loop stopped. After `ended` the job's own status says how it finished. */
 export type RelayLoopEnd = "ended" | "unauthorized" | "aborted";
@@ -15,9 +20,13 @@ export type RelayLoopOptions = {
   /** The ticket being worked on, or null between tickets; the cancel path answers it. */
   onTicket?: (ticket: RelayRequestV1 | null) => void;
   retryMs?: number;
+  idleFloorMs?: number;
 };
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
+  // An abort that came first never fires its event again: without this the loop would sit out
+  // the whole pause after a poll that returned once the user had cancelled.
+  if (signal.aborted) return Promise.resolve();
   return new Promise((resolve) => {
     const timer = globalThis.setTimeout(done, ms);
     function done() {
@@ -55,8 +64,10 @@ export function relayAnswerFor(request: RelayRequestV1, result: ClientEngineResu
 export async function runRelayLoop(options: RelayLoopOptions): Promise<RelayLoopEnd> {
   const { jobId, executor, relay, signal, onTicket } = options;
   const retryMs = options.retryMs ?? RETRY_MS;
+  const idleFloorMs = options.idleFloorMs ?? IDLE_FLOOR_MS;
   while (!signal.aborted) {
     let next: Awaited<ReturnType<AssistantRelayGateway["relayNext"]>>;
+    const polledAt = Date.now();
     try {
       next = await relay.relayNext(jobId, signal);
     } catch {
@@ -64,7 +75,11 @@ export async function runRelayLoop(options: RelayLoopOptions): Promise<RelayLoop
       await wait(retryMs, signal);
       continue;
     }
-    if (next.kind === "idle") continue;
+    if (next.kind === "idle") {
+      const early = idleFloorMs - (Date.now() - polledAt);
+      if (early > 0) await wait(early, signal);
+      continue;
+    }
     if (next.kind === "ended") return next.status === 401 ? "unauthorized" : "ended";
 
     const request = next.request;

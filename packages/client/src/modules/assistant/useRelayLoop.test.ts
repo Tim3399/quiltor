@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   AssistantRelayGateway,
   RelayAnswered,
@@ -167,6 +167,80 @@ describe("relay loop", () => {
     expect(sent).toEqual([
       { ticket: "t1", seq: 1, error: { code: "provider_error", detail: "network down" } },
     ]);
+  });
+});
+
+describe("idle polls (F-61-24)", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps at least a second between polls the server answers at once", async () => {
+    // After a job ends the server answers relay/next with 204 at once until the page stops
+    // the loop, which happens only when its job polling sees the end (about a second).
+    vi.useFakeTimers();
+    const relay: AssistantRelayGateway = {
+      // Answered 10 ms later: fast enough to flood without the floor, slow enough to keep
+      // the event loop turning, so a regression fails the count instead of hanging the worker.
+      relayNext: vi.fn(async (): Promise<RelayNext> => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return { kind: "idle" };
+      }),
+      relayAnswer: vi.fn(),
+    };
+    const controller = new AbortController();
+    const loop = runRelayLoop({
+      jobId: "job",
+      executor: executor(),
+      relay,
+      signal: controller.signal,
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    controller.abort();
+    // Lets the poll in flight come back so the loop can see the abort.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await loop).toBe("aborted");
+    // One poll at the start and one per elapsed second: 11, never thousands.
+    expect(vi.mocked(relay.relayNext).mock.calls.length).toBeLessThanOrEqual(11);
+  });
+
+  it("does not wait after a long poll that held its full time", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const relay: AssistantRelayGateway = {
+      relayNext: vi.fn(async (): Promise<RelayNext> => {
+        calls += 1;
+        if (calls === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 25_000));
+          return { kind: "idle" };
+        }
+        return { kind: "ended", status: 410 };
+      }),
+      relayAnswer: vi.fn(),
+    };
+    const loop = runRelayLoop({
+      jobId: "job",
+      executor: executor(),
+      relay,
+      signal: new AbortController().signal,
+    });
+    await vi.advanceTimersByTimeAsync(25_000);
+    // The second poll starts right after the first, without the one-second floor.
+    expect(await loop).toBe("ended");
+    expect(calls).toBe(2);
+  });
+
+  it("starts a waiting ticket at once", async () => {
+    vi.useFakeTimers();
+    const { relay } = scriptedRelay([{ kind: "request", request: ticket(1) }]);
+    const engine = executor(stop("{}"));
+    const loop = runRelayLoop({
+      jobId: "job",
+      executor: engine,
+      relay,
+      signal: new AbortController().signal,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.execute).toHaveBeenCalledTimes(1);
+    expect(await loop).toBe("ended");
   });
 });
 
