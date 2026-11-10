@@ -261,6 +261,15 @@ describe("a map laid out on the level", () => {
     expect(nodes[0]).toMatchObject({ width: 1200, height: 900 });
   });
 
+  it("carries its own size as measured, so a resize begun on a rebuilt node has a ratio", () => {
+    // React Flow's resizer takes its start size and aspect ratio from `measured` only, and a
+    // rebuilt node has none until it is measured again: a corner drag begun in that window
+    // divided 0 by 0 and wrote NaN into the frame, which the save then refused (T-79).
+    expect(build()[0].measured).toEqual({ width: 800, height: 600 });
+    const [live] = build({ liveSize: { id: "m", x: 100, y: 200, width: 1200, height: 900 } });
+    expect(live.measured).toEqual({ width: 1200, height: 900 });
+  });
+
   it("moves the origin with a left or top grip, so the opposite edge stays put", () => {
     // Dragging the left grip 60 units outward: the right edge (100 + 800) must
     // stay at 900, which only holds when the origin follows the width.

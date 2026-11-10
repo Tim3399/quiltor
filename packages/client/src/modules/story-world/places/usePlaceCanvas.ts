@@ -367,6 +367,22 @@ export function usePlaceCanvas({
     ],
   );
 
+  // A map folded back into its card takes the sheet the view was framed on with it, and
+  // leaves the card where the sheet's corner was -- often outside the view, so the author
+  // watches the map vanish and nothing take its place. The level is framed again, as on
+  // arrival. Before T-79 this happened only by accident: the arrival fit on a level that held
+  // nothing but the map never ran, stayed armed, and fired at the collapse.
+  const openMapIds = laidOutMaps.map((place) => place.id).join("\n");
+  const [framedMapIds, setFramedMapIds] = useState(openMapIds);
+  if (framedMapIds !== openMapIds) {
+    const open = new Set(openMapIds.split("\n"));
+    const folded = framedMapIds
+      .split("\n")
+      .some((id) => id && !open.has(id) && places.some((place) => place.id === id));
+    setFramedMapIds(openMapIds);
+    if (folded) setPendingFit(true);
+  }
+
   const maps = useMemo(
     () =>
       createPlaceMapNodes({
@@ -550,15 +566,19 @@ export function usePlaceCanvas({
   // The flag is spent when the fit runs, not when it is scheduled: strict mode
   // runs an effect, cleans it up and runs it again, and spending it up front
   // left the first attempt cancelled and the second with nothing to do.
+  //
+  // An opened-out map counts as something to frame: a level can hold nothing else, and
+  // waiting for cards there left the fit to a race between its timer and the emptying of the
+  // level just left -- one it lost under load, leaving the map unframed (T-79).
   // biome-ignore lint/correctness/useExhaustiveDependencies: `pendingFit` is read, not a trigger: arming it must not fit before the new level's nodes are in the flow
   useEffect(() => {
-    if (!pendingFit || nodes.length === 0) return;
+    if (!pendingFit || (nodes.length === 0 && maps.length === 0)) return;
     const settle = window.setTimeout(() => {
       setPendingFit(false);
       flow.current?.fitView(latestFitOptionsRef.current);
     }, 60);
     return () => window.clearTimeout(settle);
-  }, [nodes]);
+  }, [nodes, maps.length]);
 
   /**
    * Where a drag came to rest decides what the place now belongs to.

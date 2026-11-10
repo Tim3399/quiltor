@@ -955,6 +955,41 @@ describe("active expanded map chrome", () => {
     expect(flowInstance.fitView).toHaveBeenCalledOnce();
   });
 
+  it("fits the view on entering a level that holds only an opened-out map", async () => {
+    // The level's cards are empty there: the map is all it holds. The fit used to wait for
+    // cards alone, so it only ran when its timer beat the emptying of the level just left --
+    // under load it lost, and the map stayed wherever the old framing put it (T-79).
+    const archive = { id: "archiv", type: "ort" as const, name: "Archiv", x: 0, y: 0 };
+    const sheet = { ...map, id: "alte-karte", name: "Alte Karte", parentPlaceId: archive.id };
+    flowInstance.fitView.mockClear();
+    render(
+      <ControlledPlaces initialState={{ nodes: [archive, sheet], edges: [] }} onChange={vi.fn()} />,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Archiv" }));
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+  });
+
+  it("frames the level again when an opened-out map folds back into its card", async () => {
+    // The view was framed on the places standing on the sheet; folding the sheet away leaves
+    // the card at the sheet's corner, outside that framing. The old green came from an arrival
+    // fit that had never run and fired here by accident (T-79).
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    flowInstance.fitView.mockClear();
+
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Weltkarte einklappen" })[0]);
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+  });
+
   it("falls back to the root when the open level disappears", () => {
     const content = (nodes: FigureState["nodes"]) => (
       <I18nProvider>
