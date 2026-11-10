@@ -11,6 +11,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -594,18 +595,20 @@ class DesktopBuildContractTests(unittest.TestCase):
     # Data files under src/quiltor a desktop bundle does not need, each with its reason.
     # Anything else that is not Python must be in data_files(): PyInstaller packs modules only,
     # and a data file the code reads at runtime is otherwise missing from the app (F-61-20).
-    NOT_IN_DESKTOP_BUNDLE = {
-        # Documentation for readers of the source.
-        "quiltor/hosts/mcp/README.md",
-        "quiltor/resources/sidecars/README.md",
-        # The checkout's profile; every bundle embeds its own generated one in its place.
-        "quiltor/infrastructure/platform/quiltor-build-profile.json",
-        # The Node PDF renderer of the container image; a desktop app renders through
-        # Playwright's Python driver or the system web view.
-        "quiltor/resources/sidecars/pdf/render-book-pdf.mjs",
-        # Ships only where MLX may be installed; test_direct_build_* covers that rule.
-        "quiltor/resources/sidecars/inference/mlx/requirements.lock",
-    }
+    NOT_IN_DESKTOP_BUNDLE: ClassVar[frozenset[str]] = frozenset(
+        {
+            # Documentation for readers of the source.
+            "quiltor/hosts/mcp/README.md",
+            "quiltor/resources/sidecars/README.md",
+            # The checkout's profile; every bundle embeds its own generated one in its place.
+            "quiltor/infrastructure/platform/quiltor-build-profile.json",
+            # The Node PDF renderer of the container image; a desktop app renders through
+            # Playwright's Python driver or the system web view.
+            "quiltor/resources/sidecars/pdf/render-book-pdf.mjs",
+            # Ships only where MLX may be installed; test_direct_build_* covers that rule.
+            "quiltor/resources/sidecars/inference/mlx/requirements.lock",
+        }
+    )
 
     def test_direct_desktop_bundles_carry_every_runtime_data_file(self):
         source = REPO_ROOT / "src"

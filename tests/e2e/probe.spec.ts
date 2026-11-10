@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+// From transient-network, like the product specs: a probe that hits the CSP says so.
+import { expect, test } from "./support/transient-network";
 import { mockExampleWorld } from "./support/example-world";
 
 /*
