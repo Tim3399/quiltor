@@ -516,6 +516,42 @@ class InstallManifestTests(unittest.TestCase):
         self.assertNotIn("cursor=", seen[0])
         self.assertIn("cursor=next1", seen[1])
 
+    def test_model_artifacts_resolve_the_requested_revision_and_pin_the_download_to_it(self):
+        revision = "d" * 40
+        entry = {"type": "file", "path": "m.gguf", "size": 1, "lfs": {"oid": "b" * 64}}
+        urls = []
+        with (
+            patch.object(
+                installer,
+                "read_json",
+                side_effect=lambda url: urls.append(url) or {"sha": revision},
+            ),
+            patch.object(installer, "read_json_page", return_value=([entry], "")),
+        ):
+            artifacts = installer._model_artifacts("owner/model", revision)
+        self.assertTrue(urls[0].endswith(f"/api/models/owner/model/revision/{revision}"))
+        self.assertIn(f"/resolve/{revision}/m.gguf", artifacts["m.gguf"].url)
+
+    def test_model_artifacts_refuse_a_commit_other_than_the_pinned_one(self):
+        with (
+            patch.object(installer, "read_json", return_value={"sha": "e" * 40}),
+            self.assertRaisesRegex(ValueError, "not " + "d" * 40),
+        ):
+            installer._model_artifacts("owner/model", "d" * 40)
+
+    def test_install_model_asks_for_main_unless_given_a_revision(self):
+        artifact = {"m.gguf": object()}
+        with tempfile.TemporaryDirectory() as folder:
+            paths = installer.InstallerPaths.from_home(Path(folder))
+            for revision, expected in ((None, ("o/r",)), ("d" * 40, ("o/r", "d" * 40))):
+                with (
+                    patch.object(installer, "_model_artifacts", return_value=artifact) as lookup,
+                    patch.object(installer, "download"),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    installer.install_model("o/r", "m.gguf", paths=paths, revision=revision)
+                self.assertEqual(lookup.call_args.args, expected)
+
     def test_model_artifacts_refuse_a_looping_cursor(self):
         revision = "d" * 40
         link = f'<{huggingface_tree_api_url("owner/model", revision)}&cursor=same>; rel="next"'

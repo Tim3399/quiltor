@@ -132,6 +132,20 @@ class PinTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "exactly the approved models"):
                     script.load_pins(path)
 
+    def test_the_download_is_pinned_to_the_approved_revision(self):
+        """The CI script hands the pinned revision to the installer instead of resolving main."""
+        from quiltor.infrastructure.inference import installer
+
+        model = script.load_pins()["models"][0]
+        with (
+            tempfile.TemporaryDirectory() as home,
+            patch.object(installer, "install_runtime"),
+            patch.object(installer, "install_model") as fetch,
+            redirect_stdout(io.StringIO()),
+        ):
+            script.install(Path(home), LLAMA_CPP_RELEASE, model)
+        self.assertEqual(fetch.call_args.kwargs["revision"], model["revision"])
+
     def test_main_never_tries_a_model_that_is_not_approved(self):
         """Even if the pins check were bypassed, main downloads only what load_pins returned."""
         pins = json.loads(script.PINS_PATH.read_text(encoding="utf-8"))

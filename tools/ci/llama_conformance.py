@@ -265,7 +265,7 @@ def install(home: Path, release: str, model: dict[str, Any]) -> Path:
     installer.LLAMA_CPP_RELEASE = release
     paths = installer.InstallerPaths.from_home(home)
     installer.install_runtime(paths=paths)
-    installer.install_model(model["repo"], model["file"], paths=paths)
+    installer.install_model(model["repo"], model["file"], paths=paths, revision=model["revision"])
     return paths.models / model["file"]
 
 
