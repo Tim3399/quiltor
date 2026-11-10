@@ -15,6 +15,10 @@ interface WorldRegistry {
 
 interface WorldCleanupFixtures {
   worldCleanup: true;
+  /** Every Content-Security-Policy violation the page reported. A test that provokes one on
+   * purpose reads it here and empties it; anything left fails the test. */
+  cspViolations: string[];
+  cspGuard: true;
 }
 
 interface WorldCleanupWorkerFixtures {
@@ -175,6 +179,35 @@ export const test = base.extend<WorldCleanupFixtures, WorldCleanupWorkerFixtures
             contentType: "text/plain",
           });
         }
+      }
+    },
+    { auto: true },
+  ],
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this pattern and rejects anything but object destructuring.
+  cspViolations: async ({}, use) => {
+    await use([]);
+  },
+  cspGuard: [
+    // Depends on worldCleanup so it is torn down first, while the page is still open.
+    // securitypolicyviolation fires in report-only mode as well (T-61 part 5), so the guard
+    // measures the default server and needs no QUILTOR_CSP=enforce.
+    async ({ page, cspViolations, worldCleanup: _worldCleanup }, use) => {
+      await page.context().exposeBinding("__quiltorCspViolation", (_source, violation: string) => {
+        cspViolations.push(violation);
+      });
+      await page.context().addInitScript(() => {
+        document.addEventListener("securitypolicyviolation", (event) => {
+          const report = (window as unknown as { __quiltorCspViolation?: (v: string) => void })
+            .__quiltorCspViolation;
+          report?.(
+            `${event.effectiveDirective} blocked ${event.blockedURI || "(inline)"} ` +
+              `at ${event.sourceFile || event.documentURI}:${event.lineNumber} (${event.disposition})`,
+          );
+        });
+      });
+      await use(true);
+      if (cspViolations.length > 0) {
+        throw new Error(`Content-Security-Policy violations:\n${cspViolations.join("\n")}`);
       }
     },
     { auto: true },

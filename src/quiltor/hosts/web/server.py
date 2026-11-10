@@ -243,6 +243,10 @@ def _safe_traceback(exc: BaseException) -> str:
 api_routes.load()
 
 
+def is_html(content_type: str) -> bool:
+    return content_type.strip().lower().startswith("text/html")
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -267,6 +271,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         setattr(self, identity.REDIRECT_ATTR, None)
         self._response_status = 0
         self._sent_connection_header = False
+        self._content_type = ""
         self._error_code = None
         self._bytes_out = 0
         self.connection.settimeout(REQUEST_HEADER_TIMEOUT_SECONDS)
@@ -309,6 +314,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def send_header(self, keyword: str, value: str) -> None:
         if keyword.lower() == "connection":
             self._sent_connection_header = True
+        elif keyword.lower() == "content-type":
+            self._content_type = value
         elif keyword.lower() == "content-length":
             # Every body this server writes declares its length -- JSON, PDF, images,
             # redirects and the static files SimpleHTTPRequestHandler serves -- so the
@@ -526,6 +533,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self) -> None:
         try:
+            # Every HTML answer carries the policy, whichever path wrote it: the client,
+            # the backup callback page, an error page. Not static assets or JSON (T-61).
+            policy = getattr(self.application, "content_security_policy", None)
+            if policy is not None and is_html(getattr(self, "_content_type", "")):
+                self.send_header(*policy)
             # Any Set-Cookie headers queued by the auth routes ride along on whatever
             # response actually gets sent (send_json/send_pdf/redirect/static fallback).
             for key, value in getattr(self, "_pending_cookies", None) or []:

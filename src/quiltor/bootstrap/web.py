@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -196,6 +198,54 @@ def assistant_max_open_jobs(configured: str) -> int:
     return int(configured)
 
 
+CSP_POLICY_FILE = Path(__file__).with_name("csp-policy.json")
+CSP_MODES = ("report-only", "enforce", "off")
+DEFAULT_CSP_MODE = "report-only"
+_CSP_ORIGIN = re.compile(r"https://[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*(?::[0-9]{1,5})?")
+
+
+def csp_mode(configured: str) -> str:
+    """QUILTOR_CSP: `report-only` (the default), `enforce` or `off`."""
+    configured = configured.strip()
+    if not configured:
+        return DEFAULT_CSP_MODE
+    if configured not in CSP_MODES:
+        raise RuntimeError("QUILTOR_CSP must be report-only, enforce or off.")
+    return configured
+
+
+def csp_connect_extra(configured: str) -> tuple[str, ...]:
+    """QUILTOR_CSP_CONNECT_EXTRA: space-separated https:// origins, no path, no wildcard."""
+    origins = tuple(configured.split())
+    for origin in origins:
+        if not _CSP_ORIGIN.fullmatch(origin):
+            raise RuntimeError(
+                "QUILTOR_CSP_CONNECT_EXTRA must list https:// origins separated by spaces, "
+                f"without path or wildcard: {origin!r}"
+            )
+    return origins
+
+
+def content_security_policy(
+    mode: str, *, connect_extra: tuple[str, ...] = (), test_hooks: bool = False
+) -> tuple[str, str] | None:
+    """The header name and value every HTML answer carries, or None when switched off.
+
+    No report-uri: violations are seen in the browser console and by the product suite.
+    """
+    if mode == "off":
+        return None
+    policy = json.loads(CSP_POLICY_FILE.read_text(encoding="utf-8"))
+    directives = {name: list(values) for name, values in policy["directives"].items()}
+    directives["connect-src"] += policy["webllmHosts"]
+    if test_hooks:
+        directives["connect-src"].append(policy["testHooksOrigin"])
+    directives["connect-src"] += list(connect_extra)
+    value = "; ".join(f"{name} {' '.join(values)}" for name, values in directives.items())
+    name = "Content-Security-Policy" if mode == "enforce" else "Content-Security-Policy-Report-Only"
+    return name, value
+
+
 HOSTED = "hosted"
 DESKTOP = "desktop"
 LOCAL = "local"
@@ -239,6 +289,8 @@ class WebApplication:
     assistant_max_open_jobs: int = DEFAULT_ASSISTANT_MAX_OPEN_JOBS
     # Whether a job may name a client engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
     assistant_client_ai: bool = True
+    # Header for every text/html answer (QUILTOR_CSP, T-61); None sends none.
+    content_security_policy: tuple[str, str] | None = None
 
     @property
     def installable(self) -> bool:
@@ -473,6 +525,11 @@ def build_web_application(
             os.environ.get("QUILTOR_ASSISTANT_MAX_OPEN_JOBS", "")
         ),
         assistant_client_ai=assistant_client_ai(os.environ.get("QUILTOR_ASSISTANT_CLIENT_AI", "")),
+        content_security_policy=content_security_policy(
+            csp_mode(os.environ.get("QUILTOR_CSP", "")),
+            connect_extra=csp_connect_extra(os.environ.get("QUILTOR_CSP_CONNECT_EXTRA", "")),
+            test_hooks=os.environ.get("QUILTOR_TEST_HOOKS", "") == "1",
+        ),
     )
 
 
