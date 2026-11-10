@@ -33,14 +33,22 @@ describe("setting a scale from a measured stretch", () => {
     expect(screen.getByText("Setze das Ende der Strecke.")).toBeVisible();
   });
 
+  it("reads a length typed with a decimal comma", () => {
+    form();
+    fireEvent.change(screen.getByRole("textbox", { name: "Länge der Strecke" }), {
+      target: { value: "1,5" },
+    });
+    expect(screen.getByText("ergibt 1 km pro 100px")).toBeInTheDocument();
+  });
+
   it("previews the scale and applies it unrounded in the typed unit", () => {
     const { onApply } = form();
     const apply = screen.getByRole("button", { name: "Übernehmen" });
     expect(apply).toBeDisabled();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Länge der Strecke" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Länge der Strecke" }), {
       target: { value: "100" },
     });
-    expect(screen.getByText("ergibt 66.7 km pro 100px")).toBeInTheDocument();
+    expect(screen.getByText("ergibt 66,7 km pro 100px")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Einheit" }), {
       target: { value: "Meilen" },
     });
@@ -50,14 +58,14 @@ describe("setting a scale from a measured stretch", () => {
 
   it("refuses a stretch too short to read and a length that is not one", () => {
     form({ flowLength: 0.5 });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Länge der Strecke" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Länge der Strecke" }), {
       target: { value: "100" },
     });
     expect(screen.getByText("Die Strecke ist zu kurz.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Übernehmen" })).toBeDisabled();
     cleanup();
     form();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Länge der Strecke" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Länge der Strecke" }), {
       target: { value: "0" },
     });
     expect(screen.getByRole("button", { name: "Übernehmen" })).toBeDisabled();

@@ -13,6 +13,7 @@ import { ModeBanner } from "../ModeBanner";
 import type { MapScale } from "../model";
 import { type MeasureTarget, measureClickTarget } from "./placeCanvasModel";
 import { scaleFromMeasurement } from "./placeMap";
+import { formatPlaceNumber, parsePlaceNumber } from "./placeNumber";
 import "./PlaceScaleCalibration.css";
 
 /** Below this many screen pixels a press and release is a click, not a stretch. */
@@ -156,12 +157,12 @@ export function PlaceScaleCalibration({
   onApply: (scale: MapScale) => void;
   onCancel: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [length, setLength] = useState("");
   const [unit, setUnit] = useState(defaultUnit);
   const scale =
     ends === 2 && flowLength !== undefined
-      ? scaleFromMeasurement(flowLength, Number(length), unit)
+      ? scaleFromMeasurement(flowLength, parsePlaceNumber(length, locale) ?? Number.NaN, unit)
       : undefined;
   const tooShort = ends === 2 && flowLength !== undefined && flowLength < 1;
   return (
@@ -185,9 +186,7 @@ export function PlaceScaleCalibration({
         <TextField
           fieldClassName="places-scale-calibration__length"
           label={t("calibrateLength")}
-          type="number"
-          step="any"
-          min="0"
+          inputMode="decimal"
           value={length}
           onChange={(event) => setLength(event.target.value)}
         />
@@ -205,7 +204,7 @@ export function PlaceScaleCalibration({
             ? t("calibrateTooShort")
             : scale
               ? t("calibratePreview", {
-                  value: Number(scale.unitsPer100px.toPrecision(3)),
+                  value: formatPlaceNumber(scale.unitsPer100px, locale, { significant: 3 }),
                   unit: scale.unitLabel,
                 })
               : ""}

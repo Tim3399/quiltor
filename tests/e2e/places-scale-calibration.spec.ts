@@ -177,7 +177,7 @@ async function savedScale(page: Page, worldId: string, mapId: string, expected: 
 }
 
 async function applyLength(page: Page, length: string) {
-  await page.getByRole("spinbutton", { name: "Länge der Strecke" }).fill(length);
+  await page.getByRole("textbox", { name: "Länge der Strecke" }).fill(length);
   await page.getByRole("button", { name: "Übernehmen", exact: true }).click();
   await expect(page.getByText("Setze das Ende der Strecke.")).toHaveCount(0);
 }
@@ -187,7 +187,7 @@ test("(a) Two clicks across 300 flow units at 3 km make 1 km per 100px, kept aft
 }) => {
   const world = await openHarbourMap(page);
   const mapId = world.ids.figures.nordhafen;
-  await expect(footerScale(page)).toContainText("0.15 km pro 100px");
+  await expect(footerScale(page)).toContainText("0,15 km pro 100px");
   await startCalibration(page);
   const { a, b, scaleFor } = await stretchOnMap(page, world.id, mapId);
   await page.mouse.click(a.x, a.y);
@@ -195,11 +195,11 @@ test("(a) Two clicks across 300 flow units at 3 km make 1 km per 100px, kept aft
   await page.mouse.click(b.x, b.y);
   await applyLength(page, "3");
 
-  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await expect(footerScale(page)).toContainText(`${german(scaleFor(3))} km pro 100px`);
   await savedScale(page, world.id, mapId, scaleFor(3));
   await page.reload();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
-  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await expect(footerScale(page)).toContainText(`${german(scaleFor(3))} km pro 100px`);
 });
 
 test("(a2) Zoomed out, the mouse's whole pixels make the scale of the stretch they span", async ({
@@ -218,7 +218,7 @@ test("(a2) Zoomed out, the mouse's whole pixels make the scale of the stretch th
   await page.mouse.click(b.x, b.y);
   await applyLength(page, "3");
 
-  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await expect(footerScale(page)).toContainText(`${german(scaleFor(3))} km pro 100px`);
   await savedScale(page, world.id, mapId, scaleFor(3));
 });
 
@@ -237,7 +237,7 @@ test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays wh
   await page.mouse.up();
   await applyLength(page, "3");
 
-  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await expect(footerScale(page)).toContainText(`${german(scaleFor(3))} km pro 100px`);
   await savedScale(page, world.id, mapId, scaleFor(3));
   const after = await stored(page, world.id, mapId);
   expect([after.mapX, after.mapY, after.x, after.y]).toEqual([
@@ -248,7 +248,7 @@ test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays wh
   ]);
   await page.reload();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
-  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await expect(footerScale(page)).toContainText(`${german(scaleFor(3))} km pro 100px`);
   const reloaded = await stored(page, world.id, mapId);
   expect([reloaded.mapX, reloaded.mapY]).toEqual([before.mapX, before.mapY]);
 });
@@ -275,7 +275,9 @@ test("(c) Two places with a known distance between them set the scale", async ({
   const from = anchor(world.ids.figures.salzmarkt);
   const to = anchor(world.ids.figures.faehrsteg);
   const expected = (2 * 100) / Math.hypot(to.x - from.x, to.y - from.y);
-  await expect(footerScale(page)).toContainText(`${Number(expected.toPrecision(3))} km pro 100px`);
+  await expect(footerScale(page)).toContainText(
+    `${german(Number(expected.toPrecision(3)))} km pro 100px`,
+  );
 });
 
 test("(d) Escape leaves the scale as it was", async ({ page }) => {
@@ -285,7 +287,7 @@ test("(d) Escape leaves the scale as it was", async ({ page }) => {
   await page.mouse.click(a.x, a.y);
   await page.keyboard.press("Escape");
   await expect(page.getByText("Setze das Ende der Strecke.")).toHaveCount(0);
-  await expect(footerScale(page)).toContainText("0.15 km pro 100px");
+  await expect(footerScale(page)).toContainText("0,15 km pro 100px");
 });
 
 /*
@@ -340,6 +342,11 @@ async function dragCorner(page: Page, dx: number, dy: number, shift = false) {
   if (shift) await page.keyboard.up("Shift");
 }
 
+/** A number as the German interface writes it: the decimal mark is a comma. */
+function german(value: number): string {
+  return String(value).replace(".", ",");
+}
+
 /** The measured distance Salzmarkt–Fährsteg, read off the measuring line. */
 async function harbourDistance(page: Page, world: { ids: { figures: Record<string, string> } }) {
   await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
@@ -348,9 +355,10 @@ async function harbourDistance(page: Page, world: { ids: { figures: Record<strin
   }
   const label = (await page.locator(".distance-edge.is-targeted").getAttribute("aria-label")) ?? "";
   await page.keyboard.press("Escape");
-  const match = /: ([\d.]+) km$/.exec(label);
+  const match = /: ([\d,]+) km$/.exec(label);
   if (!match) throw new Error(`Unexpected measuring line "${label}".`);
-  return Number(match[1]);
+  // The line is read in the interface language: German writes the decimal mark as a comma.
+  return Number(match[1].replace(",", "."));
 }
 
 async function storedFrame(page: Page, worldId: string, mapId: string) {

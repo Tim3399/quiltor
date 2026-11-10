@@ -17,7 +17,7 @@ describe("measurement bar", () => {
         />
       </I18nProvider>,
     );
-    const field = screen.getByRole("spinbutton", { name: "Maßstab" });
+    const field = screen.getByRole("textbox", { name: "Maßstab" });
     const label = document.querySelector(`label[for="${field.id}"]`);
     expect(label).toHaveClass("sr-only");
     expect(screen.getByText("pro 100px")).toBeVisible();
@@ -70,13 +70,15 @@ describe("level scale field", () => {
         />
       </I18nProvider>,
     );
-    const field = screen.getByRole("spinbutton", { name: "Maßstab" });
+    const field = screen.getByRole("textbox", { name: "Maßstab" });
     for (const value of ["0", "-12", ""]) fireEvent.change(field, { target: { value } });
     expect(onScale).not.toHaveBeenCalled();
     // The draft stays as typed instead of jumping back to the stored scale.
-    expect(field).toHaveValue(null);
+    expect(field).toHaveValue("");
     fireEvent.change(field, { target: { value: "0.0667" } });
     expect(onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.0667 });
+    fireEvent.change(field, { target: { value: "0,05" } });
+    expect(onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.05 });
   });
 
   it("offers measuring the level's scale on the map", () => {

@@ -105,7 +105,7 @@ test("Footer scale edits persist through the map state and update map measuremen
   const chrome = page.locator(".place-map-chrome");
   await chrome.getByRole("button", { name: "Maßstab von Weltkarte" }).click();
   const editor = page.getByRole("dialog", { name: "Maßstab von Weltkarte" });
-  await editor.getByRole("spinbutton", { name: "Maßstab", exact: true }).fill("50");
+  await editor.getByRole("textbox", { name: "Maßstab", exact: true }).fill("50");
   await editor.getByRole("textbox", { name: "Einheit" }).fill("km");
   await page.keyboard.press("Escape");
   await expect

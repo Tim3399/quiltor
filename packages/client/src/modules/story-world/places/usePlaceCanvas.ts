@@ -129,7 +129,7 @@ export function usePlaceCanvas({
   expandRequest?: { id: string; sequence: number };
   onChange: (state: FigureState) => void;
 }): PlaceCanvasController {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>("detail");
   const [viewportZoom, setViewportZoom] = useState(1);
   // What a handle is being dragged to right now, so the map follows the
@@ -486,6 +486,7 @@ export function usePlaceCanvas({
                 : levelScale;
             },
             t,
+            locale,
           })
         : [],
     [
@@ -498,6 +499,7 @@ export function usePlaceCanvas({
       state.nodes,
       levelScale,
       t,
+      locale,
     ],
   );
 
