@@ -454,6 +454,20 @@ class OpenAiContractTests(_ExternalEngineCase):
             engine.invoke(CHAT_PAYLOAD)
         self.assertEqual(len(self.chat_requests()), 2)
 
+    def test_a_retry_that_fails_too_is_not_remembered(self):
+        """A 400 that names response_format for another reason fails the json_object retry
+        as well; the next request must try json_schema again (T-187)."""
+        engine = self.engine()
+        status, body = JSON_SCHEMA_REFUSALS[self.provider]
+        self.answer_chat((status, body))
+        with self.assertRaisesRegex(RuntimeError, f"HTTP {status}"):
+            engine.invoke(CHAT_PAYLOAD)
+
+        self.answer_chat((200, chat_answer(self.provider, json.dumps({"answer": "ok"}))))
+        _Endpoint.seen.clear()
+        self.assertEqual(engine.invoke(CHAT_PAYLOAD)["answer"], "ok")
+        self.assertEqual(self.chat_requests()[0]["body"]["response_format"]["type"], "json_schema")
+
     def test_an_unrelated_error_is_not_retried(self):
         engine = self.engine()
         self.answer_chat((400, {"error": {"message": "max_tokens is too large"}}))
