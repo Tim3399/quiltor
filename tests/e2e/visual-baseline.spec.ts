@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
@@ -13,6 +12,8 @@ import {
   openExpandedMapWorld,
   selectMapChild,
 } from "./support/expanded-map-fixture";
+import { waitForPlacesCanvasToStandStill } from "./support/places-canvas";
+import { expect, test } from "./support/transient-network";
 
 const manuscript = {
   chapters: [
@@ -152,40 +153,6 @@ async function fitUntilSettled(page: Page) {
     previous = current;
   }
   throw new Error("Fitting the canvas did not settle on one transform.");
-}
-
-/*
- * Wait until the places canvas and every card on it stand still.
- *
- * On the compact viewport the places canvas fits once its cards are measured, and a card
- * standing half outside the left edge (Graufurth) then lay a fraction of a pixel elsewhere
- * from run to run: probed locally, 1 of 6 captures differed by 100 px around that card while
- * the viewport transform had already been equal twice. Two identical readings of the
- * viewport and of every card's rectangle in a row are what is waited for (T-231).
- */
-async function waitForPlacesCanvasToStandStill(page: Page) {
-  let previous: string | null = null;
-  await expect
-    .poll(
-      async () => {
-        const current = await page.evaluate(() =>
-          JSON.stringify([
-            document
-              .querySelector(".places-flow-area .react-flow__viewport")
-              ?.getAttribute("style"),
-            [...document.querySelectorAll(".places-flow-area .react-flow__node")].map((node) => {
-              const rect = node.getBoundingClientRect();
-              return [node.getAttribute("data-id"), rect.x, rect.y, rect.width, rect.height];
-            }),
-          ]),
-        );
-        const still = current === previous;
-        previous = current;
-        return still;
-      },
-      { message: "The places canvas keeps moving its cards." },
-    )
-    .toBe(true);
 }
 
 for (const theme of ["light", "dark"] as const) {

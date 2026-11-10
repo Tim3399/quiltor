@@ -886,21 +886,79 @@ locally it is about 11 % on the product suite and 44 % on the backend.
 Of the last 130 runs of the workflow, 16 are red (state of 2026-11-08, `gh run list`). Every red run
 falls into one of four groups; none is a fault of the workflow's logic.
 
-| Group                          | Runs                                                           | Job and line                                                                                                                                                       | Cause                                                                                                                                                                                                                                           |
-| ------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stale expanded-map references  | 41324415522, 41327443566, 41328675806, 41418131871 | `bootstrap (ubuntu/macos)`, "Generate the missing baselines": `Snapshot: light-expanded-map.png`, 64 px, `dark-expanded-map.png`, 60 px, every run, every platform | a committed reference differed from the current design by the same pixel count each time: T-97 and T-104 changed the map chrome (see 4bb96a39). A constant count is a changed design, not noise                                                  |
-| Same, dark only                | 41487628680, 41503967136, 41504186728                          | strict verification, `dark-expanded-map-regular`, 25 px on ubuntu and macos                                                                                        | the "A snapshot doesn't exist" lines in these logs belong to the bootstrap pass, which expects them. The failing line is the 25 px dark reference, committed before T-124, again a constant count                                                |
-| Windows stuck on loading       | 41859545842                                                    | `bootstrap (windows-2025)`: `Locator: getByLabel('Kapiteltext')`, `Timeout: 5000ms`, four tests                                                                    | the first browser request waited 30.8 s on a cold Vite; fixed by `tools/dev/warm-vite.mjs` (5d434031). No Windows run since has failed for this reason                                                                                          |
-| Windows favourites             | 42390857160, 42392346266                                       | `bootstrap (windows-2025)`: `light-overview-favourites.png`, 27 px                                                                                                 | connection handles drawn in the overview (T-129 F3, 02bdb87e), fixed on 2026-11-07                                                                                                                                                             |
-| Red without a failed job       | 41420682381, 41859545842 (macos part), 41862696026, 41868308165, 41870500032, 41870510335           | `bootstrap (macos-15)` is `cancelled`, 0 steps; check-run annotation "The job was not acquired by Runner of type hosted even after multiple attempts"              | GitHub had no macOS arm64 runner (annotation: "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times"). The matrix runs one job at a time, so Windows waited 18 minutes behind it. Not solvable here |
+| Group                         | Runs                                                                                      | Job and line                                                                                                                                                       | Cause                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale expanded-map references | 41324415522, 41327443566, 41328675806, 41418131871                                        | `bootstrap (ubuntu/macos)`, "Generate the missing baselines": `Snapshot: light-expanded-map.png`, 64 px, `dark-expanded-map.png`, 60 px, every run, every platform | a committed reference differed from the current design by the same pixel count each time: T-97 and T-104 changed the map chrome (see 4bb96a39). A constant count is a changed design, not noise                                                                                                                                       |
+| Same, dark only               | 41487628680, 41503967136, 41504186728                                                     | strict verification, `dark-expanded-map-regular`, 25 px on ubuntu and macos                                                                                        | the "A snapshot doesn't exist" lines in these logs belong to the bootstrap pass, which expects them. The failing line is the 25 px dark reference, committed before T-124, again a constant count                                                                                                                                     |
+| Windows stuck on loading      | 41859545842                                                                               | `bootstrap (windows-2025)`: `Locator: getByLabel('Kapiteltext')`, `Timeout: 5000ms`, four tests                                                                    | the first browser request waited 30.8 s on a cold Vite; fixed by `tools/dev/warm-vite.mjs` (5d434031). No Windows run since has failed for this reason                                                                                                                                                                                |
+| Windows favourites            | 42390857160, 42392346266                                                                  | `bootstrap (windows-2025)`: `light-overview-favourites.png`, 27 px                                                                                                 | connection handles drawn in the overview (T-129 F3, 02bdb87e), fixed on 2026-11-07                                                                                                                                                                                                                                                    |
+| Red without a failed job      | 41420682381, 41859545842 (macos part), 41862696026, 41868308165, 41870500032, 41870510335 | `bootstrap (macos-15)` is `cancelled`, 0 steps; check-run annotation "The job was not acquired by Runner of type hosted even after multiple attempts"              | GitHub had no macOS arm64 runner (annotation: "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times"). GitHub cancels the job after 18 to 20 minutes, and Windows, behind it in the matrix, waited all of that time. The capacity is not solvable here; the wait is: macOS now runs last |
 
-The `light-expanded-map` noise that remains is on the compact viewport only. Six captures per theme and viewport of
-the same state on win32 were byte-identical on wide and regular;
-compact differed in 1 of 6 light captures (100 px around the Graufurth card at the left edge,
-x 79-148, y 384-451) and 1 of 6 dark captures (33 px in the toolbar's overflow button, x 312-355,
-y 83-122). `waitForPlacesCanvasToStandStill` now waits for two identical readings of the
-viewport and every card's rectangle before the capture. The toolbar difference is not
-explained yet.
+### The compact noise: stale raster, not moving layout
 
-Still open: five repeats of the expanded-map capture per platform with the new wait, and its
-mutation (remove the wait, expect a red repeat run); the compact toolbar difference.
+The `expanded-map` noise that remained was on the compact viewport only. A probe takes the
+test's steps and saves each capture as a file, then compares them byte for byte against the
+first one (win32, `--repeat-each`). Wide and regular were identical from the start. Compact
+differed in two places:
+
+- **The canvas**, around Graufurth at the left edge and Tannenhain with the coast beside it.
+  The first round added a wait for two identical readings of the viewport transform and every
+  card's rectangle. With it, that geometry was byte-identical in every run, and the captures
+  still came out in two or three states, each one whole raster tile. Chromium keeps the tiles
+  it rastered while the fit was still changing the scale and re-rasters them at the final scale
+  later, sometimes not before the capture. Waiting 1.5 s fixed light but not dark.
+- **The toolbar's overflow button** "Ortsaktionen", in 1 of 10 real `toHaveScreenshot`
+  captures per theme. Only its four rounded corners differed. Its rectangle, colours,
+  opacity and outline were the same in all 20 runs, and so were the element under the mouse
+  and the focused element. It sits in the toolbar's `scroll-area`, a composited scroller
+  whose raster goes stale the same way.
+
+`waitForPlacesCanvasToStandStill` (`tests/e2e/support/places-canvas.ts`) waits for the
+geometry to stand still. Then it takes both layers out of the layout for one frame, which
+drops their tiles, and puts their scroll positions back. The capture then sees one raster of
+the final state.
+
+| Probe, compact, light and dark (win32)                | Captures | Differing               |
+| ----------------------------------------------------- | -------- | ----------------------- |
+| with the full wait                                    | 6 + 6    | 0                       |
+| with the full wait, real `toHaveScreenshot` before it | 40 + 40  | 0                       |
+| mutation: no re-raster at all                         | 10 + 10  | 10 (canvas)             |
+| mutation: canvas re-rastered, toolbar not             | 20 + 20  | 4 (toolbar button)      |
+| mutation: no wait at all                              | 10 + 10  | 10 (canvas and toolbar) |
+
+The stale references themselves were deleted for linux and darwin (all six `*-expanded-map-*`
+images of each), so that the bootstrap takes them again. The win32 set was current: the test
+passed against it 18 of 18 times.
+
+### Every new baseline is taken twice
+
+A baseline that comes out differently from one page load to the next turns every later
+comparison into a coin toss. So the bootstrap job now takes each image it created a second
+time. `tools/dev/capture-twice.mjs` sets aside the images that are untracked in the snapshot
+directory, runs the bootstrap pass again, and fails unless every image comes out byte for byte
+the same. A differing image is kept next to it as `*.first-take.png`, and the job stops
+before anything is checked in.
+
+The check repeats the whole test rather than taking two screenshots of one page.
+`toHaveScreenshot` already does that by itself, and every difference above came from a fresh
+page load.
+
+Locally, with the win32 compact expanded-map images taken away: two runs were green, and the
+run without the wait was red (`1 of 2 new baseline(s) are not reproducible`).
+`tools/dev/capture-twice.test.mjs` covers the verdicts: identical, differing, not written
+again, and a tracked image never taken again. Two mutations of the comparison make it red.
+
+### macOS runners
+
+`timeout-minutes: 30` bounds a bootstrap that hangs once it has started (a run takes 3 to 7
+minutes). It cannot shorten the wait for a runner, because GitHub does not count queue time
+against the timeout. That wait is what blocked Windows.
+
+`max-parallel: 1` does not serialize the jobs strictly. In runs 41862696026, 41868308165,
+41870500032 and 41870510335, ubuntu ran while macOS waited for a runner, and Windows started
+only when GitHub cancelled macOS, 18 to 20 minutes in. macOS is now last in the matrix, so
+its wait holds up no other platform. The push never forces, so a branch that moved in between
+makes it fail rather than overwrite.
+
+Still open: the regenerated linux and darwin images, and five repeats per platform in CI on
+int/T-231.

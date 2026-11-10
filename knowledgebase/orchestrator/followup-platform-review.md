@@ -65,7 +65,7 @@ compared all 16 imported images with prior `HEAD` Linux images and the accepted 
   to the two priority controls (`2,015` changed pixels per light image and `2,044` per dark image,
   with bounding boxes in the inspector action area). The map, inspector fields, footer, minimap,
   and chrome retain their positions; shared Button pressed styling is readable in both themes.
-  [Light wide example](../../tests/e2e/visual-baseline.spec.ts-snapshots/light-expanded-map-wide-linux.png).
+  Light wide example: `light-expanded-map-wide-linux.png` (stale, deleted in T-231 for the bootstrap to regenerate).
 - `light-manuscript-{regular,compact}-linux.png` and
   `dark-manuscript-{regular,compact}-linux.png` — all four accepted. Both regular images are
   pixel-identical to prior Linux `HEAD`. Light compact changes only the second body-text glyph row
@@ -100,7 +100,7 @@ intent:
   about two thousand pixels and visually confines the material change to the two priority controls.
   Light wide also contains 34 ancillary antialias pixels around the minimap, without a geometry or
   content shift. Map nodes, scale/footer, minimap, inspector fields, and toolbar remain aligned and
-  unclipped. [Dark wide example](../../tests/e2e/visual-baseline.spec.ts-snapshots/dark-expanded-map-wide-darwin.png).
+  unclipped. Dark wide example: `dark-expanded-map-wide-darwin.png` (stale, deleted in T-231 for the bootstrap to regenerate).
 - `light-manuscript-{regular,compact}-darwin.png` and
   `dark-manuscript-{regular,compact}-darwin.png` — all four accepted. Regular differences are limited
   to the body-text glyph row (`366` light / `373` dark pixels); light compact is likewise confined to
