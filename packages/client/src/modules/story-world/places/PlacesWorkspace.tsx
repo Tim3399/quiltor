@@ -1,6 +1,6 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ConfirmDialog, Sheet, SidePanel, Toast } from "../../../design";
+import { Button, ConfirmDialog, Sheet, SidePanel, Toast } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage, quiltorClient, type StoredMapImage } from "../../../platform";
 import type { Workspace } from "../../../shared";
@@ -23,8 +23,14 @@ import {
   nextMeasureTargets,
 } from "./placeCanvasModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
-import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
-import { formatDistance, formatScale } from "./placeMap";
+import { hasMapSize, isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
+import {
+  formatDistance,
+  formatScale,
+  type ResizeGesture,
+  rescaledScale,
+  zoomRescaledScale,
+} from "./placeMap";
 import {
   type ActivePlaceMap,
   activePlaceMapForSelection,
@@ -86,6 +92,13 @@ function PlacesWorkspaceInner({
   // Which map is having its picture adjusted. A mode rather than a gesture
   // the canvas has to guess at: inside it a drag moves the picture.
   const [adjustingId, setAdjustingId] = useState<string | undefined>(undefined);
+  // A map distorted out of proportion, and the size it was left at: the hint stays only
+  // while the map still has that size, so undo and redo take it away with the size.
+  const [rescaleHint, setRescaleHint] = useState<{
+    id: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [measureTargets, setMeasureTargets] = useState<MeasureTarget[]>([]);
   // Setting a scale by measuring a stretch: whose scale, and the ends picked so far. The
@@ -137,6 +150,7 @@ function PlacesWorkspaceInner({
     setExpandRequest(undefined);
     setSelectedId(null);
     setMeasureTargets([]);
+    setRescaleHint(null);
   }, []);
   const goToLevel = useCallback((nextLevelId: string | undefined) => {
     setLevelId(nextLevelId);
@@ -144,6 +158,7 @@ function PlacesWorkspaceInner({
     setExpandRequest(undefined);
     setSelectedId(null);
     setMeasureTargets([]);
+    setRescaleHint(null);
   }, []);
   // A level that vanished -- undone, or deleted with its contents -- would leave
   // the surface showing nothing and no way back. Fall out to the root instead.
@@ -156,6 +171,16 @@ function PlacesWorkspaceInner({
     ? (state.nodes.find((node) => node.id === selectedId && isPlace(node)) ?? null)
     : null;
   const placesInspectorOpen = !compact && !!places.length && !!selected;
+  const hintedMap = rescaleHint
+    ? state.nodes.find((node) => node.id === rescaleHint.id)
+    : undefined;
+  const shownRescaleHint =
+    rescaleHint &&
+    hintedMap &&
+    hintedMap.mapWidth === rescaleHint.width &&
+    hintedMap.mapHeight === rescaleHint.height
+      ? { id: hintedMap.id, name: hintedMap.name }
+      : null;
   // Either state: a card still needs somewhere to be opened out from.
   const selectedMap = selected?.mapImageId ? selected : null;
   // Crop belongs to the active surface, including while a child is selected.
@@ -175,6 +200,7 @@ function PlacesWorkspaceInner({
         return;
       }
       setSelectedId(id);
+      setRescaleHint((hint) => (hint && hint.id !== id ? null : hint));
       const map = activePlaceMapForSelection(latestStateRef.current.nodes, levelId, id);
       if (map) setActiveMapState({ levelId, mapId: map.id });
       if (!measuring) return;
@@ -189,6 +215,7 @@ function PlacesWorkspaceInner({
     (target: { kind: "map"; id: string } | { kind: "level" }) => {
       setMeasuring(false);
       setMeasureTargets([]);
+      setRescaleHint(null);
       setCalibration({ target, ends: [] });
     },
     [],
@@ -235,12 +262,26 @@ function PlacesWorkspaceInner({
     (place: FigureNode) => patchPlace(place.id, { pinned: !place.pinned }),
     [patchPlace],
   );
+  // Zooming the picture inside its frame changes how much ground the frame shows. Read
+  // from the latest state: wheel ticks follow each other faster than renders.
   const cropMap = useCallback(
-    (place: FigureNode, crop: ImageCrop) => patchPlace(place.id, cropPatch(crop)),
+    (place: FigureNode, crop: ImageCrop) => {
+      const current = latestStateRef.current.nodes.find((node) => node.id === place.id);
+      const scale = current
+        ? zoomRescaledScale(current.mapScale, cropOf(current).zoom, crop.zoom)
+        : undefined;
+      patchPlace(place.id, { ...cropPatch(crop), ...(scale ? { mapScale: scale } : {}) });
+    },
     [patchPlace],
   );
+  // Size and scale in one write, so one undo takes both back.
   const resizeMap = useCallback(
-    (place: FigureNode, box: MapBox) => patchPlace(place.id, mapBoxPatch(box)),
+    (place: FigureNode, box: MapBox, gesture: ResizeGesture | null) => {
+      const current = latestStateRef.current.nodes.find((node) => node.id === place.id);
+      const { scale, distorted } = rescaledScale(current?.mapScale, gesture, box);
+      patchPlace(place.id, { ...mapBoxPatch(box), ...(scale ? { mapScale: scale } : {}) });
+      if (distorted) setRescaleHint({ id: place.id, width: box.width, height: box.height });
+    },
     [patchPlace],
   );
 
@@ -557,6 +598,26 @@ function PlacesWorkspaceInner({
             onDismiss={() => setMapError("")}
           />
         )}
+        {shownRescaleHint && (
+          <Toast
+            className="story-world-toast"
+            tone="info"
+            title={t("rescaleHintTitle")}
+            dismissLabel={t("closeMessage")}
+            onDismiss={() => setRescaleHint(null)}
+            action={
+              <Button
+                size="compact"
+                appearance="secondary"
+                onClick={() => startCalibration({ kind: "map", id: shownRescaleHint.id })}
+              >
+                {t("rescaleHintAction")}
+              </Button>
+            }
+          >
+            {t("rescaleHintBody", { name: shownRescaleHint.name })}
+          </Toast>
+        )}
         {blockedDeletion && (
           <Toast
             className="story-world-toast"
@@ -596,14 +657,16 @@ function PlacesWorkspaceInner({
                   onEnter: () => openLevel(activeMap),
                   scale: activeMap.mapScale,
                   onCalibrate: () => startCalibration({ kind: "map", id: activeMap.id }),
-                  onScale: (patch) =>
+                  onScale: (patch) => {
+                    setRescaleHint((hint) => (hint?.id === activeMap.id ? null : hint));
                     patchPlace(activeMap.id, {
                       mapScale: {
                         unitsPer100px: activeMap.mapScale?.unitsPer100px ?? 1,
                         unitLabel: activeMap.mapScale?.unitLabel ?? t("unitsDefault"),
                         ...patch,
                       },
-                    }),
+                    });
+                  },
                 }
               : undefined
           }
@@ -627,7 +690,7 @@ function PlacesWorkspaceInner({
                 onCrop={(next) => cropMap(selectedMap, next)}
                 onToggleLock={() => toggleMapLock(selectedMap)}
                 onCollapse={() => collapseMap(selectedMap)}
-                onExpand={() => expandMap(selectedMap)}
+                onExpand={hasMapSize(selectedMap) ? () => expandMap(selectedMap) : undefined}
                 onEnter={() => openLevel(selectedMap)}
                 scale={selectedMap.mapScale}
                 onScale={(patch) =>

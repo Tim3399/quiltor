@@ -7,6 +7,7 @@ import {
   ancestorsOf,
   expandedRect,
   hasLevelContents,
+  isExpandedMap,
   levelTrail,
   mapRect,
   mapUnder,
@@ -218,9 +219,20 @@ describe("maps as ground for pins", () => {
     expect(mapRect(map)).toEqual({ x: 100, y: 200, width: 400, height: 300 });
   });
 
-  it("falls back to a default extent so a map is never a point", () => {
-    const rect = mapRect(place("blank", { mapExpanded: true, mapX: 0, mapY: 0 }));
-    expect([rect.width, rect.height]).toEqual([640, 420]);
+  it("has no rectangle for a map without a size, and no point falls on it", () => {
+    // An invented size would be drawn, measured and scaled as if it were true.
+    const blank = place("blank", { mapExpanded: true, mapImageId: "bild", mapX: 0, mapY: 0 });
+    expect(mapRect(blank)).toBeUndefined();
+    expect(mapRect({ ...blank, mapWidth: 1200 })).toBeUndefined();
+    expect(mapUnder({ x: 10, y: 10 }, [blank])).toBeUndefined();
+  });
+
+  it("draws a map opened out only when it knows both sides of its frame", () => {
+    const blank = place("blank", { mapExpanded: true, mapImageId: "bild" });
+    expect(isExpandedMap(blank)).toBe(false);
+    expect(isExpandedMap({ ...blank, mapWidth: 1200 })).toBe(false);
+    expect(isExpandedMap({ ...blank, mapWidth: 1200, mapHeight: 800 })).toBe(true);
+    expect(isExpandedMap({ ...blank, mapWidth: 1200, mapHeight: 0 })).toBe(false);
   });
 
   it("finds the map a point lands on, and none when it lands beside it", () => {

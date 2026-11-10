@@ -203,3 +203,184 @@ test("(d) Escape leaves the scale as it was", async ({ page }) => {
   await expect(page.getByText("Setze das Ende der Strecke.")).toHaveCount(0);
   await expect(footerScale(page)).toContainText("0.15 km pro 100px");
 });
+
+/*
+ * Part 4: the frame keeps its proportions, the scale follows the frame, and a distorted
+ * frame (Shift held as the gesture begins) keeps its scale and asks for a new measurement.
+ */
+
+/**
+ * Selects the map so its grips show, zooming out first while its right edge would lie
+ * under the inspector that selecting opens.
+ */
+async function selectHarbour(page: Page, worldId: string, mapId: string) {
+  const map = page.locator(`.react-flow__node-placeMap[data-id="${mapId}"]`);
+  const inspector = page.locator(".places-inspector");
+  for (let step = 0; step < 5; step += 1) {
+    const { a } = await stretchOnMap(page, worldId, mapId);
+    await page.mouse.click(a.x, a.y);
+    await expect(page.locator(".place-map-node__handle.bottom.right")).toBeVisible();
+    const mapBox = await map.boundingBox();
+    const panel = (await inspector.count()) ? await inspector.boundingBox() : null;
+    if (mapBox && (!panel || mapBox.x + mapBox.width < panel.x - 16)) return;
+    await page.locator(".react-flow__controls-zoomout").click();
+    await waitForMapViewport(page);
+  }
+  throw new Error("The map's corner stays under the inspector.");
+}
+
+/**
+ * Drags the bottom-right grip by (dx, dy) screen pixels, Shift held or not.
+ *
+ * The minimap sits in the canvas's bottom-right corner, where it covers the grip of a map
+ * that fills the view; grabbing it would pan the canvas instead. It is hidden first, and
+ * the grab point is checked to be the grip itself.
+ */
+async function dragCorner(page: Page, dx: number, dy: number, shift = false) {
+  const hide = page.getByRole("button", { name: "Übersichtskarte ausblenden", exact: true });
+  if (await hide.isVisible()) await hide.click();
+  const grip = page.locator(".place-map-node__handle.bottom.right");
+  const box = await grip.boundingBox();
+  if (!box) throw new Error("The corner grip has no screen geometry.");
+  const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const onGrip = await page.evaluate(
+    ({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest(".react-flow__resize-control")),
+    from,
+  );
+  expect(onGrip, "something lies over the corner grip").toBe(true);
+  await page.mouse.move(from.x, from.y);
+  if (shift) await page.keyboard.down("Shift");
+  await page.mouse.down();
+  await page.mouse.move(from.x + dx, from.y + dy, { steps: 12 });
+  await page.mouse.up();
+  if (shift) await page.keyboard.up("Shift");
+}
+
+/** The measured distance Salzmarkt–Fährsteg, read off the measuring line. */
+async function harbourDistance(page: Page, world: { ids: { figures: Record<string, string> } }) {
+  await page.getByRole("button", { name: "Distanz messen", exact: true }).click();
+  for (const id of [world.ids.figures.salzmarkt, world.ids.figures.faehrsteg]) {
+    await page.locator(`.react-flow__node[data-id="${id}"] .place-node-pin__mark`).click();
+  }
+  const label = (await page.locator(".distance-edge.is-targeted").getAttribute("aria-label")) ?? "";
+  await page.keyboard.press("Escape");
+  const match = /: ([\d.]+) km$/.exec(label);
+  if (!match) throw new Error(`Unexpected measuring line "${label}".`);
+  return Number(match[1]);
+}
+
+async function storedFrame(page: Page, worldId: string, mapId: string) {
+  const map = await stored(page, worldId, mapId);
+  const scale = map.mapScale as unknown as { unitsPer100px: number } | undefined;
+  return {
+    width: Number(map.mapWidth),
+    height: Number(map.mapHeight),
+    unitsPer100px: scale?.unitsPer100px ?? Number.NaN,
+  };
+}
+
+async function frameChanged(page: Page, worldId: string, mapId: string, width: number) {
+  await expect.poll(async () => (await storedFrame(page, worldId, mapId)).width).not.toBe(width);
+  return storedFrame(page, worldId, mapId);
+}
+
+test("(f) The corner grip keeps the proportions, the scale follows, distances stay", async ({
+  page,
+}) => {
+  const world = await openHarbourMap(page);
+  const mapId = world.ids.figures.nordhafen;
+  const distance = await harbourDistance(page, world);
+  await selectHarbour(page, world.id, mapId);
+  await dragCorner(page, 200, 200);
+
+  const after = await frameChanged(page, world.id, mapId, 1500);
+  expect(after.width / after.height).toBeCloseTo(1.5, 3);
+  expect(after.unitsPer100px).toBeCloseTo((0.15 * 1500) / after.width, 3);
+  await expect(page.getByText("Maßstab neu messen?")).toHaveCount(0);
+  expect(await harbourDistance(page, world)).toBeCloseTo(distance, 1);
+});
+
+test("(g) With Shift the frame distorts, keeps its scale and asks to measure again", async ({
+  page,
+}) => {
+  const world = await openHarbourMap(page);
+  const mapId = world.ids.figures.nordhafen;
+  await selectHarbour(page, world.id, mapId);
+  await dragCorner(page, 200, 0, true);
+
+  const after = await frameChanged(page, world.id, mapId, 1500);
+  expect(after.width / after.height).not.toBeCloseTo(1.5, 2);
+  expect(after.unitsPer100px).toBe(0.15);
+  await expect(page.locator(".react-flow__selection")).toHaveCount(0);
+  await expect(page.getByText("Maßstab neu messen?")).toBeVisible();
+  await page.getByRole("button", { name: "Neu messen", exact: true }).click();
+  await expect(page.getByText("Maßstab messen: Setze den Anfang der Strecke.")).toBeVisible();
+});
+
+test("(h) One undo takes back both the size and the scale", async ({ page }) => {
+  const world = await openHarbourMap(page);
+  const mapId = world.ids.figures.nordhafen;
+  await selectHarbour(page, world.id, mapId);
+  await dragCorner(page, 200, 200);
+  await frameChanged(page, world.id, mapId, 1500);
+
+  await page.getByRole("button", { name: "Orte rückgängig", exact: true }).click();
+  await expect
+    .poll(async () => storedFrame(page, world.id, mapId))
+    .toEqual({ width: 1500, height: 1000, unitsPer100px: 0.15 });
+});
+
+test("(i) Two proportional resizes in a row each recompute without a hint", async ({ page }) => {
+  const world = await openHarbourMap(page);
+  const mapId = world.ids.figures.nordhafen;
+  const distance = await harbourDistance(page, world);
+  await selectHarbour(page, world.id, mapId);
+
+  await dragCorner(page, 80, 80);
+  const first = await frameChanged(page, world.id, mapId, 1500);
+  await expect(page.getByText("Maßstab neu messen?")).toHaveCount(0);
+  expect(first.unitsPer100px).toBeCloseTo((0.15 * 1500) / first.width, 3);
+
+  await selectHarbour(page, world.id, mapId);
+  await dragCorner(page, 60, 60);
+  const second = await frameChanged(page, world.id, mapId, first.width);
+  await expect(page.getByText("Maßstab neu messen?")).toHaveCount(0);
+  expect(second.width / second.height).toBeCloseTo(1.5, 2);
+  // Each step divides by its own factor, so the scale tracks the whole change.
+  expect(second.unitsPer100px).toBeCloseTo((0.15 * 1500) / second.width, 2);
+  expect(await harbourDistance(page, world)).toBeCloseTo(distance, 1);
+});
+
+test("(j) A map without a size is drawn at its picture's size and its scale follows", async ({
+  page,
+}) => {
+  const world = await seedExampleWorld(page, { include: ["base", "edge"] });
+  const levelId = world.ids.figures.xMasslosEbene;
+  const mapId = world.ids.figures.xMassloseKarte;
+  await page.getByRole("button", { name: "Orte", exact: true }).click();
+  // The level's card lies outside the first framing; React Flow enters a level on the
+  // node's own double click, which needs no pointer on screen.
+  await page.locator(`.react-flow__node[data-id="${levelId}"]`).dispatchEvent("dblclick");
+  const map = page.locator(`.react-flow__node-placeMap[data-id="${mapId}"]`);
+  await expect(map, "the server did not fill in the picture's size").toBeVisible();
+  await waitForMapViewport(page);
+
+  // Drawn at the harbour picture's own 1200 by 800 pixels.
+  const zoom = await page.evaluate(() => {
+    const viewport = document.querySelector<HTMLElement>(".places-flow-area .react-flow__viewport");
+    return viewport ? new DOMMatrixReadOnly(getComputedStyle(viewport).transform).a : Number.NaN;
+  });
+  const drawn = await map.boundingBox();
+  if (!drawn) throw new Error("The map has no screen geometry.");
+  expect(drawn.width / zoom).toBeCloseTo(1200, 0);
+  expect(drawn.height / zoom).toBeCloseTo(800, 0);
+
+  await selectHarbour(page, world.id, mapId);
+  await dragCorner(page, 150, 100);
+  await expect
+    .poll(async () => Number((await stored(page, world.id, mapId)).mapWidth))
+    .not.toBe(1200);
+  const after = await storedFrame(page, world.id, mapId);
+  expect(after.width / after.height).toBeCloseTo(1.5, 2);
+  expect(after.unitsPer100px).toBeCloseTo((0.15 * 1200) / after.width, 3);
+});

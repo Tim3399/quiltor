@@ -161,3 +161,48 @@ export function formatDistance(
   const rounded = Math.round(units * 100) / 100;
   return `${rounded} ${scale.unitLabel}`;
 }
+
+/** How a frame resize began: its drawn size then, and whether it may distort. */
+export type ResizeGesture = {
+  start: { x: number; y: number; width: number; height: number };
+  /** Shift was held as the gesture began: the frame may change its proportions. */
+  free: boolean;
+};
+
+/**
+ * What a finished frame resize does to the map's scale.
+ *
+ * Kept in proportion, a larger frame is the same ground drawn closer, so a hundred pixels
+ * cover less of it: the scale is divided by the factor. The factor comes from the frame as
+ * drawn when the gesture began, not from what is stored, because the resizer works from
+ * the drawn, whole-pixel size. A distorted frame cannot be read in one scale; it keeps the
+ * old one and says so. Without a gesture, a scale or a usable factor nothing changes.
+ */
+export function rescaledScale(
+  scale: MapScale | undefined,
+  gesture: ResizeGesture | null | undefined,
+  box: { width: number; height: number },
+): { scale?: MapScale; distorted: boolean } {
+  if (!scale || !gesture) return { distorted: false };
+  const { start } = gesture;
+  if (box.width === start.width && box.height === start.height) return { distorted: false };
+  if (gesture.free) return { distorted: true };
+  const factor = box.width / start.width;
+  if (!Number.isFinite(factor) || factor <= 0) return { distorted: false };
+  return { scale: { ...scale, unitsPer100px: scale.unitsPer100px / factor }, distorted: false };
+}
+
+/**
+ * The scale after the picture was zoomed inside its frame: zooming in by `z` puts `z`
+ * times less ground into the same frame. Moving the picture changes nothing.
+ */
+export function zoomRescaledScale(
+  scale: MapScale | undefined,
+  previousZoom: number,
+  nextZoom: number,
+): MapScale | undefined {
+  if (!scale) return undefined;
+  const factor = nextZoom / previousZoom;
+  if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return undefined;
+  return { ...scale, unitsPer100px: scale.unitsPer100px / factor };
+}

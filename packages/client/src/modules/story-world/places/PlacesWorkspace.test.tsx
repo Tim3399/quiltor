@@ -81,6 +81,7 @@ vi.mock("@xyflow/react", () => ({
       data: {
         zoomTier: string;
         place: { name: string; important?: boolean; pinned?: boolean };
+        onResize?: (place: unknown, box: unknown, gesture: unknown) => void;
       };
     }>;
     onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
@@ -111,6 +112,47 @@ vi.mock("@xyflow/react", () => ({
               {node.data.place.name}
             </button>
             <span data-testid="place-zoom-tier">{node.data.zoomTier}</span>
+            {node.data.onResize ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    node.data.onResize?.(
+                      node.data.place,
+                      { x: 0, y: 0, width: 1800, height: 1200 },
+                      { start: { x: 0, y: 0, width: 1500, height: 1000 }, free: false },
+                    )
+                  }
+                >
+                  Testgröße {node.data.place.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    node.data.onResize?.(
+                      node.data.place,
+                      { x: 0, y: 0, width: 1800, height: 1000 },
+                      { start: { x: 0, y: 0, width: 1500, height: 1000 }, free: true },
+                    )
+                  }
+                >
+                  Testverzerrung {node.data.place.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    node.data.onResize?.(
+                      node.data.place,
+                      { x: 0, y: 0, width: 2002, height: 1334.67 },
+                      // React Flow measures whole pixels: the drawn start is not the stored size.
+                      { start: { x: 0, y: 0, width: 1501, height: 1001 }, free: false },
+                    )
+                  }
+                >
+                  Testmessgröße {node.data.place.name}
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={() => onNodeDragStop({}, { ...node, position: { x: 75, y: 85 } })}
@@ -1103,5 +1145,104 @@ describe("measuring to a free point", () => {
         .queryAllByTestId("distance-edge")
         .some((edge) => edge.dataset.className?.includes("is-targeted")),
     ).toBe(false);
+  });
+});
+
+describe("resizing a map with a scale", () => {
+  const harbour = {
+    id: "nordhafen",
+    type: "ort" as const,
+    name: "Nordhafen",
+    x: 0,
+    y: 0,
+    mapImageId: "bild",
+    mapExpanded: true,
+    mapWidth: 1500,
+    mapHeight: 1000,
+    mapScale: { unitsPer100px: 0.15, unitLabel: "km" },
+  };
+
+  // One step per change, the way the app's history records a single write; undo goes back
+  // one step. The frame of the map is shown so the state after undo can be read directly.
+  function HistoryPlaces({ onChange }: { onChange: (state: FigureState) => void }) {
+    const [past, setPast] = useState<FigureState[]>([]);
+    const [value, setValue] = useState<FigureState>({ nodes: [harbour], edges: [] });
+    const map = value.nodes[0];
+    return (
+      <I18nProvider>
+        <output data-testid="frame">
+          {`${map.mapWidth}x${map.mapHeight}@${map.mapScale?.unitsPer100px}`}
+        </output>
+        <PlacesWorkspace
+          state={value}
+          onChange={(next) => {
+            setPast((steps) => [...steps, value]);
+            setValue(next);
+            onChange(next);
+          }}
+          onOpen={vi.fn()}
+          onUndo={() => {
+            const previous = past.at(-1);
+            if (!previous) return;
+            setPast(past.slice(0, -1));
+            setValue(previous);
+          }}
+          canUndo={past.length > 0}
+        />
+      </I18nProvider>
+    );
+  }
+  const stored = (onChange: ReturnType<typeof vi.fn>) =>
+    (onChange.mock.calls.at(-1)?.[0] as FigureState).nodes[0];
+
+  it("writes size and recomputed scale in one change, and one undo takes both back", () => {
+    const onChange = vi.fn();
+    render(<HistoryPlaces onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testgröße Nordhafen" }));
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(stored(onChange)).toMatchObject({ mapWidth: 1800, mapHeight: 1200 });
+    expect(stored(onChange).mapScale?.unitsPer100px).toBeCloseTo(0.125, 10);
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
+    expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
+  });
+
+  it("takes the factor from the drawn start of the gesture, not from the stored size", () => {
+    const onChange = vi.fn();
+    render(<HistoryPlaces onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testmessgröße Nordhafen" }));
+    expect(stored(onChange).mapScale?.unitsPer100px).toBeCloseTo(0.15 / (2002 / 1501), 8);
+  });
+
+  it("keeps the scale of a distorted map and asks to measure again", () => {
+    const onChange = vi.fn();
+    render(<HistoryPlaces onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
+    expect(stored(onChange).mapScale?.unitsPer100px).toBe(0.15);
+    expect(screen.getByText("Maßstab neu messen?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nordhafen wurde verzerrt. Der Maßstab passt nicht mehr sicher."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Neu messen" }));
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+    expect(screen.getByText("Maßstab messen: Setze den Anfang der Strecke.")).toBeInTheDocument();
+  });
+
+  it("lets the hint be closed", () => {
+    render(<HistoryPlaces onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Meldung schließen" }));
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+  });
+
+  it("takes the hint away with the size when the distortion is undone", () => {
+    render(<HistoryPlaces onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
+    expect(screen.getByText("Maßstab neu messen?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
+    expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
   });
 });

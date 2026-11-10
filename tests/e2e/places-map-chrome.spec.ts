@@ -270,6 +270,14 @@ test("Map edges remain resizable and child anchors stay on the world surface", a
   await expect
     .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapWidth)
     .toBeGreaterThan(1000);
+  // Without Shift the frame keeps its proportions, and the scale follows the frame: the
+  // same ground drawn wider reads fewer kilometres per hundred pixels.
+  const resized = fixture.savedState().nodes.find((node) => node.id === "x-weltkarte");
+  const width = Number(resized?.mapWidth);
+  expect(Number(resized?.mapHeight) / width).toBeCloseTo(680 / 1000, 3);
+  const scale = resized?.mapScale as { unitsPer100px: number } | undefined;
+  expect(scale?.unitsPer100px).toBeCloseTo((25 * 1000) / width, 1);
+  await expect(page.getByText("Maßstab neu messen?")).toHaveCount(0);
   expect(fixture.savedState().nodes.find((node) => node.id === "x-graufurth")).toMatchObject({
     mapU: 0.3,
     mapV: 0.4,
@@ -337,16 +345,22 @@ for (const side of ["left", "right", "top", "bottom"] as const) {
     });
     const was = edges(before);
     const [dx, dy] = OUTWARD[side];
+    // Moving one edge alone changes the proportions, which takes Shift held as the
+    // gesture begins. On the grip it must not start React Flow's selection box (`nokey`).
     await page.mouse.move(grip.x, grip.y);
+    await page.keyboard.down("Shift");
     await page.mouse.down();
     await page.mouse.move(grip.x + dx, grip.y + dy, { steps: 10 });
     await page.mouse.up();
+    await page.keyboard.up("Shift");
     await expect
       .poll(async () => {
         const box = await map.boundingBox();
         return box ? Math.abs(edges(box)[side] - was[side]) : 0;
       })
       .toBeGreaterThan(20);
+    // A distorted map keeps its scale and asks for it to be measured again.
+    await expect(page.getByText("Maßstab neu messen?")).toBeVisible();
     const after = await map.boundingBox();
     if (!after) throw new Error("Resized map has no geometry");
     const now = edges(after);

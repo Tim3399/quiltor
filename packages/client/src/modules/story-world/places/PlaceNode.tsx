@@ -15,7 +15,7 @@ import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
 import { StoryNodeCard, StoryNodeIdentity } from "../StoryNodeCard";
 import { usePlaceMapVisualClip } from "./PlaceMapFrameContext";
-import type { LevelRect } from "./placeLevels";
+import { hasMapSize, type LevelRect } from "./placeLevels";
 import "./PlaceNode.css";
 
 export type PlaceCardData = {
@@ -265,7 +265,7 @@ export function PlaceNode({
           // would put text on the card that nothing can reach.
           secondary={item.mapImageId ? undefined : item.sub}
         />
-        {data.zoomTier !== "overview" && !data.measuring && item.mapImageId ? (
+        {data.zoomTier !== "overview" && !data.measuring && item.mapImageId && hasMapSize(item) ? (
           <IconButton
             className="place-node__enter nodrag nopan"
             size="compact"

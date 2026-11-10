@@ -1,8 +1,21 @@
-import { Handle, type Node, type NodeProps, NodeResizer, Position } from "@xyflow/react";
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, useRef } from "react";
+import {
+  Handle,
+  type Node,
+  type NodeProps,
+  NodeResizer,
+  Position,
+  useKeyPress,
+} from "@xyflow/react";
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useRef,
+  useState,
+} from "react";
 import type { FigureNode } from "../model";
 import { usePlaceMapVisualClip } from "./PlaceMapFrameContext";
 import { type ImageCrop, movedCrop, zoomedCrop } from "./placeImageCrop";
+import type { ResizeGesture } from "./placeMap";
 import "./PlacePlate.css";
 import "./PlaceMapNode.css";
 
@@ -15,7 +28,8 @@ type PlaceMapNodeData = {
   crop: ImageCrop;
   /** Whether this map's picture is the one being adjusted. */
   adjusting: boolean;
-  onResize: (place: FigureNode, box: MapBox) => void;
+  /** A finished resize, with how it began (`null` when no start was reported). */
+  onResize: (place: FigureNode, box: MapBox, gesture: ResizeGesture | null) => void;
   onResizeLive: (place: FigureNode, box: MapBox) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
@@ -70,6 +84,14 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
       } satisfies CSSProperties)
     : undefined;
   const dragFrom = useRef<{ x: number; y: number; crop: ImageCrop } | null>(null);
+  // How the running resize began. Its mode is frozen at the start: Shift let go halfway
+  // must not turn a distortion back into a proportional resize, and a changed
+  // `keepAspectRatio` would rebind the resizer in the middle of the gesture.
+  const gesture = useRef<ResizeGesture | null>(null);
+  const [, setGestureEnded] = useState(0);
+  const shiftHeld = useKeyPress("Shift");
+  // eslint-disable-next-line react-hooks/refs -- read on purpose: the frozen mode of the running gesture decides the prop, and every start and end re-renders
+  const free = gesture.current?.free ?? shiftHeld;
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!data.adjusting) return;
@@ -127,21 +149,31 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         } as CSSProperties
       }
     >
-      {/* Resizing a map is how its scale is declared: making it wider says the
-          same picture covers more ground. The frame takes whatever proportions
-          the author drags it to -- a map is a piece of ground, and ground is not
-          obliged to be the shape of the file it was drawn on. Where the two
-          disagree the picture is moved and enlarged inside the frame instead,
-          which is what the adjustment beside the canvas is for. The places
-          standing on it are held as fractions, so they travel with the change. */}
+      {/* The frame keeps its proportions: drawing it larger is looking closer at
+          the same ground, so the scale is recomputed with it. With Shift held as
+          the gesture begins the frame may be distorted -- then no single scale
+          reads it any more, and the author is asked to measure again. The places
+          standing on it are held as fractions, so they travel with the change.
+          `nokey` keeps Shift on a grip from starting React Flow's selection box,
+          which would swallow the gesture. */}
       <NodeResizer
         isVisible={selected && !data.adjusting}
         minWidth={120}
         minHeight={80}
-        handleClassName="place-map-node__handle"
-        lineClassName="place-map-node__line"
+        keepAspectRatio={!free}
+        handleClassName="place-map-node__handle nokey"
+        lineClassName="place-map-node__line nokey"
+        onResizeStart={(_, start) => {
+          gesture.current = { start: mapBoxOf(start), free: shiftHeld };
+          setGestureEnded((count) => count + 1);
+        }}
         onResize={(_, box) => data.onResizeLive(place, mapBoxOf(box))}
-        onResizeEnd={(_, box) => data.onResize(place, mapBoxOf(box))}
+        onResizeEnd={(_, box) => {
+          const began = gesture.current;
+          gesture.current = null;
+          setGestureEnded((count) => count + 1);
+          data.onResize(place, mapBoxOf(box), began);
+        }}
       />
       {/* A distance to a map is taken from its middle: a sheet has no corner
           that stands for the whole of it. Not connectable by hand -- these carry

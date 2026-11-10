@@ -10,6 +10,7 @@ import type { MapBox, PlaceMapFlowNode } from "./PlaceMapNode";
 import {
   anchoredPoint,
   hasLevelContents,
+  isExpandedMap,
   isPlace,
   type LevelRect,
   mapRect,
@@ -161,10 +162,7 @@ export function placePinSize(
  */
 export const DEFAULT_MAP_WIDTH = 2400;
 
-/** Whether this place is drawn as an opened-out map rather than as a card. */
-export function isExpandedMap(place: FigureNode): boolean {
-  return Boolean(place.mapExpanded && place.mapImageId);
-}
+export { isExpandedMap } from "./placeLevels";
 
 /** What a finished resize writes down: the origin goes with the size. */
 export function mapBoxPatch(
@@ -197,7 +195,7 @@ export function createPlaceMapNodes({
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
-  onResize: (place: FigureNode, box: MapBox) => void;
+  onResize: PlaceMapFlowNode["data"]["onResize"];
   onResizeLive: (place: FigureNode, box: MapBox) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
@@ -241,8 +239,9 @@ export function createPlaceMapNodes({
         : live
           ? { x: live.x, y: live.y }
           : placePosition(place),
-      width: live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH,
-      height: live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH,
+      // Always present here: `isExpandedMap` lets no map through without both sides.
+      width: live?.width ?? (place.mapWidth as number),
+      height: live?.height ?? (place.mapHeight as number),
       ...(place.pinned ? { draggable: false } : {}),
       // Behind the cards that stand on it.
       zIndex: -1,
@@ -290,14 +289,17 @@ export function createMeasurementPoints(
       mapX: card.position.x,
       mapY: card.position.y,
     })),
-    ...maps.map((map) => {
+    ...maps.flatMap((map) => {
       const rect = mapRect(map);
-      return {
-        id: map.id,
-        name: map.name,
-        mapX: rect.x + rect.width / 2,
-        mapY: rect.y + rect.height / 2,
-      };
+      if (!rect) return [];
+      return [
+        {
+          id: map.id,
+          name: map.name,
+          mapX: rect.x + rect.width / 2,
+          mapY: rect.y + rect.height / 2,
+        },
+      ];
     }),
   ];
 }
@@ -406,8 +408,10 @@ export function createPinNodes({
   viewportZoom: number;
   t: Translate;
 }): PlaceFlowNode[] {
-  return maps.flatMap((map) =>
-    createPlaceFlowNodes({
+  return maps.flatMap((map) => {
+    const host = mapRect(map);
+    if (!host) return [];
+    return createPlaceFlowNodes({
       nodes,
       places: nodes.filter((node) => isPlace(node) && node.parentPlaceId === map.id),
       measuring,
@@ -416,13 +420,13 @@ export function createPinNodes({
       onExpandMap,
       onPlaceDisplayChange,
       sourceUrl,
-      host: mapRect(map),
+      host,
       livePosition,
       zoomTier,
       viewportZoom,
       t,
-    }),
-  );
+    });
+  });
 }
 
 /** Where the open level's own picture is laid, when it carries one. */

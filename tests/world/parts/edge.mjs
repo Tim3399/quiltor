@@ -114,6 +114,26 @@ export function describeEdge(api, world) {
       { parentPlaceId: "x-inselkarte", mapU: 0.5, mapV: 0.5 },
       "",
     ),
+    // A map with its picture but no frame size, the way older or foreign documents arrive
+    // (T-79). The server fills the size in from the picture when the world is loaded; the
+    // stored document keeps it absent until the next ordinary save. It stands on a level of
+    // its own, so no other spec's framing or expanded-map state ever sees it.
+    node("x-masslos-ebene", "ort", 2740, 80, {}, ""),
+    node(
+      "x-masslose-karte",
+      "ort",
+      200,
+      200,
+      {
+        parentPlaceId: "x-masslos-ebene",
+        mapX: 200,
+        mapY: 200,
+        mapImageId: figures.nodes.find((item) => item.id === "nordhafen").mapImageId,
+        mapExpanded: true,
+        mapScale: { unitsPer100px: 0.15, unitLabel: "km" },
+      },
+      "",
+    ),
   );
 
   // A chapter without text, appended to the second act.
@@ -221,6 +241,9 @@ export const PURPOSE = {
   "x-inselkarte":
     "second opened-out map, 600 x 500, overlapping the first; the map specs add it on demand",
   "x-inselhafen": "the one place on the second map",
+  "x-masslos-ebene": "level of its own for the map without a size (T-79)",
+  "x-masslose-karte":
+    "opened-out map with a picture but no frame size; the server fills it in (T-79)",
   "x-empty-chapter": "chapter without text and without a note",
   "x-trash-orphan": "chapter in the bin whose folder no longer exists",
   "x-board": "board holding every card of the check part",

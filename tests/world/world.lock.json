@@ -816,6 +816,43 @@
       "x": 1600,
       "y": 540
     },
+    "world.figures.nodes[x-masslos-ebene]": {
+      "accent": "ink",
+      "id": "x-masslos-ebene",
+      "label": "⟦el.x-masslos-ebene.label⟧",
+      "name": "⟦el.x-masslos-ebene.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-masslos-ebene.sub⟧",
+      "type": "ort",
+      "x": 2740,
+      "y": 80
+    },
+    "world.figures.nodes[x-masslose-karte]": {
+      "accent": "ink",
+      "id": "x-masslose-karte",
+      "label": "⟦el.x-masslose-karte.label⟧",
+      "mapExpanded": true,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapScale": {
+        "unitLabel": "km",
+        "unitsPer100px": 0.15
+      },
+      "mapX": 200,
+      "mapY": 200,
+      "name": "⟦el.x-masslose-karte.name⟧",
+      "parentPlaceId": "x-masslos-ebene",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-masslose-karte.sub⟧",
+      "type": "ort",
+      "x": 200,
+      "y": 200
+    },
     "world.figures.nodes[x-nordhafen]": {
       "accent": "ink",
       "id": "x-nordhafen",
@@ -2723,6 +2760,36 @@
       "de": "Ein Name, der auf keine Karte passt.",
       "en": "A name that fits on no map.",
       "translatedFrom": "a876fd9fbd6d72ce"
+    },
+    "el.x-masslos-ebene.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-masslos-ebene.name": {
+      "de": "Kartenarchiv",
+      "en": "Map Archive",
+      "translatedFrom": "d338f1aa0f2cbd73"
+    },
+    "el.x-masslos-ebene.sub": {
+      "de": "Hier liegt eine Karte ohne eingetragene Größe.",
+      "en": "A map without a recorded size is kept here.",
+      "translatedFrom": "94aa9861b42e1c3b"
+    },
+    "el.x-masslose-karte.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-masslose-karte.name": {
+      "de": "Alte Hafenkarte",
+      "en": "Old Harbour Map",
+      "translatedFrom": "42c92e1ecfcd993c"
+    },
+    "el.x-masslose-karte.sub": {
+      "de": "Eine Karte aus einem älteren Dokument.",
+      "en": "A map from an older document.",
+      "translatedFrom": "9fda2d38f741b3cb"
     },
     "el.x-nordhafen.label": {
       "de": "Ort",

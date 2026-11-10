@@ -34,7 +34,7 @@ import {
 import { type DragClientPoint, dragClientPoint, placeDropFrame } from "./placeDragModel";
 import type { ImageCrop } from "./placeImageCrop";
 import { type MeasureEndpoint, placementForDrop, scaleForPoints } from "./placeLevels";
-import { mapDistance } from "./placeMap";
+import { mapDistance, type ResizeGesture } from "./placeMap";
 import { createPlaceMeasurementEdges } from "./placeMeasurementGraph";
 
 export type PlaceCanvasController = {
@@ -119,7 +119,7 @@ export function usePlaceCanvas({
   mapImageUrl: (imageId: string) => string;
   onExpandMap: (place: FigureNode) => void;
   onPlaceDisplayChange: (place: FigureNode, display: "card" | "pin") => void;
-  onResizeMap: (place: FigureNode, box: MapBox) => void;
+  onResizeMap: (place: FigureNode, box: MapBox, gesture: ResizeGesture | null) => void;
   onCropMap: (place: FigureNode, crop: ImageCrop) => void;
   /** Which map's picture is being adjusted, if any. */
   adjustingId: string | undefined;
@@ -373,9 +373,9 @@ export function usePlaceCanvas({
         places,
         picturesVisible,
         sourceUrl: mapImageUrl,
-        onResize: (place, box) => {
+        onResize: (place, box, gesture) => {
           setLiveSize(null);
-          resizeMap(place, box);
+          resizeMap(place, box, gesture);
         },
         onResizeLive: (place, box) => setLiveSize({ id: place.id, ...box }),
         onCropDraft: (place, crop) => setCropDraft({ id: place.id, crop }),
@@ -589,7 +589,7 @@ export function usePlaceCanvas({
         Boolean(latestGroundRef.current) ||
         latestMapsRef.current.some((map) => map.id === dragged.parentPlaceId);
       const drop = placeDropFrame({
-        pointer: dragged.mapExpanded && dragged.mapImageId ? undefined : pointer,
+        pointer: isExpandedMap(dragged) ? undefined : pointer,
         position: { x, y },
         size: node.measured,
         anchored,
