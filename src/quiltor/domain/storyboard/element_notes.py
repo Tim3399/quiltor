@@ -24,7 +24,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypedDict, cast
 
 from quiltor.domain.notes.marks import MAX_NOTE_MARKS
 from quiltor.domain.text_offsets import utf16_length
@@ -293,7 +293,15 @@ def move_reference_notes(
     return manuscript, figures, storyboards, result.discarded
 
 
-def discarded_protocol(discarded: tuple[DiscardedCards, ...]) -> list[dict[str, Any]]:
+class DiscardedProtocolEntry(TypedDict):
+    storyboard: str
+    targetKind: str
+    targetId: str
+    reason: DiscardReason
+    count: int
+
+
+def discarded_protocol(discarded: tuple[DiscardedCards, ...]) -> list[DiscardedProtocolEntry]:
     """The record of dropped card texts that a migration or an import keeps: where and how many.
 
     Never the words themselves (D-100); the pre-migration safety copy is the way back.
@@ -316,6 +324,7 @@ __all__ = [
     "MAX_NOTE_REFERENCES",
     "AppendedNotes",
     "DiscardedCards",
+    "DiscardedProtocolEntry",
     "ElementNote",
     "ReferenceCardNote",
     "append_reference_notes",

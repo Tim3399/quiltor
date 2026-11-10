@@ -334,7 +334,8 @@ def _sync(state: dict[str, Any], database: sqlite3.Connection) -> None:
         )
 
     for node in state.get("nodes", []):
-        profile = normalize_profile(node.get("profile"), node["id"])
+        # infrastructure is not strict: the profile is read untyped below.
+        profile: dict[str, Any] = normalize_profile(node.get("profile"), node["id"])
         database.execute(
             """
             INSERT INTO profiles(

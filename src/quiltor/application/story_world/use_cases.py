@@ -7,8 +7,8 @@ from copy import deepcopy
 from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import resolve_entity
-from quiltor.domain.story_world.integrity import validate_world
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
+from quiltor.domain.story_world.integrity import WorldValidation, validate_world
+from quiltor.domain.story_world.knowledge import PublicKnowledgeChunk, build_knowledge, retrieve
 from quiltor.domain.story_world.resolve_before_create import (
     EnsureDecision,
     build_resolution_context,
@@ -61,7 +61,7 @@ class StoryWorldUseCases:
         story_world: dict[str, Any],
         query: str,
         limit: int = 14,
-    ) -> list[dict[str, Any]]:
+    ) -> list[PublicKnowledgeChunk]:
         return [
             chunk.public()
             for chunk in retrieve(build_knowledge(manuscript, story_world), query, limit)
@@ -226,7 +226,7 @@ class StoryWorldUseCases:
         }
 
     @staticmethod
-    def validate(story_world: dict[str, Any]) -> dict[str, Any]:
+    def validate(story_world: dict[str, Any]) -> WorldValidation:
         return validate_world(story_world)
 
 

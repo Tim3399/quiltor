@@ -83,7 +83,7 @@ class AnalysisScopeTest(unittest.TestCase):
         self.assertIn("element:mara", identifiers)
         source = next(chunk.public() for chunk in chunks if chunk.id == "chapter:aside:0")
         self.assertEqual(source["target"]["id"], "aside")
-        self.assertEqual(source["documentStatus"], "set_aside")
+        self.assertEqual(source.get("documentStatus"), "set_aside")
 
     def test_batch_default_excludes_distinctive_set_aside_text_and_explicit_scope_includes_it(self):
         calls = []
