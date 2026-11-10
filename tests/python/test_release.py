@@ -362,6 +362,41 @@ class ApplyVersionTests(VersionRepoTestCase):
         self.assertEqual(seen["versions"], before)
         self.assertEqual(set(self.versions().values()), {seen["version"]})
 
+    def test_a_failed_version_update_puts_the_retaken_screenshots_back(self):
+        pictures = self.repo / "docs" / "screenshots" / "de"
+        pictures.mkdir(parents=True)
+        (pictures / "manifest.json").write_text('{"version": "old"}\n', encoding="utf-8")
+        self._git("add", "-A")
+        self._git(
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "pictures",
+        )
+
+        def retake(repo_root, version):
+            (pictures / "manifest.json").write_text(f'{{"version": "{version}"}}\n', "utf-8")
+            (pictures / "new-view.png").write_bytes(b"png")
+
+        stderr = io.StringIO()
+        with (
+            patch.object(set_version, "REPO_ROOT", self.repo),
+            patch.object(set_version, "run_preflight"),
+            patch.object(set_version, "refresh_readme_screenshots", side_effect=retake),
+            patch.object(set_version, "apply_version", side_effect=OSError("disk full")),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(set_version.main(["minor"]), 1)
+
+        self.assertEqual(self._git("status", "--porcelain").strip(), "")
+        self.assertIn("docs/screenshots is back at the last commit", stderr.getvalue())
+
     def test_failed_screenshots_write_no_version(self):
         before = self.versions()
         error = release_preflight.PreflightError("the browser did not start")
