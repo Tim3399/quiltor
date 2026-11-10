@@ -24,9 +24,26 @@ function saved(page: Page, path: string) {
 
 async function typeAtEnd(page: Page, editor: Locator, text: string) {
   await editor.click();
-  // The editor's own "end of document" command: Ctrl+End on Windows and Linux, Cmd+End on
-  // macOS, where Ctrl+End is not bound and the caret stays where the click put it.
-  await page.keyboard.press("ControlOrMeta+End");
+  // No key for "end of document": Ctrl+End and Cmd+End both missed the end on macOS, and the
+  // text landed where the click had put the caret. The selection is placed at the end of the
+  // last line directly, which the editor takes over like any other selection change, and the
+  // caret is checked there before anything is typed.
+  const atEnd = await editor.evaluate((element) => {
+    const lines = element.querySelectorAll(".cm-line");
+    const last = lines[lines.length - 1] ?? element;
+    const range = document.createRange();
+    range.selectNodeContents(last);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    const caret = document.createRange();
+    caret.selectNodeContents(element);
+    if (!selection?.rangeCount) return false;
+    caret.setStart(selection.getRangeAt(0).endContainer, selection.getRangeAt(0).endOffset);
+    return selection.isCollapsed && caret.toString() === "";
+  });
+  expect(atEnd, "the caret sits at the end of the note").toBe(true);
   await page.keyboard.type(text);
 }
 
