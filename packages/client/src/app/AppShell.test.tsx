@@ -166,16 +166,17 @@ describe("AppShell", () => {
   it("does not show a minute too little while the clock sits between two ticks", () => {
     vi.useFakeTimers();
     try {
-      // 29 s past a tick boundary, saved exactly five minutes ago.
-      const now = Date.UTC(2026, 8, 3, 12, 0, 29);
-      vi.setSystemTime(now);
-      render(
+      // The bar is first drawn 1 s past a tick boundary, while there is nothing to age; the
+      // saved state appears 29 s past it, saved exactly five minutes before that.
+      const boundary = Date.UTC(2026, 8, 3, 12, 0, 0);
+      const now = boundary + 29_000;
+      const shell = (phase: "dirty" | "saved") => (
         <I18nProvider>
           <AppShell
             title="Welt"
             workspace="text"
             onWorkspace={() => undefined}
-            phase="saved"
+            phase={phase}
             savedAt={now - 5 * 60_000}
             retry={() => undefined}
             theme="light"
@@ -187,8 +188,12 @@ describe("AppShell", () => {
           >
             <div />
           </AppShell>
-        </I18nProvider>,
+        </I18nProvider>
       );
+      vi.setSystemTime(boundary + 1_000);
+      const view = render(shell("dirty"));
+      act(() => vi.setSystemTime(now));
+      view.rerender(shell("saved"));
       expect(screen.getByRole("status")).toHaveTextContent("vor 5 Min.");
     } finally {
       vi.useRealTimers();
