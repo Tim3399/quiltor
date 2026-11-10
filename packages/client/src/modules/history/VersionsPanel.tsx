@@ -196,12 +196,11 @@ export function VersionsPanel({
     setNotice(null);
     try {
       await flush();
-      const headBefore = commits[0]?.hash;
-      await quiltorClient.application.backup.saveSnapshot(note.trim(), false);
+      const saved = await quiltorClient.application.backup.saveSnapshot(note.trim(), false);
       const latest = await loadLog();
-      // Without changes the server records nothing and says so only in English prose. The answer's
-      // status cannot tell either (it reads zero changes after a real save, too): the new head can.
-      if (latest[0]?.hash === headBefore) {
+      // Without changes the server records nothing. Only its answer can say so: the history
+      // head may have moved anyway, by another tab or another author (T-167).
+      if (!saved.created) {
         setNotice({ tone: "info", text: t("versionUnchanged") });
         return;
       }

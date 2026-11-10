@@ -116,6 +116,7 @@ class SnapshotStoreTest(unittest.TestCase):
         result = self.store.commit(ctx, "Erster Stand", push=False)
         self.assertTrue(result["ok"])
         self.assertIn("Snapshot created.", result["log"])
+        self.assertIs(result["created"], True)
 
         history = self.store.history(ctx)
         self.assertEqual(len(history), 1)
@@ -371,6 +372,7 @@ class SnapshotStoreTest(unittest.TestCase):
         again = self.store.commit(ctx, "Nochmal", push=False)
         self.assertTrue(again["ok"])
         self.assertIn("Everything is already backed up.", again["log"])
+        self.assertIs(again["created"], False)
         self.assertEqual(len(self.store.history(ctx)), 1)
 
     def test_history_is_newest_first(self):

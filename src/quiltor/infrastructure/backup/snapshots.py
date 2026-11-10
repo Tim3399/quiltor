@@ -834,6 +834,9 @@ class SnapshotStore:
                 log.append("Snapshot uploaded to the backup endpoint.")
             result = {
                 "ok": True,
+                # Whether this request wrote a version. A client cannot tell from the
+                # history head: another tab may have moved it in between (T-167).
+                "created": False,
                 "log": log or ["Everything is already backed up."],
                 "status": self.status(ctx),
             }
@@ -887,7 +890,7 @@ class SnapshotStore:
         if push:
             warning = self._push(ctx, entry, authorization, snapshot_created=True)
             log.append("Snapshot uploaded to the backup endpoint.")
-        result = {"ok": True, "log": log, "status": self.status(ctx)}
+        result = {"ok": True, "created": True, "log": log, "status": self.status(ctx)}
         if push and warning is not None:
             result["warnings"] = [warning]
         return result
