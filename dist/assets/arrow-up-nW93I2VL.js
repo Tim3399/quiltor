@@ -1,0 +1,1 @@
+import{sn as e}from"./manuscript-p75heD0A.js";var t=e(`arrow-up`,[[`path`,{d:`m5 12 7-7 7 7`,key:`hav0vg`}],[`path`,{d:`M12 19V5`,key:`x0mq9r`}]]);export{t};
