@@ -7,14 +7,15 @@
  * "New" means untracked by git in <snapshot-dir>. Those files are set aside, the command runs
  * again and writes them anew, and each pair is compared byte for byte. A baseline that comes
  * out differently from one page load to the next would make every later comparison a coin
- * toss, so it must never be checked in (T-231). The command's own exit status is not the
+ * toss, so it must never be checked in (T-231). Both takes of a differing image are kept in
+ * test-results/capture-twice. The command's own exit status is not the
  * verdict -- a bootstrap pass reports missing images as failures by design -- but an image it
  * does not write again is.
  *
  * The command runs without a shell, so its arguments arrive as given.
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
@@ -29,6 +30,8 @@ const separator = args.indexOf("--");
 if (separator !== 1) usage("expected exactly one snapshot directory before --");
 const dir = args[0];
 const command = args.slice(separator + 1);
+// Relative to the working directory, inside the test-results/** the CI uploads.
+const KEEP = "test-results/capture-twice";
 if (command.length === 0) usage("no command after --");
 
 const listed = spawnSync("git", ["ls-files", "--others", "--exclude-standard", "-z", "--", dir], {
@@ -58,10 +61,13 @@ for (const file of fresh) {
     copyFileSync(join(firstTake, basename(file)), file);
     differing.push(`${file}: not written by the second take`);
   } else if (!first.equals(readFileSync(file))) {
-    copyFileSync(join(firstTake, basename(file)), `${file}.first-take.png`);
-    differing.push(
-      `${file}: differs from the first take (kept as ${basename(file)}.first-take.png)`,
-    );
+    // Both takes go where the CI uploads its diagnostics: test-results/**, not the snapshot
+    // directory, which no artifact carries.
+    mkdirSync(KEEP, { recursive: true });
+    const name = basename(file, ".png");
+    copyFileSync(join(firstTake, basename(file)), join(KEEP, `${name}.first-take.png`));
+    copyFileSync(file, join(KEEP, `${name}.second-take.png`));
+    differing.push(`${file}: differs from the first take (both kept in ${KEEP}/${name}.*)`);
   }
 }
 rmSync(firstTake, { recursive: true, force: true });

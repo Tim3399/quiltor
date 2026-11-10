@@ -170,6 +170,8 @@ jobs:
           # must come out byte for byte the same. A baseline that does not is a coin toss for
           # every later comparison and must not be checked in (T-231). The tool starts the CLI
           # without a shell, where npx would be npx.cmd on windows, so it is named by path.
+          # Both takes of a differing image land in test-results/capture-twice, which the
+          # diagnostics upload below carries.
           QUILTOR_BASELINE_BOOTSTRAP=1 node tools/dev/capture-twice.mjs "$snapshots" -- \
             node node_modules/@playwright/test/cli.js test tests/e2e/visual-baseline.spec.ts \
             --update-snapshots=missing --output=test-results/second-take --reporter=line

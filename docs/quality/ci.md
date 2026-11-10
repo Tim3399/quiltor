@@ -936,8 +936,9 @@ A baseline that comes out differently from one page load to the next turns every
 comparison into a coin toss. So the bootstrap job now takes each image it created a second
 time. `tools/dev/capture-twice.mjs` sets aside the images that are untracked in the snapshot
 directory, runs the bootstrap pass again, and fails unless every image comes out byte for byte
-the same. A differing image is kept next to it as `*.first-take.png`, and the job stops
-before anything is checked in.
+the same. Both takes of a differing image are kept in `test-results/capture-twice/`
+(`<name>.first-take.png`, `<name>.second-take.png`), which the diagnostics artifact carries, and
+the job stops before anything is checked in.
 
 The check repeats the whole test rather than taking two screenshots of one page.
 `toHaveScreenshot` already does that by itself, and every difference above came from a fresh

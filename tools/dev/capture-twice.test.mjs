@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -62,7 +70,11 @@ test("a new baseline that differs on the second take fails and keeps both", (t) 
   const result = run({ UNSTABLE: "1" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /snaps\/new\.png: differs from the first take/);
-  assert.ok(existsSync(join(root, "snaps", "new.png.first-take.png")));
+  // Both takes where the CI uploads its diagnostics, none left in the snapshot directory.
+  const kept = join(root, "test-results", "capture-twice");
+  assert.equal(readFileSync(join(kept, "new.first-take.png"), "utf8"), "first");
+  assert.notEqual(readFileSync(join(kept, "new.second-take.png"), "utf8"), "first");
+  assert.deepEqual(readdirSync(join(root, "snaps")).sort(), ["new.png", "old.png"]);
 });
 
 test("a new baseline the second take does not write fails", (t) => {
