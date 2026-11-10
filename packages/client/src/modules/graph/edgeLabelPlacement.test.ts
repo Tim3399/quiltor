@@ -231,4 +231,27 @@ describe("graph edge label placement", () => {
 
     expect(stablePlacements(mobileZoomed)).toEqual(stablePlacements(desktop));
   });
+
+  it("keeps a label's larger hit target off a card, not just its visible label (T-234)", () => {
+    // A card that ends 22 units above the edge: the visible 24-unit label fits under it at the
+    // midpoint, but a 44-unit hit target there would reach into the card's footer.
+    const card: GraphRect = { x: 100, y: -122, width: 120, height: 100 };
+    const visibleOnly = placeGraphEdgeLabels([request("edge")], [card]).get("edge");
+    expect(visibleOnly?.center).toEqual({ x: 160, y: 0 });
+
+    const placed = placeGraphEdgeLabels(
+      [request("edge", { hitTarget: { width: 44, height: 44 } })],
+      [card],
+    ).get("edge");
+    if (!placed) throw new Error("label not placed");
+    expect(placed.collides).toBe(false);
+    expect(placed.bounds).toMatchObject({ width: 96, height: 24 });
+    const hit = { x: placed.center.x - 48, y: placed.center.y - 22, width: 96, height: 44 };
+    const apart =
+      hit.x + hit.width <= card.x - 8 ||
+      hit.x >= card.x + card.width + 8 ||
+      hit.y >= card.y + card.height + 8 ||
+      hit.y + hit.height <= card.y - 8;
+    expect(apart, "the hit target keeps its clearance from the card").toBe(true);
+  });
 });
