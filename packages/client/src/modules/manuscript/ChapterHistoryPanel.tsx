@@ -161,7 +161,7 @@ export function ChapterHistoryPanel({
               <ProgressBar label={t("loadingVersion")} />
             ) : (
               <>
-                {!timeline.entries.length && (
+                {!timeline.entries.length && !timeline.hasMore && (
                   <EmptyState title={t("chapterTimelineEmpty")} headingLevel={3} size="compact" />
                 )}
                 {timeline.hasMore && (
