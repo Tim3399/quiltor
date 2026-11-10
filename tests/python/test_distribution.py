@@ -593,8 +593,10 @@ class DesktopBuildContractTests(unittest.TestCase):
                     self.assertEqual(path.parent, REPO_ROOT / "src/quiltor/resources/example_world")
 
     # Data files under src/quiltor a desktop bundle does not need, each with its reason.
-    # Anything else that is not Python must be in data_files(): PyInstaller packs modules only,
-    # and a data file the code reads at runtime is otherwise missing from the app (F-61-20).
+    # Everything else must be in data_files(): PyInstaller packs imported modules only, and a
+    # data file the code reads at runtime is otherwise missing from the app (F-61-20). Under
+    # quiltor/resources/ a .py file is data too (the MLX bridge runs in its own interpreter and
+    # nothing imports it), so it counts like any other file there (F-61-23).
     NOT_IN_DESKTOP_BUNDLE: ClassVar[frozenset[str]] = frozenset(
         {
             # Documentation for readers of the source.
@@ -605,8 +607,6 @@ class DesktopBuildContractTests(unittest.TestCase):
             # The Node PDF renderer of the container image; a desktop app renders through
             # Playwright's Python driver or the system web view.
             "quiltor/resources/sidecars/pdf/render-book-pdf.mjs",
-            # Ships only where MLX may be installed; test_direct_build_* covers that rule.
-            "quiltor/resources/sidecars/inference/mlx/requirements.lock",
         }
     )
 
@@ -616,10 +616,12 @@ class DesktopBuildContractTests(unittest.TestCase):
             path.relative_to(source).as_posix()
             for path in (source / "quiltor").rglob("*")
             if path.is_file()
-            and path.suffix not in {".py", ".pyc"}
             and "__pycache__" not in path.parts
+            and path.suffix != ".pyc"
+            and (path.suffix != ".py" or "resources" in path.relative_to(source).parts[1:2])
         }
         self.assertIn("quiltor/bootstrap/csp-policy.json", data)
+        self.assertIn("quiltor/resources/sidecars/inference/mlx/bridge.py", data)
         for profile_id in ("macos-direct", "windows-direct"):
             with self.subTest(profile=profile_id):
                 packed = set()
