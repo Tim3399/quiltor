@@ -103,15 +103,20 @@ def list_worlds(
     for world_id, path in candidates:
         if not path.exists():
             continue
+        # Another request may remove a world while this one lists them -- a discarded preview,
+        # a purge. That world is simply no longer listed; it must neither be made again as an
+        # empty file nor take the other worlds down with it (T-234: opening a world looks it up
+        # here, and a neighbour vanishing mid-list made the open answer 404).
         try:
-            with connection(path) as database:
+            with _open_existing(path) as database:
                 meta = dict(
                     database.execute(
                         "SELECT key,value FROM meta WHERE key IN (?,?,?,?,?,?)",
                         (*_LISTED_KEYS, config.PREVIEW_KEY),
                     ).fetchall()
                 )
-        except sqlite3.Error:
+            updated = datetime.fromtimestamp(path.stat().st_mtime).isoformat()
+        except (FileNotFoundError, sqlite3.Error):
             continue
         if owner_sub is not None and (meta.get("owner_sub") or config.LOCAL_OWNER) != owner_sub:
             continue
@@ -127,7 +132,7 @@ def list_worlds(
                 "id": world_id,
                 "title": meta.get("world_title") or world_id,
                 "backupUrl": meta.get("backup_endpoint") or "",
-                "updated": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+                "updated": updated,
                 **({"deletedAt": deleted_at} if deleted_at else {}),
                 **({"origin": origin} if origin else {}),
                 **({"previewCreatedAt": preview_created_at} if preview_created_at else {}),
