@@ -33,6 +33,8 @@ import release_preflight  # noqa: E402
 import set_version  # noqa: E402
 import workflow_contract  # noqa: E402
 
+from tests.python.git_bash import find_bash  # noqa: E402
+
 BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
 TEST_WORKFLOW = REPO_ROOT / ".github/workflows/test.yml"
@@ -3272,9 +3274,9 @@ def run_gate_script(workflow, values):
     sees it, so the values go in as assignments ahead of the script, and the script on stdin.
     """
 
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
-        raise unittest.SkipTest("bash is not installed")
+        raise unittest.SkipTest("needs bash (Git Bash on Windows; WSL's bash is not usable here)")
     aggregator = workflow_contract._job_body(workflow, "browser-e2e")
     script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
     assert script is not None, "browser-e2e has no run block"
@@ -3672,9 +3674,9 @@ def run_step_script(workflow, job, step_name, preamble, cwd=None):
     Returns (exit code, output).
     """
 
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
-        raise unittest.SkipTest("bash is not installed")
+        raise unittest.SkipTest("needs bash (Git Bash on Windows; WSL's bash is not usable here)")
     body = workflow_contract._job_body(workflow, job)
     start = body.find(f"      - name: {step_name}\n")
     if start < 0:  # the name is not the step's first key (`- id: x` comes first)
