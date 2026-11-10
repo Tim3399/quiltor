@@ -94,9 +94,7 @@ describe("useHistoryState", () => {
     const { result } = renderHook(() => useHistoryState<{ text: string }>());
     act(() => result.current.load({ text: "Schritt 0" }));
     for (let step = 1; step <= 90; step += 1) {
-      act(() =>
-        result.current.change({ text: `Schritt ${step}` }, { separateHistoryStep: true }),
-      );
+      act(() => result.current.change({ text: `Schritt ${step}` }, { separateHistoryStep: true }));
     }
 
     let undone = 0;
