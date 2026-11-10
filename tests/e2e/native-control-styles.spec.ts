@@ -288,6 +288,10 @@ test("a long calendar configuration stays responsive and scrolls vertically only
     );
   }
 
+  // A sheet slides in and a popover rises; the box is measured where it comes to rest (T-170).
+  await settings.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+  );
   const dialogBox = await settings.boundingBox();
   const viewport = page.viewportSize();
   expect(dialogBox).not.toBeNull();

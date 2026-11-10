@@ -3,9 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import NotRequired, TypedDict
 
 from quiltor.application.documents.types import DocumentLocation
+
+
+class PublicWorld(TypedDict):
+    """A world in the catalogue, as the wire carries it."""
+
+    id: str
+    title: str
+    backupUrl: str
+    updated: str
+    deletedAt: NotRequired[str]
+    origin: NotRequired[str]
+    preview: NotRequired[bool]
 
 
 @dataclass(frozen=True)
@@ -20,8 +32,8 @@ class WorldSummary:
     # Still an unchanged preview of the example world: hidden from the list until a change.
     preview: bool = False
 
-    def public(self) -> dict[str, Any]:
-        result: dict[str, Any] = {
+    def public(self) -> PublicWorld:
+        result: PublicWorld = {
             "id": self.id,
             "title": self.title,
             "backupUrl": self.backup_url,
@@ -47,4 +59,4 @@ class OpenedWorld:
     paths: WorldPaths
 
 
-__all__ = ["OpenedWorld", "WorldPaths", "WorldSummary"]
+__all__ = ["OpenedWorld", "PublicWorld", "WorldPaths", "WorldSummary"]

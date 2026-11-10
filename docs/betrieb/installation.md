@@ -218,7 +218,7 @@ Realm, Rollen und Sitzung:
 
 - Realm `quiltor` mit dem Client-Scope `quiltor-roles`. Der Scope legt die Realm-Rollen in den flachen Claim `roles` des ID-Tokens; nur dieser Claim zählt, `realm_access` und `resource_access` liest Quiltor nicht.
 - Den KI-Assistenten nutzen nur Konten mit der Rolle `premium` (einstellbar über `QUILTOR_PREMIUM_ROLE`). Ohne sie antwortet der Server `403 assistant.premium_required`, und die Oberfläche zeigt einen Hinweis.
-- Rollen werden bei jedem Token-Refresh neu gelesen. Eine vergebene oder entzogene Rolle wirkt ohne neue Anmeldung.
+- Rollen werden bei jedem Token-Refresh neu gelesen. Eine vergebene oder entzogene Rolle wirkt ohne neue Anmeldung. Gelesen werden sie aus dem ID-Token der Refresh-Antwort: Schickt Keycloak beim Refresh kein ID-Token mit, bleiben die bisherigen Rollen stehen, und ein Entzug wirkt erst bei der nächsten Anmeldung. Mit dem Scope `openid` liefert Keycloak das ID-Token standardmäßig mit; der Mapper des Scopes `quiltor-roles` braucht „Add to ID token“.
 - Die Sitzungsdauer bestimmt das Realm (Leerlauf und Höchstdauer). Beendet Keycloak die Sitzung, antwortet Quiltor beim nächsten Refresh `401`. Ungespeicherter Text bleibt im Editor und als Entwurf auf dem Gerät, bis man sich in einem neuen Tab wieder anmeldet.
 
 Umgebungsvariablen:

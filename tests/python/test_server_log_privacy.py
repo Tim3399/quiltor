@@ -32,6 +32,7 @@ from unittest.mock import MagicMock, patch
 from quiltor.application.backups import BackupGatewayError
 from quiltor.delivery.http import routes as api_routes
 from quiltor.infrastructure.backup import adapters as backup_adapters
+from quiltor.infrastructure.backup.snapshots import SnapshotStore
 from quiltor.infrastructure.observability import StdlibStructuredLogger
 from quiltor.infrastructure.observability import schema as log_schema
 from tests.python.test_server_logging import _LiveServer
@@ -398,6 +399,15 @@ class _PrivacyServer(_LiveServer):
             complete_login.side_effect = RuntimeError(f"{text} {path}")
             self.request("GET", f"/backup/callback?code={CANARIES['oidc_token']}&state={path}")
 
+    def scenario_backup_label(self):
+        # Keeping a version whose label cannot be appended, with a world-named path and the
+        # author's text in the exception (T-165).
+        text, path = CANARIES["exception"], CANARIES["file_path"]
+        with patch.object(
+            SnapshotStore, "_append_label", side_effect=OSError(errno.ENOSPC, text, path)
+        ):
+            self.request("POST", "/api/backup", {"worldId": self.world_id, "message": ""})
+
     def scenario_backup_remote(self):
         # The gateway's own line when a call to the endpoint fails, with the author's text,
         # a world-named path and the token in the exception (T-123). It runs on the
@@ -427,6 +437,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_operator_only",
         "scenario_backup",
         "scenario_backup_remote",
+        "scenario_backup_label",
     )
 
 
@@ -508,6 +519,18 @@ class ServerLogPrivacyTests(_PrivacyServer):
             self.assertLessEqual(
                 set(line) - {"event", "level", "timestamp"},
                 {"request_id", "operation", "error_type"},
+            )
+        self.assert_clean()
+
+    def test_a_kept_version_without_its_label_still_succeeds_and_logs_the_type(self):
+        self.scenario_backup_label()
+        lines = [line for line in self.parsed() if line["event"] == "backup.label_failed"]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertEqual(line["error_type"], "OSError")
+            self.assertEqual(line["level"], "warning")
+            self.assertLessEqual(
+                set(line) - {"event", "level", "timestamp"}, {"request_id", "error_type"}
             )
         self.assert_clean()
 
