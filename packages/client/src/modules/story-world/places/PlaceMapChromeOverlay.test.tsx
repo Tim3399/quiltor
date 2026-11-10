@@ -16,7 +16,7 @@ vi.mock("./PlaceMapChrome", () => ({
   // the real one reports from its own layout effect.
   PlaceMapChrome: ({ layout, onSize }: PlaceMapChromeProps) => {
     layouts.push(layout);
-    useLayoutEffect(() => onSize({ headerHeight: 60, footerHeight: 42 }), [onSize]);
+    useLayoutEffect(() => onSize?.({ headerHeight: 60, footerHeight: 42 }), [onSize]);
     return null;
   },
 }));
