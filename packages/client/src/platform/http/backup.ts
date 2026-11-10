@@ -29,12 +29,14 @@ function backupStatus(value: unknown) {
 function snapshotResult(value: unknown) {
   const wire = value as {
     ok?: unknown;
+    created?: unknown;
     log?: unknown;
     status?: unknown;
     warnings?: unknown;
   };
   if (
     wire?.ok !== true ||
+    typeof wire.created !== "boolean" ||
     !Array.isArray(wire.log) ||
     !wire.log.every((entry) => typeof entry === "string") ||
     (wire.warnings !== undefined &&
@@ -45,6 +47,7 @@ function snapshotResult(value: unknown) {
   }
   return {
     ok: true as const,
+    created: wire.created,
     log: wire.log as string[],
     status: backupStatus(wire.status),
     ...(wire.warnings === undefined

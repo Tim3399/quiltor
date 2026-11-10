@@ -137,6 +137,34 @@ def uncommitted_changes(repo_root: Path = REPO_ROOT) -> list[str]:
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
+SCREENSHOT_DIRECTORY = "docs/screenshots"
+
+
+def restore_screenshots(repo_root: Path = REPO_ROOT) -> bool:
+    """Put docs/screenshots back to the last commit; True when that worked.
+
+    The pictures are retaken for the target version before any version file moves. When the
+    version update then fails, they would claim a version the tree does not have and keep
+    `npm run check` red. The tree was clean before the run, so nothing of the author's is lost.
+    """
+
+    def git(*args: str) -> bool:
+        result = subprocess.run(["git", *args], cwd=repo_root, capture_output=True, check=False)
+        return result.returncode == 0
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", SCREENSHOT_DIRECTORY],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    restored = git("clean", "-fdq", "--", SCREENSHOT_DIRECTORY)
+    if tracked.returncode == 0 and tracked.stdout.strip():
+        restored = git("checkout", "HEAD", "--", SCREENSHOT_DIRECTORY) and restored
+    return restored and tracked.returncode == 0
+
+
 TARGET_FILES = [VERSION_FILE, PACKAGE_JSON, PACKAGE_LOCK, CARGO_TOML, CARGO_LOCK]
 
 
@@ -412,14 +440,28 @@ def main(argv: list[str] | None = None) -> int:
             target,
             repo_root,
         )
-    except (OSError, ValueError) as error:
-        print(
-            f"error: version unchanged because the atomic update failed: {error}",
-            file=sys.stderr,
-        )
-        return 1
-    except RuntimeError as error:
-        print(f"error: {error}", file=sys.stderr)
+    except (OSError, ValueError, RuntimeError) as error:
+        if isinstance(error, RuntimeError):
+            print(f"error: {error}", file=sys.stderr)
+        else:
+            print(
+                f"error: version unchanged because the atomic update failed: {error}",
+                file=sys.stderr,
+            )
+        if restore_screenshots(repo_root):
+            print(
+                f"       {SCREENSHOT_DIRECTORY} is back at the last commit; "
+                f"the pictures taken for {target} are gone.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"       {SCREENSHOT_DIRECTORY} still holds the pictures taken for {target}, "
+                f"and npm run check stays red until it is restored: "
+                f"git checkout HEAD -- {SCREENSHOT_DIRECTORY} && "
+                f"git clean -fd -- {SCREENSHOT_DIRECTORY}",
+                file=sys.stderr,
+            )
         return 1
 
     print(f"{current} -> {target}")

@@ -167,6 +167,9 @@ EVENTS: dict[str, frozenset[str]] = {
     # call and the exception's type. The endpoint, the credentials and the exception's
     # text stay out (T-123).
     "backup.remote_request_failed": frozenset({"request_id", "operation", "error_type"}),
+    # infrastructure/backup/snapshots.py, when the kind of a snapshot that was written
+    # could not be recorded: the exception's type only, never its text or path (T-165).
+    "backup.label_failed": frozenset({"request_id", "error_type"}),
     # Never email or name: `sub` is the one identifier an operator needs (D-49).
     "identity.login_without_roles": frozenset({"request_id", "sub", "roles_claim_present"}),
     # modules/assistant/jobs.py, when the job queue itself fails under a worker: which
