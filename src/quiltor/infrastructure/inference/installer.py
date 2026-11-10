@@ -73,8 +73,11 @@ BASE = resources.source_root()
 DEFAULT_MODEL_REPO = "Qwen/Qwen3-4B-GGUF"
 DEFAULT_MODEL_FILE = "Qwen3-4B-Q4_K_M.gguf"
 DEFAULT_MLX_MODEL_REPO = "mlx-community/Qwen3-4B-4bit"
-MLX_REQUIREMENTS = resources.sidecar_asset("inference/mlx/requirements.lock")
-MLX_BRIDGE = resources.sidecar_asset("inference/mlx/bridge.py")
+# The MLX sidecar files are resolved where MLX is installed, never at import: they ship
+# only with builds that may assemble that runtime (macOS with code download), and every other
+# bundle must still import this module (T-235).
+MLX_REQUIREMENTS_ASSET = "inference/mlx/requirements.lock"
+MLX_BRIDGE_ASSET = "inference/mlx/bridge.py"
 
 
 @dataclass(frozen=True, slots=True)
@@ -433,7 +436,7 @@ def install_mlx_runtime(
             "install",
             "--only-binary=:all:",
             "-r",
-            str(MLX_REQUIREMENTS),
+            str(resources.sidecar_asset(MLX_REQUIREMENTS_ASSET)),
         ],
         check=True,
     )
@@ -498,7 +501,7 @@ def smoke_test_mlx(
     process = subprocess.Popen(
         [
             str(venv_python),
-            str(MLX_BRIDGE),
+            str(resources.sidecar_asset(MLX_BRIDGE_ASSET)),
             "--model",
             str(model_dir),
             "--host",
