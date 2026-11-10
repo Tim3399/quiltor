@@ -24,7 +24,9 @@ function saved(page: Page, path: string) {
 
 async function typeAtEnd(page: Page, editor: Locator, text: string) {
   await editor.click();
-  await page.keyboard.press("Control+End");
+  // The editor's own "end of document" command: Ctrl+End on Windows and Linux, Cmd+End on
+  // macOS, where Ctrl+End is not bound and the caret stays where the click put it.
+  await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.type(text);
 }
 
