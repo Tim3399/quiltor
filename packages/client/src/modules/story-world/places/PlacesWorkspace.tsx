@@ -15,7 +15,7 @@ import { PlaceMapToolbar } from "./PlaceMapToolbar";
 import { PlaceToolbar } from "./PlaceToolbar";
 import { DEFAULT_MAP_WIDTH, isExpandedMap, mapBoxPatch } from "./placeCanvasModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
-import { isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
+import { hasLevelContents, isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
 import { formatDistance, formatScale } from "./placeMap";
 import {
   type ActivePlaceMap,
@@ -439,6 +439,10 @@ function PlacesWorkspaceInner({
       onRemoveMapImage={removeMapImage}
       onPlaceDisplayChange={setPlaceDisplay}
       onDelete={compact ? requestPlaceDeletion : undefined}
+      // On a phone the inspector is a sheet over the canvas: the card's commands come here.
+      onOpenLevel={compact ? openLevel : undefined}
+      levelFilled={selected ? hasLevelContents(state.nodes, selected.id) : false}
+      onExpandMap={compact ? expandMap : undefined}
     />
   );
 
