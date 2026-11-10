@@ -231,6 +231,9 @@ export function createPlaceMapNodes({
   return places.filter(isExpandedMap).map((place) => {
     const live = liveSize?.id === place.id ? liveSize : undefined;
     const moved = livePosition?.id === place.id ? livePosition : undefined;
+    // Always present here: `isExpandedMap` lets no map through without both sides.
+    const width = live?.width ?? (place.mapWidth as number);
+    const height = live?.height ?? (place.mapHeight as number);
     return {
       id: place.id,
       type: "placeMap",
@@ -239,9 +242,13 @@ export function createPlaceMapNodes({
         : live
           ? { x: live.x, y: live.y }
           : placePosition(place),
-      // Always present here: `isExpandedMap` lets no map through without both sides.
-      width: live?.width ?? (place.mapWidth as number),
-      height: live?.height ?? (place.mapHeight as number),
+      width,
+      height,
+      // The sheet is drawn at exactly this size, so it is also what React Flow would measure.
+      // Stated here because every rebuilt node starts unmeasured, and the resizer reads its
+      // start size and aspect ratio from `measured` alone: a corner drag begun before the
+      // next measurement divided 0 by 0 and wrote NaN into the frame (T-79).
+      measured: { width, height },
       ...(place.pinned ? { draggable: false } : {}),
       // Behind the cards that stand on it.
       zIndex: -1,
