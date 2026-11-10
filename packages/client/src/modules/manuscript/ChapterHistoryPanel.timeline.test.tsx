@@ -171,6 +171,16 @@ describe("ChapterHistoryPanel timeline", () => {
     expect(screen.getByText("2 Versionen ohne Änderung an diesem Kapitel")).toBeInTheDocument();
   });
 
+  it("does not claim an empty history while older versions can still be loaded", async () => {
+    history.chapterTimeline.mockResolvedValue(page([], created.hash, 20));
+    renderPanel();
+    await openTimeline();
+
+    expect(screen.queryByText("Keine Version hat dieses Kapitel bisher geändert.")).toBeNull();
+    expect(screen.getByText("20 Versionen ohne Änderung an diesem Kapitel")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ältere Versionen laden" })).toBeInTheDocument();
+  });
+
   it("reports a failed load and tries again", async () => {
     history.chapterTimeline
       .mockRejectedValueOnce(new Error("offline"))
