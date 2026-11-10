@@ -1,22 +1,43 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ConfirmDialog, Sheet, SidePanel, Toast } from "../../../design";
+import { Button, ConfirmDialog, Sheet, SidePanel, Toast } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage, quiltorClient, type StoredMapImage } from "../../../platform";
 import type { Workspace } from "../../../shared";
 import { useLatest } from "../../../shared/hooks/useLatest";
 import { prunePresence } from "../figures/presence";
-import type { FigureNode, FigureState } from "../model";
+import type { FigureNode, FigureState, MapScale } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
 import { PlaceCanvas } from "./PlaceCanvas";
 import { PlaceInspector } from "./PlaceInspector";
 import type { MapBox } from "./PlaceMapNode";
 import { PlaceMapToolbar } from "./PlaceMapToolbar";
 import { PlaceToolbar } from "./PlaceToolbar";
-import { DEFAULT_MAP_WIDTH, isExpandedMap, mapBoxPatch } from "./placeCanvasModel";
+import {
+  DEFAULT_MAP_WIDTH,
+  isExpandedMap,
+  type MeasureTarget,
+  mapBoxPatch,
+  measurePointsOf,
+  measureSelectionOf,
+  nextMeasureTargets,
+} from "./placeCanvasModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
-import { hasLevelContents, isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
-import { formatDistance, formatScale } from "./placeMap";
+import {
+  hasLevelContents,
+  hasMapSize,
+  isPlace,
+  levelTrail,
+  placesOnLevel,
+  scaleForLevel,
+} from "./placeLevels";
+import {
+  formatDistance,
+  formatScale,
+  type ResizeGesture,
+  rescaledScale,
+  zoomRescaledScale,
+} from "./placeMap";
 import {
   type ActivePlaceMap,
   activePlaceMapForSelection,
@@ -78,8 +99,31 @@ function PlacesWorkspaceInner({
   // Which map is having its picture adjusted. A mode rather than a gesture
   // the canvas has to guess at: inside it a drag moves the picture.
   const [adjustingId, setAdjustingId] = useState<string | undefined>(undefined);
+  // A map distorted out of proportion, and the size it was left at: the hint stays only
+  // while the map still has that size, so undo and redo take it away with the size.
+  const [rescaleHint, setRescaleHint] = useState<{
+    id: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const [measuring, setMeasuring] = useState(false);
-  const [measureSelection, setMeasureSelection] = useState<string[]>([]);
+  const [measureTargets, setMeasureTargets] = useState<MeasureTarget[]>([]);
+  // Setting a scale by measuring a stretch: whose scale, and the ends picked so far. The
+  // preview follows the pointer once one end is set, so the stretch is seen as it is drawn.
+  const [calibration, setCalibration] = useState<{
+    target: { kind: "map"; id: string } | { kind: "level" };
+    ends: MeasureTarget[];
+    preview?: { x: number; y: number };
+  } | null>(null);
+  const calibrating = calibration !== null;
+  // What the canvas draws a line between: the stretch while calibrating, else the distances.
+  const shownTargets = useMemo<MeasureTarget[]>(() => {
+    if (!calibration) return measureTargets;
+    const { ends, preview } = calibration;
+    return ends.length === 1 && preview ? [ends[0], { kind: "point", ...preview }] : ends;
+  }, [calibration, measureTargets]);
+  const measureSelection = useMemo(() => measureSelectionOf(shownTargets), [shownTargets]);
+  const measurePoints = useMemo(() => measurePointsOf(shownTargets), [shownTargets]);
   const [deletePlace, setDeletePlace] = useState<FigureNode | null>(null);
   const [blockedDeletion, setBlockedDeletion] = useState<{
     name: string;
@@ -112,19 +156,27 @@ function PlacesWorkspaceInner({
     setActiveMapState(undefined);
     setExpandRequest(undefined);
     setSelectedId(null);
-    setMeasureSelection([]);
+    setMeasureTargets([]);
+    setRescaleHint(null);
+    // A stretch measured on one level means nothing on another.
+    setCalibration(null);
   }, []);
   const goToLevel = useCallback((nextLevelId: string | undefined) => {
     setLevelId(nextLevelId);
     setActiveMapState(undefined);
     setExpandRequest(undefined);
     setSelectedId(null);
-    setMeasureSelection([]);
+    setMeasureTargets([]);
+    setRescaleHint(null);
+    // A stretch measured on one level means nothing on another.
+    setCalibration(null);
   }, []);
   // A level that vanished -- undone, or deleted with its contents -- would leave
   // the surface showing nothing and no way back. Fall out to the root instead.
-  if (levelId && !state.nodes.some((node) => node.id === levelId && node.type === "ort"))
+  if (levelId && !state.nodes.some((node) => node.id === levelId && node.type === "ort")) {
     setLevelId(undefined);
+    setCalibration(null);
+  }
   // Looked up across the world rather than in the level's own list: a place
   // standing on a laid-out map belongs to that map's level, but it is drawn
   // here, on the map, and clicking something that is drawn has to select it.
@@ -132,21 +184,54 @@ function PlacesWorkspaceInner({
     ? (state.nodes.find((node) => node.id === selectedId && isPlace(node)) ?? null)
     : null;
   const placesInspectorOpen = !compact && !!places.length && !!selected;
+  const hintedMap = rescaleHint
+    ? state.nodes.find((node) => node.id === rescaleHint.id)
+    : undefined;
+  const shownRescaleHint =
+    rescaleHint &&
+    hintedMap &&
+    hintedMap.mapWidth === rescaleHint.width &&
+    hintedMap.mapHeight === rescaleHint.height
+      ? { id: hintedMap.id, name: hintedMap.name }
+      : null;
   // Either state: a card still needs somewhere to be opened out from.
   const selectedMap = selected?.mapImageId ? selected : null;
   // Crop belongs to the active surface, including while a child is selected.
   if (adjustingId && adjustingId !== activeMap?.id) setAdjustingId(undefined);
+  // An end of the stretch: a click on a place snaps to it, anywhere else is a free point.
+  const addCalibrationEnd = useCallback((end: MeasureTarget) => {
+    setCalibration((current) =>
+      current
+        ? { ...current, ends: nextMeasureTargets(current.ends, end), preview: undefined }
+        : current,
+    );
+  }, []);
   const selectPlace = useCallback(
     (id: string) => {
+      if (calibrating) {
+        addCalibrationEnd({ kind: "place", id });
+        return;
+      }
       setSelectedId(id);
+      setRescaleHint((hint) => (hint && hint.id !== id ? null : hint));
       const map = activePlaceMapForSelection(latestStateRef.current.nodes, levelId, id);
       if (map) setActiveMapState({ levelId, mapId: map.id });
       if (!measuring) return;
-      setMeasureSelection((current) =>
-        current.length === 1 && current[0] !== id ? [current[0], id] : [id],
-      );
+      setMeasureTargets((current) => nextMeasureTargets(current, { kind: "place", id }));
     },
-    [levelId, measuring],
+    [levelId, measuring, calibrating, addCalibrationEnd],
+  );
+  const addMeasurePoint = useCallback((point: { x: number; y: number }) => {
+    setMeasureTargets((current) => nextMeasureTargets(current, { kind: "point", ...point }));
+  }, []);
+  const startCalibration = useCallback(
+    (target: { kind: "map"; id: string } | { kind: "level" }) => {
+      setMeasuring(false);
+      setMeasureTargets([]);
+      setRescaleHint(null);
+      setCalibration({ target, ends: [] });
+    },
+    [],
   );
   const mapImageUrl = useCallback(
     (imageId: string) => quiltorClient.application.placeMaps.sourceUrl(imageId),
@@ -190,12 +275,26 @@ function PlacesWorkspaceInner({
     (place: FigureNode) => patchPlace(place.id, { pinned: !place.pinned }),
     [patchPlace],
   );
+  // Zooming the picture inside its frame changes how much ground the frame shows. Read
+  // from the latest state: wheel ticks follow each other faster than renders.
   const cropMap = useCallback(
-    (place: FigureNode, crop: ImageCrop) => patchPlace(place.id, cropPatch(crop)),
+    (place: FigureNode, crop: ImageCrop) => {
+      const current = latestStateRef.current.nodes.find((node) => node.id === place.id);
+      const scale = current
+        ? zoomRescaledScale(current.mapScale, cropOf(current).zoom, crop.zoom)
+        : undefined;
+      patchPlace(place.id, { ...cropPatch(crop), ...(scale ? { mapScale: scale } : {}) });
+    },
     [patchPlace],
   );
+  // Size and scale in one write, so one undo takes both back.
   const resizeMap = useCallback(
-    (place: FigureNode, box: MapBox) => patchPlace(place.id, mapBoxPatch(box)),
+    (place: FigureNode, box: MapBox, gesture: ResizeGesture | null) => {
+      const current = latestStateRef.current.nodes.find((node) => node.id === place.id);
+      const { scale, distorted } = rescaledScale(current?.mapScale, gesture, box);
+      patchPlace(place.id, { ...mapBoxPatch(box), ...(scale ? { mapScale: scale } : {}) });
+      if (distorted) setRescaleHint({ id: place.id, width: box.width, height: box.height });
+    },
     [patchPlace],
   );
 
@@ -203,8 +302,10 @@ function PlacesWorkspaceInner({
     state,
     places,
     levelId,
-    measuring,
+    measuring: measuring || calibrating,
     measureSelection,
+    measurePoints,
+    measureMode: calibrating ? "calibrate" : "distances",
     onOpenLevel: openLevel,
     mapImageUrl,
     onExpandMap: expandMap,
@@ -343,7 +444,7 @@ function PlacesWorkspaceInner({
     const closeMeasurement = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMeasuring(false);
-      setMeasureSelection([]);
+      setMeasureTargets([]);
     };
     document.addEventListener("keydown", closeMeasurement);
     return () => document.removeEventListener("keydown", closeMeasurement);
@@ -360,9 +461,18 @@ function PlacesWorkspaceInner({
     return () => window.removeEventListener("keydown", finishCrop);
   }, [adjustingId]);
 
+  useEffect(() => {
+    if (!calibrating) return;
+    const cancelCalibration = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCalibration(null);
+    };
+    document.addEventListener("keydown", cancelCalibration);
+    return () => document.removeEventListener("keydown", cancelCalibration);
+  }, [calibrating]);
+
   const stopMeasuring = () => {
     setMeasuring(false);
-    setMeasureSelection([]);
+    setMeasureTargets([]);
   };
   // From the latest state, not the render-time prop: two patches in one batch must both land.
   const patchSelected = (patch: Partial<FigureNode>) => {
@@ -383,6 +493,22 @@ function PlacesWorkspaceInner({
     };
     latestStateRef.current = next;
     onChange(next);
+  };
+  // The unit the stretch's length is typed in: whatever the target already reads in.
+  const calibrationUnit = (target: { kind: "map"; id: string } | { kind: "level" }) => {
+    const scale =
+      target.kind === "map"
+        ? state.nodes.find((node) => node.id === target.id)?.mapScale
+        : levelScale;
+    return scale?.unitLabel ?? t("unitsDefault");
+  };
+  // The same target as the editor the stretch was started from, in one step.
+  const applyCalibration = (
+    target: { kind: "map"; id: string } | { kind: "level" },
+    scale: MapScale,
+  ) => {
+    if (target.kind === "map") patchPlace(target.id, { mapScale: scale });
+    else patchScale(scale);
   };
   const blockDeletionWithContents = (place: FigureNode): boolean => {
     const current = latestStateRef.current;
@@ -465,7 +591,8 @@ function PlacesWorkspaceInner({
         hasGround={canvas.hasGround}
         onMeasuringToggle={() => {
           setMeasuring((value) => !value);
-          setMeasureSelection([]);
+          setMeasureTargets([]);
+          setCalibration(null);
         }}
         onUndo={onUndo}
         onRedo={onRedo}
@@ -487,6 +614,26 @@ function PlacesWorkspaceInner({
             dismissLabel={t("closeMessage")}
             onDismiss={() => setMapError("")}
           />
+        )}
+        {shownRescaleHint && (
+          <Toast
+            className="story-world-toast"
+            tone="info"
+            title={t("rescaleHintTitle")}
+            dismissLabel={t("closeMessage")}
+            onDismiss={() => setRescaleHint(null)}
+            action={
+              <Button
+                size="compact"
+                appearance="secondary"
+                onClick={() => startCalibration({ kind: "map", id: shownRescaleHint.id })}
+              >
+                {t("rescaleHintAction")}
+              </Button>
+            }
+          >
+            {t("rescaleHintBody", { name: shownRescaleHint.name })}
+          </Toast>
         )}
         {blockedDeletion && (
           <Toast
@@ -526,14 +673,17 @@ function PlacesWorkspaceInner({
                   onCollapse: () => collapseMap(activeMap),
                   onEnter: () => openLevel(activeMap),
                   scale: activeMap.mapScale,
-                  onScale: (patch) =>
+                  onCalibrate: () => startCalibration({ kind: "map", id: activeMap.id }),
+                  onScale: (patch) => {
+                    setRescaleHint((hint) => (hint?.id === activeMap.id ? null : hint));
                     patchPlace(activeMap.id, {
                       mapScale: {
                         unitsPer100px: activeMap.mapScale?.unitsPer100px ?? 1,
                         unitLabel: activeMap.mapScale?.unitLabel ?? t("unitsDefault"),
                         ...patch,
                       },
-                    }),
+                    });
+                  },
                 }
               : undefined
           }
@@ -557,7 +707,7 @@ function PlacesWorkspaceInner({
                 onCrop={(next) => cropMap(selectedMap, next)}
                 onToggleLock={() => toggleMapLock(selectedMap)}
                 onCollapse={() => collapseMap(selectedMap)}
-                onExpand={() => expandMap(selectedMap)}
+                onExpand={hasMapSize(selectedMap) ? () => expandMap(selectedMap) : undefined}
                 onEnter={() => openLevel(selectedMap)}
                 scale={selectedMap.mapScale}
                 onScale={(patch) =>
@@ -585,6 +735,39 @@ function PlacesWorkspaceInner({
             if (place) openLevel(place);
           }}
           onClearSelection={() => setSelectedId(null)}
+          onMeasurePoint={
+            calibrating
+              ? (point) => addCalibrationEnd({ kind: "point", ...point })
+              : measuring
+                ? addMeasurePoint
+                : undefined
+          }
+          onCalibrateLevel={() => startCalibration({ kind: "level" })}
+          calibration={
+            calibration
+              ? {
+                  ends: calibration.ends.length,
+                  flowLength: calibration.ends.length === 2 ? canvas.targetedLength : undefined,
+                  defaultUnit: calibrationUnit(calibration.target),
+                  onStart: (start) =>
+                    setCalibration((current) =>
+                      current ? { ...current, ends: [start], preview: undefined } : current,
+                    ),
+                  onPreview: (point) =>
+                    setCalibration((current) =>
+                      current && current.ends.length === 1
+                        ? { ...current, preview: point }
+                        : current,
+                    ),
+                  onEnd: addCalibrationEnd,
+                  onApply: (scale) => {
+                    applyCalibration(calibration.target, scale);
+                    setCalibration(null);
+                  },
+                  onCancel: () => setCalibration(null),
+                }
+              : undefined
+          }
           onStopMeasuring={stopMeasuring}
           onScale={patchScale}
         />

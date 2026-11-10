@@ -61,6 +61,7 @@ vi.mock("@xyflow/react", () => ({
     onKeyDown,
     onMove,
     onNodeClick,
+    onNodeDoubleClick,
     onNodeDragStop,
     onPaneClick,
   }: {
@@ -81,12 +82,14 @@ vi.mock("@xyflow/react", () => ({
       data: {
         zoomTier: string;
         place: { name: string; important?: boolean; pinned?: boolean };
+        onResize?: (place: unknown, box: unknown, gesture: unknown) => void;
       };
     }>;
     onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     onMove: (event: unknown, viewport: { x: number; y: number; zoom: number }) => void;
     onNodeClick: (event: unknown, node: { id: string }) => void;
-    onPaneClick: () => void;
+    onNodeDoubleClick?: (event: unknown, node: { id: string }) => void;
+    onPaneClick: (event: unknown) => void;
     onNodeDragStop: (
       event: unknown,
       node: { id: string; position: { x: number; y: number } },
@@ -106,16 +109,60 @@ vi.mock("@xyflow/react", () => ({
               data-testid={`place-node-${node.id}`}
               data-draggable={String(node.draggable !== false)}
               data-important={String(!!node.data.place.important)}
-              onClick={() => onNodeClick({}, node)}
+              onClick={(event) => onNodeClick(event, node)}
             >
               {node.data.place.name}
             </button>
             <span data-testid="place-zoom-tier">{node.data.zoomTier}</span>
+            {node.data.onResize ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    node.data.onResize?.(
+                      node.data.place,
+                      { x: 0, y: 0, width: 1800, height: 1200 },
+                      { start: { x: 0, y: 0, width: 1500, height: 1000 }, free: false },
+                    )
+                  }
+                >
+                  Testgröße {node.data.place.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    node.data.onResize?.(
+                      node.data.place,
+                      { x: 0, y: 0, width: 1800, height: 1000 },
+                      { start: { x: 0, y: 0, width: 1500, height: 1000 }, free: true },
+                    )
+                  }
+                >
+                  Testverzerrung {node.data.place.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    node.data.onResize?.(
+                      node.data.place,
+                      { x: 0, y: 0, width: 2002, height: 1334.67 },
+                      // React Flow measures whole pixels: the drawn start is not the stored size.
+                      { start: { x: 0, y: 0, width: 1501, height: 1001 }, free: false },
+                    )
+                  }
+                >
+                  Testmessgröße {node.data.place.name}
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={() => onNodeDragStop({}, { ...node, position: { x: 75, y: 85 } })}
             >
               Testziehen {node.data.place.name}
+            </button>
+            <button type="button" onClick={() => onNodeDoubleClick?.({}, node)}>
+              Testbetreten {node.data.place.name}
             </button>
           </div>
         ))}
@@ -135,7 +182,7 @@ vi.mock("@xyflow/react", () => ({
       <button type="button" onClick={() => onMove({}, { x: 0, y: 0, zoom: 0.2 })}>
         Testübersicht
       </button>
-      <button type="button" onClick={onPaneClick}>
+      <button type="button" onClick={(event) => onPaneClick(event)}>
         Testfläche
       </button>
     </div>
@@ -304,7 +351,7 @@ describe("PlacesWorkspace map overlays", () => {
 
     fireEvent.click(screen.getByTestId("place-node-a"));
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Wähle den zweiten Ort für die gezielte Distanz.",
+      "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
     );
     fireEvent.click(screen.getByTestId("place-node-f"));
 
@@ -363,7 +410,7 @@ describe("PlacesWorkspace map overlays", () => {
     fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
     fireEvent.keyDown(screen.getByRole("button", { name: "Ort: A" }), { key: "Enter" });
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Wähle den zweiten Ort für die gezielte Distanz.",
+      "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Ort: F" }), { key: " " });
 
@@ -908,6 +955,41 @@ describe("active expanded map chrome", () => {
     expect(flowInstance.fitView).toHaveBeenCalledOnce();
   });
 
+  it("fits the view on entering a level that holds only an opened-out map", async () => {
+    // The level's cards are empty there: the map is all it holds. The fit used to wait for
+    // cards alone, so it only ran when its timer beat the emptying of the level just left --
+    // under load it lost, and the map stayed wherever the old framing put it (T-79).
+    const archive = { id: "archiv", type: "ort" as const, name: "Archiv", x: 0, y: 0 };
+    const sheet = { ...map, id: "alte-karte", name: "Alte Karte", parentPlaceId: archive.id };
+    flowInstance.fitView.mockClear();
+    render(
+      <ControlledPlaces initialState={{ nodes: [archive, sheet], edges: [] }} onChange={vi.fn()} />,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Archiv" }));
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+  });
+
+  it("frames the level again when an opened-out map folds back into its card", async () => {
+    // The view was framed on the places standing on the sheet; folding the sheet away leaves
+    // the card at the sheet's corner, outside that framing. The old green came from an arrival
+    // fit that had never run and fired here by accident (T-79).
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    flowInstance.fitView.mockClear();
+
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Weltkarte einklappen" })[0]);
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+  });
+
   it("falls back to the root when the open level disappears", () => {
     const content = (nodes: FigureState["nodes"]) => (
       <I18nProvider>
@@ -1008,5 +1090,274 @@ describe("place patches against the latest state (T-180)", () => {
       important: true,
       profile: expect.objectContaining({ notes: "Hafen" }),
     });
+  });
+});
+
+describe("measuring to a free point", () => {
+  const map = {
+    id: "weltkarte",
+    type: "ort" as const,
+    name: "Weltkarte",
+    x: 0,
+    y: 0,
+    mapImageId: "bild",
+    mapExpanded: true,
+    mapWidth: 1600,
+    mapHeight: 900,
+    mapScale: { unitsPer100px: 25, unitLabel: "km" },
+  };
+  const pin = {
+    id: "hafen",
+    type: "ort" as const,
+    name: "Hafen",
+    x: 0,
+    y: 0,
+    parentPlaceId: map.id,
+    mapU: 0.4,
+    mapV: 0.5,
+  };
+  const targeted = () =>
+    screen
+      .getAllByTestId("distance-edge")
+      .find((edge) => edge.dataset.className === "distance-edge is-targeted");
+
+  it("takes a click on the map as a point, not as the map's middle", () => {
+    const onChange = vi.fn();
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={onChange} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 100, clientY: 100 });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
+    );
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 400, clientY: 500 });
+
+    // 500 flow units on a map of 25 km per 100 px.
+    expect(targeted()).toHaveAttribute("aria-label", "Punkt – Punkt: 125 km");
+    // A point is never a place: it reaches neither the inspector nor the document.
+    expect(screen.queryByRole("textbox", { name: "Name" })).not.toBeInTheDocument();
+    for (const [state] of onChange.mock.calls as [FigureState][])
+      expect(state.nodes.some((node) => node.id.startsWith("measure-point:"))).toBe(false);
+  });
+
+  it("measures from a pin to a point in the map's units", () => {
+    render(<ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByTestId("place-node-hafen"));
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 100, clientY: 100 });
+
+    expect(targeted()).toHaveAttribute(
+      "aria-label",
+      expect.stringMatching(/^Hafen – Punkt: [\d.]+ km$/),
+    );
+  });
+
+  it("sets a point beside the map, read in the level's units", () => {
+    render(<ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 1700,
+      clientY: 100,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 1700,
+      clientY: 400,
+    });
+
+    expect(targeted()).toHaveAttribute(
+      "aria-label",
+      "Punkt – Punkt: 300 Einheiten (kein Maßstab gesetzt)",
+    );
+  });
+
+  it("forgets its points when measuring stops", () => {
+    render(<ControlledPlaces initialState={{ nodes: [map, pin], edges: [] }} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 100, clientY: 100 });
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"), { clientX: 400, clientY: 500 });
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+
+    expect(
+      screen
+        .queryAllByTestId("distance-edge")
+        .some((edge) => edge.dataset.className?.includes("is-targeted")),
+    ).toBe(false);
+  });
+});
+
+describe("resizing a map with a scale", () => {
+  const harbour = {
+    id: "nordhafen",
+    type: "ort" as const,
+    name: "Nordhafen",
+    x: 0,
+    y: 0,
+    mapImageId: "bild",
+    mapExpanded: true,
+    mapWidth: 1500,
+    mapHeight: 1000,
+    mapScale: { unitsPer100px: 0.15, unitLabel: "km" },
+  };
+
+  // One step per change, the way the app's history records a single write; undo goes back
+  // one step. The frame of the map is shown so the state after undo can be read directly.
+  function HistoryPlaces({ onChange }: { onChange: (state: FigureState) => void }) {
+    const [past, setPast] = useState<FigureState[]>([]);
+    const [value, setValue] = useState<FigureState>({ nodes: [harbour], edges: [] });
+    const map = value.nodes[0];
+    return (
+      <I18nProvider>
+        <output data-testid="frame">
+          {`${map.mapWidth}x${map.mapHeight}@${map.mapScale?.unitsPer100px}`}
+        </output>
+        <PlacesWorkspace
+          state={value}
+          onChange={(next) => {
+            setPast((steps) => [...steps, value]);
+            setValue(next);
+            onChange(next);
+          }}
+          onOpen={vi.fn()}
+          onUndo={() => {
+            const previous = past.at(-1);
+            if (!previous) return;
+            setPast(past.slice(0, -1));
+            setValue(previous);
+          }}
+          canUndo={past.length > 0}
+        />
+      </I18nProvider>
+    );
+  }
+  const stored = (onChange: ReturnType<typeof vi.fn>) => {
+    const last = onChange.mock.calls.at(-1);
+    if (!last) throw new Error("Nothing was written.");
+    return (last[0] as FigureState).nodes[0];
+  };
+
+  it("writes size and recomputed scale in one change, and one undo takes both back", () => {
+    const onChange = vi.fn();
+    render(<HistoryPlaces onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testgröße Nordhafen" }));
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(stored(onChange)).toMatchObject({ mapWidth: 1800, mapHeight: 1200 });
+    expect(stored(onChange).mapScale?.unitsPer100px).toBeCloseTo(0.125, 10);
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
+    expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
+  });
+
+  it("takes the factor from the drawn start of the gesture, not from the stored size", () => {
+    const onChange = vi.fn();
+    render(<HistoryPlaces onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testmessgröße Nordhafen" }));
+    expect(stored(onChange).mapScale?.unitsPer100px).toBeCloseTo(0.15 / (2002 / 1501), 8);
+  });
+
+  it("keeps the scale of a distorted map and asks to measure again", () => {
+    const onChange = vi.fn();
+    render(<HistoryPlaces onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
+    expect(stored(onChange).mapScale?.unitsPer100px).toBe(0.15);
+    expect(screen.getByText("Maßstab neu messen?")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nordhafen wurde verzerrt. Der Maßstab passt nicht mehr sicher."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Neu messen" }));
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+    expect(screen.getByText("Maßstab messen: Setze den Anfang der Strecke.")).toBeInTheDocument();
+  });
+
+  it("lets the hint be closed", () => {
+    render(<HistoryPlaces onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Meldung schließen" }));
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+  });
+
+  it("takes the hint away with the size when the distortion is undone", () => {
+    render(<HistoryPlaces onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
+    expect(screen.getByText("Maßstab neu messen?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
+    expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
+    expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
+  });
+});
+
+describe("a calibration does not outlive its level", () => {
+  // Two levels: the world, and the harbour with its market inside.
+  const levels: FigureState = {
+    nodes: [
+      { id: "hafen", type: "ort", name: "Hafen", x: 0, y: 0 },
+      { id: "feld", type: "ort", name: "Feld", x: 400, y: 0 },
+      { id: "markt", type: "ort", name: "Markt", x: 0, y: 0, parentPlaceId: "hafen" },
+    ],
+    edges: [],
+  };
+
+  function startCalibration() {
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auf der Karte messen" }));
+    expect(screen.getByText("Maßstab messen: Setze den Anfang der Strecke.")).toBeInTheDocument();
+    // Both ends set: on the old level the stretch could now be applied.
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), { clientX: 0, clientY: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 300,
+      clientY: 0,
+    });
+    expect(screen.getByRole("button", { name: "Übernehmen" })).toBeInTheDocument();
+  }
+
+  const gone = () => {
+    expect(screen.queryByText("Setze das Ende der Strecke.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Übernehmen" })).not.toBeInTheDocument();
+  };
+
+  it("ends when a level is entered", () => {
+    const onChange = vi.fn();
+    render(<ControlledPlaces initialState={levels} onChange={onChange} />);
+    startCalibration();
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Hafen" }));
+    gone();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ends when the trail leads back up", () => {
+    const onChange = vi.fn();
+    render(<ControlledPlaces initialState={levels} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Hafen" }));
+    startCalibration();
+    fireEvent.click(screen.getByRole("button", { name: "Welt" }));
+    gone();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("ends when the open level vanishes and the surface falls back to the root", () => {
+    const onChange = vi.fn();
+    const view = render(
+      <I18nProvider>
+        <PlacesWorkspace state={levels} onChange={onChange} onOpen={vi.fn()} />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Testbetreten Hafen" }));
+    startCalibration();
+    // Undone, or deleted with its contents: the harbour is no longer there.
+    view.rerender(
+      <I18nProvider>
+        <PlacesWorkspace
+          state={{ ...levels, nodes: levels.nodes.filter((node) => node.id === "feld") }}
+          onChange={onChange}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+    gone();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

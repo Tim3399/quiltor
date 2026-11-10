@@ -7,6 +7,7 @@ import {
   ancestorsOf,
   expandedRect,
   hasLevelContents,
+  isExpandedMap,
   levelTrail,
   mapRect,
   mapUnder,
@@ -16,6 +17,7 @@ import {
   spreadAnchor,
   scaleForLevel,
   scaleForPair,
+  scaleForPoints,
   subtreeOf,
   wouldCycle,
 } from "./placeLevels";
@@ -217,9 +219,20 @@ describe("maps as ground for pins", () => {
     expect(mapRect(map)).toEqual({ x: 100, y: 200, width: 400, height: 300 });
   });
 
-  it("falls back to a default extent so a map is never a point", () => {
-    const rect = mapRect(place("blank", { mapExpanded: true, mapX: 0, mapY: 0 }));
-    expect([rect.width, rect.height]).toEqual([640, 420]);
+  it("has no rectangle for a map without a size, and no point falls on it", () => {
+    // An invented size would be drawn, measured and scaled as if it were true.
+    const blank = place("blank", { mapExpanded: true, mapImageId: "bild", mapX: 0, mapY: 0 });
+    expect(mapRect(blank)).toBeUndefined();
+    expect(mapRect({ ...blank, mapWidth: 1200 })).toBeUndefined();
+    expect(mapUnder({ x: 10, y: 10 }, [blank])).toBeUndefined();
+  });
+
+  it("draws a map opened out only when it knows both sides of its frame", () => {
+    const blank = place("blank", { mapExpanded: true, mapImageId: "bild" });
+    expect(isExpandedMap(blank)).toBe(false);
+    expect(isExpandedMap({ ...blank, mapWidth: 1200 })).toBe(false);
+    expect(isExpandedMap({ ...blank, mapWidth: 1200, mapHeight: 800 })).toBe(true);
+    expect(isExpandedMap({ ...blank, mapWidth: 1200, mapHeight: 0 })).toBe(false);
   });
 
   it("finds the map a point lands on, and none when it lands beside it", () => {
@@ -455,5 +468,57 @@ describe("a map coming to rest", () => {
         grid: 48,
       }),
     ).toMatchObject({ mapX: 137, mapY: 70 });
+  });
+});
+
+describe("which scale a distance to a free point is read with", () => {
+  // Mirrors Nordhafen in the test world (tests/world/parts/base.mjs): a 1500 by 1000
+  // harbour plan at 0.15 km per 100 px, with the Salzmarkt pinned on it.
+  const harbour = { unitsPer100px: 0.15, unitLabel: "km" };
+  const level = { unitsPer100px: 0.5, unitLabel: "km" };
+  const nordhafen = place("nordhafen", {
+    mapExpanded: true,
+    mapX: 0,
+    mapY: 0,
+    mapWidth: 1500,
+    mapHeight: 1000,
+    mapScale: harbour,
+  });
+  const salzmarkt = place("salzmarkt", { parentPlaceId: "nordhafen", mapU: 0.15, mapV: 0.55 });
+  const elsewhere = place("elsewhere", { x: 3000, y: 0 });
+  const nodes = [nordhafen, salzmarkt, elsewhere];
+  const maps = [nordhafen];
+
+  it("reads a point and a pin on the same map in that map's scale", () => {
+    expect(
+      scaleForPoints(nodes, maps, { place: salzmarkt }, { point: { x: 900, y: 400 } }, level),
+    ).toEqual(harbour);
+  });
+
+  it("reads two points on the same map in that map's scale", () => {
+    expect(
+      scaleForPoints(
+        nodes,
+        maps,
+        { point: { x: 10, y: 10 } },
+        { point: { x: 900, y: 400 } },
+        level,
+      ),
+    ).toEqual(harbour);
+  });
+
+  it("reads a point beside the map in the level's scale", () => {
+    expect(
+      scaleForPoints(nodes, maps, { place: salzmarkt }, { point: { x: 2000, y: 400 } }, level),
+    ).toEqual(level);
+    expect(
+      scaleForPoints(nodes, maps, { place: elsewhere }, { point: { x: 900, y: 400 } }, level),
+    ).toEqual(level);
+  });
+
+  it("reads two places as before", () => {
+    expect(scaleForPoints(nodes, maps, { place: salzmarkt }, { place: elsewhere }, level)).toEqual(
+      level,
+    );
   });
 });

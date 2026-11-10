@@ -13,8 +13,10 @@ from quiltor.application.documents.types import (
     VersionedDocument,
 )
 from quiltor.application.errors import InvalidApplicationInput
+from quiltor.application.place_maps import PlaceMapRepository
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.domain.manuscript import flatten_tree, story_time_anchor_issue, structure_or_flat
+from quiltor.domain.story_world.map_dimensions import map_image_ids, with_map_dimensions
 from quiltor.domain.story_world.validation import valid_figures, valid_manuscript
 from quiltor.domain.storyboard.validation import valid_storyboards
 
@@ -35,22 +37,36 @@ class DocumentUseCases:
         documents: DocumentRepository,
         local_backups: BackupRepository,
         observer: UseCaseObserver,
+        map_images: PlaceMapRepository,
     ) -> None:
         self._documents = documents
         self._local_backups = local_backups
         self._observer = observer
+        self._map_images = map_images
 
     def load(self, kind: DocumentKind, database: Path) -> VersionedDocument:
         with self._observer.observe("persistence", f"load_{kind}"):
-            return VersionedDocument(
-                self._documents.load(kind, database),
-                self._documents.revision(kind, database),
-            )
+            state = self._documents.load(kind, database)
+            if kind == "figures":
+                state = self._sized_maps(state, database)
+            return VersionedDocument(state, self._documents.revision(kind, database))
 
     def load_pair(self, database: Path) -> tuple[dict[str, Any], dict[str, Any]]:
         return (
             self._documents.load("manuscript", database),
-            self._documents.load("figures", database),
+            self._sized_maps(self._documents.load("figures", database), database),
+        )
+
+    def _sized_maps(self, state: dict[str, Any], database: Path) -> dict[str, Any]:
+        """Maps without a frame size get their picture's, for the reader only.
+
+        Nothing is written: the client keeps the filled-in size and the next ordinary
+        save stores it. Backups, sync and project export read the repository directly
+        and stay byte-faithful.
+        """
+
+        return with_map_dimensions(
+            state, self._map_images.dimensions(map_image_ids(state), database)
         )
 
     def save(

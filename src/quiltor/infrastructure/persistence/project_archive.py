@@ -29,6 +29,7 @@ from quiltor.application.project_transfer import (
 )
 from quiltor.application.worlds import WorldSummary
 from quiltor.domain.manuscript import story_time_anchor_issue
+from quiltor.domain.story_world.map_dimensions import map_image_ids, with_map_dimensions
 from quiltor.domain.story_world.place_map_image import MAX_IMAGE_BYTES, UnsupportedImage, identify
 from quiltor.domain.storyboard.element_notes import (
     DiscardedProtocolEntry,
@@ -205,6 +206,9 @@ class SQLiteProjectTransferRepository:
                     _validate_image(validated.images[descriptor["id"]], descriptor["id"]),
                     db_path=staged,
                 )
+            # Only now are the pictures in the staging database, so only now can a map
+            # that arrived without a frame size take its picture's.
+            _size_imported_maps(staged)
             with connection(staged) as database:
                 database.execute(
                     "INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)",
@@ -241,6 +245,15 @@ class SQLiteProjectTransferRepository:
             backup_url="",
             updated=datetime.now(UTC).isoformat(),
         )
+
+
+def _size_imported_maps(staged: Path) -> None:
+    figures = story_world.load(staged)
+    sized = with_map_dimensions(
+        figures, place_map_images.dimensions(map_image_ids(figures), db_path=staged)
+    )
+    if sized != figures:
+        story_world.save(sized, db_path=staged)
 
 
 def validate_archive(payload: bytes) -> ValidatedArchive:

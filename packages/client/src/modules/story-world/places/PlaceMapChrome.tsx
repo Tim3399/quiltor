@@ -20,6 +20,8 @@ export interface PlaceMapChromeProps extends Omit<PlaceMapActionsProps, "expande
   zoom: number;
   scale: MapScale | undefined;
   onScale: (patch: Partial<MapScale>) => void;
+  /** Starts setting this map's scale by measuring a stretch on it. */
+  onCalibrate?: () => void;
 }
 
 /** Map identity and instruments in screen space; the space between remains the world. */
@@ -32,6 +34,7 @@ export function PlaceMapChrome({
   zoom,
   scale,
   onScale,
+  onCalibrate,
   ...actions
 }: PlaceMapChromeProps) {
   const { t, locale } = useI18n();
@@ -120,6 +123,7 @@ export function PlaceMapChrome({
                 name={actions.map.name}
                 scale={scale}
                 onScale={onScale}
+                onCalibrate={onCalibrate}
                 valueLabel={scaleLabel}
                 anchorPositionKey={`${actions.map.id}:${layout.left}:${layout.footerTop}:${footerWidth}`}
               />
