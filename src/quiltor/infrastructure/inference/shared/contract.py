@@ -228,7 +228,7 @@ def _usage_is_complete(usage: Any) -> bool:
     )
 
 
-def _read_choice(result: Any, *, require_usage: bool) -> tuple[str, str]:
+def _read_choice(result: Any, *, strict_local: bool) -> tuple[str, str]:
     """The one choice of a chat response, checked as local-ai-contract section 4 asks.
 
     Returns its content and finish_reason. A response that breaks the contract is an
@@ -238,9 +238,11 @@ def _read_choice(result: Any, *, require_usage: bool) -> tuple[str, str]:
       failed after it had answered;
     - not exactly one choice (C36);
     - a `refusal` or an empty content (C19);
-    - a finish_reason that is neither "stop" nor "length" (C18);
-    - no `usage`, when the caller asks for it (C37: only the local path, where the server is
-      ours to hold to the contract; an external provider may leave it out).
+    - on the local path only (`strict_local`; the server is ours to hold to the contract):
+      a finish_reason that is neither "stop" nor "length" (C18), and no `usage` (C37). An
+      external provider may leave either out: a missing finish_reason counts as "stop", and
+      so does a value this client does not know (a provider's own spelling is no proof that
+      the answer is cut off). "length" is incomplete on both paths (F10 (a)).
     """
     if not isinstance(result, dict):
         raise ValueError("response is not an object")
@@ -261,7 +263,7 @@ def _read_choice(result: Any, *, require_usage: bool) -> tuple[str, str]:
     choices = result["choices"]
     if not isinstance(choices, list) or len(choices) != 1:
         raise invalid
-    if require_usage and not _usage_is_complete(result.get("usage")):
+    if strict_local and not _usage_is_complete(result.get("usage")):
         raise invalid
     choice = choices[0]
     message = choice["message"]
@@ -270,7 +272,9 @@ def _read_choice(result: Any, *, require_usage: bool) -> tuple[str, str]:
     if message.get("refusal") or not isinstance(content, str) or not content.strip():
         raise invalid
     if finish_reason not in {"stop", "length"}:
-        raise invalid
+        if strict_local:
+            raise invalid
+        finish_reason = "stop"
     return content, finish_reason
 
 
@@ -280,7 +284,7 @@ def invoke_chat(
     timeout: int | float | None = None,
     include_metadata: bool = False,
     api_key: str | None = None,
-    require_usage: bool = False,
+    strict_local: bool = False,
 ) -> dict[str, Any]:
     """POST an OpenAI-compatible /v1/chat/completions request.
 
@@ -307,7 +311,7 @@ def invoke_chat(
         with _authorized_open(request, effective_timeout, api_key) as response:
             result = json.loads(response.read())
 
-        content, finish_reason = _read_choice(result, require_usage=require_usage)
+        content, finish_reason = _read_choice(result, strict_local=strict_local)
 
     except urllib.error.HTTPError as exc:
         # HTTPError inherits from URLError, so handle it first.

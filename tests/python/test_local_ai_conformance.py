@@ -544,7 +544,7 @@ class ClientCheckerTests(unittest.TestCase):
         engine = SimpleNamespace(
             identity=self.url,
             invoke=lambda payload: invoke_chat(
-                self.url, payload, include_metadata=True, require_usage=True
+                self.url, payload, include_metadata=True, strict_local=True
             ),
         )
         # _invoke_with_growth only reaches the engine; the other collaborators are not touched.
@@ -575,12 +575,28 @@ class ClientCheckerTests(unittest.TestCase):
 
     # --- C18, C19: what else a finish_reason or a content can be ----------------------------
 
-    def test_c18_a_finish_reason_other_than_stop_or_length_is_an_error(self):
+    def test_c18_a_local_finish_reason_other_than_stop_or_length_is_an_error(self):
         for reason in ("content_filter", "error", "tool_calls", "something_new", None):
             with self.subTest(finish_reason=reason):
                 self.answer(200, completion(PARSABLE, reason))
                 with self.assertRaises(InferenceValidationError):
-                    self.ask()
+                    self.ask(strict_local=True)
+
+    def test_c18_an_external_provider_may_leave_finish_reason_out_or_spell_it_its_own_way(self):
+        # Missing or unknown counts as complete; only "length" proves the answer was cut off.
+        for reason in (None, "content_filter", "tool_calls", "something_new"):
+            with self.subTest(finish_reason=reason):
+                self.answer(200, completion(PARSABLE, reason))
+                self.assertEqual(self.ask()["answer"], "ok")
+                meta = self.ask(include_metadata=True)["_runtime"]
+                self.assertEqual(meta["finishReason"], "stop")
+
+    def test_c18_length_is_incomplete_on_both_paths(self):
+        for strict in (True, False):
+            with self.subTest(strict_local=strict):
+                self.answer(200, completion(PARSABLE, "length"))
+                with self.assertRaises(IncompleteInferenceResponse):
+                    self.ask(strict_local=strict)
 
     def test_c19_an_empty_content_or_a_refusal_is_an_error(self):
         self.answer(200, completion(""))
@@ -698,7 +714,7 @@ class ClientCheckerTests(unittest.TestCase):
             with self.subTest(usage=usage):
                 self.answer(200, completion(usage=usage))
                 with self.assertRaises(InferenceValidationError):
-                    self.ask(require_usage=True)
+                    self.ask(strict_local=True)
 
     def test_c37_an_external_provider_may_leave_usage_out(self):
         self.answer(200, completion(usage=ABSENT))
@@ -707,7 +723,7 @@ class ClientCheckerTests(unittest.TestCase):
 
     def test_a_complete_answer_passes_and_reports_its_usage(self):
         self.answer(200, completion())
-        result = self.ask(include_metadata=True, require_usage=True)
+        result = self.ask(include_metadata=True, strict_local=True)
         self.assertEqual(result["answer"], "ok")
         self.assertEqual(result["_runtime"]["totalTokens"], 17)
         self.assertEqual(result["_runtime"]["finishReason"], "stop")

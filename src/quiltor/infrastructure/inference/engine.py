@@ -131,7 +131,7 @@ class LocalInferenceEngine:
                 payload,
                 include_metadata=True,
                 api_key=self._sidecar_key,
-                require_usage=True,
+                strict_local=True,
             )
         request = {**payload, "model": self.endpoint.model_name}
         if self._json_object_only:
