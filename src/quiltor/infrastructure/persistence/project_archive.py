@@ -30,7 +30,11 @@ from quiltor.application.project_transfer import (
 from quiltor.application.worlds import WorldSummary
 from quiltor.domain.manuscript import story_time_anchor_issue
 from quiltor.domain.story_world.place_map_image import MAX_IMAGE_BYTES, UnsupportedImage, identify
-from quiltor.domain.storyboard.element_notes import discarded_protocol, move_reference_notes
+from quiltor.domain.storyboard.element_notes import (
+    DiscardedProtocolEntry,
+    discarded_protocol,
+    move_reference_notes,
+)
 from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
 from quiltor.infrastructure.persistence.sqlite import (
     manuscript,
@@ -78,7 +82,7 @@ class ValidatedArchive:
 
 def _with_reference_notes_moved(
     documents: dict[str, Any],
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+) -> tuple[dict[str, Any], list[DiscardedProtocolEntry]]:
     """An archive from 3.25 or earlier carries text on reference cards; move it first (T-177).
 
     The same rule as the schema-15 migration, so an imported world matches one that was

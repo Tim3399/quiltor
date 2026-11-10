@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -353,10 +354,10 @@ def _decision_error(decision: dict[str, Any]) -> ValueError:
     )
 
 
-def _checked_decision(decision: dict[str, Any]) -> dict[str, Any]:
+def _checked_decision(decision: Mapping[str, Any]) -> dict[str, Any]:
     if decision.get("outcome") in {"ambiguous", "invalid"}:
-        raise _decision_error(decision)
-    return decision
+        raise _decision_error(dict(decision))
+    return dict(decision)
 
 
 def _mutation_result(

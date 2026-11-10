@@ -13,7 +13,11 @@ import copy
 import unittest
 from typing import Any, ClassVar
 
-from quiltor.domain.story_world.integrity import presence_consistency_issues, validate_world
+from quiltor.domain.story_world.integrity import (
+    WorldValidation,
+    presence_consistency_issues,
+    validate_world,
+)
 from quiltor.domain.story_world.knowledge import (
     KnowledgeChunk,
     KnowledgeContextClass,
@@ -63,7 +67,7 @@ def stay(element: str, place: str, moment: str | None) -> dict[str, Any]:
     return entry
 
 
-def items(result: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+def items(result: WorldValidation) -> list[tuple[str, dict[str, object]]]:
     return [(item["key"], item["params"]) for item in result["issueItems"]]
 
 
@@ -241,7 +245,7 @@ class ValidateWorldFindingsTest(unittest.TestCase):
 
 
 class PresenceFindingsTest(unittest.TestCase):
-    def presence(self, *entries: dict[str, Any], **node: Any) -> dict[str, Any]:
+    def presence(self, *entries: dict[str, Any], **node: Any) -> WorldValidation:
         nodes = world()["nodes"]
         if node:
             nodes[0] = {**nodes[0], **node}
@@ -414,7 +418,7 @@ class BuildKnowledgeChaptersTest(unittest.TestCase):
     def test_a_set_aside_chapter_is_marked_when_it_is_selected(self):
         chunks = chunk_map(build_knowledge(MANUSCRIPT, {}, ["c3"]))
         self.assertEqual(chunks["chapter:c3:0"].document_status, "set_aside")
-        self.assertEqual(chunks["chapter:c3:0"].public()["documentStatus"], "set_aside")
+        self.assertEqual(chunks["chapter:c3:0"].public().get("documentStatus"), "set_aside")
 
     def test_paragraphs_are_packed_up_to_the_limit_and_long_ones_are_cut(self):
         long = "a" * 1500
