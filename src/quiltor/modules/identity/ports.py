@@ -42,7 +42,12 @@ class IdentityGateway(Protocol):
     def discover(self, issuer: str | None = None) -> dict[str, Any]: ...
 
     def start_login(
-        self, redirect_uri: str, *, issuer: str | None = None, client_id: str | None = None
+        self,
+        redirect_uri: str,
+        *,
+        issuer: str | None = None,
+        client_id: str | None = None,
+        ui_locales: str | None = None,
     ) -> tuple[str, str]: ...
 
     def consume_pending_login(self, state: str) -> dict[str, Any] | None: ...

@@ -97,7 +97,15 @@ def _ordered_children(items: list[JsonObject], parent_folder_id: str | None) -> 
 
 
 def normalize_positions(structure: object) -> Structure:
-    """Return a copy with contiguous positions at every parent."""
+    """Return a copy with contiguous positions at every parent.
+
+    The structure is expected to have passed ``validate_tree``, as it has at both call
+    sites. An unvalidated structure is not repaired but rejected: a folder that is not an
+    object and an item whose position is not an int raise ``ManuscriptTreeError``. An item
+    without an id is accepted and sorts as the empty string, ahead of siblings at the same
+    position. Before T-19 a bad position was silently replaced by its index, a bad folder
+    passed through unchanged and a missing id raised ``KeyError``.
+    """
 
     raw = as_object(structure)
     if raw is None:

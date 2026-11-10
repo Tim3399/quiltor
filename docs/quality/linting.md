@@ -576,6 +576,17 @@ in two architecture views became backticks, two fences in `CLAUDE.md` got a lang
 blank line between consecutive quotes in `docs/plans/author-pilot.md` became a quote
 continuation, and a bare e-mail address became an autolink.
 
+**Links across files: `check:markdown-links`.** markdownlint checks `#anchor` links inside one
+file (MD051). `tools/quality/check_markdown_links.mjs` checks the rest over every Markdown
+file git knows: a relative link names a file or folder that exists, an anchor on another
+Markdown file exists there (GitHub's heading anchors, plus `<a id>`), and an absolute link to
+this repository (`https://github.com/Tim3399/quiltor/blob/main/...`, which the READMEs use so
+they also work on PyPI) is read as the local file. Part of `npm run check`. Known breaks that
+are not ours to fix go on `EXCEPTIONS` in `tools/quality/markdown_links.mjs` with a reason;
+the list is empty. When it was introduced it found two: an e-mail address in
+`COMMERCIAL.md` without `mailto:`, and a link into the ignored local `ai/` folder from
+`packages/client/src/design/README.md`, now a plain path.
+
 ## knip
 
 [knip](https://knip.dev) 6 finds unused files, unused exports and exported types, and
@@ -665,9 +676,10 @@ through the English typo it resembles (a German "style" is one keystroke from "s
    written in German), German documents (`README.md`, `DESIGN.md`, `docs/ERSTE-SCHRITTE.md`,
    `docs/design/FRONTEND_STYLEGUIDE.md`, `docs/plans/**`, `packages/client/src/design/README.md`),
    the German manuscripts under `tools/documentation` and `tools/evaluation`,
-   `tests/fixtures/**`, and the two fixture scripts that are nothing but German sentences
-   (`tools/documentation/readme_fixture.mjs`,
-   `tools/evaluation/assistant/seed_synthetic_world.py`).
+   `tests/fixtures/**`, the German texts of the test world (`tests/world/texts/*.de.mjs`) and
+   the shipped German example world built from them
+   (`src/quiltor/resources/example_world/de.json`), and the fixture script that is nothing but
+   German sentences (`tools/evaluation/assistant/seed_synthetic_world.py`).
 
 When a new German test string trips typos, add the word to `[type.germantest.extend-words]`.
 German text outside the tests is ignored by its phrase, never by a global word. Never rename a persisted

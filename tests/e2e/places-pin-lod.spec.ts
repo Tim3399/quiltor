@@ -30,12 +30,12 @@ test("A favourite pin on the place map is neither stacked nor lifted on hover (T
 }, info) => {
   test.skip(info.project.name !== "wide", "The stacking does not depend on the viewport.");
   const state = expandedMapState();
-  const pinned = state.nodes.find((place) => place.id === "graufurth")!;
+  const pinned = state.nodes.find((place) => place.id === "x-graufurth")!;
   pinned.placeDisplay = "pin";
   pinned.important = true;
   await mockExpandedMapWorld(page, state);
   await openExpandedMapWorld(page);
-  const node = page.locator('.react-flow__node[data-id="graufurth"]');
+  const node = page.locator('.react-flow__node[data-id="x-graufurth"]');
   await expect(node.locator(".place-node-pin")).toBeVisible();
   await expect(node).toHaveClass(/place-on-map/);
   const stacking = () => node.evaluate((element) => getComputedStyle(element).zIndex);
@@ -54,10 +54,10 @@ test("Pin detail levels reduce the actual footprint while keeping the geographic
     localStorage.setItem("quiltor-interface-language", "de");
   });
   const state = expandedMapState();
-  state.nodes.find((place) => place.id === "graufurth")!.placeDisplay = "pin";
+  state.nodes.find((place) => place.id === "x-graufurth")!.placeDisplay = "pin";
   const fixture = await mockExpandedMapWorld(page, state);
   await openExpandedMapWorld(page);
-  const node = page.locator('.react-flow__node[data-id="graufurth"]');
+  const node = page.locator('.react-flow__node[data-id="x-graufurth"]');
   const pin = node.locator(".place-node-pin");
   const widths: number[] = [];
   for (const tier of ["detail", "compact", "overview"] as const) {
@@ -66,7 +66,7 @@ test("Pin detail levels reduce the actual footprint while keeping the geographic
     const bounds = await node.boundingBox();
     if (!bounds) throw new Error("Pin node has no screen geometry.");
     widths.push(bounds.width);
-    const map = await page.locator('.react-flow__node[data-id="weltkarte"]').boundingBox();
+    const map = await page.locator('.react-flow__node[data-id="x-weltkarte"]').boundingBox();
     const tip = await pin.locator(".place-node-pin__tip").boundingBox();
     if (!map || !tip) throw new Error("Map or pin tip has no screen geometry.");
     expect(Math.abs(tip.x + tip.width / 2 - (map.x + map.width * 0.3))).toBeLessThanOrEqual(1.5);
@@ -92,9 +92,9 @@ test("Pin detail levels reduce the actual footprint while keeping the geographic
   await zoomTo(page, "detail");
   await pin.hover();
   await expect(pin.getByRole("button", { name: "Ort Graufurth als Karte anzeigen" })).toBeVisible();
-  expect(fixture.savedState().nodes.find((place) => place.id === "graufurth")).toMatchObject({
+  expect(fixture.savedState().nodes.find((place) => place.id === "x-graufurth")).toMatchObject({
     placeDisplay: "pin",
-    parentPlaceId: "weltkarte",
+    parentPlaceId: "x-weltkarte",
     mapU: 0.3,
     mapV: 0.4,
   });

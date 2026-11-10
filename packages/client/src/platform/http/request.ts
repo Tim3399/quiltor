@@ -116,6 +116,9 @@ function localizedStructuredErrorMessage(
   if (code === "backup_content_integrity") return messages.errorBackupContentIntegrity;
   if (code === "backup_content_unavailable") return messages.errorBackupContentUnavailable;
   if (code === "sync.forbidden_hosted") return messages.errorSyncForbiddenHosted;
+  // A preview of the example world is not synced or backed up until it is the author's.
+  if (code === "world.preview") return messages.errorWorldPreview;
+  if (code === "world.example_failed") return messages.errorExampleWorldFailed;
   // A hosted server refuses operator-only routes such as installing the assistant (T-184).
   if (code === "install.forbidden_hosted") return messages.errorInstallForbiddenHosted;
   if (code === "sync.target_invalid") return messages.errorSyncTargetInvalid;

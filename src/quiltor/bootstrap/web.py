@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from quiltor import resources
 from quiltor.application.backups import BackupAuthorization, WorldBackupContext
-from quiltor.application.capabilities import FeatureAvailability
+from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.application.documents import DocumentLocation
 from quiltor.bootstrap.application import (
     ApplicationServices,
@@ -48,6 +48,9 @@ class WebWorldContext:
     id: str
     document_location: DocumentLocation
     backup: WorldBackupContext
+    # An unchanged preview of the example world (T-214-5a). The first change a route writes
+    # makes it real; sync and backups refuse it until then.
+    preview: bool = False
 
     @property
     def db_path(self) -> Path:
@@ -71,6 +74,7 @@ class WorldRouteServices:
     worlds: Any
     lock: threading.Lock
     syncable: bool = True
+    example_worlds: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +83,8 @@ class DocumentRouteServices:
     lock: threading.Lock
     render_pdf: Callable[[str], bytes]
     issue_render_token: Callable[[str], str]
+    # A preview's first saved change makes it a real world with a title of its own.
+    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +137,7 @@ class PlaceMapRouteServices:
     place_maps: Any
     observability: ObservabilityServices
     lock: threading.Lock
+    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +159,7 @@ class HistoryRouteServices:
     # The one write the history routes have (T-87 B): putting a version back. Only
     # that bound use case, not the whole backups slice, so the routes stay narrow.
     restore_version: Any = None
+    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +174,20 @@ class IdentityRouteServices:
 class WritingAssistanceRouteServices:
     writing_assistance: WritingAssistanceService
     installable: bool = True
+    grammar_installable: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilitiesRouteServices:
+    """The facts GET /api/capabilities reports, already decided (T-102)."""
+
+    multi_user: bool
+    syncable: bool
+    assistant_install: bool
+    writing_data_install: bool
+    grammar_install: bool
+    # Per session: may this account use the server-side assistant (T-58).
+    is_premium: Callable[[SessionData], bool] = lambda session: True
 
 
 DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
@@ -266,6 +288,34 @@ def operation_profile_for(*, multi_user: bool, process_role: ProcessRole | None)
     return LOCAL
 
 
+def assistant_installable(app: WebApplication) -> bool:
+    """Whether a request may install the assistant runtime and model (T-101).
+
+    The status route and GET /api/capabilities both report this, so the two
+    answers cannot drift apart (T-102).
+
+    Both axes count as well (T-102 D2, D-105 F7): without them the install
+    route starts nothing (`LocalAssistantInstallation.start_async` answers
+    False), so offering the button would be a promise the server cannot keep.
+    The Docker profile `web-self-hosted` is such a server (A-5 2.1).
+    """
+    return (
+        app.installable
+        and app.capabilities.is_available(Feature.LOCAL_INFERENCE)
+        and app.capabilities.is_available(Feature.CODE_DOWNLOAD)
+    )
+
+
+def writing_data_installable(app: WebApplication) -> bool:
+    """Whether a request may install the dictionary data (T-101, T-102)."""
+    return app.installable
+
+
+def grammar_installable(app: WebApplication) -> bool:
+    """Whether a request may install LanguageTool (T-101, T-102)."""
+    return app.installable
+
+
 @dataclass(slots=True)
 class WebApplication:
     """All state owned by one HTTP server instance, never by a module import."""
@@ -334,7 +384,7 @@ class WebApplication:
             location,
             title=opened.summary.title,
         )
-        return WebWorldContext(world_id, location, context)
+        return WebWorldContext(world_id, location, context, preview=opened.summary.preview)
 
     def issue_render_token(self, subject: str) -> str:
         return self.identity.issue_render_token(subject)
@@ -365,13 +415,19 @@ class WebApplication:
         """Expose only the capabilities owned by the selected route context."""
 
         if path.startswith("/api/worlds"):
-            return WorldRouteServices(self.application.worlds, self.lock, self.syncable)
+            return WorldRouteServices(
+                self.application.worlds,
+                self.lock,
+                self.syncable,
+                self.application.example_worlds,
+            )
         if path in {"/api/state", "/api/manuscript", "/api/storyboards", "/api/book.pdf"}:
             return DocumentRouteServices(
                 self.application.documents,
                 self.lock,
                 self.render_pdf,
                 self.issue_render_token,
+                self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/assistant"):
             return AssistantRouteServices(
@@ -384,7 +440,7 @@ class WebApplication:
                 self.lock,
                 self.identity,
                 self.assistant_max_open_jobs if self.identity.multi_user else None,
-                self.installable,
+                assistant_installable(self),
                 self.assistant_client_ai,
                 self.assistant_services.relay_tickets,
             )
@@ -407,7 +463,12 @@ class WebApplication:
                 self.syncable,
             )
         if path.startswith("/api/place-map"):
-            return PlaceMapRouteServices(self.application.place_maps, self.observability, self.lock)
+            return PlaceMapRouteServices(
+                self.application.place_maps,
+                self.observability,
+                self.lock,
+                self.application.worlds.finish_promotion,
+            )
         if path.startswith("/api/project-transfer"):
             return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
         if path.startswith("/api/manuscript-import"):
@@ -419,9 +480,23 @@ class WebApplication:
                 self.application.history,
                 self.lock,
                 self.application.backups.restore_version,
+                self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/writing-assistance"):
-            return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
+            return WritingAssistanceRouteServices(
+                self.writing_assistance,
+                writing_data_installable(self),
+                grammar_installable(self),
+            )
+        if path == "/api/capabilities":
+            return CapabilitiesRouteServices(
+                self.identity.multi_user,
+                self.syncable,
+                assistant_installable(self),
+                writing_data_installable(self),
+                grammar_installable(self),
+                self.identity.is_premium,
+            )
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
 

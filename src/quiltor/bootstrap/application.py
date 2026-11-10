@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import sys
@@ -25,6 +26,7 @@ from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCa
 from quiltor.application.synchronization import SynchronizationUseCases
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.application.worlds import WorldUseCases
+from quiltor.application.worlds.example import ExampleWorldSource, ExampleWorldUseCases
 from quiltor.infrastructure.backup import SnapshotStore
 from quiltor.infrastructure.backup.adapters import (
     HttpRemoteBackupGateway,
@@ -118,6 +120,7 @@ class ApplicationServices:
     worlds: WorldUseCases
     documents: DocumentUseCases
     place_maps: PlaceMapUseCases
+    example_worlds: ExampleWorldUseCases
     project_transfer: ProjectTransferUseCases
     manuscript_import: ManuscriptImportUseCases
     manuscript_export: ManuscriptExportUseCases
@@ -183,10 +186,16 @@ def build_application_services(
         remote_backups,
         JsonSyncStateStore(lambda: worlds.data_directory / "synchronization"),
     )
+    world_use_cases = WorldUseCases(worlds, observer)
+    document_use_cases = DocumentUseCases(documents, local_backups, observer)
+    place_map_use_cases = PlaceMapUseCases(SQLitePlaceMapRepository())
     return ApplicationServices(
-        worlds=WorldUseCases(worlds, observer),
-        documents=DocumentUseCases(documents, local_backups, observer),
-        place_maps=PlaceMapUseCases(SQLitePlaceMapRepository()),
+        worlds=world_use_cases,
+        documents=document_use_cases,
+        place_maps=place_map_use_cases,
+        example_worlds=ExampleWorldUseCases(
+            world_use_cases, document_use_cases, place_map_use_cases, load_example_world
+        ),
         project_transfer=ProjectTransferUseCases(
             SQLiteProjectTransferRepository(selected_paths), observer
         ),
@@ -220,6 +229,14 @@ def build_application_services(
         story_world=StoryWorldUseCases(),
         synchronization=synchronization,
     )
+
+
+def load_example_world(lang: str) -> ExampleWorldSource:
+    """One language of the example world as the package ships it (T-214-4)."""
+
+    document = json.loads(resources.example_world_document(lang).read_text(encoding="utf-8"))
+    image = resources.example_world_file(str(document["mapImage"]["file"]))
+    return ExampleWorldSource(document, image.read_bytes())
 
 
 def build_backup_authorizer(

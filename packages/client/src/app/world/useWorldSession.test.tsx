@@ -385,4 +385,39 @@ describe("useWorldSession", () => {
     expect(result.current.isSelected(reopenedA)).toBe(false);
     expect(result.current.isSelected(lastBinding())).toBe(true);
   });
+
+  it("discards an unchanged example preview when leaving it, and keeps it once it is real", async () => {
+    const preview = { ...firstWorld, origin: "example" as const, preview: true as const };
+    vi.spyOn(quiltorClient.application.worlds, "list").mockResolvedValue({
+      ok: true,
+      worlds: [],
+    });
+    vi.spyOn(quiltorClient.application.worlds, "openExample").mockResolvedValue({
+      ok: true,
+      world: preview,
+    });
+    const discard = vi
+      .spyOn(quiltorClient.application.worlds, "discardPreview")
+      .mockImplementation(() => {});
+    vi.spyOn(quiltorClient.application.manuscript, "load").mockResolvedValue({ chapters: [] });
+    vi.spyOn(quiltorClient.application.storyWorld, "load").mockResolvedValue(figures);
+    vi.spyOn(quiltorClient.application.storyboards, "load").mockResolvedValue(storyboards);
+
+    const { result } = renderHook(() => useWorldSession(vi.fn()));
+    await waitFor(() => expect(result.current.worlds).toEqual([]));
+
+    await act(async () => result.current.openExample("de"));
+    expect(result.current.world).toEqual(preview);
+    act(() => result.current.close());
+    expect(discard).toHaveBeenCalledWith(preview.id);
+
+    discard.mockClear();
+    await act(async () => result.current.openExample("de"));
+    // The save that made it real hands the world back without the preview mark.
+    act(() => result.current.adoptWorld({ ...firstWorld, origin: "example", title: "Welt A (2)" }));
+    expect(result.current.world).toMatchObject({ title: "Welt A (2)", origin: "example" });
+    expect(result.current.world?.preview).toBeUndefined();
+    act(() => result.current.close());
+    expect(discard).not.toHaveBeenCalled();
+  });
 });

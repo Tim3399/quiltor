@@ -20,8 +20,10 @@ otherwise sit far from the route they govern are stated with it:
   - **`operator_only=True`** means the route installs software on the server
     (a runtime, a model, a dictionary). In the `hosted` operation profile that
     is the operator's job, not a user's: the dispatch answers
-    `403 install.forbidden_hosted` before the route runs. Every route whose path
-    contains `install` carries it; tests/python/test_operator_only_routes.py
+    `403 install.forbidden_hosted` before the route runs. Every route that
+    installs carries it. `GET /api/assistant/install/status` contains `install`
+    in its path but only reads progress, so it is not `operator_only`: a hosted
+    client may still show "Bereit". tests/python/test_operator_only_routes.py
     holds the table.
   - **`device_sync=True`** means the route syncs worlds with another device
     through a backup endpoint: the sync itself, the endpoint's remote worlds and
@@ -112,6 +114,7 @@ def load() -> None:
         assistant,
         assistant_relay,
         backup,
+        capabilities,
         documents,
         history,
         identity,

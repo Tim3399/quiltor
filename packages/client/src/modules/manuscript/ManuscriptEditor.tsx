@@ -1,4 +1,10 @@
-import { Annotation, Compartment, EditorSelection, EditorState } from "@codemirror/state";
+import {
+  Annotation,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  type StateEffect,
+} from "@codemirror/state";
 import {
   EditorView,
   hoverTooltip,
@@ -8,6 +14,7 @@ import {
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLatest } from "../../shared/hooks/useLatest";
+import { pendingSelection, withPendingSelection } from "../../shared/pendingSelection";
 import type { VersionDiffProjection } from "../history";
 import type { FigureNode } from "../story-world";
 import { EntityMentionCard, type EntityMentionDescription } from "./EntityMentionCard";
@@ -31,14 +38,22 @@ import type { EntityMention, TextMark, TextMarkKind, WritingIssue } from "./mode
 
 const controlledUpdate = Annotation.define<boolean>();
 // Stable stand-ins for absent decoration props. A fresh `[]` default differs on every render
-// and made its effect dispatch a transaction each time. Every transaction makes CodeMirror
-// drop a DOM selection it has not read yet and write its own back, so one that landed between
-// "select all" and typing put the typed text in front of the old text (T-159).
-const NO_MENTIONS: EntityMention[] = [];
+// and made its effect dispatch a transaction each time. A transaction that redraws, or one
+// that reaches a view whose observer has never read a selection, makes CodeMirror drop a DOM
+// selection it has not read yet and write its own back, so one that landed between "select
+// all" and typing put the typed text in front of the old text (T-159). Callers that have
+// nothing to decorate pass these too instead of a fresh `[]`.
+export const NO_MENTIONS: EntityMention[] = [];
 const NO_MARKS: TextMark[] = [];
-const NO_ISSUES: WritingIssue[] = [];
+export const NO_ISSUES: WritingIssue[] = [];
 const NO_ENTITIES: FigureNode[] = [];
-const NO_SEARCH_MATCHES: Array<{ from: number; to: number }> = [];
+export const NO_SEARCH_MATCHES: Array<{ from: number; to: number }> = [];
+
+// Decoration props arrive from outside while the author may be mid-selection; each
+// transaction carries a native selection the view has not read yet (T-161).
+function decorate(instance: EditorView | null, effects: StateEffect<unknown>) {
+  instance?.dispatch(withPendingSelection(instance, { effects }));
+}
 
 export type EditorTextSelection = {
   from: number;
@@ -274,6 +289,7 @@ export function ManuscriptEditor({
             )
           : undefined,
         extensions: [
+          pendingSelection,
           // Persisted offsets count every UTF-16 code unit. Treat only LF as CodeMirror's
           // structural separator so a CR in CRLF remains in the document and offsets stay exact.
           EditorState.lineSeparator.of("\n"),
@@ -657,29 +673,31 @@ export function ManuscriptEditor({
   }, [readOnly, value]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: setMentionDecorations.of(mentions) });
+    decorate(view.current, setMentionDecorations.of(mentions));
   }, [mentions]);
   useEffect(() => {
-    view.current?.dispatch({ effects: setMarkDecorations.of(marks) });
+    decorate(view.current, setMarkDecorations.of(marks));
   }, [marks]);
   useEffect(() => {
-    view.current?.dispatch({ effects: setIssueDecorations.of(issues) });
+    decorate(view.current, setIssueDecorations.of(issues));
   }, [issues]);
   useEffect(() => {
-    view.current?.dispatch({ effects: setHeldSelection.of(held) });
+    decorate(view.current, setHeldSelection.of(held));
   }, [held]);
   useEffect(() => {
-    view.current?.dispatch({
-      effects: setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),
-    });
+    decorate(
+      view.current,
+      setSearchDecorations.of({ matches: searchMatches, active: activeSearchMatch }),
+    );
   }, [searchMatches, activeSearchMatch]);
   // The labels arrive as a fresh object on every render; only their text decides whether the
   // decorations need a transaction (T-159).
   const versionDiffLabelsKey = JSON.stringify(versionDiffLabels ?? null);
   useEffect(() => {
     const labels = JSON.parse(versionDiffLabelsKey) as typeof versionDiffLabels | null;
-    view.current?.dispatch({
-      effects: setVersionDiffDecorations.of({
+    decorate(
+      view.current,
+      setVersionDiffDecorations.of({
         projection: versionDiff,
         addedLabel: labels?.added ?? "",
         addedLineBreakLabel: labels?.addedLineBreak ?? "",
@@ -687,7 +705,7 @@ export function ManuscriptEditor({
         formattingAddedLabels: labels?.formattingAdded ?? { bold: "", italic: "" },
         formattingRemovedLabels: labels?.formattingRemoved ?? { bold: "", italic: "" },
       }),
-    });
+    );
   }, [versionDiff, versionDiffLabelsKey]);
 
   return (

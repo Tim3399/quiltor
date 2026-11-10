@@ -574,6 +574,23 @@ class DesktopBuildContractTests(unittest.TestCase):
         ]
         self.assertEqual(embedded[0].name, "quiltor-build-profile.json")
 
+    def test_direct_desktop_bundles_carry_the_example_world(self):
+        """Two documents and the map, where the runtime resolver looks for them (T-214-4)."""
+        for profile_id in ("macos-direct", "windows-direct"):
+            with self.subTest(profile=profile_id):
+                shipped = [
+                    Path(source)
+                    for source, destination in bundle.data_files(profile_id)
+                    if destination == "quiltor/resources/example_world"
+                ]
+                self.assertEqual(
+                    sorted(path.name for path in shipped),
+                    ["de.json", "en.json", "harbour-map.png"],
+                )
+                for path in shipped:
+                    self.assertTrue(path.is_file(), path)
+                    self.assertEqual(path.parent, REPO_ROOT / "src/quiltor/resources/example_world")
+
     def test_direct_desktop_bundles_embed_legal_documents(self):
         for profile_id in ("macos-direct", "windows-direct"):
             with self.subTest(profile=profile_id):

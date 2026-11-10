@@ -273,8 +273,30 @@ class QuietRouteTests(_LiveServer):
     def _with_level(self, level: str):
         StdlibStructuredLogger(stream=io.StringIO(), level=level)
 
+    # Routes that take a world, so a bad one gives an error line to check.
+    WORLD_ROUTES = ("/api/assistant/progress", "/api/assistant/status")
+
+    def test_every_quiet_route_is_covered(self):
+        self.assertEqual(
+            log_schema.QUIET_ROUTES, frozenset({*self.WORLD_ROUTES, "/api/capabilities"})
+        )
+
+    def test_capabilities_poll_is_debug(self):
+        self._with_level("INFO")
+        self.fresh()
+        status, _, _ = self.request("GET", "/api/capabilities")
+        self.assertEqual(status, 200)
+        self.assertEqual(self.lines("http.access"), [])
+
+        self._with_level("DEBUG")
+        self.fresh()
+        self.request("GET", "/api/capabilities")
+        line = self.only("http.access")
+        self.assertEqual(line["level"], "debug")
+        self.assertEqual(line["route"], "/api/capabilities")
+
     def test_polled_routes_are_debug_and_their_errors_are_not(self):
-        for route in sorted(log_schema.QUIET_ROUTES):
+        for route in self.WORLD_ROUTES:
             with self.subTest(route=route):
                 self._with_level("INFO")
                 self.fresh()

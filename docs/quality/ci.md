@@ -245,9 +245,9 @@ test.yml with GitHub's comparison rules for these cases:
 | plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
 | Core on macOS and Windows                                           | 2                           | 2                      |
 | Linux browser slots + `browser-e2e` aggregator                      | 6 + 1                       | 6 + 1                  |
-| Browser on Windows (8 slots) and macOS (4 slots)                    | 12                          | --                     |
+| Browser on Windows (9 slots) and macOS (4 slots)                    | 13                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
-| **Total**                                                           | **24** (was 23)             | **15** (was 23)        |
+| **Total**                                                           | **25** (was 23)             | **15** (was 23)        |
 
 Why this cut:
 
@@ -259,7 +259,7 @@ Why this cut:
   with slots 2 and 3 (6.5). Windows has run the whole product suite that way for a long time, so
   the tests do not depend on each other's order there. **Should the first CI run show
   order-dependent failures on Linux anyway, they belong to T-34 (flakes), not back into T-33.**
-- **Windows keeps eight slots.** Chromium exhausted the Windows runner's network buffers after
+- **Windows has nine slots since T-220, after eight.** Chromium exhausted the Windows runner's network buffers after
   more than 115 product tests, even with serialized contexts. Eight runners keep each product
   process at about 66 of the current 531 tests, as before; the design shard runs as its own
   process afterwards.
@@ -301,7 +301,7 @@ path`), plus a wall factor per suite and system: wall time of the slots over the
 - **Other work** counts as offset: the unit tests in slot 1 of Windows (3.1 min) and macOS
   (2.5 min), the audit rules in Linux slot 6 (9 s), measured in the run on 15e0b43.
 - **Windows** keeps its cap: at most 100 product tests per slot (the network buffers ran out
-  above 115). With durations the busiest slot gets 78.
+  above 115). Eight slots hold at most 800 and the product suite reached 803 tests with T-220's drag spec, so Windows has nine slots; macOS has no cap and stays at four. With eight slots the busiest slot got 78.
 - **macOS** runs four slots (T-160); with two, slot 1 took 13.5 minutes, with three 9 to 10.7.
 
 Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:tools`)
@@ -322,7 +322,7 @@ cuts the suites finer:
 | ------- | ------------ | --------- | -------------------------------- | ------------------------------------------- |
 | Linux   | 4            | 6         | 6.3 min (audit rules in slot 6)  | 6 + aggregator                              |
 | macOS   | 3            | 4         | 6.2 min (unit tests in slot 1)   | 4 + Core on macos-15 = **5**, the limit     |
-| Windows | 8            | 8         | 5.4 min (unchanged)              | 8 + Core on windows-2025                    |
+| Windows | 8            | 9 (T-220) | 5.4 min with eight slots         | 9 + Core on windows-2025                    |
 
 - **macOS stays at the limit of five concurrent jobs.** `workflow_contract.py` counts Core on
   macos-15 plus every macOS browser slot (`MACOS_CONCURRENT_LIMIT`) and fails above five.
@@ -484,8 +484,8 @@ Every check that ran for a commit on main still runs for it, in the same or a me
 | Unit tests on macOS, Windows                     | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
 | Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–4                                                    | main                 |
 | Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–4                                                    | main                 |
-| Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
-| Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
+| Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–9                                                | main                 |
+| Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–9                                                | main                 |
 | Product and design suites on macOS, Windows      | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
 
 On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.

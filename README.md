@@ -3,287 +3,95 @@
 [Deutsch](README.md) · [English](README.en.md)
 
 > ## Du schreibst die Geschichte. Quiltor hält die Welt zusammen.
->
-> **Eine local-first Autorenwerkstatt für Menschen, die selbst schreiben wollen.**  
-> Manuskript, Figuren, Beziehungen, Orte, Timeline und Storyboard an einem Ort – mit lokaler KI für die Arbeit **rund um** das Schreiben, niemals für das Schreiben selbst.
 
-**Lokal und kostenlos im Rahmen der [Lizenz](#status-und-lizenz). Kein Abo zum Schreiben.**
+[![Quiltor im Browser öffnen](https://img.shields.io/badge/Quiltor-im_Browser_%C3%B6ffnen-8a5a1e)](https://quiltor.app)
+[![Download](https://img.shields.io/github/v/release/Tim3399/quiltor?label=Download)](https://github.com/Tim3399/quiltor/releases)
+[![CI](https://github.com/Tim3399/quiltor/actions/workflows/test.yml/badge.svg)](https://github.com/Tim3399/quiltor/actions/workflows/test.yml)
+[![Lizenz: source-available](https://img.shields.io/badge/Lizenz-source--available-555)](#status-und-lizenz)
 
-![Quiltor Manuskriptansicht](docs/screenshots/manuscript.png)
+**[Quiltor im Browser öffnen → quiltor.app](https://quiltor.app)** · [Download](https://github.com/Tim3399/quiltor/releases) · [Schnellstart](#schnellstart) · [Weiterlesen](#weiterlesen)
 
-Quiltor ist eine Schreibumgebung für Romane und andere lange fiktionale Projekte. Statt Manuskript, Figurenlisten, Timeline, Karten und Notizen über mehrere Anwendungen zu verteilen, verbindet Quiltor sie zu einer gemeinsamen Welt.
+![Quiltor Manuskriptansicht](docs/screenshots/de/manuscript.png)
 
-Der lokale Assistent darf diese Welt verstehen, durchsuchen und strukturierte Änderungen vorschlagen. **Er besitzt bewusst kein Werkzeug, um Romanprosa zu schreiben, fortzusetzen oder umzuschreiben.**
+## Was Quiltor ist
 
-**Local-first · On-device AI · macOS / Windows / Browser · Source-available**
+Quiltor ist eine Schreibumgebung für Romane und andere lange fiktionale Projekte. Manuskript, Figuren, Beziehungen, Orte, Timeline und Storyboard bilden eine gemeinsame Welt, statt über mehrere Anwendungen verteilt zu sein.
 
-[**Schnellstart**](#schnellstart) · [**Features**](#eine-autorenwerkstatt-statt-eines-ai-ghostwriters) · [**Technische Dokumentation**](#technische-dokumentation) · [**Releases**](https://github.com/Tim3399/quiltor/releases)
+Ein lokaler Assistent kennt diese Welt: Er durchsucht sie, beantwortet Fragen mit Quellen und schlägt strukturierte Änderungen vor, die du selbst bestätigst.
 
----
+> [!NOTE]
+> **Der Assistent schreibt keine Prosa.** Er besitzt bewusst kein Werkzeug, um Romantext zu schreiben, fortzusetzen oder umzuschreiben. Du schreibst jeden Satz; Quiltor hilft bei der Arbeit rund ums Schreiben.
 
-## Eine Autorenwerkstatt statt eines AI-Ghostwriters
+Quiltor ist local-first. Jede Welt liegt als eigene Datenbank auf deinem Rechner, braucht kein Konto und kein Abo und funktioniert ohne Internet. Cloud-Abgleich und Assistent sind optional.
 
-Viele AI-Schreibwerkzeuge versuchen, möglichst viel vom eigentlichen Schreiben zu übernehmen. Quiltor geht bewusst in die andere Richtung.
+## Rundgang in Bildern
 
-> **AI für die Arbeit rund ums Schreiben. Nie für das Schreiben selbst.**
+### Manuskript
 
-Du schreibst jeden Satz. Quiltor hilft dabei, dass du dich weniger mit Verwaltung beschäftigen musst:
+Kapitel in verschachtelten Ordnern, ein ruhiger Editor mit Fokusmodus und Kapitelnotizen. Erwähnungen von Figuren und Orten führen direkt zum Weltelement.
 
-- Figuren, Tiere, Orte, Organisationen, Objekte und Konzepte an einem Ort pflegen
-- Beziehungen visualisieren und über die Zeit verändern
-- Aufenthalte und Reisen von Figuren nachvollziehen
-- Orte auf einer eigenen Karte anordnen und Distanzen messen
-- Timeline und Lebensereignisse verwalten
-- Ideen auf mehreren Storyboards mit Notizen, Gruppen und Verweisen planen
-- Kapitel in verschachtelten Ordnern organisieren und unabhängig von ihrer Erzählreihenfolge zeitlich einordnen
-- Manuskript, Kapitelnotizen und Weltwissen gemeinsam durchsuchen
-- Rechtschreibung, Grammatik, Synonyme und Wortübersetzungen lokal nutzen
-- vom Assistenten strukturierte Änderungen vorbereiten lassen und **selbst bestätigen**
+### Figuren und Beziehungen
 
-Der Autor bleibt immer die letzte Instanz.
+Figuren, Orte, Organisationen und Objekte leben in einem gemeinsamen Graphen. Beziehungen können gerichtet sein und sich im Lauf der Geschichte ändern.
 
----
+![Quiltor Weltgraph](docs/screenshots/de/world-graph.png)
 
-## Eine Welt statt verstreuter Notizen
+### Timeline
 
-Quiltor behandelt Weltwissen nicht als lose Sammlung von Textfeldern. Figuren, Orte, Beziehungen und Timeline hängen zusammen und verwenden dieselben Daten.
+Am gewählten Zeitpunkt zeigt der Graph, wer zusammenarbeitet und wer sich wo aufhält. Rückblenden im Manuskript verschieben die Chronologie der Welt nicht.
 
-### Manuskript: ruhig schreiben
+![Figurenboard am ausgewählten Zeitpunkt der Geschichte](docs/screenshots/de/timeline-playback.png)
 
-Der Kapitel-Editor hält sich zurück und gibt dem Text Platz. Fokusmodus, Undo/Redo, Kapitelnotizen, Versionsverlauf, diskrete Schreibhilfen und Ein-Wort-Autocomplete unterstützen den Schreibprozess, ohne ihn zu übernehmen.
+Die Timeline-Seite pflegt Zeitpunkte, Notizen, Beziehungszustände und Lebensereignisse. Jeder Zeitpunkt zeigt, welche Kapitel ihn verwenden.
 
-Kapitel und verschachtelte Ordner lassen sich per Drag-and-drop ordnen. Die daraus entstehende Lesereihenfolge gilt auch für Suche, Export und Assistentenanalysen. Am Kapitelanfang oder -ende führt bewusstes Weiterscrollen zum vorherigen oder nächsten Kapitel; die Übergänge sind auch anklickbar.
+![Timeline-Verwaltung](docs/screenshots/de/timeline-manager.png)
 
-Kapitel können einen Zeitpunkt oder Zeitraum der Geschichte referenzieren. Rückblenden verändern dadurch nicht die Reihenfolge der Welt-Timeline. Verknüpfte Erwähnungen führen zu den zugehörigen Weltelementen; nach einer Umbenennung kann der Autor ihre Aktualisierung im Manuskript ausdrücklich bestätigen.
+Neben relativer Zeit und gregorianischen Daten gibt es eigene Kalender mit benannten Monaten, Wochentagen und Epoche. Ein Kalenderwechsel ändert die Reihenfolge der Ereignisse nicht.
 
-Das fertige Manuskript kann als lesbares Buch-PDF im 6 × 9-Zoll-Format ausgegeben werden.
+![Eigener Kalender der Welt](docs/screenshots/de/timeline-calendar.png)
 
-### Figuren und Beziehungen: sehen, was zusammengehört
+### Orte und Karten
 
-Figuren und andere Weltelemente leben in einem visuellen Graphen. Beziehungen können gerichtet oder ungerichtet sein, ihre Bedeutung ändern, beginnen oder enden.
+Orte stehen auf einer eigenen Karte, ein Lineal misst Distanzen in deinem Maßstab. Aus der Timeline entstehen Aufenthaltschroniken und Reiseverläufe.
 
-![Quiltor Weltgraph](docs/screenshots/world-graph.png)
+![Quiltor Kartenansicht der Orte mit Distanzmessung](docs/screenshots/de/places.png)
 
-Der Graph ist keine separate Kopie deiner Daten: Timeline, Beziehungen und Elemente greifen auf denselben Zustand zu.
+Jeder Ort ist zugleich eine Ebene. Auf ein eigenes Kartenbild, etwa einen Stadtplan, setzt du die Orte darin als Stecknadeln oder Karten.
 
-Profile beginnen mit einer frei bearbeitbaren Notiz. Empfohlene und selbst benannte Felder sind optional; Aliasse helfen dabei, unterschiedliche Namen derselben Figur zuzuordnen.
+![Stadtplan mit Orten als Stecknadeln](docs/screenshots/de/places-map.png)
 
-### Orte: die Welt räumlich verstehen
+### Storyboard
 
-Orte bekommen eine eigene Kartenansicht und können frei positioniert werden – unabhängig davon, wo sie im Weltgraphen liegen.
+Mehrere Boards mit Notizen, Referenzkarten, Gruppen und Verbindungen. Planung bleibt Planung: Eine Verbindung auf dem Board erzeugt keine Beziehung in der Welt.
 
-Ein Lineal misst Distanzen zwischen Orten und rechnet sie über einen frei einstellbaren Maßstab in deine eigenen Einheiten um.
+![Quiltor Storyboard mit Notizen, Referenzkarten und Gruppen](docs/screenshots/de/storyboard.png)
 
-![Quiltor Kartenansicht der Orte mit Distanzmessung](docs/screenshots/places.png)
+### Eine Notiz überall
 
-Aus den Präsenzdaten der Timeline entstehen automatisch:
+Kapitel, Weltelemente, Zeitpunkte und Storyboard-Karten nutzen denselben Notizeditor. Verweise mit `@` überstehen Umbenennungen, Backlinks zeigen, wo etwas verwendet wird.
 
-- Aufenthaltschroniken pro Ort
-- Reiseverläufe pro Figur
-- zeitliche Abstände zwischen Ortswechseln
+![Formatierte Notizen mit verknüpften Figuren und Orten](docs/screenshots/de/shared-notes.png)
 
-### Timeline: Beziehungen und Weltzustand verändern sich
+### Suche
 
-Geschichten sind nicht statisch. Eine Freundschaft kann zerbrechen, eine Figur kann umziehen, ein Objekt kann relevant werden und eine Figur kann sterben.
+Eine Suche über Kapitel, Text, Notizen, Figuren, Orte, Zeitpunkte und Storyboards. Treffer zeigen ihren Ordner und die Fundstelle im Text.
 
-Quiltor modelliert solche Änderungen entlang der Timeline, statt nur den letzten Zustand zu speichern.
+![Suche nach „Archiv“ über die ganze Welt](docs/screenshots/de/search.png)
 
-![Figurenboard am ausgewählten Zeitpunkt der Geschichte](docs/screenshots/timeline-playback.png)
+### Versionen
 
-Die eigenständige Timeline-Seite ist für die Pflege optimiert: Zeitpunkte sortieren, Notizen hinterlegen, Beziehungszustände verändern und Lebensereignisse markieren.
+Du hältst Versionen mit einer kurzen Notiz fest und vergleichst sie wortweise mit dem aktuellen Stand. Jede Version lässt sich wiederherstellen.
 
-Zeitpunkte liegen auf einer gemeinsamen relativen Zeitachse, auch vor dem Ursprung und gleichzeitig mit anderen Ereignissen. Die Anzeige unterstützt relative Zeit, gregorianische Daten und eigene Kalender mit benannten Monaten und Wochentagen. Ein Kalenderwechsel verändert die zugrunde liegende Chronologie nicht. Der Weltzustand zu einem Zeitpunkt wird deterministisch aus den hinterlegten Fakten berechnet.
-
-![Timeline-Verwaltung](docs/screenshots/timeline-manager.png)
-
-### Storyboard: Ideen planen und miteinander verbinden
-
-Das Storyboard ist der fünfte Arbeitsbereich. Mehrere Boards bieten Platz für frei verschiebbare und skalierbare Notizkarten, Referenzkarten, Verbindungen und Gruppenrahmen. Über die Ebenensteuerung lässt sich die Überlagerung der Karten ändern.
-
-Die integrierte Weltsuche findet Figuren, Orte, Zeitpunkte, Kapitel und andere Boards. Suchtreffer lassen sich auf die Fläche ziehen und von dort im ursprünglichen Arbeitsbereich öffnen. Boards können auf weitere Boards verweisen; eine Breadcrumb-Navigation zeigt den Weg. Storyboards besitzen eigenes Undo/Redo und Autosave.
-
-**Planung bleibt Planung:** Eine Verbindung auf dem Storyboard erzeugt keine Beziehung in der erzählten Welt. Ideen und Notizen werden nicht automatisch zu gesicherten Weltfakten.
-
-![Quiltor Storyboard mit Notizen, Referenzkarten und Gruppen](docs/screenshots/storyboard.png)
-
-### Gemeinsame Notizen, Referenzen und Backlinks
-
-Kapitel, Weltelemente, Zeitpunkte und Storyboard-Karten verwenden denselben Notizeditor mit Formatierung und Fokusmodus. Mit `@` lassen sich bestehende Inhalte suchen und verlinken. Die Referenzen speichern stabile IDs und überstehen Umbenennungen; Backlinks zeigen, wo ein Inhalt bereits verwendet wird.
-
-![Formatierte Notizen mit verknüpften Figuren und Orten](docs/screenshots/shared-notes.png)
-
----
-
-## Ein lokaler Assistent, der dein Buch nicht schreiben kann
-
-Der Assistent arbeitet mit einem lokalen Modell über `llama.cpp` oder – auf Apple Silicon – MLX.
-
-Er kann:
-
-- Manuskript und Weltwissen durchsuchen
-- Fragen zur Geschichte beantworten
-- Quellen im Projekt zitieren
-- Figuren, Orte, Beziehungen und Timeline-Zustände analysieren
-- strukturierte Änderungen als Vorschläge vorbereiten
-- breite Aufgaben kapitelweise in Gruppen verarbeiten
-- die Welt aus einem Kapitel, einer Kapitelauswahl oder dem gesamten Manuskript aktualisieren helfen
-- Namen und Aliasse vor dem Anlegen neuer Elemente auflösen und mehrdeutige Treffer zur Entscheidung vorlegen
-
-Er kann **nicht**:
-
-- eine Szene schreiben
-- ein Kapitel fortsetzen
-- Prosa umschreiben
-- Änderungen unbemerkt anwenden
-
-Änderungen an Weltwissen erscheinen als prüfbare Vorschläge. Erst eine ausdrückliche Bestätigung übernimmt sie in den Projektzustand und macht sie als einen Undo-Schritt rückgängig.
-
-Das Manuskript bleibt dabei lesbarer Kontext – nie Schreibfläche für den Assistenten.
-
-Bei der Weltanalyse werden Vorschläge nach Fachgebiet gruppiert und mit Projektquellen zur Prüfung vorgelegt. Unsichere Aussagen und Figurenbehauptungen sollen nicht ungeprüft als objektive Weltfakten übernommen werden. Storyboard-Inhalte können bereits als ausdrücklich gekennzeichneter Planungskontext gelesen werden. KI-Werkzeuge zum Bearbeiten der Planung und ein persistenter Arbeitsbereich für Kontinuitätsbefunde gehören weiterhin zur [Roadmap](docs/TODO.md).
-
----
-
-## Local-first heißt: dein Projekt gehört dir
-
-Im lokalen Betrieb braucht Quiltor keinen Cloud-Account.
-
-Jede Welt ist eine eigene SQLite-Datenbank auf deinem Rechner. Manuskript und Profile werden zusätzlich als lesbare Markdown-Spiegel ausgegeben. Automatische lokale Sicherungen und ein Versionsverlauf gehören zum Projektmodell.
-
-Ein Remote-Backup ist optional und kann über einen eigenen Backup-Endpunkt betrieben werden.
-
-Der kostenlose manuelle Projekttransfer als `.quiltor` überträgt den aktuellen
-Projektinhalt einschließlich zurückgestellter Kapitel, Kapitelpapierkorb und benötigter
-Bilder. Der Import erstellt eine neue Welt. Frühere Sicherungen und der Versionsverlauf
-sind ausdrücklich nicht enthalten; für deren Wiederherstellung gibt es die Sicherungs-
-und Verlaufsfunktionen. Der gewöhnliche Buchexport enthält nur Kapitel im Buch.
-
-Eine erfolgreiche lokale Speicherung, eine wiederherstellbare Sicherung und eine Übertragung
-an einen Backup-Server sind getrennte Vorgänge. Unter **Mehr → Versionen & Sicherungen**
-gleicht im Reiter **Mit anderen Geräten abgleichen** die Schaltfläche **Jetzt synchronisieren**
-ein Projekt mit einem kompatiblen Cloud-Endpunkt ab.
-Bei konkurrierenden Änderungen oder Löschung gegen Offline-Bearbeitung bleiben die Fassungen
-erhalten und erfordern eine ausdrückliche Auswahl. Es gibt keine automatische Übertragung
-im Hintergrund und keine automatische Textzusammenführung. Ein ausgefallener Cloud-Endpunkt
-sperrt den lokalen Editor nicht. Einrichtungen und Betriebsgrenzen beschreibt die
-[Anleitung zum Cloud-Dienst](services/backup-server/README.md).
-
-Ein kostenpflichtiges gehostetes Cloud-Angebot mit festem Preis, Kontingent und
-Aufbewahrungsfrist ist noch nicht festgelegt. Daher gibt es hier auch keine Zusage zu
-Kündigungsfristen, Ende-zu-Ende-Verschlüsselung oder Hostingregionen. Die Bedingungen eines
-selbst betriebenen Endpunkts bestimmt dessen Betreiber. Bei einem gehosteten Webbetrieb
-liegen die Projektdaten auf dem jeweiligen Server; das ist ein anderer Speicherort als
-die lokale Werkstatt auf deinem Rechner.
-
-Auch der lokale Assistent bleibt lokal:
-
-- Modell-Runtime auf Loopback
-- keine allgemeine Cloud-AI-Abhängigkeit
-- externe LanguageTool-Dienste nur nach ausdrücklichem Opt-in
-- keine Manuskript-Schreibtools im Assistant oder MCP
-
----
-
-## Was heute enthalten ist
-
-Die aktuelle Versionsquelle ist [`VERSION`](VERSION). Diese Übersicht beschreibt den Quellstand.
-
-| Bereich              | Enthalten                                                                                                       |
-| -------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Manuskript           | Kapitelordner, Drag-and-drop, Fokusmodus, Kapitelwechsel durch Weiterscrollen, Zeitanker, Buch-PDF je nach Host |
-| Figuren und Welt     | Elementtypen, Aliasse, optionale Profilfelder, Beziehungsgraph, zeitabhängige Zustände                          |
-| Orte                 | Eigene Kartenansicht, Kartenbilder, Maßstab, Distanzmessung, Aufenthalts- und Reisechroniken                    |
-| Timeline             | Relative Zeit, gleichzeitige Ereignisse, Kalender, Anwesenheit, Lebensereignisse, Playback                      |
-| Storyboard           | Mehrere Boards, Notiz- und Referenzkarten, Gruppen, Verbindungen, Ebenenreihenfolge                             |
-| Gemeinsame Werkzeuge | Formatierte Notizen, `@`-Referenzen, Backlinks, Suche, Undo/Redo, Autosave und Verlauf                          |
-| Assistenz            | Lokale Weltanalyse, Quellen, Namensauflösung, prüfbare Vorschläge, Batch-Verarbeitung, MCP                      |
-
-Die Oberfläche enthält deutsche und englische Sprachpakete. Die installierbaren Wörterbuch-, Grammatik- und Übersetzungshilfen sind derzeit auf die Schreibsprache `de-DE` ausgerichtet.
-
-### Plattformstand
-
-| Ziel                                             | Stand im Repository                                                                                                               |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Browser / selbst gehostetes Web                  | Implementiert; direkter Python-Start und Docker/OCI                                                                               |
-| Python-Paket / CLI / MCP                         | Implementiert; Wheel und Source-Archiv über die Release-Pipeline                                                                  |
-| macOS und Windows direkt                         | Desktop-Host und lokale Builds implementiert; signierte Release-Jobs benötigen die jeweiligen Aktivierungsmarker und Zugangsdaten |
-| Linux AppImage, macOS App Store, Microsoft Store | Vorbereitete Distributionsprofile (`scaffold`)                                                                                    |
-| iOS und Android                                  | Host- und Bridge-Verträge vorbereitet; noch keine ausführbaren nativen Apps                                                       |
-
-Ein Distributionsprofil allein bedeutet keine veröffentlichte App. Maßgeblich sind die [Zielmatrix](distribution/README.md), die [Release-Aktivierung](distribution/release-targets/README.md) und die tatsächlich vorhandenen Release-Artefakte.
-
----
-
-## Für wen ist Quiltor?
-
-Quiltor ist besonders interessant, wenn du:
-
-- selbst schreiben willst und AI nicht als Ghostwriter suchst
-- an längeren Romanen oder Serien arbeitest
-- viele Figuren, Orte und Beziehungen im Blick behalten musst
-- Timeline und Weltwissen nicht in separaten Tabellen pflegen willst
-- deine Manuskripte und Weltinformationen lokal halten möchtest
-- gern visuell arbeitest, aber trotzdem ein echtes Schreibprogramm brauchst
-
-Quiltor befindet sich in aktiver Entwicklung. Der Schwerpunkt liegt auf einem ruhigen Schreibworkflow, einer zusammenhängenden fiktionalen Welt und nachvollziehbarer lokaler Assistenz.
-
----
+![Versionsvergleich mit hinzugefügtem Satz](docs/screenshots/de/versions.png)
 
 ## Schnellstart
 
-Ohne technische Vorkenntnisse: [Installation und erste Schreibaufgaben](docs/ERSTE-SCHRITTE.md).
-Die folgenden Befehle beschreiben den Start aus dem Quellcode.
+> [!TIP]
+> Am schnellsten ausprobiert: **[quiltor.app](https://quiltor.app)** im Browser öffnen.
 
-Voraussetzung: **Python 3.12+**.
-
-```bash
-git clone https://github.com/Tim3399/quiltor.git
-cd quiltor
-python3 apps/web/server.py
-```
-
-Unter Windows mit installiertem Python-Launcher: `py -3.12 apps/web/server.py`.
-
-Quiltor öffnet standardmäßig `http://localhost:8000`. Lege in der Weltauswahl mit **Neue Welt** dein erstes Projekt an. Der Start wartet nicht auf eine KI-Einrichtung und lädt kein Modell herunter. Den optionalen Assistenten richtest du später ausdrücklich in dessen Seitenleiste ein.
-
-Öffne die Welt, wähle im Manuskript ein Kapitel oder lege eines an und beginne zu schreiben.
-Den optionalen Backup-Endpunkt kannst du leer lassen. Modelldownload und Einrichtung des
-Assistenten sind für diesen Weg nicht erforderlich. Die gemeinsame Suche findet Kapitel
-und Weltelemente; die Analyse lässt sich später für das aktive Kapitel oder eine ausdrücklich
-ausgewählte Kapitelmenge starten.
-
-Alternativ stehen CLI/Python-Pakete, Desktop-Builds und Docker-Betrieb zur Verfügung. Details folgen unten.
-
----
-
-## Technische Dokumentation
-
-Die folgenden Abschnitte beschreiben Installation, lokale Runtime, Authentifizierung, Backup, Desktop-/Docker-Betrieb, MCP, Entwicklung und Architektur.
-
-### Inhaltsübersicht
-
-- [Installationswege](#installationswege)
-- [Lokaler Assistent und Runtime-Vertrag](#lokaler-assistent-und-runtime-vertrag)
-- [MCP](#mcp)
-- [Deutsche Schreibwerkzeuge](#deutsche-schreibwerkzeuge)
-- [Lokaler Zugriff und Authentifizierung](#lokaler-zugriff-und-authentifizierung)
-- [Desktop-App](#desktop-app)
-- [Docker und Web-Demo](#docker-und-web-demo)
-- [CLI](#cli)
-- [Backup und Keycloak](#backup-und-keycloak)
-- [Lokale Daten, Verlauf und Wiederherstellung](#lokale-daten-verlauf-und-wiederherstellung)
-- [Bedienung](#bedienung)
-- [Entwicklung und Qualität](#entwicklung-und-qualität)
-- [Architektur](#architektur)
-- [Status und Lizenz](#status-und-lizenz)
-
----
-
-### Installationswege
-
-#### Direkt aus dem Repository
-
-Der gebaute Web-Client liegt bereits in `dist/`. Für Editor und lokale Speicherung sind keine Node-Abhängigkeiten erforderlich.
+- **Im Browser:** [quiltor.app](https://quiltor.app) öffnen und eine neue Welt anlegen. Die Projektdaten liegen dann auf diesem Server.
+- **Desktop-App:** Das Paket für macOS (Apple Silicon) oder Windows aus den [Releases](https://github.com/Tim3399/quiltor/releases) laden. Die [ersten Schritte](https://github.com/Tim3399/quiltor/blob/main/docs/ERSTE-SCHRITTE.md) führen durch Installation und erste Aufgaben.
+- **Selbst betreiben:** mit Python 3.12+ aus dem Quellcode oder mit Docker. Details stehen unter [Installation und Betrieb](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/installation.md).
 
 ```bash
 git clone https://github.com/Tim3399/quiltor.git
@@ -291,815 +99,32 @@ cd quiltor
 python3 apps/web/server.py
 ```
 
-Weitere Startoptionen:
+Quiltor öffnet dann `http://localhost:8000`. Unter Windows: `py -3.12 apps/web/server.py`. Der Start lädt kein Modell; den Assistenten richtest du später ausdrücklich ein.
 
-```bash
-python3 apps/web/server.py 8080            # anderer Port
-python3 apps/web/server.py 8080 --no-open  # Browser nicht automatisch öffnen
-python3 apps/web/server.py --print-token   # Zugriffstoken dieses Starts anzeigen
-```
+## Deine Daten
 
-#### Python-Wheel / pip / pipx
+Im lokalen Betrieb bleibt alles auf deinem Rechner: Jede Welt ist eine eigene SQLite-Datenbank mit automatischen Sicherungen und Versionsverlauf. Ein Abgleich mit anderen Geräten läuft nur auf deinen Klick und nur über einen Backup-Endpunkt, den du einträgst, zum Beispiel `https://backup.quiltor.app`. Was wo liegt, beschreibt [Sync, Backup und lokale Daten](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/sync-und-backup.md).
 
-Die Release-Pipeline baut ein Python-Wheel und ein Source-Archiv für [GitHub Releases](https://github.com/Tim3399/quiltor/releases). Das gewünschte Paket aus den tatsächlich vorhandenen Release-Artefakten installieren; eine Veröffentlichung auf PyPI ist derzeit nicht eingerichtet.
+## Für wen
 
-```bash
-pip install quiltor-<version>-py3-none-any.whl
-quiltor
-```
+Für Autorinnen und Autoren, die selbst schreiben und keinen KI-Ghostwriter suchen. Besonders für lange Romane und Serien mit vielen Figuren, Orten und Zeitebenen.
 
-Das Paket benötigt Python 3.12 oder neuer. Die Kernabhängigkeiten enthalten `typer` für die CLI und `PyJWT[crypto]` für die OIDC-Prüfung.
+## Weiterlesen
 
-Der Basis-Wheel meldet PDF-Export bewusst als nicht verfügbar, statt heimlich
-eine Browser-Runtime nachzuladen. Für PDF-Export aus dem **installierten Wheel**
-das geprüfte Extra installieren (URL und Version entsprechend dem Release):
+- [Erste Schritte](https://github.com/Tim3399/quiltor/blob/main/docs/ERSTE-SCHRITTE.md)
+- [Funktionen im Detail](https://github.com/Tim3399/quiltor/blob/main/docs/funktionen.md)
+- [Installation und Betrieb](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/installation.md): Quellcode, Python-Paket, Desktop, Docker, CLI
+- [Der lokale Assistent](https://github.com/Tim3399/quiltor/blob/main/docs/assistent.md): Runtime, externer Endpunkt, MCP
+- [Deutsche Schreibwerkzeuge](https://github.com/Tim3399/quiltor/blob/main/docs/schreibwerkzeuge.md)
+- [Sync, Backup und lokale Daten](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/sync-und-backup.md)
+- [Entwicklung](https://github.com/Tim3399/quiltor/blob/main/docs/development.md) und [Architektur](https://github.com/Tim3399/quiltor/blob/main/docs/architecture/overview.md) (englisch)
+- [Roadmap](https://github.com/Tim3399/quiltor/blob/main/docs/TODO.md)
 
-```bash
-python -m pip install "quiltor[browser-pdf] @ https://github.com/Tim3399/quiltor/releases/download/v<version>/quiltor-<version>-py3-none-any.whl"
-```
+## Status und Lizenz
 
-Das Extra pinnt die auf PyPI verfügbare Python-Bibliothek Playwright 1.61.0 und
-steuert einen bereits installierten Google Chrome oder Microsoft Edge; ein
-System-Node.js und ein separater
-Chromium-Download sind dafür nicht nötig. Fehlen Extra oder Browser, bleibt der
-Export mit einer klaren Verfügbarkeitsmeldung deaktiviert.
-Der selbst gehostete OCI-Host ist ein getrennter Artefaktpfad: Er verwendet die
-npm-/Browser-Runtime Playwright 1.61.1 aus dem digest-gebundenen Basis-Image.
-Beide Pins sind getrennt in `distribution/toolchains.json` festgeschrieben und
-werden im Release-Gate gegen die tatsächlich installierten Artefakte geprüft.
-Der Wheel-Host löst Web-Assets und das mitgelieferte Render-Skript ausschließlich
-aus den Paketressourcen auf; er fällt nicht auf einen zufällig vorhandenen
-Quellbaum zurück. Die Capability-Auswahl bleibt davon getrennt: ohne Extra wird
-deterministisch der typisierte Nicht-verfügbar-Renderer verwendet.
-
-#### Entwicklung
-
-Ein Start direkt aus dem **Quellbaum** nutzt dagegen das mitgelieferte
-JavaScript-Render-Skript. Für Frontend-Entwicklung und diesen PDF-Pfad werden
-Node.js, die Projektabhängigkeiten und der geprüfte Chromium benötigt:
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e . ruff==0.16.4
-npm ci
-npx playwright install chromium
-npm start
-```
-
-Unter Windows die Umgebung mit `py -3.12 -m venv .venv` anlegen und mit `.\.venv\Scripts\Activate.ps1` aktivieren. Danach dieselben Installations- und npm-Befehle verwenden. Die editable Installation stellt auch die CLI-/MCP-Einstiegspunkte und die Abhängigkeiten der Backend-Tests bereit.
-
-`npm start` fährt beide Hälften hoch – den API-Server auf 8010 und Vite auf 5173 –,
-wartet, bis beide antworten, und beendet beide gemeinsam mit Strg+C. Vite leitet
-API-Anfragen an Port 8010 weiter; ohne den Server lädt die Seite und meldet nur, sie sei
-nicht erreichbar.
-
-Wer die Hälften einzeln braucht, startet sie weiterhin selbst:
-
-```bash
-npm run dev
-```
-
-```bash
-python3 apps/web/server.py 8010 --no-open
-```
-
-#### Werkzeuge für den Alltag
-
-| Befehl                                                  | Wofür                                                                                                                                                 |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm start`                                             | Beide Hälften hochfahren – API auf 8010, Vite auf 5173 – und gemeinsam beenden.                                                                       |
-| `npm run check`                                         | Alle Gates hintereinander, ohne zu bauen.                                                                                                             |
-| `npm run doctor`                                        | Zeigt, welche der vier gepinnten Laufzeiten von `distribution/toolchains.json` abweicht. Ohne sie lehnt `npm run set-version` den Versionswechsel ab. |
-| `npm run probe -- "<expression>"`                       | Wertet einen Ausdruck in der laufenden Anwendung aus und gibt das Ergebnis als JSON zurück. Optional `--places`, `--storyboard`, `--compact` …        |
-| `npm run mutate -- <file> --from X --to Y -- <command>` | Dreht eine Korrektur zurück und prüft, ob der Test es merkt. Erfolg heißt: der Befehl schlägt fehl.                                                   |
-
-`probe` misst bewusst über Playwright und nicht im eingebetteten Browser-Fenster: ein
-ausgeblendetes Fenster zeichnet nicht, dort feuert kein `ResizeObserver`, und Messungen von
-dort sehen aus wie Befunde, ohne welche zu sein.
-
----
-
-### Lokaler Assistent und Runtime-Vertrag
-
-Der Assistent durchsucht Kapitel, Notizen, Profile, Elemente, Beziehungen und Timeline-Zustände als lokalen Wissenskorpus. Antworten können auf anklickbare Projektquellen verweisen.
-
-Die Modell-Runtime verwendet:
-
-- `llama.cpp`
-- auf Apple-Silicon-Macs optional MLX
-
-Bei der ausdrücklich gestarteten KI-Einrichtung kann Quiltor die passende Runtime und das Modell herunterladen. Die Daten landen bei einem direkten Repository-Start unter `runtime/` und `models/`.
-
-Explizite Installation:
-
-```bash
-PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer
-```
-
-Eine vorhandene Runtime bzw. ein anderes GGUF-Modell kann erzwungen werden:
-
-```bash
-QUILTOR_AI_BINARY=/pfad/zu/llama-server \
-QUILTOR_AI_MODEL=/pfad/zu/model.gguf \
-python3 apps/web/server.py
-```
-
-Oder ein bereits laufender lokaler Endpoint:
-
-```bash
-QUILTOR_AI_URL=http://127.0.0.1:11435 python3 apps/web/server.py
-```
-
-#### Runtime-Vertrag
-
-Ohne API-Schlüssel spricht Quiltor mit `QUILTOR_AI_URL` den lokalen Vertrag der mitgelieferten Runtime:
-
-```text
-GET  /health
-POST /tokenize
-POST /v1/chat/completions
-```
-
-`/v1/chat/completions` muss die von Quiltor angeforderten strikten JSON-Schemas tatsächlich erzwingen.
-
-Es gibt drei Fälle:
-
-- **Externer Endpunkt** (`QUILTOR_AI_URL` mit `QUILTOR_AI_KEY` oder `QUILTOR_AI_KEY_FILE`): Quiltor startet nichts und schickt den Schlüssel des Anbieters.
-- **`QUILTOR_AI_URL` ohne Schlüssel:** Die Adresse nennt eine Runtime, die schon läuft. Quiltor startet keine eigene und schickt keinen Schlüssel. Wer diese Runtime startet, sichert sie selbst ab, etwa mit `--api-key`.
-- **Ohne `QUILTOR_AI_URL`:** Quiltor startet die Runtime selbst (llama-server oder die MLX-Bridge). Sie bekommt bei jedem Start einen zufälligen Schlüssel über ihre Umgebung und beantwortet ohne ihn nur `/health`. Diesen Schlüssel erzeugt Quiltor intern; es gibt dafür keine Einstellung.
-
-#### Externer KI-Endpunkt (OpenAI-kompatibel)
-
-Mit einem API-Schlüssel spricht Quiltor einen OpenAI-kompatiblen Anbieter an, etwa OpenAI, OpenRouter oder Anthropics OpenAI-kompatiblen Endpunkt. Dann startet keine lokale Runtime.
-
-| Variable                | Zweck                                                                                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `QUILTOR_AI_URL`        | Basis-URL ohne `/v1`, z. B. `https://api.openai.com`. Mit Schlüssel Pflicht und nur `https` (oder `http` auf `127.0.0.1`/`localhost`), ohne Benutzerinfo, Query oder Fragment. |
-| `QUILTOR_AI_KEY`        | API-Schlüssel des Anbieters. Schaltet den externen Modus ein.                                                                                                                  |
-| `QUILTOR_AI_KEY_FILE`   | Alternativ: Datei, die den Schlüssel enthält (z. B. ein Docker-Secret). Nicht zusammen mit `QUILTOR_AI_KEY`.                                                                   |
-| `QUILTOR_AI_MODEL_NAME` | Feld `model` im Request, z. B. `gpt-4o-mini`. Standard `local`.                                                                                                                |
-| `QUILTOR_AI_JSON_MODE`  | `json_object`, wenn der Anbieter `response_format: json_schema` stillschweigend ignoriert (Anthropic).                                                                         |
-
-Im externen Modus gilt:
-
-- Jeder Aufruf trägt `Authorization: Bearer`, Weiterleitungen werden nicht verfolgt.
-- Die Verfügbarkeit prüft `GET /v1/models`, Token werden geschätzt (kein `/tokenize`).
-- Lehnt der Anbieter striktes `json_schema` ab, fragt Quiltor einmal mit `json_object` und dem Schema im Prompt nach und bleibt danach dabei. Die Antwort prüft Quiltor weiter gegen das Schema.
-- Der Schlüssel erscheint weder im Status noch im Log noch in Fehlermeldungen.
-- Ein Schlüssel ohne `QUILTOR_AI_URL`, eine `http`-URL zu einem fremden Host oder beide Schlüsselquellen zugleich verhindern den Start.
-
-Beispiel:
-
-```bash
-QUILTOR_AI_URL=https://api.openai.com \
-QUILTOR_AI_KEY_FILE=/run/secrets/quiltor_ai_key \
-QUILTOR_AI_MODEL_NAME=gpt-4o-mini \
-python3 apps/web/server.py
-```
-
-Die gebündelten Runtime-Backends verwenden aktuell ein Kontextfenster von 8192 Tokens. Anfragen an die gebündelte Runtime bleiben auf Loopback.
-
-#### Lokalen Assistenten real testen
-
-```bash
-npm run test:assistant:local
-npm run test:assistant:local -- --runs 3
-npm run test:assistant:local -- --case set-presence
-```
-
-Der Test startet Runtime, Testwelt und Quiltor in einem isolierten temporären Verzeichnis und beendet die Prozesse anschließend wieder.
-
----
-
-### MCP
-
-`src/quiltor/hosts/mcp/quiltor_server.py` stellt Retrieval und Weltpflege als MCP-Server bereit.
-
-Der Sicherheitsgrundsatz ist derselbe wie im eingebauten Assistenten:
-
-- Lesen ist erlaubt
-- Änderungen werden nur als Vorschläge erzeugt
-- Anwendung erfolgt in Quiltor nach Bestätigung
-
-Absichtlich **nicht** vorhanden sind direkte:
-
-- Apply-Tools
-- Delete-Tools
-- Backup-/Filesystem-Tools
-- Manuskript-Schreibtools
-
-Die mitgelieferte `.mcp.json` konfiguriert den Server über den plattformneutralen
-`quiltor-mcp`-Befehl. Nach `python -m pip install -e .` funktioniert dieselbe
-Projektkonfiguration unter Windows, macOS und Linux.
-
----
-
-### Deutsche Schreibwerkzeuge
-
-Für Manuskripte mit Schreibsprache `de-DE` stehen lokal zur Verfügung:
-
-- Wörterbuch
-- Synonyme
-- Wortübersetzung
-- Rechtschreibprüfung
-- Grammatikprüfung
-
-Markierter Text kann nachgeschlagen werden. Einfügen, Ersetzen und Korrigieren geschieht erst nach einer ausdrücklichen Aktion und bleibt per Undo rückgängig machbar.
-
-Das geführte Setup installiert die Sprachwerkzeuge standardmäßig:
-
-```bash
-quiltor install
-```
-
-Daten liegen unter:
-
-```text
-data/writing-assistance/
-```
-
-bei pipx/CLI-Installationen standardmäßig unter:
-
-```text
-~/.quiltor/data/writing-assistance/
-```
-
-Bestehende Daten aus dem früheren Verzeichnis `data/language/` werden beim ersten Start
-automatisch und sicher übernommen; ein manueller Umzug ist nicht nötig.
-
-LanguageTool benötigt **Java 17+**. Ohne LanguageTool bleibt die Rechtschreibprüfung des Browsers verfügbar.
-
-Externe LanguageTool-kompatible Dienste werden ausschließlich verwendet, wenn:
-
-```bash
-QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
-```
-
-gesetzt ist. Ohne Opt-in verlassen Kapiteltexte und Suchbegriffe für diese Funktion das Gerät nicht.
-
-Für Server ohne Java, etwa das Docker-Image, gibt es einen LanguageTool-Server als eigenen Dienst:
-
-```bash
-QUILTOR_LANGUAGETOOL_URL=http://languagetool:8010
-QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN=1
-```
-
-Mit beiden Werten läuft die Grammatikprüfung über diesen Server. Die Schreibhilfe zeigt dann
-weder den Installieren-Knopf noch den Java-Hinweis. Ist nur die URL gesetzt, meldet sie ohne lokale
-Installation, dass der Dienst eingetragen, aber nicht freigegeben ist; mit installiertem JAR und Java
-gilt sie als bereit, und der Hinweis „nicht freigegeben“ erscheint erst als Fehler beim Prüfen. Antwortet der Server nicht, erscheint
-„Die Grammatikprüfung antwortet gerade nicht.“ (Fehlercode `writing_assistance.grammar_unavailable`).
-Quiltor schreibt dabei keinen Kapiteltext ins Log oder in Fehlermeldungen.
-
-#### Sprachdaten für Wörterbuch, Synonyme und Übersetzung
-
-Die Daten sind ein vorgebautes Datenpaket aus einem eigenen Daten-Release. Sie werden nachgeladen und nicht mit Quiltor ausgeliefert. Beim Installieren prüft Quiltor Größe und Prüfsumme, bevor es die Daten übernimmt. Sie stammen aus dem deutschen Wiktionary und aus OpenThesaurus und stehen als Ganzes unter CC BY-SA 4.0.
-
-Version 3.25.0 erscheint noch ohne veröffentlichtes Paket. Die Oberfläche zeigt dann „Die Sprachdaten folgen mit einem späteren Update.“, und `quiltor install` kann die Daten noch nicht laden. Die Rechtschreibprüfung des Browsers bleibt verfügbar.
-
-Wer Quiltor als Server betreibt, installiert die Daten selbst: einmal `quiltor install` auf dem Server, sobald ein Paket veröffentlicht ist. Die Datei liegt im Datenverzeichnis, beim Docker-Image also im Volume `/data`, und überlebt ein Image-Update. Ein Server lädt von sich aus nichts nach.
-
-Quellen, Versionen, Checksummen, Lizenzen und Attributionen stehen im Installationsmanifest und in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
-
----
-
-### Lokaler Zugriff und Authentifizierung
-
-Es gibt keinen Modus „Authentifizierung aus“. Jede Anfrage besitzt eine Identität; lokal ist diese Identität einfach die Person an diesem Rechner.
-
-Ohne `QUILTOR_OIDC_ISSUER` gilt die **lokale Identität**:
-
-- ein Nutzer
-- keine Login-Seite
-- keine Kontenverwaltung
-
-Zugriff wird in dieser Reihenfolge erkannt:
-
-1. `Authorization: Bearer <token>` – für Skripte und MCP
-2. `?token=<token>` – einmaliger Browser-Einstieg; die Weiterleitung entfernt den Parameter wieder
-3. Loopback-Verbindung – Standardfall für Desktop-App, CLI und `python3 apps/web/server.py`
-
-Das automatisch generierte Token:
-
-- entsteht bei jedem Prozessstart neu
-- lebt nur im Arbeitsspeicher
-- wird nicht auf die Festplatte geschrieben
-- wird nur mit `--print-token` ausgegeben
-
-| Variable               | Zweck                                                                                                                |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `QUILTOR_MASTER_TOKEN` | Gibt das Token fest vor. Für Tests bzw. Instanzen ohne Loopback-Bindung. Nicht in `~/.quiltor/config.env` speichern. |
-| `QUILTOR_HOST`         | Bind-Adresse; Standard `127.0.0.1`.                                                                                  |
-
-Eine Instanz auf `0.0.0.0` ohne OIDC kann sich nicht auf die lokale Loopback-Identität verlassen und verlangt daher ein Token. Für dauerhafte Web-Bereitstellung ist OIDC/Keycloak der vorgesehene Weg.
-
-#### Problembehebung
-
-| Symptom                                           | Lösung                                                                                                   |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `python3: command not found`                      | Unter Windows den installierten Python-Launcher mit `py -3.12` verwenden.                                |
-| Assistent meldet „Lokales Modell nicht verfügbar“ | `PYTHONPATH=src python3 -m quiltor.infrastructure.inference.installer` ausführen und Server neu starten. |
-| Download bricht ab                                | Installer erneut starten; vorhandene vollständige Dateien werden wiederverwendet.                        |
-| Firewall/Virenscanner meldet `llama-server.exe`   | Die Binärdatei stammt aus dem offiziellen llama.cpp-Release und lauscht lokal.                           |
-| Port 8000 belegt                                  | `python3 apps/web/server.py 8080`                                                                        |
-| Andere Runtime / anderes Modell                   | `QUILTOR_AI_BINARY`, `QUILTOR_AI_MODEL` oder `QUILTOR_AI_URL` verwenden.                                 |
-
----
-
-### Desktop-App
-
-Quiltor kann unter macOS und Windows als eigenständige Fensteranwendung gebaut werden – ohne Browser-Tab und ohne separate Python-Installation auf dem Zielsystem. Die direkten Profile unterstützen derzeit macOS auf Apple Silicon und Windows x86_64.
-
-Den Desktop-Host für die Entwicklung direkt aus den Quellen starten:
-
-```bash
-python3.12 -m venv .venv-desktop
-source .venv-desktop/bin/activate
-python -m pip install -e ".[desktop]"
-quiltor-desktop
-```
-
-Unter Windows die Umgebung mit `py -3.12` erstellen und mit `.\.venv-desktop\Scripts\Activate.ps1` aktivieren. Für PDF-Export dort zusätzlich `python -m pip install -e ".[desktop,browser-pdf]"` ausführen.
-
-Installer-Builds benötigen eine separate saubere Umgebung mit der exakten CPython-Version und den Build-Werkzeugen aus [`distribution/toolchains.json`](distribution/toolchains.json). Den Bootstrap-Lock und anschließend genau den Lock für das jeweilige Ziel installieren; die Paketierung verarbeitet `src/` direkt und benötigt keine editable Installation:
-
-```bash
-python -m pip install --require-hashes -r distribution/python-build-bootstrap.lock
-```
-
-Für macOS arm64:
-
-```bash
-python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/macos/direct/requirements.lock
-```
-
-Für Windows x86_64:
-
-```powershell
-python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/windows/direct/requirements.lock
-```
-
-Nach `npm ci` den passenden Build ausführen:
-
-```bash
-./distribution/desktop/macos/direct/build.sh
-powershell -File distribution/desktop/windows/direct/build.ps1
-```
-
-Ergebnis:
-
-```text
-macOS   distribution/artifacts/macos-direct/Quiltor-<version>.dmg
-Windows distribution/artifacts/windows-direct/Quiltor-Setup-<version>.exe
-```
-
-Standardmäßig sind lokale Builds unsigniert. Der Windows-Installer benötigt Inno Setup; ohne dieses Werkzeug erzeugt das Skript nur das unverpackte Anwendungsverzeichnis.
-
-Die direkten Desktop-Jobs sind in der gehosteten Release-Pipeline erst nach der jeweiligen [Aktivierung](distribution/release-targets/README.md) verfügbar. Die beiden Aktivierungsmarker fehlen derzeit.
-
-macOS signiert und notarisiert automatisch, wenn gesetzt:
-
-```text
-QUILTOR_SIGN_IDENTITY
-QUILTOR_NOTARY_PROFILE
-```
-
-PDF-Export nutzt einen vorhandenen Systembrowser bzw. die jeweilige Plattformimplementierung, statt unnötig einen vollständigen Browser mit jedem Desktop-Build auszuliefern.
-
-Weitere Details und die vollständige Zielmatrix: [`distribution/README.md`](distribution/README.md)
-
----
-
-### Docker und Web-Demo
-
-Quiltor kann als kleine Mehrbenutzer-Instanz hinter einem Reverse Proxy betrieben werden. In diesem Modus authentifiziert eine bestehende Keycloak-Instanz die Nutzer; jede Person sieht nur ihre eigenen Welten.
-
-Quiltor bringt **kein eigenes Keycloak** mit.
-
-#### Keycloak-Client für die Web-Instanz
-
-Empfohlene Einstellungen:
-
-- Client authentication: **on**
-- Standard Flow: **on**
-- Direct Access Grants: **off**
-- Redirect URI: `https://<deine-domain>/auth/callback`
-- PKCE: `S256`
-
-Realm, Rollen und Sitzung:
-
-- Realm `quiltor` mit dem Client-Scope `quiltor-roles`. Der Scope legt die Realm-Rollen in den flachen Claim `roles` des ID-Tokens; nur dieser Claim zählt, `realm_access` und `resource_access` liest Quiltor nicht.
-- Den KI-Assistenten nutzen nur Konten mit der Rolle `premium` (einstellbar über `QUILTOR_PREMIUM_ROLE`). Ohne sie antwortet der Server `403 assistant.premium_required`, und die Oberfläche zeigt einen Hinweis.
-- Rollen werden bei jedem Token-Refresh neu gelesen. Eine vergebene oder entzogene Rolle wirkt ohne neue Anmeldung.
-- Die Sitzungsdauer bestimmt das Realm (Leerlauf und Höchstdauer). Beendet Keycloak die Sitzung, antwortet Quiltor beim nächsten Refresh `401`. Ungespeicherter Text bleibt im Editor und als Entwurf auf dem Gerät, bis man sich in einem neuen Tab wieder anmeldet.
-
-Umgebungsvariablen:
-
-| Variable                          | Zweck                                                       |
-| --------------------------------- | ----------------------------------------------------------- |
-| `QUILTOR_OIDC_ISSUER`             | Realm-Issuer, z. B. `https://kc.example.com/realms/quiltor` |
-| `QUILTOR_OIDC_CLIENT_ID`          | Client-ID                                                   |
-| `QUILTOR_OIDC_CLIENT_SECRET`      | Client-Secret                                               |
-| `QUILTOR_PUBLIC_URL`              | Öffentliche Quiltor-URL                                     |
-| `QUILTOR_COOKIE_SECURE`           | `auto` / `0` / `1`                                          |
-| `QUILTOR_HOST`                    | Bind-Adresse                                                |
-| `QUILTOR_MASTER_TOKEN`            | Nur ohne OIDC relevant                                      |
-| `QUILTOR_DATA_DIR`                | Datenverzeichnis im Container                               |
-| `QUILTOR_PREMIUM_ROLE`            | Rolle für den KI-Assistenten; Standard `premium`            |
-| `QUILTOR_ASSISTANT_MAX_OPEN_JOBS` | Offene Assistenten-Aufträge je Konto (1–100); Standard `3`  |
-
-Start:
-
-```bash
-cp .env.example .env
-docker compose up -d
-```
-
-Der Compose-Dienst bindet standardmäßig lokal; ein bestehender Reverse Proxy kann auf Quiltor zeigen. Beispiele für Caddy und nginx liegen unter [`distribution/web/self-hosted/proxy/`](distribution/web/self-hosted/proxy/).
-
-Optional kann der Stack Caddy selbst starten:
-
-```bash
-docker compose --profile with-caddy up -d
-```
-
-Caddy übernimmt dann TLS und leitet intern an `quiltor:8000` weiter.
-
-Ohne Compose:
-
-```bash
-docker build ...
-docker run ...
-```
-
-siehe [`Dockerfile`](Dockerfile).
-
-Das Docker-Image enthält für den Buch-PDF-Export ausschließlich den zu
-Playwright passenden Chromium Headless Shell. Firefox, WebKit, ein vollständiger
-Chromium, das separate ffmpeg-Payload und die Entwicklungswerkzeuge bleiben
-bewusst außerhalb des Runtime-Images. Der extrahierte Browser wird beim Build
-zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
-
-Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
-
-Wo das Server-Log liegt, wie man eine Fehler-ID darin findet und wie man Log-Level und Logdatei setzt, steht in [`docs/operations/logging.md`](docs/operations/logging.md) (englisch).
-
-#### Fertige Container-Images
-
-Ein Versions-Bump in `VERSION` auf `main` löst die Release-Pipeline aus. Images werden unter:
-
-```text
-ghcr.io/tim3399/quiltor:<version>
-ghcr.io/tim3399/quiltor:latest
-```
-
-veröffentlicht.
-
----
-
-### CLI
-
-Das `quiltor`-CLI ist bei pip/pipx-Installationen verfügbar.
-
-Standardpfad für Daten, Runtime und Modell:
-
-```text
-~/.quiltor/
-```
-
-Übersteuerbar mit:
-
-```text
-QUILTOR_HOME
-```
-
-Modelle lassen sich getrennt davon ablegen, etwa um sie mit anderen Werkzeugen zu teilen:
-
-```text
-QUILTOR_MODELS_DIR
-```
-
-Der Ordner muss existieren (Quiltor legt ihn nicht an) und enthält `gguf/*.gguf` für llama.cpp
-sowie `mlx/<modell>/` mit `config.json` für MLX. Ohne die Variable bleibt alles unter
-`QUILTOR_HOME/models`. Runtime und llama-server bleiben in jedem Fall unter `QUILTOR_HOME`;
-vorhandene Modelle werden nicht verschoben.
-
-Wichtige Befehle:
-
-```bash
-quiltor install
-quiltor
-quiltor run 8080
-quiltor run --print-token
-
-quiltor config set <KEY> <VALUE>
-quiltor config get <KEY>
-quiltor config list
-quiltor config unset <KEY>
-quiltor config path
-
-quiltor --version
-```
-
-`quiltor install` führt durch die lokale Einrichtung. Keycloak ist standardmäßig optional; deutsche Schreibwerkzeuge und lokaler Assistent können direkt mit installiert werden.
-
-Für Docker bleiben Umgebungsvariablen der primäre Konfigurationsweg.
-
----
-
-### Backup und Keycloak
-
-Keycloak kommt in zwei voneinander getrennten Rollen vor:
-
-|           | Login an Quiltor                     | Backup-Endpunkt                                |
-| --------- | ------------------------------------ | ---------------------------------------------- |
-| Zweck     | Mehrbenutzer-Webinstanz              | Zugriff auf Remote-Backup                      |
-| Pflicht   | Nein                                 | Für den bereitgestellten Backup-Endpunkt ja    |
-| Client    | vertraulich                          | Backup-Server vertraulich + Quiltor öffentlich |
-| Redirect  | `<QUILTOR_PUBLIC_URL>/auth/callback` | `http://127.0.0.1/*`                           |
-| Variablen | `QUILTOR_OIDC_*`                     | `QUILTOR_BACKUP_OIDC_*`                        |
-
-Die beiden Wege dürfen dieselbe Realm verwenden, sind aber technisch getrennt.
-
-#### Backup-Server: vertraulicher Client
-
-Beispielname:
-
-```text
-quiltor-backup-server
-```
-
-Einstellungen:
-
-- Client authentication: on
-- Standard Flow: off
-- Direct Access Grants: off
-
-Der Backup-Server validiert eingehende Access-Tokens über Keycloak Token Introspection.
-
-#### Quiltor: öffentlicher Backup-Client
-
-Beispiel:
-
-```text
-quiltor-desktop
-```
-
-Einstellungen:
-
-- Client authentication: off
-- Standard Flow: on
-- Direct Access Grants: off
-- PKCE: `S256`
-- Redirect URI: `http://127.0.0.1/*`
-
-Der wechselnde Loopback-Port ist beabsichtigt. Native Anwendungen sollen nach RFC 8252 dynamische Loopback-Ports verwenden können; deshalb darf der Keycloak-Client nicht auf einen einzigen festen Port eingeschränkt werden.
-
-#### Scope `quiltor.backup`
-
-Der bereitgestellte Backup-Endpunkt verlangt standardmäßig den Scope:
-
-```text
-quiltor.backup
-```
-
-Dadurch reicht nicht irgendein gültiges Token derselben Realm. Nur ein Token, das für diesen Zugriff vorgesehen ist, wird akzeptiert.
-
-Optional kann zusätzlich eine Realm-Rolle verwendet werden, um den Scope nur ausgewählten Konten verfügbar zu machen.
-
-#### Backup-Server-Variablen
-
-| Variable                            | Zweck                                       |
-| ----------------------------------- | ------------------------------------------- |
-| `QUILTOR_BACKUP_OIDC_ISSUER`        | Realm-Issuer                                |
-| `QUILTOR_BACKUP_OIDC_CLIENT_ID`     | Client-ID des Backup-Servers                |
-| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET` | Client-Secret für Introspection             |
-| `QUILTOR_BACKUP_PUBLIC_URL`         | Öffentliche URL des Backup-Endpunkts        |
-| `QUILTOR_BACKUP_OIDC_SCOPE`         | Benötigter Scope; Standard `quiltor.backup` |
-
-Fehlen notwendige Authentifizierungswerte, startet der Backup-Endpunkt bewusst nicht.
-
-Beispiel:
-
-```bash
-# Backup-Server
-QUILTOR_BACKUP_OIDC_ISSUER=https://kc.example.com/realms/quiltor
-QUILTOR_BACKUP_OIDC_CLIENT_ID=quiltor-backup-server
-QUILTOR_BACKUP_OIDC_CLIENT_SECRET=...
-QUILTOR_BACKUP_PUBLIC_URL=https://backup.example.com
-QUILTOR_BACKUP_OIDC_SCOPE=quiltor.backup
-
-# Quiltor
-QUILTOR_BACKUP_URL=https://backup.example.com
-QUILTOR_BACKUP_CLIENT_ID=quiltor-desktop
-```
-
-Der Client muss den Keycloak-Issuer des Backup-Dienstes nicht doppelt konfigurieren. Der Endpoint veröffentlicht seine Autorisierungsinformationen über:
-
-```text
-GET /.well-known/oauth-protected-resource
-```
-
-Quiltor liest diese Metadaten vor dem Login.
-
-#### Backup-Fehlerdiagnose
-
-| Symptom                                              | Wahrscheinliche Ursache                                                    |
-| ---------------------------------------------------- | -------------------------------------------------------------------------- |
-| Keycloak-Fehlerseite, Quiltor erhält keinen Callback | Loopback-Redirect fehlt oder ist auf einen festen Port beschränkt          |
-| Endpoint antwortet 401                               | Token fehlt oder ist abgelaufen                                            |
-| Endpoint antwortet 403                               | Token ist gültig, trägt aber nicht den erforderlichen Scope                |
-| Introspection schlägt fehl                           | Token und `QUILTOR_BACKUP_OIDC_ISSUER` gehören zu unterschiedlichen Realms |
-
----
-
-### Lokale Daten, Verlauf und Wiederherstellung
-
-- Jede Welt besitzt eine eigene SQLite-Datei unter `data/worlds/`.
-- SQLite ist die maßgebliche Datenquelle.
-- Manuskript- und Profil-Spiegel liegen je Welt unter `data/manuscripts/<welt-id>/` und `data/profiles/<welt-id>/`.
-- Automatische SQLite-Sicherungen sind lokal wiederherstellbar.
-- Revisionsprüfungen schützen vor Überschreiben durch veraltete Browser-Tabs.
-- Jede Welt führt einen lokalen Versionsverlauf.
-- Snapshots sind inhaltsadressiert; unveränderte Kapitel müssen nicht erneut gespeichert werden.
-- Remote-Backup ist optional.
-- Weltinhalte, Modelle, Backups und Verlauf werden nicht öffentlich versioniert.
-
-#### Hinweise beim Upgrade älterer Versionen
-
-Aktuelle Builds verwenden immer eine Identität. Lokal übernimmt die lokale Identität; nicht auf Loopback gebundene Instanzen ohne OIDC benötigen ein Token.
-
-Markdown-Spiegel sind inzwischen pro Welt organisiert. Ältere flache Spiegeldateien werden nicht als maßgebliche Datenquelle betrachtet; SQLite bleibt autoritativ.
-
-Der Server besitzt keinen globalen Zustand „diese Welt ist gerade geöffnet“. Eine Wiederherstellung muss daher nicht erst einen prozessweiten Open-World-State schließen.
-
----
-
-### Bedienung
-
-| Kürzel                             | Aktion                            |
-| ---------------------------------- | --------------------------------- |
-| `Cmd/Ctrl + S`                     | Sofort speichern                  |
-| `Cmd/Ctrl + Shift + S`             | Backup-Dialog                     |
-| `Cmd/Ctrl + F` oder `Cmd/Ctrl + K` | Suche & Befehle                   |
-| `Cmd/Ctrl + Z`                     | Rückgängig                        |
-| `Cmd/Ctrl + Shift + Z`             | Wiederholen                       |
-| `Esc`                              | Fokus-/temporären Modus verlassen |
-| `Option/Alt` beim Ziehen           | Raster vorübergehend lösen        |
-
----
-
-### Entwicklung und Qualität
-
-Der verbindliche [Projektstandard](docs/PROJECT_PROFILE.md) dokumentiert Formatter-Zuständigkeiten,
-Startbefehle, Agentenregeln und noch offene Anforderungen. Nach der Einrichtung startet `npm start`
-die vollständige lokale Anwendung (API auf 8010, Vite auf 5173). `npm run format` formatiert Web,
-Python, Dokumentation und Rust; `npm run check:format` prüft dieselben Bereiche ohne Änderungen.
-`npm run check`, `npm run build` und `npm test` sind die getrennten Qualitäts-, Build- und Unit-Gates.
-Alternative Ports und isolierte Testdaten stehen im Projektprofil.
-
-Die exakten Release-Versionen für Node.js, npm, Python und Rust sowie die Build-Werkzeuge stehen in [`distribution/toolchains.json`](distribution/toolchains.json). `npm run doctor` zeigt Abweichungen. Für Python-Tests die deklarierten Abhängigkeiten in einer virtuellen Umgebung installieren: `python -m pip install -e .`. Der Python-Formatter wird separat in der dort gepinnten Ruff-Version benötigt.
-
-```bash
-npm ci
-npm run check
-npm test
-npm run build
-PYTHONPATH=src python -m unittest discover -s tests/python -t tests/python
-cargo test --locked --workspace --all-targets
-npm run check:distribution
-```
-
-Unter Windows den Python-Testbefehl in PowerShell innerhalb der aktivierten Umgebung ausführen:
-
-```powershell
-$env:PYTHONPATH = "src"
-python -m unittest discover -s tests/python -t tests/python
-```
-
-Innerhalb der aktivierten Umgebung deren `python` verwenden. Bei einer Installation über den Launcher außerhalb einer virtuellen Umgebung sowohl die Abhängigkeiten als auch die Tests mit `py -3.12` ausführen.
-
-Die Gates prüfen unter anderem:
-
-- TypeScript
-- Design-Token-Regeln
-- i18n-Schlüsselparität
-- hardcodierte sichtbare UI-Texte
-- gebauten Client
-- versionierte API-, Speicher- und Native-Bridge-Verträge
-- Architektur- und Plattformgrenzen sowie die öffentliche Design-System-API
-
-`npm run check` prüft zusätzlich die Formatierung und führt die eigenen Tests der Qualitätswerkzeuge aus. Die Client-Unit-, Python- und Browser-Suiten laufen separat. `dist/` ist versioniert und wird vom Python-Server ausgeliefert. Änderungen am Client benötigen deshalb einen neuen Build; CI prüft, dass Quellcode und `dist/` übereinstimmen.
-
-Für Produkttests nach `npm run build` einen frischen Server in einem zweiten Terminal starten:
-
-```bash
-python3 apps/web/server.py 8010 --no-open
-```
-
-Danach `npm run test:e2e` ausführen. Der Befehl startet die Produkt- und anschließend die Design-Suite. `npm run test:design` lässt die Design-Galerie eigenständig testen. `PLAYWRIGHT_BASE_URL` überschreibt das Produkt-Testziel. Ein bereits laufender Python-Server muss nach Backend-Änderungen neu gestartet werden. Der normale Start ohne Portargument verwendet weiterhin **8000**.
-
-Browser-/E2E-Tests decken Kernworkspaces, Desktop-/Compact-Layouts, Light/Dark Mode, Autosave, Konflikte und Accessibility ab.
-
-Die Sprachkonvention steht in [`CLAUDE.md`](CLAUDE.md): Entwicklertexte, Kommentare, Docstrings, Logs und Testtitel sind Englisch; deutsche UI-Texte und Manuskript-Fixtures bleiben Deutsch. Der i18n-Check prüft die UI-Kataloge und ersetzt keine Sprachprüfung der Entwicklertexte.
-
-Internationalisierungsprüfung:
-
-```bash
-npm run check:i18n
-```
-
-Sichtbare UI-Texte und neue Sprachpakete gehören in den absichtlich gut sichtbaren Root-Ordner:
-
-```text
-locales/{de,en,...}/*.ts
-```
-
-Für beispielsweise Spanisch kommt zum neuen Ordner genau ein gut sichtbarer Import samt
-`localePackages`-Eintrag in [`locales/index.ts`](locales/index.ts). Weitere Registry- oder
-UI-Codeänderungen sind nicht nötig; der i18n-Check erzwingt automatisch die Übereinstimmung von
-Ordnern und Registry. Die genaue Anleitung steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-Die sieben README-Screenshots entstehen aus einer festen Beispielwelt in 1440 × 900 Pixeln mit der deutschen Oberfläche. Sie werden bei jedem Release automatisch neu aufgenommen: `npm run set-version` startet dafür einen isolierten Server, schreibt `docs/screenshots/manifest.json` (Version, Prüfsumme je Bild, Prüfsumme von Skript und Demo-Daten) und der Release-Preflight sowie `npm run check` lehnen Bilder ab, die nicht zu `VERSION` passen. Von Hand:
-
-```bash
-npm run screenshots:readme
-```
-
-Die Bilder gelten für Windows, wo Releases vorbereitet werden; die Schriftdarstellung unterscheidet sich je System, der Linux-Release-Job prüft nur das Manifest. Zwei Läufe derselben Version vergleicht `node tools/documentation/compare_readme_screenshots.mjs <Ordner-A> <Ordner-B>` (Ausgabeordner per `QUILTOR_SCREENSHOT_DIR`); es kann einzelne Kantenpixel geben, das Werkzeug erlaubt höchstens 0,05 % abweichende Pixel je Bild. Das Skript prüft die API-Antworten und löscht die Demo-Welt anschließend wieder. Die Demo-Daten liegen unter [`tools/documentation/`](tools/documentation/).
-
----
-
-### Architektur
-
-```text
-apps/                        sichtbare Shells und native Projektwurzeln
-├── web/server.py            Source-Checkout-Bootstrap
-└── mobile/{ios,android}/     Verträge für künftige native Mobile-Hosts
-
-src/quiltor/
-├── domain/story_world/      reine Weltlogik, Timeline und Validierung
-├── application/             gemeinsame Use Cases und fachliche Ports
-├── modules/                 Assistant, Schreibhilfe, Identität und Commerce
-├── infrastructure/          SQLite, Backup, Inferenz, PDF und Plattformadapter
-├── resources/sidecars/      ausgelieferte PDF-/Inferenz-Subprozesse
-├── bootstrap/               Composition Root für konkrete Adapter
-├── delivery/http/routes/    HTTP-Endpunkte nach Fachgebiet
-└── hosts/                   Webserver, Desktop, CLI und MCP
-
-services/backup-server/      eigenständig deploybarer Backup-Dienst
-contracts/                   versionierte App- und Native-Bridge-Verträge
-crates/                      portabler Rust-Core und FFI
-distribution/                Zielprofile, Builds, Installer, Stores und Signierung
-tools/                       Qualitäts-, Evaluations- und Dokumentationswerkzeuge
-
-packages/client/src/
-├── app/                     Composition, Shell, Session, Navigation und Overlays
-├── config/                  App-Konfiguration und Branding
-├── design/                  Design-Tokens und Präsentationsgrundlagen
-├── i18n/                    Locale-Runtime, Provider und Katalog-Lader
-├── modules/
-│   ├── manuscript/          Editor und Schreibhilfen
-│   ├── story-world/         Figuren, Orte, Timeline und Weltverwaltung
-│   ├── storyboard/          eigene Planungsdokumente und Canvas
-│   ├── graph/               gemeinsame Graph-Interaktionen und Ansichten
-│   ├── assistant/           lokaler Assistent
-│   ├── identity/            Anmeldung und Identität
-│   ├── backup/              Wiederherstellung lokaler Sicherungen
-│   ├── history/             Verlauf und Snapshots
-│   ├── search/              Suche und Navigation
-│   ├── notes/               verknüpfte Notizen
-│   └── world-references/    Referenzprojektionen und Backlinks
-├── platform/                App-Ports, HTTP-Transport und Host-Adapter
-└── shared/                  ausschließlich fachneutrale Grundlagen
-
-locales/                      leicht beitragbare UI-Sprachpakete
-```
-
-Die Abhängigkeitsrichtung ist bewusst:
-
-```text
-Hosts/Delivery → Application-Use-Cases → Domain
-Bootstrap → Application-Ports + konkrete Infrastrukturadapter
-Domain/Application ↛ Infrastruktur/Delivery/Hosts
-```
-
-Das normative Soll-Komponentenmodell samt Ist-Analyse steht in
-[`docs/architecture/target-component-model.md`](docs/architecture/target-component-model.md).
-Die freigegebene Umsetzungsreihenfolge, Komplexitäts-Trigger und Exit-Gates
-stehen im
-[`docs/architecture/implementation-plan.md`](docs/architecture/implementation-plan.md).
-
-Der normale Serverpfad bleibt möglichst klein und lokal; zusätzliche Fähigkeiten werden über klar getrennte Module und Distribution-Extras ergänzt.
-
-Aktuell bleibt Python/SQLite die maßgebliche Speicherimplementierung. Manuskript, Story World und Storyboard besitzen getrennte Dokumentrevisionen und Autosave-Abläufe. Der Rust-Core enthält bisher deterministische Timeline-Funktionen und eine FFI-Vertragsversion; er ist noch kein vollständiger mobiler Speicher- oder Anwendungs-Core. Die im Architekturplan beschriebenen Session-, Transaktions- und Inferenzumbauten sind Zielbilder und dürfen nicht als bereits implementiert gelesen werden.
-
----
-
-### Status und Lizenz
-
-Quiltor befindet sich in aktiver Entwicklung.
+Quiltor befindet sich in aktiver Entwicklung. Die fünf Arbeitsbereiche sind umgesetzt;
+tiefere Quellen- und Herkunftsnachweise, dauerhafte Befunde, inkrementelle Analyse und eigene
+KI-Abläufe für das Storyboard stehen in der [Roadmap](https://github.com/Tim3399/quiltor/blob/main/docs/TODO.md).
 
 Quiltor ist **source-available, nicht Open Source**. Der Quelltext ist öffentlich einsehbar, veränderbar und weitergebbar; kommerzielle Nutzung durch größere Organisationen ist eingeschränkt.
 
@@ -1110,7 +135,7 @@ Es gilt wahlweise:
 
 Siehe [LICENSE](LICENSE).
 
-#### Kostenlos ohne Rückfrage
+### Kostenlos ohne Rückfrage
 
 - nicht-kommerzielle Nutzung: private Projekte, Hobby, Studium, Lehre, Forschung, gemeinnützige Organisationen und öffentliche Einrichtungen
 - kommerzielle Nutzung im Rahmen der PolyForm Small Business License: weniger als 100 Mitarbeitende/freie Mitarbeitende und weniger als 1.000.000 USD Umsatz im vorherigen Steuerjahr

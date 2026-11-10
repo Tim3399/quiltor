@@ -184,6 +184,8 @@ def _origin_of(url: str, *, allow_path: bool) -> str | None:
     )
 
 
+# The interface languages the identity provider is configured for (T-175).
+LOGIN_UI_LOCALES = frozenset({"de", "en"})
 LOGIN_STATE_COOKIE = "quiltor_login_state"
 
 REQUEST_ID_HEADER = "X-Request-Id"
@@ -625,7 +627,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def handle_login(self) -> None:
         redirect_uri = f"{self.public_base_url()}/auth/callback"
-        authorize_url, state = self.application.identity.auth.start_login(redirect_uri)
+        # The client names its interface language so the provider's pages -- and
+        # the mails of an account registered there -- use it. Only the languages
+        # the realm offers pass; anything else is dropped, never forwarded.
+        requested = (parse_qs(urlparse(self.path).query).get("ui_locales") or [""])[0]
+        ui_locale = requested.strip().lower()
+        authorize_url, state = self.application.identity.auth.start_login(
+            redirect_uri, ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None
+        )
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, state, max_age=600))
         return self.send_redirect(authorize_url)
 

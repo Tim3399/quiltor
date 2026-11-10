@@ -188,8 +188,11 @@ LEGACY_EVENTS: frozenset[str] = frozenset(
 )
 
 # Routes a client polls. Their successful access lines are DEBUG, so the INFO log is
-# not a list of polls; their errors are logged like any other.
-QUIET_ROUTES: frozenset[str] = frozenset({"/api/assistant/progress", "/api/assistant/status"})
+# not a list of polls; their errors are logged like any other. /api/capabilities is
+# re-read while the assistant drawer is open (T-102, F-102-7).
+QUIET_ROUTES: frozenset[str] = frozenset(
+    {"/api/assistant/progress", "/api/assistant/status", "/api/capabilities"}
+)
 
 for _event, _fields in EVENTS.items():
     _unknown = _fields - FIELD_RULES.keys()

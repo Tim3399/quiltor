@@ -32,6 +32,11 @@ vi.mock("../world/useWorldSession", () => ({
 vi.mock("../shell/useShellStatus", () => ({
   useShellStatus: () => ({ account: shell.account, logout: shell.logout }),
 }));
+vi.mock("../shell/useCapabilities", () => ({
+  useCapabilities: () => ({
+    instance: { multiUser: true, signOut: true, deviceSync: true },
+  }),
+}));
 vi.mock("../shell/useTheme", () => ({
   useTheme: () => ({
     theme: "light",
@@ -146,7 +151,7 @@ describe("typing after the session ended", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "In neuem Tab anmelden" }));
-    expect(open).toHaveBeenCalledWith("/login");
+    expect(open).toHaveBeenCalledWith("/login?ui_locales=de");
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
     await waitFor(() => expect(readDraft(ADA, "manuscript")).toBeNull());

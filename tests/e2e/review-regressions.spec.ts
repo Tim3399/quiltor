@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
-import { encodeStoryWorldDocument, fulfillRevisionConflict } from "./support/application-api";
+import { fulfillRevisionConflict } from "./support/application-api";
+import { drawnFigures, exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function returnToWorldSelection(page: Page) {
@@ -57,24 +58,15 @@ for (const failure of ["network", "conflict"] as const) {
 test("A malformed figure import is rejected before it can replace the current world", async ({
   page,
 }) => {
-  const world = await createTestWorld(page, "Importprüfung");
-  const initial = await page.request.get(`/api/state?world=${world.id}`);
-  expect(initial.ok()).toBe(true);
-  const revision = initial.headers().etag || '"0"';
-  const saved = await page.request.put(`/api/state?world=${world.id}`, {
-    headers: { "If-Match": revision },
-    data: encodeStoryWorldDocument(
-      { nodes: [{ id: "ada", name: "Ada", type: "person", x: 120, y: 120 }], edges: [] },
-      Number(revision.replaceAll('"', "")),
-    ),
-  });
-  expect(saved.ok()).toBe(true);
+  const world = await seedExampleWorld(page, { open: false });
+  const figures = exampleWorldDocuments().storyWorld.nodes;
+  const drawn = drawnFigures(exampleWorldDocuments().storyWorld).length;
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`/?world=${world.id}`);
   await expect(page.getByLabel("Kapiteltext")).toBeVisible();
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await expect(page.locator(".story-node")).toHaveCount(1);
+  await expect(page.locator(".story-node")).toHaveCount(drawn);
   await page.locator('input[type="file"][accept="application/json"]').setInputFiles({
     name: "invalid-figures.json",
     mimeType: "application/json",
@@ -84,10 +76,15 @@ test("A malformed figure import is rejected before it can replace the current wo
     page.getByRole("alert").filter({ hasText: "Diese Datei enthält kein gültiges Figurenboard." }),
   ).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Figurenboard importieren" })).toHaveCount(0);
-  await expect(page.locator(".story-node")).toHaveCount(1);
-  await expect(page.locator(".story-node").first()).toContainText("Ada");
+  await expect(page.locator(".story-node")).toHaveCount(drawn);
+  await expect(
+    page.locator(".story-node").filter({ hasText: world.text("el.ada.name") }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
   const persisted = await page.request.get(`/api/state?world=${world.id}`);
   expect(persisted.ok()).toBe(true);
-  expect((await persisted.json()).payload.nodes).toMatchObject([{ id: "ada", name: "Ada" }]);
+  const persistedIds = ((await persisted.json()).payload.nodes as { id: string }[]).map(
+    (node) => node.id,
+  );
+  expect(persistedIds).toEqual(figures.map((node) => node.id));
 });

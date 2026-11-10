@@ -3,7 +3,7 @@ import { createTestWorld, expect, test } from "./support/world-fixture";
 
 // On a hosted server the operator installs LanguageTool and the language data
 // (D-59). The client reads `installable` from the status and offers no install
-// button; the status is mocked so the suite does not need a hosted server.
+// button; status and capabilities are mocked so the suite needs no hosted server.
 test("A server that is not installable offers no grammar install, only the operator note", async ({
   page,
 }, testInfo) => {
@@ -17,6 +17,18 @@ test("A server that is not installable offers no grammar install, only the opera
     ),
   });
   expect(seeded.ok(), await seeded.text()).toBeTruthy();
+  // The capabilities decide since T-102; the status fields are only their fallback.
+  await page.route("**/api/capabilities", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        instance: { ...body.instance, writingDataInstall: false, grammarInstall: false },
+      },
+    });
+  });
   await page.route("**/api/writing-assistance/status", (route) =>
     route.fulfill({
       json: {

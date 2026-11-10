@@ -171,6 +171,13 @@ class IdentityRuntimeTests(unittest.TestCase):
         self.assertEqual(pending["redirect_uri"], "https://app.test/auth/callback")
         self.assertIsNone(self.runtime.consume_pending_login(state))
 
+    def test_start_login_names_the_interface_language_only_when_given(self) -> None:
+        url, _ = self.runtime.start_login("https://app.test/auth/callback", ui_locales="de")
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        self.assertEqual(query["ui_locales"], ["de"])
+        url, _ = self.runtime.start_login("https://app.test/auth/callback")
+        self.assertNotIn("ui_locales", urllib.parse.parse_qs(urllib.parse.urlsplit(url).query))
+
     def test_pending_login_expires_against_injected_clock(self) -> None:
         _, state = self.runtime.start_login("https://app.test/callback")
         self.now += PENDING_LOGIN_TTL + 1

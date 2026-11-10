@@ -1,0 +1,3133 @@
+{
+  "structure": {
+    "world.figures.edges[e10]": {
+      "directed": true,
+      "from": "mara",
+      "id": "e10",
+      "label": "⟦edge.e10.label⟧",
+      "lineStyle": "solid",
+      "to": "blatt"
+    },
+    "world.figures.edges[e11]": {
+      "directed": true,
+      "from": "blatt",
+      "id": "e11",
+      "label": "⟦edge.e11.label⟧",
+      "lineStyle": "solid",
+      "to": "atlas"
+    },
+    "world.figures.edges[e12]": {
+      "directed": true,
+      "from": "tilo",
+      "id": "e12",
+      "label": "⟦edge.e12.label⟧",
+      "lineStyle": "solid",
+      "to": "faehrsteg"
+    },
+    "world.figures.edges[e13]": {
+      "directed": true,
+      "from": "ada",
+      "id": "e13",
+      "label": "⟦edge.e13.label⟧",
+      "lineStyle": "solid",
+      "to": "bela"
+    },
+    "world.figures.edges[e14]": {
+      "directed": false,
+      "from": "ada",
+      "id": "e14",
+      "label": "⟦edge.e14.label⟧",
+      "lineStyle": "solid",
+      "to": "bela"
+    },
+    "world.figures.edges[e1]": {
+      "directed": true,
+      "from": "mara",
+      "id": "e1",
+      "label": "⟦edge.e1.label⟧",
+      "lineStyle": "solid",
+      "to": "iven",
+      "versions": [
+        {
+          "active": true,
+          "label": "⟦edge.e1.v2⟧",
+          "momentId": "t2"
+        },
+        {
+          "active": true,
+          "label": "⟦edge.e1.v6⟧",
+          "momentId": "t6"
+        }
+      ]
+    },
+    "world.figures.edges[e2]": {
+      "color": "gold",
+      "directed": true,
+      "from": "mara",
+      "id": "e2",
+      "label": "⟦edge.e2.label⟧",
+      "lineStyle": "solid",
+      "to": "atlas"
+    },
+    "world.figures.edges[e3]": {
+      "directed": true,
+      "from": "iven",
+      "id": "e3",
+      "label": "⟦edge.e3.label⟧",
+      "lineStyle": "solid",
+      "to": "archive"
+    },
+    "world.figures.edges[e4]": {
+      "directed": true,
+      "from": "gilde",
+      "id": "e4",
+      "label": "⟦edge.e4.label⟧",
+      "lineStyle": "dashed",
+      "to": "iven",
+      "versions": [
+        {
+          "active": true,
+          "color": "rose",
+          "label": "⟦edge.e4.v6⟧",
+          "momentId": "t6"
+        }
+      ]
+    },
+    "world.figures.edges[e5]": {
+      "directed": false,
+      "from": "mara",
+      "id": "e5",
+      "label": "⟦edge.e5.label⟧",
+      "lineStyle": "solid",
+      "to": "lumen"
+    },
+    "world.figures.edges[e6]": {
+      "directed": true,
+      "from": "gilde",
+      "id": "e6",
+      "label": "⟦edge.e6.label⟧",
+      "lineStyle": "dashed",
+      "to": "atlas"
+    },
+    "world.figures.edges[e7]": {
+      "directed": true,
+      "from": "oda",
+      "id": "e7",
+      "label": "⟦edge.e7.label⟧",
+      "lineStyle": "solid",
+      "to": "rat"
+    },
+    "world.figures.edges[e8]": {
+      "directed": true,
+      "from": "rat",
+      "id": "e8",
+      "label": "⟦edge.e8.label⟧",
+      "lineStyle": "dashed",
+      "to": "gilde",
+      "versions": [
+        {
+          "active": true,
+          "label": "⟦edge.e8.v5⟧",
+          "momentId": "t5"
+        }
+      ]
+    },
+    "world.figures.edges[e9]": {
+      "directed": true,
+      "from": "tilo",
+      "id": "e9",
+      "label": "⟦edge.e9.label⟧",
+      "lineStyle": "solid",
+      "to": "mara"
+    },
+    "world.figures.mapScale": {
+      "unitLabel": "km",
+      "unitsPer100px": 0.5
+    },
+    "world.figures.nodes[ada]": {
+      "accent": "rose",
+      "id": "ada",
+      "label": "⟦el.ada.label⟧",
+      "name": "⟦el.ada.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-ada",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.ada.label⟧"
+          }
+        ],
+        "notes": "⟦el.ada.notes⟧"
+      },
+      "sub": "⟦el.ada.sub⟧",
+      "type": "person",
+      "x": 80,
+      "y": 770
+    },
+    "world.figures.nodes[archive]": {
+      "accent": "moss",
+      "id": "archive",
+      "label": "⟦el.archive.label⟧",
+      "mapU": 0.42,
+      "mapV": 0.5,
+      "name": "⟦el.archive.name⟧",
+      "parentPlaceId": "nordhafen",
+      "placeDisplay": "card",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-archive",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.archive.label⟧"
+          }
+        ],
+        "notes": "⟦el.archive.notes⟧"
+      },
+      "sub": "⟦el.archive.sub⟧",
+      "type": "ort",
+      "x": 460,
+      "y": 540
+    },
+    "world.figures.nodes[atlas]": {
+      "accent": "gold",
+      "id": "atlas",
+      "important": true,
+      "label": "⟦el.atlas.label⟧",
+      "name": "⟦el.atlas.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-atlas",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.atlas.label⟧"
+          }
+        ],
+        "notes": "⟦el.atlas.notes⟧"
+      },
+      "sub": "⟦el.atlas.sub⟧",
+      "type": "objekt",
+      "x": 1220,
+      "y": 80
+    },
+    "world.figures.nodes[bela]": {
+      "accent": "gold",
+      "id": "bela",
+      "label": "⟦el.bela.label⟧",
+      "name": "⟦el.bela.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-bela",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.bela.label⟧"
+          }
+        ],
+        "notes": "⟦el.bela.notes⟧"
+      },
+      "sub": "⟦el.bela.sub⟧",
+      "type": "person",
+      "x": 460,
+      "y": 770
+    },
+    "world.figures.nodes[blatt]": {
+      "accent": "rose",
+      "id": "blatt",
+      "label": "⟦el.blatt.label⟧",
+      "name": "⟦el.blatt.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-blatt",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.blatt.label⟧"
+          }
+        ],
+        "notes": "⟦el.blatt.notes⟧"
+      },
+      "sub": "⟦el.blatt.sub⟧",
+      "type": "objekt",
+      "x": 1220,
+      "y": 310
+    },
+    "world.figures.nodes[faehrsteg]": {
+      "accent": "ink",
+      "id": "faehrsteg",
+      "label": "⟦el.faehrsteg.label⟧",
+      "mapU": 0.59,
+      "mapV": 0.62,
+      "name": "⟦el.faehrsteg.name⟧",
+      "parentPlaceId": "nordhafen",
+      "placeDisplay": "pin",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-faehrsteg",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.faehrsteg.label⟧"
+          }
+        ],
+        "notes": "⟦el.faehrsteg.notes⟧"
+      },
+      "sub": "⟦el.faehrsteg.sub⟧",
+      "type": "ort",
+      "x": 840,
+      "y": 770
+    },
+    "world.figures.nodes[gilde]": {
+      "accent": "ink",
+      "id": "gilde",
+      "label": "⟦el.gilde.label⟧",
+      "name": "⟦el.gilde.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-gilde",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.gilde.label⟧"
+          }
+        ],
+        "notes": "⟦el.gilde.notes⟧"
+      },
+      "sub": "⟦el.gilde.sub⟧",
+      "type": "organisation",
+      "x": 840,
+      "y": 80
+    },
+    "world.figures.nodes[iven]": {
+      "accent": "rose",
+      "id": "iven",
+      "label": "⟦el.iven.label⟧",
+      "name": "⟦el.iven.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-iven",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.iven.label⟧"
+          }
+        ],
+        "notes": "⟦el.iven.notes⟧"
+      },
+      "sub": "⟦el.iven.sub⟧",
+      "type": "person",
+      "x": 460,
+      "y": 310
+    },
+    "world.figures.nodes[leuchtturm]": {
+      "accent": "ink",
+      "id": "leuchtturm",
+      "label": "⟦el.leuchtturm.label⟧",
+      "mapX": 900,
+      "mapY": 480,
+      "name": "⟦el.leuchtturm.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-leuchtturm",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.leuchtturm.label⟧"
+          }
+        ],
+        "notes": "⟦el.leuchtturm.notes⟧"
+      },
+      "sub": "⟦el.leuchtturm.sub⟧",
+      "type": "ort",
+      "x": 80,
+      "y": 540
+    },
+    "world.figures.nodes[lumen]": {
+      "accent": "moss",
+      "id": "lumen",
+      "label": "⟦el.lumen.label⟧",
+      "name": "⟦el.lumen.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-lumen",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.lumen.label⟧"
+          }
+        ],
+        "notes": "⟦el.lumen.notes⟧"
+      },
+      "sub": "⟦el.lumen.sub⟧",
+      "type": "tier",
+      "x": 1220,
+      "y": 540
+    },
+    "world.figures.nodes[mara]": {
+      "accent": "gold",
+      "aliases": [
+        {
+          "alias": "⟦el.mara.alias⟧",
+          "source": "manual"
+        }
+      ],
+      "id": "mara",
+      "important": true,
+      "label": "⟦el.mara.label⟧",
+      "name": "⟦el.mara.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-mara",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.mara.label⟧"
+          },
+          {
+            "id": "field-mara-origin",
+            "key": "⟦field.origin⟧",
+            "value": "⟦el.nordhafen.name⟧"
+          }
+        ],
+        "noteMarks": [
+          {
+            "from": 0,
+            "kind": "heading",
+            "level": 1,
+            "to": 14
+          },
+          {
+            "from": 35,
+            "kind": "heading",
+            "level": 2,
+            "to": 55
+          },
+          {
+            "from": 78,
+            "kind": "heading",
+            "level": 2,
+            "to": 99
+          },
+          {
+            "from": 123,
+            "kind": "heading",
+            "level": 2,
+            "to": 142
+          }
+        ],
+        "noteReferences": [
+          {
+            "from": 0,
+            "id": "ref-iven",
+            "surface": "⟦el.iven.name⟧",
+            "target": {
+              "id": "iven",
+              "kind": "entity"
+            },
+            "to": 14
+          },
+          {
+            "from": 0,
+            "id": "ref-archive",
+            "surface": "⟦el.archive.name⟧",
+            "target": {
+              "id": "archive",
+              "kind": "place"
+            },
+            "to": 17
+          },
+          {
+            "from": 0,
+            "id": "ref-atlas-open",
+            "surface": "⟦moment.t2.title⟧",
+            "target": {
+              "id": "t2",
+              "kind": "timeline"
+            },
+            "to": 17
+          },
+          {
+            "from": 0,
+            "id": "ref-tilo",
+            "surface": "⟦el.tilo.name⟧",
+            "target": {
+              "id": "tilo",
+              "kind": "entity"
+            },
+            "to": 14
+          }
+        ],
+        "notes": "⟦el.mara.name⟧\n⟦mara.notes.intro⟧\n\n⟦mara.notes.drive.h⟧\n⟦mara.notes.drive.p⟧\n\n⟦mara.notes.traces.h⟧\n⟦mara.notes.traces.p⟧\n\n⟦mara.notes.open.h⟧\n⟦mara.notes.open.p⟧"
+      },
+      "sub": "⟦el.mara.sub⟧",
+      "type": "person",
+      "x": 840,
+      "y": 310
+    },
+    "world.figures.nodes[nordhafen]": {
+      "accent": "moss",
+      "id": "nordhafen",
+      "label": "⟦el.nordhafen.label⟧",
+      "mapHeight": 1000,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapImageU": 0.5,
+      "mapImageV": 0.5,
+      "mapImageZoom": 1,
+      "mapScale": {
+        "unitLabel": "km",
+        "unitsPer100px": 0.15
+      },
+      "mapWidth": 1500,
+      "mapX": 300,
+      "mapY": 300,
+      "name": "⟦el.nordhafen.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-nordhafen",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.nordhafen.label⟧"
+          }
+        ],
+        "notes": "⟦el.nordhafen.notes⟧"
+      },
+      "sub": "⟦el.nordhafen.sub⟧",
+      "type": "ort",
+      "x": 460,
+      "y": 770
+    },
+    "world.figures.nodes[oda]": {
+      "accent": "ink",
+      "id": "oda",
+      "label": "⟦el.oda.label⟧",
+      "name": "⟦el.oda.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-oda",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.oda.label⟧"
+          }
+        ],
+        "notes": "⟦el.oda.notes⟧"
+      },
+      "sub": "⟦el.oda.sub⟧",
+      "type": "person",
+      "x": 80,
+      "y": 80
+    },
+    "world.figures.nodes[rat]": {
+      "accent": "ink",
+      "id": "rat",
+      "label": "⟦el.rat.label⟧",
+      "name": "⟦el.rat.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-rat",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.rat.label⟧"
+          }
+        ],
+        "notes": "⟦el.rat.notes⟧"
+      },
+      "sub": "⟦el.rat.sub⟧",
+      "type": "organisation",
+      "x": 460,
+      "y": 80
+    },
+    "world.figures.nodes[salzmarkt]": {
+      "accent": "gold",
+      "id": "salzmarkt",
+      "label": "⟦el.salzmarkt.label⟧",
+      "mapU": 0.15,
+      "mapV": 0.55,
+      "name": "⟦el.salzmarkt.name⟧",
+      "parentPlaceId": "nordhafen",
+      "placeDisplay": "pin",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-salzmarkt",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.salzmarkt.label⟧"
+          }
+        ],
+        "notes": "⟦el.salzmarkt.notes⟧"
+      },
+      "sub": "⟦el.salzmarkt.sub⟧",
+      "type": "ort",
+      "x": 80,
+      "y": 310
+    },
+    "world.figures.nodes[tilo]": {
+      "accent": "moss",
+      "diedMomentId": "t7",
+      "id": "tilo",
+      "label": "⟦el.tilo.label⟧",
+      "name": "⟦el.tilo.name⟧",
+      "profile": {
+        "fields": [
+          {
+            "id": "field-tilo",
+            "key": "⟦field.role⟧",
+            "value": "⟦el.tilo.label⟧"
+          }
+        ],
+        "notes": "⟦el.tilo.notes⟧"
+      },
+      "sub": "⟦el.tilo.sub⟧",
+      "type": "person",
+      "x": 840,
+      "y": 540
+    },
+    "world.figures.nodes[x-cluster-1]": {
+      "accent": "ink",
+      "id": "x-cluster-1",
+      "label": "⟦el.x-cluster-1.label⟧",
+      "mapX": 1400,
+      "mapY": 300,
+      "name": "⟦el.x-cluster-1.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-1.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-1.sub⟧",
+      "type": "ort",
+      "x": 1600,
+      "y": 80
+    },
+    "world.figures.nodes[x-cluster-2]": {
+      "accent": "ink",
+      "id": "x-cluster-2",
+      "label": "⟦el.x-cluster-2.label⟧",
+      "mapX": 1404,
+      "mapY": 304,
+      "name": "⟦el.x-cluster-2.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-2.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-2.sub⟧",
+      "type": "ort",
+      "x": 1606,
+      "y": 86
+    },
+    "world.figures.nodes[x-cluster-3]": {
+      "accent": "ink",
+      "id": "x-cluster-3",
+      "label": "⟦el.x-cluster-3.label⟧",
+      "mapX": 1408,
+      "mapY": 308,
+      "name": "⟦el.x-cluster-3.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-3.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-3.sub⟧",
+      "type": "ort",
+      "x": 1612,
+      "y": 92
+    },
+    "world.figures.nodes[x-cluster-4]": {
+      "accent": "ink",
+      "id": "x-cluster-4",
+      "label": "⟦el.x-cluster-4.label⟧",
+      "mapX": 1412,
+      "mapY": 312,
+      "name": "⟦el.x-cluster-4.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-4.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-4.sub⟧",
+      "type": "ort",
+      "x": 1618,
+      "y": 98
+    },
+    "world.figures.nodes[x-cluster-5]": {
+      "accent": "ink",
+      "id": "x-cluster-5",
+      "important": true,
+      "label": "⟦el.x-cluster-5.label⟧",
+      "mapX": 1416,
+      "mapY": 316,
+      "name": "⟦el.x-cluster-5.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-5.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-5.sub⟧",
+      "type": "ort",
+      "x": 1624,
+      "y": 104
+    },
+    "world.figures.nodes[x-cluster-6]": {
+      "accent": "ink",
+      "id": "x-cluster-6",
+      "label": "⟦el.x-cluster-6.label⟧",
+      "mapX": 1420,
+      "mapY": 320,
+      "name": "⟦el.x-cluster-6.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-6.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-6.sub⟧",
+      "type": "ort",
+      "x": 1630,
+      "y": 110
+    },
+    "world.figures.nodes[x-cluster-7]": {
+      "accent": "ink",
+      "id": "x-cluster-7",
+      "label": "⟦el.x-cluster-7.label⟧",
+      "mapX": 1424,
+      "mapY": 324,
+      "name": "⟦el.x-cluster-7.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-7.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-7.sub⟧",
+      "type": "ort",
+      "x": 1636,
+      "y": 116
+    },
+    "world.figures.nodes[x-cluster-8]": {
+      "accent": "ink",
+      "id": "x-cluster-8",
+      "label": "⟦el.x-cluster-8.label⟧",
+      "mapX": 1428,
+      "mapY": 328,
+      "name": "⟦el.x-cluster-8.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-cluster-8.notes⟧"
+      },
+      "sub": "⟦el.x-cluster-8.sub⟧",
+      "type": "ort",
+      "x": 1642,
+      "y": 122
+    },
+    "world.figures.nodes[x-empty-note]": {
+      "accent": "ink",
+      "id": "x-empty-note",
+      "label": "⟦el.x-empty-note.label⟧",
+      "name": "⟦el.x-empty-note.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-empty-note.sub⟧",
+      "type": "objekt",
+      "x": 1980,
+      "y": 310
+    },
+    "world.figures.nodes[x-graufurth]": {
+      "accent": "ink",
+      "id": "x-graufurth",
+      "label": "⟦el.x-graufurth.label⟧",
+      "mapU": 0.3,
+      "mapV": 0.4,
+      "name": "⟦el.x-graufurth.name⟧",
+      "parentPlaceId": "x-weltkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-graufurth.sub⟧",
+      "type": "ort",
+      "x": 1980,
+      "y": 770
+    },
+    "world.figures.nodes[x-inselhafen]": {
+      "accent": "ink",
+      "id": "x-inselhafen",
+      "label": "⟦el.x-inselhafen.label⟧",
+      "mapU": 0.5,
+      "mapV": 0.5,
+      "name": "⟦el.x-inselhafen.name⟧",
+      "parentPlaceId": "x-inselkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-inselhafen.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 770
+    },
+    "world.figures.nodes[x-inselkarte]": {
+      "accent": "ink",
+      "id": "x-inselkarte",
+      "label": "⟦el.x-inselkarte.label⟧",
+      "mapExpanded": true,
+      "mapHeight": 500,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapWidth": 600,
+      "mapX": 900,
+      "mapY": 900,
+      "name": "⟦el.x-inselkarte.name⟧",
+      "pinned": true,
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-inselkarte.notes⟧"
+      },
+      "sub": "⟦el.x-inselkarte.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 540
+    },
+    "world.figures.nodes[x-long-name]": {
+      "accent": "ink",
+      "id": "x-long-name",
+      "label": "⟦el.x-long-name.label⟧",
+      "name": "⟦el.x-long-name.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-long-name.notes⟧"
+      },
+      "sub": "⟦el.x-long-name.sub⟧",
+      "type": "person",
+      "x": 1600,
+      "y": 310
+    },
+    "world.figures.nodes[x-long-org]": {
+      "accent": "ink",
+      "id": "x-long-org",
+      "label": "⟦el.x-long-org.label⟧",
+      "name": "⟦el.x-long-org.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-long-org.notes⟧"
+      },
+      "sub": "⟦el.x-long-org.sub⟧",
+      "type": "organisation",
+      "x": 1600,
+      "y": 770
+    },
+    "world.figures.nodes[x-long-place]": {
+      "accent": "ink",
+      "id": "x-long-place",
+      "label": "⟦el.x-long-place.label⟧",
+      "mapU": 0.8,
+      "mapV": 0.3,
+      "name": "⟦el.x-long-place.name⟧",
+      "parentPlaceId": "nordhafen",
+      "placeDisplay": "pin",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-long-place.notes⟧"
+      },
+      "sub": "⟦el.x-long-place.sub⟧",
+      "type": "ort",
+      "x": 1600,
+      "y": 540
+    },
+    "world.figures.nodes[x-nordhafen]": {
+      "accent": "ink",
+      "id": "x-nordhafen",
+      "label": "⟦el.x-nordhafen.label⟧",
+      "mapU": 0.7,
+      "mapV": 0.4,
+      "name": "⟦el.x-nordhafen.name⟧",
+      "parentPlaceId": "x-weltkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-nordhafen.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 80
+    },
+    "world.figures.nodes[x-tannenhain]": {
+      "accent": "ink",
+      "id": "x-tannenhain",
+      "label": "⟦el.x-tannenhain.label⟧",
+      "mapU": 0.48,
+      "mapV": 0.7,
+      "name": "⟦el.x-tannenhain.name⟧",
+      "parentPlaceId": "x-weltkarte",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-tannenhain.sub⟧",
+      "type": "ort",
+      "x": 2360,
+      "y": 310
+    },
+    "world.figures.nodes[x-weltkarte]": {
+      "accent": "ink",
+      "id": "x-weltkarte",
+      "label": "⟦el.x-weltkarte.label⟧",
+      "mapExpanded": true,
+      "mapHeight": 680,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapScale": {
+        "unitLabel": "km",
+        "unitsPer100px": 25
+      },
+      "mapWidth": 1000,
+      "mapX": 200,
+      "mapY": 900,
+      "name": "⟦el.x-weltkarte.name⟧",
+      "pinned": true,
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.x-weltkarte.notes⟧"
+      },
+      "sub": "⟦el.x-weltkarte.sub⟧",
+      "type": "ort",
+      "x": 1980,
+      "y": 540
+    },
+    "world.figures.presence[presence-1]": {
+      "elementId": "mara",
+      "id": "presence-1",
+      "momentId": "t1",
+      "placeId": "archive"
+    },
+    "world.figures.presence[presence-2]": {
+      "elementId": "iven",
+      "id": "presence-2",
+      "momentId": "t1",
+      "placeId": "archive"
+    },
+    "world.figures.presence[presence-3]": {
+      "elementId": "mara",
+      "id": "presence-3",
+      "momentId": "t2",
+      "placeId": "archive"
+    },
+    "world.figures.presence[presence-4]": {
+      "elementId": "iven",
+      "id": "presence-4",
+      "momentId": "t2",
+      "placeId": "archive"
+    },
+    "world.figures.presence[presence-5]": {
+      "elementId": "oda",
+      "id": "presence-5",
+      "momentId": "t4",
+      "placeId": "salzmarkt"
+    },
+    "world.figures.presence[presence-6]": {
+      "elementId": "mara",
+      "id": "presence-6",
+      "momentId": "t4",
+      "placeId": "salzmarkt"
+    },
+    "world.figures.presence[presence-7]": {
+      "elementId": "tilo",
+      "id": "presence-7",
+      "momentId": "t7",
+      "placeId": "faehrsteg"
+    },
+    "world.figures.presence[presence-8]": {
+      "elementId": "mara",
+      "id": "presence-8",
+      "momentId": "t8",
+      "placeId": "leuchtturm"
+    },
+    "world.figures.timeSystem": {
+      "displayFormat": "⟦calendar.format⟧",
+      "epochDay": 7,
+      "epochMonth": 3,
+      "epochTime": 0,
+      "epochWeekday": 2,
+      "epochYear": 214,
+      "eraAbbreviation": "⟦calendar.eraAbbreviation⟧",
+      "eraName": "⟦calendar.era⟧",
+      "id": "gezeitenrechnung",
+      "kind": "custom",
+      "name": "⟦calendar.name⟧",
+      "unit": "day"
+    },
+    "world.figures.timeSystem.months[#0]": {
+      "dayCount": 30,
+      "name": "⟦month.1.name⟧",
+      "shortName": "⟦month.1.short⟧"
+    },
+    "world.figures.timeSystem.months[#1]": {
+      "dayCount": 29,
+      "name": "⟦month.2.name⟧",
+      "shortName": "⟦month.2.short⟧"
+    },
+    "world.figures.timeSystem.months[#2]": {
+      "dayCount": 31,
+      "name": "⟦month.3.name⟧",
+      "shortName": "⟦month.3.short⟧"
+    },
+    "world.figures.timeSystem.months[#3]": {
+      "dayCount": 30,
+      "name": "⟦month.4.name⟧",
+      "shortName": "⟦month.4.short⟧"
+    },
+    "world.figures.timeSystem.months[#4]": {
+      "dayCount": 28,
+      "name": "⟦month.5.name⟧",
+      "shortName": "⟦month.5.short⟧"
+    },
+    "world.figures.timeSystem.months[#5]": {
+      "dayCount": 31,
+      "name": "⟦month.6.name⟧",
+      "shortName": "⟦month.6.short⟧"
+    },
+    "world.figures.timeSystem.months[#6]": {
+      "dayCount": 30,
+      "name": "⟦month.7.name⟧",
+      "shortName": "⟦month.7.short⟧"
+    },
+    "world.figures.timeSystem.months[#7]": {
+      "dayCount": 29,
+      "name": "⟦month.8.name⟧",
+      "shortName": "⟦month.8.short⟧"
+    },
+    "world.figures.timeSystem.weekdays[#0]": {
+      "name": "⟦weekday.1.name⟧",
+      "shortName": "⟦weekday.1.short⟧"
+    },
+    "world.figures.timeSystem.weekdays[#1]": {
+      "name": "⟦weekday.2.name⟧",
+      "shortName": "⟦weekday.2.short⟧"
+    },
+    "world.figures.timeSystem.weekdays[#2]": {
+      "name": "⟦weekday.3.name⟧",
+      "shortName": "⟦weekday.3.short⟧"
+    },
+    "world.figures.timeSystem.weekdays[#3]": {
+      "name": "⟦weekday.4.name⟧",
+      "shortName": "⟦weekday.4.short⟧"
+    },
+    "world.figures.timeSystem.weekdays[#4]": {
+      "name": "⟦weekday.5.name⟧",
+      "shortName": "⟦weekday.5.short⟧"
+    },
+    "world.figures.timeSystem.weekdays[#5]": {
+      "name": "⟦weekday.6.name⟧",
+      "shortName": "⟦weekday.6.short⟧"
+    },
+    "world.figures.timeline[t1]": {
+      "id": "t1",
+      "note": "⟦moment.t1.note⟧",
+      "position": 0,
+      "precision": "day",
+      "time": 0,
+      "title": "⟦moment.t1.title⟧"
+    },
+    "world.figures.timeline[t2]": {
+      "id": "t2",
+      "note": "⟦moment.t2.note⟧",
+      "position": 1,
+      "precision": "day",
+      "time": 3,
+      "title": "⟦moment.t2.title⟧"
+    },
+    "world.figures.timeline[t3]": {
+      "id": "t3",
+      "note": "⟦moment.t3.note⟧",
+      "position": 2,
+      "precision": "day",
+      "time": 6,
+      "title": "⟦moment.t3.title⟧"
+    },
+    "world.figures.timeline[t4]": {
+      "id": "t4",
+      "note": "⟦moment.t4.note⟧",
+      "position": 3,
+      "precision": "day",
+      "time": 9,
+      "title": "⟦moment.t4.title⟧"
+    },
+    "world.figures.timeline[t5]": {
+      "id": "t5",
+      "note": "⟦moment.t5.note⟧",
+      "position": 4,
+      "precision": "day",
+      "time": 12,
+      "title": "⟦moment.t5.title⟧"
+    },
+    "world.figures.timeline[t6]": {
+      "id": "t6",
+      "note": "⟦moment.t6.note⟧",
+      "position": 5,
+      "precision": "day",
+      "time": 15,
+      "title": "⟦moment.t6.title⟧"
+    },
+    "world.figures.timeline[t7]": {
+      "id": "t7",
+      "note": "⟦moment.t7.note⟧",
+      "position": 6,
+      "precision": "day",
+      "time": 18,
+      "title": "⟦moment.t7.title⟧"
+    },
+    "world.figures.timeline[t8]": {
+      "id": "t8",
+      "note": "⟦moment.t8.note⟧",
+      "position": 7,
+      "precision": "day",
+      "time": 22,
+      "title": "⟦moment.t8.title⟧"
+    },
+    "world.manuscript.activeSymbols[#0]": "⟦symbol.1⟧",
+    "world.manuscript.activeSymbols[#1]": "⟦symbol.2⟧",
+    "world.manuscript.activeSymbols[#2]": "⟦symbol.3⟧",
+    "world.manuscript.activeSymbols[#3]": "⟦symbol.4⟧",
+    "world.manuscript.chapters[c-archive]": {
+      "body": "⟦ch.c2.body⟧",
+      "id": "c-archive",
+      "marks": [
+        {
+          "from": 0,
+          "kind": "italic",
+          "to": 18
+        }
+      ],
+      "note": "⟦ch.c2.note⟧",
+      "storyTime": {
+        "startMomentId": "t2"
+      },
+      "title": "⟦ch.c2.title⟧"
+    },
+    "world.manuscript.chapters[c-arrival]": {
+      "body": "⟦ch.c1.body⟧",
+      "id": "c-arrival",
+      "mentions": [
+        {
+          "confidence": 1,
+          "elementId": "iven",
+          "from": 0,
+          "id": "m-iven",
+          "source": "deterministic",
+          "surface": "⟦el.iven.name⟧",
+          "to": 14
+        }
+      ],
+      "note": "⟦ch.c1.note⟧",
+      "storyTime": {
+        "startMomentId": "t1"
+      },
+      "title": "⟦ch.c1.title⟧"
+    },
+    "world.manuscript.chapters[c-break]": {
+      "body": "⟦ch.c6.body⟧",
+      "id": "c-break",
+      "note": "⟦ch.c6.note⟧",
+      "storyTime": {
+        "startMomentId": "t6"
+      },
+      "title": "⟦ch.c6.title⟧"
+    },
+    "world.manuscript.chapters[c-coast]": {
+      "body": "⟦ch.c8.body⟧",
+      "id": "c-coast",
+      "note": "⟦ch.c8.note⟧",
+      "title": "⟦ch.c8.title⟧"
+    },
+    "world.manuscript.chapters[c-crossing]": {
+      "body": "⟦ch.c7.body⟧",
+      "id": "c-crossing",
+      "note": "⟦ch.c7.note⟧",
+      "title": "⟦ch.c7.title⟧"
+    },
+    "world.manuscript.chapters[c-market]": {
+      "body": "⟦ch.c4.body⟧",
+      "id": "c-market",
+      "note": "⟦ch.c4.note⟧",
+      "storyTime": {
+        "startMomentId": "t4"
+      },
+      "title": "⟦ch.c4.title⟧"
+    },
+    "world.manuscript.chapters[c-sheet]": {
+      "body": "⟦ch.c3.body⟧",
+      "id": "c-sheet",
+      "note": "⟦ch.c3.note⟧",
+      "storyTime": {
+        "startMomentId": "t3"
+      },
+      "title": "⟦ch.c3.title⟧"
+    },
+    "world.manuscript.chapters[c-storm]": {
+      "body": "⟦ch.c5.body⟧",
+      "id": "c-storm",
+      "note": "⟦ch.c5.note⟧",
+      "storyTime": {
+        "startMomentId": "t5"
+      },
+      "title": "⟦ch.c5.title⟧"
+    },
+    "world.manuscript.chapters[x-empty-chapter]": {
+      "body": "",
+      "id": "x-empty-chapter",
+      "note": "",
+      "title": "⟦ch.x-empty.title⟧"
+    },
+    "world.manuscript.structure.folders[act-one]": {
+      "id": "act-one",
+      "title": "⟦folder.act1⟧"
+    },
+    "world.manuscript.structure.folders[act-two]": {
+      "id": "act-two",
+      "title": "⟦folder.act2⟧"
+    },
+    "world.manuscript.structure.items[folder-one]": {
+      "folderId": "act-one",
+      "id": "folder-one",
+      "kind": "folder",
+      "position": 0
+    },
+    "world.manuscript.structure.items[folder-two]": {
+      "folderId": "act-two",
+      "id": "folder-two",
+      "kind": "folder",
+      "position": 1
+    },
+    "world.manuscript.structure.items[item-c-archive]": {
+      "chapterId": "c-archive",
+      "id": "item-c-archive",
+      "kind": "chapter",
+      "parentFolderId": "act-one",
+      "position": 1
+    },
+    "world.manuscript.structure.items[item-c-arrival]": {
+      "chapterId": "c-arrival",
+      "id": "item-c-arrival",
+      "kind": "chapter",
+      "parentFolderId": "act-one",
+      "position": 0
+    },
+    "world.manuscript.structure.items[item-c-break]": {
+      "chapterId": "c-break",
+      "id": "item-c-break",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 1
+    },
+    "world.manuscript.structure.items[item-c-coast]": {
+      "chapterId": "c-coast",
+      "id": "item-c-coast",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 3
+    },
+    "world.manuscript.structure.items[item-c-crossing]": {
+      "chapterId": "c-crossing",
+      "id": "item-c-crossing",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 2
+    },
+    "world.manuscript.structure.items[item-c-market]": {
+      "chapterId": "c-market",
+      "id": "item-c-market",
+      "kind": "chapter",
+      "parentFolderId": "act-one",
+      "position": 3
+    },
+    "world.manuscript.structure.items[item-c-sheet]": {
+      "chapterId": "c-sheet",
+      "id": "item-c-sheet",
+      "kind": "chapter",
+      "parentFolderId": "act-one",
+      "position": 2
+    },
+    "world.manuscript.structure.items[item-c-storm]": {
+      "chapterId": "c-storm",
+      "id": "item-c-storm",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 0
+    },
+    "world.manuscript.structure.items[item-x-empty-chapter]": {
+      "chapterId": "x-empty-chapter",
+      "id": "item-x-empty-chapter",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 4
+    },
+    "world.manuscript.trash[c-prologue]": {
+      "chapter": {
+        "body": "⟦ch.prologue.body⟧",
+        "id": "c-prologue",
+        "note": "⟦ch.prologue.note⟧",
+        "title": "⟦ch.prologue.title⟧"
+      },
+      "deletedAt": "2026-01-12T09:30:00.000Z",
+      "originalFolderPath": [
+        {
+          "id": "act-one",
+          "title": "⟦folder.act1⟧"
+        }
+      ],
+      "treeItem": {
+        "chapterId": "c-prologue",
+        "id": "item-c-prologue",
+        "kind": "chapter",
+        "parentFolderId": "act-one",
+        "position": 4
+      }
+    },
+    "world.manuscript.trash[x-trash-orphan]": {
+      "chapter": {
+        "body": "⟦ch.x-orphan.body⟧",
+        "id": "x-trash-orphan",
+        "note": "",
+        "title": "⟦ch.x-orphan.title⟧"
+      },
+      "deletedAt": "2026-02-03T08:15:00.000Z",
+      "originalFolderPath": [
+        {
+          "id": "x-gone-folder",
+          "title": "⟦folder.x-gone⟧"
+        }
+      ],
+      "treeItem": {
+        "chapterId": "x-trash-orphan",
+        "id": "item-x-trash-orphan",
+        "kind": "chapter",
+        "parentFolderId": "x-gone-folder",
+        "position": 0
+      }
+    },
+    "world.manuscript.words[#0]": {
+      "d": "⟦word.lichtsaum.d⟧",
+      "w": "⟦word.lichtsaum.w⟧"
+    },
+    "world.manuscript.words[#1]": {
+      "d": "⟦word.gezeitenarchiv.d⟧",
+      "w": "⟦word.gezeitenarchiv.w⟧"
+    },
+    "world.manuscript.words[#2]": {
+      "d": "⟦word.kartennebel.d⟧",
+      "w": "⟦word.kartennebel.w⟧"
+    },
+    "world.manuscript.words[#3]": {
+      "d": "⟦word.nipptide.d⟧",
+      "w": "⟦word.nipptide.w⟧"
+    },
+    "world.manuscript.words[#4]": {
+      "d": "⟦word.ebbpfad.d⟧",
+      "w": "⟦word.ebbpfad.w⟧"
+    },
+    "world.storyboards.boards[main-storyboard]": {
+      "id": "main-storyboard",
+      "title": "⟦board.main.title⟧"
+    },
+    "world.storyboards.boards[second-board]": {
+      "id": "second-board",
+      "title": "⟦board.second.title⟧"
+    },
+    "world.storyboards.boards[x-board]": {
+      "id": "x-board",
+      "title": "⟦board.x.title⟧"
+    },
+    "world.storyboards.boards[x-layers]": {
+      "id": "x-layers",
+      "title": "⟦board.x-layers.title⟧"
+    },
+    "world.storyboards.edges[board-edge-eight]": {
+      "boardId": "second-board",
+      "directed": true,
+      "id": "board-edge-eight",
+      "label": "⟦boardEdge.back⟧",
+      "sourceNodeId": "note-crossing",
+      "targetNodeId": "board-north"
+    },
+    "world.storyboards.edges[board-edge-five]": {
+      "boardId": "main-storyboard",
+      "directed": true,
+      "id": "board-edge-five",
+      "label": "⟦boardEdge.departure⟧",
+      "sourceNodeId": "reference-chapter",
+      "targetNodeId": "board-crossing"
+    },
+    "world.storyboards.edges[board-edge-four]": {
+      "boardId": "main-storyboard",
+      "directed": true,
+      "id": "board-edge-four",
+      "sourceNodeId": "note-turn",
+      "targetNodeId": "reference-chapter"
+    },
+    "world.storyboards.edges[board-edge-one]": {
+      "boardId": "main-storyboard",
+      "directed": true,
+      "id": "board-edge-one",
+      "label": "⟦boardEdge.figure⟧",
+      "sourceNodeId": "note-arrival",
+      "targetNodeId": "reference-mara"
+    },
+    "world.storyboards.edges[board-edge-seven]": {
+      "boardId": "second-board",
+      "directed": true,
+      "id": "board-edge-seven",
+      "label": "⟦boardEdge.ferryman⟧",
+      "sourceNodeId": "note-crossing",
+      "targetNodeId": "reference-tilo"
+    },
+    "world.storyboards.edges[board-edge-six]": {
+      "boardId": "second-board",
+      "directed": true,
+      "id": "board-edge-six",
+      "label": "⟦boardEdge.shows⟧",
+      "sourceNodeId": "note-sea",
+      "targetNodeId": "reference-atlas"
+    },
+    "world.storyboards.edges[board-edge-three]": {
+      "boardId": "main-storyboard",
+      "directed": true,
+      "id": "board-edge-three",
+      "label": "⟦boardEdge.leads⟧",
+      "sourceNodeId": "note-rumour",
+      "targetNodeId": "reference-archive"
+    },
+    "world.storyboards.edges[board-edge-two]": {
+      "boardId": "main-storyboard",
+      "directed": true,
+      "id": "board-edge-two",
+      "label": "⟦boardEdge.seeks⟧",
+      "sourceNodeId": "reference-mara",
+      "targetNodeId": "reference-archive"
+    },
+    "world.storyboards.nodes[board-crossing]": {
+      "boardId": "main-storyboard",
+      "height": 180,
+      "id": "board-crossing",
+      "kind": "storyboard",
+      "label": "⟦card.crossing.link.label⟧",
+      "target": {
+        "id": "second-board",
+        "kind": "storyboard"
+      },
+      "text": "⟦card.crossing.link.text⟧",
+      "width": 250,
+      "x": 1190,
+      "y": 430,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[board-north]": {
+      "boardId": "second-board",
+      "height": 190,
+      "id": "board-north",
+      "kind": "storyboard",
+      "label": "⟦card.north.link.label⟧",
+      "target": {
+        "id": "main-storyboard",
+        "kind": "storyboard"
+      },
+      "text": "⟦card.north.link.text⟧",
+      "width": 260,
+      "x": 800,
+      "y": 340,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[group-act-one]": {
+      "boardId": "main-storyboard",
+      "height": 620,
+      "id": "group-act-one",
+      "kind": "group",
+      "label": "⟦card.group1.label⟧",
+      "text": "⟦card.group1.text⟧",
+      "width": 760,
+      "x": 30,
+      "y": 30,
+      "zIndex": 0
+    },
+    "world.storyboards.nodes[group-act-two]": {
+      "boardId": "main-storyboard",
+      "height": 620,
+      "id": "group-act-two",
+      "kind": "group",
+      "label": "⟦card.group2.label⟧",
+      "text": "⟦card.group2.text⟧",
+      "width": 650,
+      "x": 830,
+      "y": 30,
+      "zIndex": 0
+    },
+    "world.storyboards.nodes[note-arrival]": {
+      "boardId": "main-storyboard",
+      "height": 190,
+      "id": "note-arrival",
+      "kind": "note",
+      "label": "⟦card.arrival.label⟧",
+      "noteReferences": [
+        {
+          "from": 0,
+          "id": "story-ref-mara",
+          "surface": "⟦el.mara.name⟧",
+          "target": {
+            "id": "mara",
+            "kind": "entity"
+          },
+          "to": 14
+        },
+        {
+          "from": 0,
+          "id": "story-ref-archive",
+          "surface": "⟦el.archive.name⟧",
+          "target": {
+            "id": "archive",
+            "kind": "place"
+          },
+          "to": 17
+        }
+      ],
+      "text": "⟦card.arrival.text⟧",
+      "width": 330,
+      "x": 70,
+      "y": 190,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[note-crossing]": {
+      "boardId": "second-board",
+      "height": 190,
+      "id": "note-crossing",
+      "kind": "note",
+      "label": "⟦card.lantern.label⟧",
+      "text": "⟦card.lantern.text⟧",
+      "width": 340,
+      "x": 60,
+      "y": 340,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[note-rumour]": {
+      "boardId": "main-storyboard",
+      "height": 180,
+      "id": "note-rumour",
+      "kind": "note",
+      "label": "⟦card.rumour.label⟧",
+      "text": "⟦card.rumour.text⟧",
+      "width": 330,
+      "x": 70,
+      "y": 430,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[note-sea]": {
+      "boardId": "second-board",
+      "height": 200,
+      "id": "note-sea",
+      "kind": "note",
+      "label": "⟦card.sea.label⟧",
+      "text": "⟦card.sea.text⟧",
+      "width": 340,
+      "x": 60,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[note-turn]": {
+      "boardId": "main-storyboard",
+      "height": 190,
+      "id": "note-turn",
+      "kind": "note",
+      "label": "⟦card.turn.label⟧",
+      "text": "⟦card.turn.text⟧",
+      "width": 330,
+      "x": 870,
+      "y": 190,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[reference-archive]": {
+      "boardId": "main-storyboard",
+      "height": 180,
+      "id": "reference-archive",
+      "kind": "reference",
+      "label": "⟦el.archive.name⟧",
+      "target": {
+        "id": "archive",
+        "kind": "place"
+      },
+      "width": 260,
+      "x": 460,
+      "y": 430,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[reference-atlas]": {
+      "boardId": "second-board",
+      "height": 200,
+      "id": "reference-atlas",
+      "kind": "reference",
+      "label": "⟦el.atlas.name⟧",
+      "target": {
+        "id": "atlas",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 480,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[reference-chapter]": {
+      "boardId": "main-storyboard",
+      "height": 180,
+      "id": "reference-chapter",
+      "kind": "reference",
+      "label": "⟦ch.c5.title⟧",
+      "target": {
+        "id": "c-storm",
+        "kind": "chapter"
+      },
+      "width": 240,
+      "x": 870,
+      "y": 430,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[reference-mara]": {
+      "boardId": "main-storyboard",
+      "height": 190,
+      "id": "reference-mara",
+      "kind": "reference",
+      "label": "⟦el.mara.name⟧",
+      "target": {
+        "id": "mara",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 460,
+      "y": 190,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[reference-tilo]": {
+      "boardId": "second-board",
+      "height": 190,
+      "id": "reference-tilo",
+      "kind": "reference",
+      "label": "⟦el.tilo.name⟧",
+      "target": {
+        "id": "tilo",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 480,
+      "y": 340,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-layer-back]": {
+      "boardId": "x-layers",
+      "height": 210,
+      "id": "x-layer-back",
+      "kind": "note",
+      "label": "⟦card.x-layer-back.label⟧",
+      "text": "⟦card.x-layer-back.text⟧",
+      "width": 280,
+      "x": 60,
+      "y": 420,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-layer-front]": {
+      "boardId": "x-layers",
+      "height": 210,
+      "id": "x-layer-front",
+      "kind": "note",
+      "label": "⟦card.x-layer-front.label⟧",
+      "text": "⟦card.x-layer-front.text⟧",
+      "width": 280,
+      "x": 140,
+      "y": 480,
+      "zIndex": 2
+    },
+    "world.storyboards.nodes[x-ref-ada]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-ada",
+      "kind": "reference",
+      "label": "⟦card.x-ada.label⟧",
+      "target": {
+        "id": "ada",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 1020,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-ref-deleted]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-deleted",
+      "kind": "reference",
+      "label": "⟦card.x-gone.label⟧",
+      "target": {
+        "id": "x-gone",
+        "kind": "entity"
+      },
+      "width": 260,
+      "x": 60,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-ref-storm-again]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-storm-again",
+      "kind": "reference",
+      "label": "⟦ch.c5.title⟧",
+      "target": {
+        "id": "c-storm",
+        "kind": "chapter"
+      },
+      "width": 260,
+      "x": 700,
+      "y": 60,
+      "zIndex": 1
+    },
+    "world.storyboards.nodes[x-ref-trashed]": {
+      "boardId": "x-board",
+      "height": 190,
+      "id": "x-ref-trashed",
+      "kind": "reference",
+      "label": "⟦ch.prologue.title⟧",
+      "target": {
+        "id": "c-prologue",
+        "kind": "chapter"
+      },
+      "width": 260,
+      "x": 380,
+      "y": 60,
+      "zIndex": 1
+    }
+  },
+  "texts": {
+    "board.main.title": {
+      "de": "Der Weg durch den Nebel",
+      "en": "The Way Through the Fog",
+      "translatedFrom": "54de3c67f551078e"
+    },
+    "board.second.title": {
+      "de": "Die Überfahrt",
+      "en": "The Crossing",
+      "translatedFrom": "e91d053afbf6384b"
+    },
+    "board.x-layers.title": {
+      "de": "Ebenen",
+      "en": "Layers",
+      "translatedFrom": "2695c43b918921cd"
+    },
+    "board.x.title": {
+      "de": "Prüfteil",
+      "en": "Check part",
+      "translatedFrom": "6b11a629539e1226"
+    },
+    "boardEdge.back": {
+      "de": "zurück",
+      "en": "back",
+      "translatedFrom": "98360a5943ce1ff1"
+    },
+    "boardEdge.departure": {
+      "de": "Aufbruch",
+      "en": "Departure",
+      "translatedFrom": "3aea1233525207d1"
+    },
+    "boardEdge.ferryman": {
+      "de": "Fährmann",
+      "en": "Ferryman",
+      "translatedFrom": "badb3cf171364419"
+    },
+    "boardEdge.figure": {
+      "de": "Figur",
+      "en": "Character",
+      "translatedFrom": "446cb1828991eafe"
+    },
+    "boardEdge.leads": {
+      "de": "führt zu",
+      "en": "leads to",
+      "translatedFrom": "7ad050498ac81265"
+    },
+    "boardEdge.seeks": {
+      "de": "sucht Antworten",
+      "en": "seeks answers",
+      "translatedFrom": "877503789b384d86"
+    },
+    "boardEdge.shows": {
+      "de": "zeigt",
+      "en": "shows",
+      "translatedFrom": "300ea37e3396dc83"
+    },
+    "calendar.era": {
+      "de": "nach der Gründung",
+      "en": "after the Founding",
+      "translatedFrom": "0306601d97dba17d"
+    },
+    "calendar.eraAbbreviation": {
+      "de": "n. G.",
+      "en": "AF",
+      "translatedFrom": "c5e82819c1400fea"
+    },
+    "calendar.format": {
+      "de": "{weekdayName}, {day}. {monthName} {year} {era}",
+      "en": "{weekdayName}, {monthName} {day}, {year} {era}",
+      "translatedFrom": "63112d16483f6744"
+    },
+    "calendar.name": {
+      "de": "Gezeitenrechnung",
+      "en": "Tide Reckoning",
+      "translatedFrom": "281d77689360e589"
+    },
+    "card.arrival.label": {
+      "de": "Ankunft & erste Spur",
+      "en": "Arrival and a first trace",
+      "translatedFrom": "de906d8f25319389"
+    },
+    "card.arrival.text": {
+      "de": "Ein fremder Hafen, eine lebende Karte.\n\nMara Venn sucht im Gezeitenarchiv nach dem Nachlass ihres Vaters.",
+      "en": "A foreign harbour, a living map.\n\nMara Venn searches the Tidal Archive for her father's estate.",
+      "translatedFrom": "a6e6f547b35c4036"
+    },
+    "card.crossing.link.label": {
+      "de": "II · Die Überfahrt",
+      "en": "II · The Crossing",
+      "translatedFrom": "b6a92eeec7f7fb9e"
+    },
+    "card.crossing.link.text": {
+      "de": "Aufbruch ins Unbekannte.",
+      "en": "Setting out into the unknown.",
+      "translatedFrom": "766b33601ae27249"
+    },
+    "card.group1.label": {
+      "de": "I · Nordhafen",
+      "en": "I · North Harbour",
+      "translatedFrom": "6d5dfc0023fdff95"
+    },
+    "card.group1.text": {
+      "de": "Vom ersten Hinweis zum gemeinsamen Aufbruch.",
+      "en": "From the first clue to leaving together.",
+      "translatedFrom": "a944e3f39e1b4be6"
+    },
+    "card.group2.label": {
+      "de": "II · Kartennebel",
+      "en": "II · Map Fog",
+      "translatedFrom": "befc3268e349623d"
+    },
+    "card.group2.text": {
+      "de": "Hinaus über das Wasser, wo die Karten enden.",
+      "en": "Out across the water, where the maps end.",
+      "translatedFrom": "aab38d800d7f3149"
+    },
+    "card.lantern.label": {
+      "de": "Die Laterne",
+      "en": "The lantern",
+      "translatedFrom": "fca5832badf7f00a"
+    },
+    "card.lantern.text": {
+      "de": "Tilo gibt das Ruder ab und bleibt im Beiboot zurück. Nur sein Licht bleibt sichtbar.",
+      "en": "Tilo hands over the helm and stays behind in the dinghy. Only his light stays in view.",
+      "translatedFrom": "6af706cf9f4feaaa"
+    },
+    "card.north.link.label": {
+      "de": "I · Nordhafen",
+      "en": "I · North Harbour",
+      "translatedFrom": "6d5dfc0023fdff95"
+    },
+    "card.north.link.text": {
+      "de": "Zurück zum Anfang der Geschichte.",
+      "en": "Back to where the story began.",
+      "translatedFrom": "cfe853753f1e5a19"
+    },
+    "card.rumour.label": {
+      "de": "Gerüchte",
+      "en": "Rumours",
+      "translatedFrom": "987b834d64e4405d"
+    },
+    "card.rumour.text": {
+      "de": "Am Salzmarkt wird geflüstert, dass die Küste wandert.\n\nOda Brandt hört mit.",
+      "en": "At the Salt Market people whisper that the coast is moving.\n\nOda Brandt is listening.",
+      "translatedFrom": "d35b29917f9d789c"
+    },
+    "card.sea.label": {
+      "de": "Jenseits der bekannten Küste",
+      "en": "Beyond the known coast",
+      "translatedFrom": "314b65f8b864bd81"
+    },
+    "card.sea.text": {
+      "de": "Welche Linien bleiben auf dem Atlas, wenn das Land hinter ihnen verschwindet?",
+      "en": "Which lines stay on the atlas when the land disappears behind them?",
+      "translatedFrom": "baea1ca48f1a696a"
+    },
+    "card.turn.label": {
+      "de": "Wendepunkt",
+      "en": "Turning point",
+      "translatedFrom": "aadb609c7fb70466"
+    },
+    "card.turn.text": {
+      "de": "Die Gilde sperrt den Hafen.\n\nAus einer Suche nach Antworten wird die Entscheidung, gemeinsam aufzubrechen.",
+      "en": "The Guild closes the harbour.\n\nA search for answers becomes the decision to leave together.",
+      "translatedFrom": "618d2f3075c9ef3f"
+    },
+    "card.x-ada.label": {
+      "de": "Ada im Garten",
+      "en": "Ada in the Garden",
+      "translatedFrom": "48575aacd90b4f8a"
+    },
+    "card.x-gone.label": {
+      "de": "Verschwundene Figur",
+      "en": "Vanished figure",
+      "translatedFrom": "1df912e4fb7d5539"
+    },
+    "card.x-layer-back.label": {
+      "de": "Hintere Karte",
+      "en": "Rear card",
+      "translatedFrom": "911d1813e234c25a"
+    },
+    "card.x-layer-back.text": {
+      "de": "Hintere Karte",
+      "en": "Rear card",
+      "translatedFrom": "911d1813e234c25a"
+    },
+    "card.x-layer-front.label": {
+      "de": "Vordere Karte",
+      "en": "Front card",
+      "translatedFrom": "bc1a35576a506b78"
+    },
+    "card.x-layer-front.text": {
+      "de": "Vordere Karte",
+      "en": "Front card",
+      "translatedFrom": "bc1a35576a506b78"
+    },
+    "ch.c1.body": {
+      "de": "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv wie eine Erinnerung aus Glas.\n\nMara blieb am Ende des Stegs stehen. Heute würde sie erfahren, weshalb die Karten seit drei Nächten ihre Linien veränderten.\n\nUnter ihrem Mantel trug sie das letzte Blatt aus dem Nachlass ihres Vaters. Die Küstenlinie darauf endete nicht am Meer. Sie führte weiter, als hätte jemand einen Weg durch das Wasser gezeichnet.\n\nAm Tor des Gezeitenarchivs löste sich ein Mann aus dem Schatten. Er hielt keine Lampe, obwohl die Fenster hinter ihm dunkel waren.\n\n»Du bist spät«, sagte Iven Rook.\n\nMara betrachtete die Salzspuren auf seinen Stiefeln. »Du hast auf jemand anderen gewartet.«\n\nEr antwortete nicht. Über dem Hafen schlug die erste Glocke, und auf dem Blatt in ihrer Tasche verschob sich eine Linie.",
+      "en": "The morning lay still over the harbour. Between the masts the archive shimmered like a memory made of glass.\n\nMara stopped at the end of the jetty. Today she would learn why the maps had been changing their lines for three nights.\n\nUnder her coat she carried the last sheet from her father's estate. The coastline on it did not end at the sea. It ran on, as if someone had drawn a path through the water.\n\nAt the gate of the Tidal Archive a man detached himself from the shadows. He held no lamp, although the windows behind him were dark.\n\n“You're late,” said Iven Rook.\n\nMara looked at the salt stains on his boots. “You were waiting for someone else.”\n\nHe did not answer. Over the harbour the first bell struck, and on the sheet in her pocket a line shifted.",
+      "translatedFrom": "d3adde384ea2faf7"
+    },
+    "ch.c1.note": {
+      "de": "Die Unruhe der Stadt nur andeuten. Das Archiv als stillen Gegenpol etablieren.",
+      "en": "Only hint at the city's unrest. Establish the archive as a quiet counterweight.",
+      "translatedFrom": "e18f0853b3d92cfa"
+    },
+    "ch.c1.title": {
+      "de": "Die Ankunft",
+      "en": "The Arrival",
+      "translatedFrom": "3a317ccb36fb00f2"
+    },
+    "ch.c2.body": {
+      "de": "Im Lesesaal wartete bereits der Hüter der Karten. Auf dem langen Tisch lag ein Atlas, dessen Seiten dünner waren als Eis.\n\nIven legte Maras Blatt neben die erste Karte. Beide Küstenlinien begannen zu leuchten. Draußen zogen Wolken über den Hafen, doch hier fiel das Licht von unten durch das Glas.\n\nAm Rand der Linie lag ein Lichtsaum, so fein, dass man ihn für eine Spiegelung hielt. »Das hat er nie gezeigt«, sagte Iven leise. Dann schlug er das Buch zu, als hätte er schon zu viel gesagt.",
+      "en": "In the reading room the keeper of the maps was already waiting. On the long table lay an atlas whose pages were thinner than ice.\n\nIven laid Mara's sheet next to the first map. Both coastlines began to glow. Outside, clouds drifted over the harbour, but here the light fell from below, through the glass.\n\nAt the edge of the line lay a glimmerline, so fine that one took it for a reflection. “He never showed this,” said Iven quietly. Then he closed the book as if he had already said too much.",
+      "translatedFrom": "48fd07da4d70d6e9"
+    },
+    "ch.c2.note": {
+      "de": "Erstes Zusammentreffen mit der Kartographengilde.",
+      "en": "First encounter with the Cartographers' Guild.",
+      "translatedFrom": "b533389b0c75eaa8"
+    },
+    "ch.c2.title": {
+      "de": "Das Archiv",
+      "en": "The Archive",
+      "translatedFrom": "6bb948ce59983b07"
+    },
+    "ch.c3.body": {
+      "de": "Mara breitete das Blatt auf dem Tisch aus und strich es mit dem Handrücken glatt. Die Tinte war an einer Stelle verlaufen, als wäre sie noch nass gewesen, als ihr Vater die Feder zur Seite legte.\n\nSie las die Küstenlinie wie einen Brief: erst den Anfang, dann die Stellen, an denen die Hand gezittert hatte. Der Atlas antwortete jedem Strich mit einem Schimmer.\n\n***\n\nSpät am Abend zählte Iven die Lampen im Lesesaal. Es waren weniger als am Morgen, und keiner von beiden fragte, wer sie mitgenommen hatte.",
+      "en": "Mara spread the sheet on the table and smoothed it with the back of her hand. In one place the ink had run, as if it had still been wet when her father put the pen aside.\n\nShe read the coastline like a letter: first the beginning, then the places where the hand had trembled. The atlas answered every stroke with a shimmer.\n\n***\n\nLate in the evening Iven counted the lamps in the reading room. There were fewer than in the morning, and neither of them asked who had taken them.",
+      "translatedFrom": "ea6fa68dba674e98"
+    },
+    "ch.c3.note": {
+      "de": "Das Blatt als Brief des Vaters lesen lassen.",
+      "en": "Let the sheet be read as a letter from the father.",
+      "translatedFrom": "75cea8068abeac39"
+    },
+    "ch.c3.title": {
+      "de": "Das letzte Blatt",
+      "en": "The Last Sheet",
+      "translatedFrom": "64129ca0142525a0"
+    },
+    "ch.c4.body": {
+      "de": "Am Salzmarkt sprach niemand laut über die Karten, und gerade deshalb hörte Mara überall davon. Eine Händlerin behauptete, die Küste habe sich über Nacht um eine Bootslänge verschoben. Ein Junge verkaufte Kreidestriche, die angeblich den Weg durch den Nebel wiesen.\n\nOda Brandt stand am Rand des Platzes und zählte die Fässer, ohne hinzusehen. »Wer nach dem Archiv fragt, fragt mich bald nach Brücken«, sagte sie. »Und die sind morgen gesperrt.«\n\nMara kaufte einen der Kreidestriche. Er zeichnete eine Linie, die ins Wasser führte.",
+      "en": "At the Salt Market nobody spoke loudly about the maps, and that was exactly why Mara heard about them everywhere. A trader claimed the coast had moved a boat's length overnight. A boy sold chalk marks that supposedly showed the way through the fog.\n\nOda Brandt stood at the edge of the square, counting barrels without looking at them. “Whoever asks about the archive will soon be asking me about bridges,” she said. “And tomorrow they're closed.”\n\nMara bought one of the chalk marks. It drew a line that led into the water.",
+      "translatedFrom": "49b63e8008b61c9d"
+    },
+    "ch.c4.note": {
+      "de": "Gerüchte streuen. Oda Brandt als Gegenspielerin ohne Feindschaft einführen.",
+      "en": "Scatter rumours. Introduce Oda Brandt as an opponent without hostility.",
+      "translatedFrom": "7360781960ce826b"
+    },
+    "ch.c4.title": {
+      "de": "Gerüchte am Salzmarkt",
+      "en": "Rumours at the Salt Market",
+      "translatedFrom": "7cd1ab71f4dcb979"
+    },
+    "ch.c5.body": {
+      "de": "Der Hafenrat hatte die Brücken sperren lassen. Nur am Gezeitenarchiv brannte noch Licht. Mara wusste nun, dass die Gilde nicht nach einer verlorenen Route suchte. Sie wollte verhindern, dass jemand sie fand.",
+      "en": "The Harbour Council had ordered the bridges closed. Only at the Tidal Archive was a light still burning. Mara now knew that the Guild was not searching for a lost route. It wanted to make sure no one found it.",
+      "translatedFrom": "a02e5d4f34566820"
+    },
+    "ch.c5.note": {
+      "de": "Konflikt zwischen Gilde und Hafenrat zuspitzen.",
+      "en": "Sharpen the conflict between the Guild and the Harbour Council.",
+      "translatedFrom": "fa7e4114be2bb0bb"
+    },
+    "ch.c5.title": {
+      "de": "Vor dem Sturm",
+      "en": "Before the Storm",
+      "translatedFrom": "032e699ce618b828"
+    },
+    "ch.c6.body": {
+      "de": "Die Gilde kam bei Tagesanbruch, in dunklen Mänteln und mit versiegelten Mappen. Ihr Sprecher las Iven Rooks Namen vor, als wäre er ein Urteil.\n\nIven stand zwischen den Regalen und rührte sich nicht. Mara sah, wie seine Hand zum Schlüsselbund ging und wieder sank.\n\n***\n\nIm Hof des Archivs fand sie ihn später auf einer Treppenstufe. »Ich habe für sie gezeichnet«, sagte er. »Zwanzig Jahre lang. Ich wusste nur nicht, wofür.« Mara setzte sich neben ihn und sagte nichts.",
+      "en": "The Guild came at daybreak, in dark coats and with sealed folders. Their spokesman read out Iven Rook's name as if it were a verdict.\n\nIven stood between the shelves and did not move. Mara saw his hand go to his key ring and fall again.\n\n***\n\nLater she found him on a step in the archive courtyard. “I drew for them,” he said. “For twenty years. I just never knew what for.” Mara sat down beside him and said nothing.",
+      "translatedFrom": "7cde324637eb1800"
+    },
+    "ch.c6.note": {
+      "de": "Ivens Seitenwechsel zeigen, aber nicht erklären.",
+      "en": "Show Iven switching sides, but do not explain it.",
+      "translatedFrom": "f6792dacde513c9a"
+    },
+    "ch.c6.title": {
+      "de": "Bruch mit der Gilde",
+      "en": "Break with the Guild",
+      "translatedFrom": "5e74b72e97f81157"
+    },
+    "ch.c7.body": {
+      "de": "Am Fährsteg lag nur ein Boot ohne Namen, mit einer Laterne am Bug. Tilo Krey prüfte die Leinen, als hätte er auf sie gewartet.\n\n»Bei dieser Strömung bringe ich euch bis zur Klippe«, sagte er. »Weiter fährt keine Fähre.« Lumen setzte sich auf den Mast und blickte voraus.\n\nIm Nebel ließ Tilo das Ruder los und legte es Mara in die Hände. Er stieg ins Beiboot, hob die Laterne und rief ihr nach, sie solle der Linie folgen. Das Licht entfernte sich und kehrte nicht zurück.",
+      "en": "At the Ferry Jetty lay a single boat without a name, a lantern at its bow. Tilo Krey checked the lines as if he had been expecting them.\n\n“In this current I'll take you as far as the cliff,” he said. “No ferry goes further.” Lumen settled on the mast and looked ahead.\n\nIn the fog Tilo let go of the tiller and put it into Mara's hands. He climbed into the dinghy, raised the lantern and called after her to follow the line. The light drew away and did not come back.",
+      "translatedFrom": "6e239c30bc5bb444"
+    },
+    "ch.c7.note": {
+      "de": "Tilos Abschied leise halten. Kein Pathos, nur die Laterne.",
+      "en": "Keep Tilo's farewell quiet. No pathos, only the lantern.",
+      "translatedFrom": "259f88a4e7a58d34"
+    },
+    "ch.c7.title": {
+      "de": "Die Überfahrt",
+      "en": "The Crossing",
+      "translatedFrom": "e91d053afbf6384b"
+    },
+    "ch.c8.body": {
+      "de": "Bei Tagesanbruch lösten sie die Leinen. Hinter ihnen versank die Leuchtturmklippe im Nebel. Vor ihnen zeigte der Atlas zum ersten Mal eine offene Küste.\n\nMara legte das letzte Blatt auf die aufgeschlagene Seite. Die beiden Linien liefen ineinander, und über dem Wasser entstand ein Weg aus Licht.",
+      "en": "At daybreak they cast off. Behind them the Lighthouse Cliff sank into the fog. Ahead of them the atlas showed an open coast for the first time.\n\nMara laid the last sheet on the open page. The two lines ran into each other, and above the water a path of light appeared.",
+      "translatedFrom": "8d940d2041ae8e7a"
+    },
+    "ch.c8.note": {
+      "de": "Offen enden: Der Weg ist da, was an seinem Ende liegt, bleibt ungesagt.",
+      "en": "End openly: the path is there, what lies at its end stays unsaid.",
+      "translatedFrom": "e584a6819d562f68"
+    },
+    "ch.c8.title": {
+      "de": "Die offene Küste",
+      "en": "The Open Coast",
+      "translatedFrom": "be4646b13e2a7619"
+    },
+    "ch.prologue.body": {
+      "de": "Dieser Prolog verriet schon auf der ersten Seite, wohin der Atlas führt. Er wurde gestrichen.",
+      "en": "This prologue gave away on its first page where the atlas leads. It was cut.",
+      "translatedFrom": "caee1968aef741d1"
+    },
+    "ch.prologue.note": {
+      "de": "Zu früh zu viel erklärt.",
+      "en": "Explained too much too early.",
+      "translatedFrom": "aa9e2509341744c9"
+    },
+    "ch.prologue.title": {
+      "de": "Prolog: Was der Atlas wusste",
+      "en": "Prologue: What the Atlas Knew",
+      "translatedFrom": "372ee6c3d8791e65"
+    },
+    "ch.x-empty.title": {
+      "de": "Leeres Kapitel",
+      "en": "Empty Chapter",
+      "translatedFrom": "a0f88131c348a051"
+    },
+    "ch.x-orphan.body": {
+      "de": "Ein Entwurf aus einem Ordner, den es nicht mehr gibt.",
+      "en": "A draft from a folder that no longer exists.",
+      "translatedFrom": "e0b3d8f9f9438b49"
+    },
+    "ch.x-orphan.title": {
+      "de": "Verworfener Entwurf",
+      "en": "Discarded Draft",
+      "translatedFrom": "8c8f12d1404202ed"
+    },
+    "edge.e1.label": {
+      "de": "misstraut",
+      "en": "distrusts",
+      "translatedFrom": "09a89af3a4d42ee9"
+    },
+    "edge.e1.v2": {
+      "de": "arbeitet mit",
+      "en": "works with",
+      "translatedFrom": "e8ba0c99fd2512d3"
+    },
+    "edge.e1.v6": {
+      "de": "vertraut",
+      "en": "trusts",
+      "translatedFrom": "0a062610d5b7c7bf"
+    },
+    "edge.e10.label": {
+      "de": "erbt",
+      "en": "inherits",
+      "translatedFrom": "40c4a6c0e5cba0a1"
+    },
+    "edge.e11.label": {
+      "de": "öffnet",
+      "en": "opens",
+      "translatedFrom": "6342e22bbb3c4adc"
+    },
+    "edge.e12.label": {
+      "de": "betreibt",
+      "en": "runs",
+      "translatedFrom": "2051ab066e976b4b"
+    },
+    "edge.e13.label": {
+      "de": "führt",
+      "en": "guides",
+      "translatedFrom": "d9ea0daa465c80b7"
+    },
+    "edge.e14.label": {
+      "de": "kennt",
+      "en": "knows",
+      "translatedFrom": "b80b89efc3458232"
+    },
+    "edge.e2.label": {
+      "de": "trägt",
+      "en": "carries",
+      "translatedFrom": "0738ae99f3db846a"
+    },
+    "edge.e3.label": {
+      "de": "hütet",
+      "en": "keeps",
+      "translatedFrom": "2b3f820c8c250ed8"
+    },
+    "edge.e4.label": {
+      "de": "beauftragt",
+      "en": "commissions",
+      "translatedFrom": "f407bb031a27859c"
+    },
+    "edge.e4.v6": {
+      "de": "verfolgt",
+      "en": "hunts",
+      "translatedFrom": "6b63daa8ebbf4789"
+    },
+    "edge.e5.label": {
+      "de": "verbunden",
+      "en": "bonded with",
+      "translatedFrom": "a4deced01e44af35"
+    },
+    "edge.e6.label": {
+      "de": "beansprucht",
+      "en": "claims",
+      "translatedFrom": "0491080c48faed11"
+    },
+    "edge.e7.label": {
+      "de": "leitet",
+      "en": "leads",
+      "translatedFrom": "667549aba43e610a"
+    },
+    "edge.e8.label": {
+      "de": "duldet",
+      "en": "tolerates",
+      "translatedFrom": "aa12d0f1f9364429"
+    },
+    "edge.e8.v5": {
+      "de": "stützt",
+      "en": "backs",
+      "translatedFrom": "6859df08c284c99c"
+    },
+    "edge.e9.label": {
+      "de": "setzt über",
+      "en": "ferries",
+      "translatedFrom": "032eaae6c1a25905"
+    },
+    "el.ada.label": {
+      "de": "Lotsin",
+      "en": "Harbour pilot",
+      "translatedFrom": "19eb60258c9704bb"
+    },
+    "el.ada.name": {
+      "de": "Ada",
+      "en": "Ada",
+      "translatedFrom": "99a563ab2f6e21e9"
+    },
+    "el.ada.notes": {
+      "de": "Ada kennt die Fahrrinne besser als jede Karte und vertraut Bela blind.",
+      "en": "Ada knows the channel better than any map and trusts Bela blindly.",
+      "translatedFrom": "d12a912e9fb12829"
+    },
+    "el.ada.sub": {
+      "de": "Bringt jedes Schiff sicher durch die Sandbänke.",
+      "en": "Brings every ship safely through the sandbanks.",
+      "translatedFrom": "768db5533d962888"
+    },
+    "el.archive.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.archive.name": {
+      "de": "Gezeitenarchiv",
+      "en": "Tidal Archive",
+      "translatedFrom": "9ff86a6cf94cf228"
+    },
+    "el.archive.notes": {
+      "de": "Im Lesesaal liegen die Karten, die nie gedruckt wurden. Nur wer Iven kennt, darf sie sehen.",
+      "en": "The reading room holds the maps that were never printed. Only those who know Iven may see them.",
+      "translatedFrom": "64dd23d87bbc0891"
+    },
+    "el.archive.sub": {
+      "de": "Ein gläserner Bau direkt über dem Wasser.",
+      "en": "A glass building right above the water.",
+      "translatedFrom": "015877a5bc6c2165"
+    },
+    "el.atlas.label": {
+      "de": "Artefakt",
+      "en": "Artefact",
+      "translatedFrom": "545dc1ab2058f5a4"
+    },
+    "el.atlas.name": {
+      "de": "Der gläserne Atlas",
+      "en": "The Glass Atlas",
+      "translatedFrom": "233cbf9ac6944b16"
+    },
+    "el.atlas.notes": {
+      "de": "Der Atlas lässt sich nur öffnen, wenn das letzte Blatt aus Maras Nachlass neben ihm liegt.",
+      "en": "The atlas only opens when the last sheet from Mara's father's estate lies next to it.",
+      "translatedFrom": "1a5d3074668714cd"
+    },
+    "el.atlas.sub": {
+      "de": "Seine Linien reagieren auf kommende Entscheidungen.",
+      "en": "Its lines react to decisions still to come.",
+      "translatedFrom": "db43264dac6ad758"
+    },
+    "el.bela.label": {
+      "de": "Netzflickerin",
+      "en": "Net mender",
+      "translatedFrom": "a984bb20491c13a4"
+    },
+    "el.bela.name": {
+      "de": "Bela",
+      "en": "Bela",
+      "translatedFrom": "5144486815168f80"
+    },
+    "el.bela.notes": {
+      "de": "Bela folgt Ada auf jede Fahrt, auch wenn sie das Wasser fürchtet.",
+      "en": "Bela follows Ada on every voyage, even though she fears the water.",
+      "translatedFrom": "9ab74bd909c105ed"
+    },
+    "el.bela.sub": {
+      "de": "Hört am Kai alles, was die Fischer erzählen.",
+      "en": "Hears everything the fishermen tell on the quay.",
+      "translatedFrom": "56ede2f8573242e0"
+    },
+    "el.blatt.label": {
+      "de": "Nachlass",
+      "en": "Estate",
+      "translatedFrom": "fb572a2007d2e367"
+    },
+    "el.blatt.name": {
+      "de": "Das letzte Blatt",
+      "en": "The Last Sheet",
+      "translatedFrom": "64129ca0142525a0"
+    },
+    "el.blatt.notes": {
+      "de": "Maras Vater zeichnete das Blatt in seiner letzten Nacht. An einer Stelle ist die Tinte verlaufen.",
+      "en": "Mara's father drew the sheet on his last night. In one place the ink has run.",
+      "translatedFrom": "377e8c154eeb84d2"
+    },
+    "el.blatt.sub": {
+      "de": "Eine Küstenlinie, die nicht am Meer endet.",
+      "en": "A coastline that does not end at the sea.",
+      "translatedFrom": "f91207501fc87240"
+    },
+    "el.faehrsteg.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.faehrsteg.name": {
+      "de": "Fährsteg",
+      "en": "Ferry Jetty",
+      "translatedFrom": "69ddd8ba663156ba"
+    },
+    "el.faehrsteg.notes": {
+      "de": "Tilos Fähre liegt am Ende des Stegs. Bei Nebel hört man die Glocke, bevor man das Holz sieht.",
+      "en": "Tilo's ferry lies at the end of the jetty. In fog you hear the bell before you see the wood.",
+      "translatedFrom": "8ec84142f325a867"
+    },
+    "el.faehrsteg.sub": {
+      "de": "Der letzte Steg vor dem offenen Wasser.",
+      "en": "The last jetty before the open water.",
+      "translatedFrom": "8b9e4eff264c62dc"
+    },
+    "el.gilde.label": {
+      "de": "Organisation",
+      "en": "Organisation",
+      "translatedFrom": "350be3643ce78043"
+    },
+    "el.gilde.name": {
+      "de": "Kartographengilde",
+      "en": "Cartographers' Guild",
+      "translatedFrom": "cd56244585770154"
+    },
+    "el.gilde.notes": {
+      "de": "Die Gilde zeichnet jede Route, die der Hafen kennt, und streicht jede, die er nicht kennen soll.",
+      "en": "The Guild draws every route the harbour knows and strikes out every route it should not know.",
+      "translatedFrom": "0019f257bb4ea8e1"
+    },
+    "el.gilde.sub": {
+      "de": "Kontrolliert die offiziellen Seewege.",
+      "en": "Controls the official sea routes.",
+      "translatedFrom": "4f147781d36c2896"
+    },
+    "el.iven.label": {
+      "de": "Archivar",
+      "en": "Archivist",
+      "translatedFrom": "f35f9141f4427c34"
+    },
+    "el.iven.name": {
+      "de": "Iven Rook",
+      "en": "Iven Rook",
+      "translatedFrom": "1928d58f3b843c0e"
+    },
+    "el.iven.notes": {
+      "de": "Iven hütet das Archiv seit zwanzig Wintern. Was er über die Gilde weiß, sagt er nur, wenn man ihn zweimal fragt.",
+      "en": "Iven has kept the archive for twenty winters. What he knows about the Guild he only says if you ask him twice.",
+      "translatedFrom": "651165b4ed152160"
+    },
+    "el.iven.sub": {
+      "de": "Bewahrt die verbotenen Küstenkarten.",
+      "en": "Keeps the forbidden coastal maps.",
+      "translatedFrom": "310094d1c4ac2bb2"
+    },
+    "el.leuchtturm.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.leuchtturm.name": {
+      "de": "Leuchtturmklippe",
+      "en": "Lighthouse Cliff",
+      "translatedFrom": "4fb6825fa5b4274c"
+    },
+    "el.leuchtturm.notes": {
+      "de": "Der Turm brennt seit der Gründung der Stadt. Wer ihn aus den Augen verliert, hat die bekannte Küste verlassen.",
+      "en": "The tower has burned since the city was founded. Whoever loses sight of it has left the known coast.",
+      "translatedFrom": "c482a94a6ac6c550"
+    },
+    "el.leuchtturm.sub": {
+      "de": "Letzter fester Punkt vor dem Kartennebel.",
+      "en": "The last fixed point before the map fog.",
+      "translatedFrom": "d24aace150809486"
+    },
+    "el.lumen.label": {
+      "de": "Küstenvogel",
+      "en": "Coastal bird",
+      "translatedFrom": "113d1a7a70728f07"
+    },
+    "el.lumen.name": {
+      "de": "Lumen",
+      "en": "Lumen",
+      "translatedFrom": "faae7186de420ea7"
+    },
+    "el.lumen.notes": {
+      "de": "Lumen folgt Mara, seit sie im Nordhafen angekommen ist. Wo er kreist, bleibt die Luft über dem Wasser klar.",
+      "en": "Lumen has followed Mara since she arrived in North Harbour. Where he circles, the air above the water stays clear.",
+      "translatedFrom": "39df782aa576c42d"
+    },
+    "el.lumen.sub": {
+      "de": "Findet Wege durch den Kartennebel.",
+      "en": "Finds ways through the map fog.",
+      "translatedFrom": "757b8bc7e93f19df"
+    },
+    "el.mara.alias": {
+      "de": "Die Kartenleserin",
+      "en": "The Map Reader",
+      "translatedFrom": "a42f2c098bcfb42c"
+    },
+    "el.mara.label": {
+      "de": "Kartographin",
+      "en": "Cartographer",
+      "translatedFrom": "afadc65838224d11"
+    },
+    "el.mara.name": {
+      "de": "Mara Venn",
+      "en": "Mara Venn",
+      "translatedFrom": "664f0296f53397fc"
+    },
+    "el.mara.sub": {
+      "de": "Liest Veränderungen in lebenden Karten.",
+      "en": "Reads the changes in living maps.",
+      "translatedFrom": "6d0c7264a722a1b7"
+    },
+    "el.nordhafen.label": {
+      "de": "Stadt",
+      "en": "City",
+      "translatedFrom": "2279bd134de6291c"
+    },
+    "el.nordhafen.name": {
+      "de": "Nordhafen",
+      "en": "North Harbour",
+      "translatedFrom": "57db917c0ba83e86"
+    },
+    "el.nordhafen.notes": {
+      "de": "Nordhafen liegt an einem Becken, das bei Ebbe fast trockenfällt. Alle Gassen laufen auf das Wasser zu.",
+      "en": "North Harbour lies on a basin that almost runs dry at low tide. All the lanes run down to the water.",
+      "translatedFrom": "5fc07695d4b70aaa"
+    },
+    "el.nordhafen.sub": {
+      "de": "Eine Hafenstadt zwischen Salzmarkt und Archiv.",
+      "en": "A harbour city between the Salt Market and the archive.",
+      "translatedFrom": "84e5d934793b5ac6"
+    },
+    "el.oda.label": {
+      "de": "Hafenmeisterin",
+      "en": "Harbourmaster",
+      "translatedFrom": "76eed64319524acd"
+    },
+    "el.oda.name": {
+      "de": "Oda Brandt",
+      "en": "Oda Brandt",
+      "translatedFrom": "d6571ac3361abe31"
+    },
+    "el.oda.notes": {
+      "de": "Oda lässt die Brücken sperren, wenn der Rat es verlangt. Persönlich glaubt sie nicht an die Gerüchte über den Atlas.",
+      "en": "Oda has the bridges closed whenever the Council demands it. Personally she does not believe the rumours about the atlas.",
+      "translatedFrom": "f6adc17b983b8454"
+    },
+    "el.oda.sub": {
+      "de": "Ordnet den Verkehr im Hafen, notfalls mit Ketten.",
+      "en": "Keeps the harbour traffic in order, with chains if need be.",
+      "translatedFrom": "cbd46d07ca654223"
+    },
+    "el.rat.label": {
+      "de": "Behörde",
+      "en": "Authority",
+      "translatedFrom": "56d2014462d65032"
+    },
+    "el.rat.name": {
+      "de": "Hafenrat",
+      "en": "Harbour Council",
+      "translatedFrom": "260197831bbaa255"
+    },
+    "el.rat.notes": {
+      "de": "Der Rat tagt im Hafenhaus und hört auf die Gilde, wenn es um Karten geht.",
+      "en": "The Council meets in the Harbour House and listens to the Guild whenever maps are concerned.",
+      "translatedFrom": "d227a8f14803c2ce"
+    },
+    "el.rat.sub": {
+      "de": "Entscheidet, wer den Hafen verlassen darf.",
+      "en": "Decides who may leave the harbour.",
+      "translatedFrom": "33f9606e7f50fb1e"
+    },
+    "el.salzmarkt.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.salzmarkt.name": {
+      "de": "Salzmarkt",
+      "en": "Salt Market",
+      "translatedFrom": "386fcc5f4e254d23"
+    },
+    "el.salzmarkt.notes": {
+      "de": "Am Salzmarkt erfährt man früher von Veränderungen als im Hafenhaus. Die Gerüchte über die Karten begannen hier.",
+      "en": "At the Salt Market you hear about changes sooner than at the Harbour House. The rumours about the maps began here.",
+      "translatedFrom": "e326698fba7a575e"
+    },
+    "el.salzmarkt.sub": {
+      "de": "Hier wird getauscht, geflüstert und gelauscht.",
+      "en": "Where people trade, whisper and listen.",
+      "translatedFrom": "206b73fe94f5a0b0"
+    },
+    "el.tilo.label": {
+      "de": "Fährmann",
+      "en": "Ferryman",
+      "translatedFrom": "badb3cf171364419"
+    },
+    "el.tilo.name": {
+      "de": "Tilo Krey",
+      "en": "Tilo Krey",
+      "translatedFrom": "40a1d93746d6209a"
+    },
+    "el.tilo.notes": {
+      "de": "Tilo setzt über, wen der Rat nicht ziehen lassen will. Seine Fähre hat keinen Namen, nur eine Laterne.",
+      "en": "Tilo takes across whoever the Council does not want to let go. His ferry has no name, only a lantern.",
+      "translatedFrom": "1ebd613acb156dd1"
+    },
+    "el.tilo.sub": {
+      "de": "Kennt jede Strömung zwischen Steg und Klippe.",
+      "en": "Knows every current between jetty and cliff.",
+      "translatedFrom": "1e9eaf71db78cde7"
+    },
+    "el.x-cluster-1.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-1.name": {
+      "de": "Ostkai",
+      "en": "East Quay",
+      "translatedFrom": "ca8e9157cb4647d3"
+    },
+    "el.x-cluster-1.notes": {
+      "de": "Ostkai drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Quay crowds onto the east quay with seven other places.",
+      "translatedFrom": "ada380e06badecb0"
+    },
+    "el.x-cluster-1.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-2.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-2.name": {
+      "de": "Ostmole",
+      "en": "East Mole",
+      "translatedFrom": "22fffd4bb1291208"
+    },
+    "el.x-cluster-2.notes": {
+      "de": "Ostmole drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Mole crowds onto the east quay with seven other places.",
+      "translatedFrom": "b55c1aa4bcf8e37b"
+    },
+    "el.x-cluster-2.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-3.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-3.name": {
+      "de": "Ostspeicher",
+      "en": "East Store",
+      "translatedFrom": "080c49f302527211"
+    },
+    "el.x-cluster-3.notes": {
+      "de": "Ostspeicher drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Store crowds onto the east quay with seven other places.",
+      "translatedFrom": "5abb53a0297f0382"
+    },
+    "el.x-cluster-3.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-4.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-4.name": {
+      "de": "Ostwache",
+      "en": "East Watch",
+      "translatedFrom": "1e39e54c62552f1e"
+    },
+    "el.x-cluster-4.notes": {
+      "de": "Ostwache drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Watch crowds onto the east quay with seven other places.",
+      "translatedFrom": "56b9e63e66d66208"
+    },
+    "el.x-cluster-4.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-5.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-5.name": {
+      "de": "Ostbrücke",
+      "en": "East Bridge",
+      "translatedFrom": "ce9157c85ad88518"
+    },
+    "el.x-cluster-5.notes": {
+      "de": "Ostbrücke drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Bridge crowds onto the east quay with seven other places.",
+      "translatedFrom": "cb036659fd7d4761"
+    },
+    "el.x-cluster-5.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-6.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-6.name": {
+      "de": "Osttor",
+      "en": "East Gate",
+      "translatedFrom": "04b5fb319e02cb64"
+    },
+    "el.x-cluster-6.notes": {
+      "de": "Osttor drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Gate crowds onto the east quay with seven other places.",
+      "translatedFrom": "250442237b9ab674"
+    },
+    "el.x-cluster-6.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-7.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-7.name": {
+      "de": "Ostfeuer",
+      "en": "East Beacon",
+      "translatedFrom": "eaff3202a95736ac"
+    },
+    "el.x-cluster-7.notes": {
+      "de": "Ostfeuer drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Beacon crowds onto the east quay with seven other places.",
+      "translatedFrom": "04ae25015b60bbb6"
+    },
+    "el.x-cluster-7.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-cluster-8.label": {
+      "de": "Ort am Ostkai",
+      "en": "Place on the east quay",
+      "translatedFrom": "0e810cc3a996819e"
+    },
+    "el.x-cluster-8.name": {
+      "de": "Ostmarkt",
+      "en": "East Market",
+      "translatedFrom": "964d06560fc53268"
+    },
+    "el.x-cluster-8.notes": {
+      "de": "Ostmarkt drängt sich mit sieben anderen Orten an den Ostkai.",
+      "en": "East Market crowds onto the east quay with seven other places.",
+      "translatedFrom": "a938e16dc8a56a51"
+    },
+    "el.x-cluster-8.sub": {
+      "de": "Liegt fast auf demselben Punkt wie seine Nachbarn.",
+      "en": "Sits almost on the same point as its neighbours.",
+      "translatedFrom": "e9acdfbf41875dc1"
+    },
+    "el.x-empty-note.label": {
+      "de": "Fundstück",
+      "en": "Find",
+      "translatedFrom": "395eb2c262e5da61"
+    },
+    "el.x-empty-note.name": {
+      "de": "Leerer Kompass",
+      "en": "Empty Compass",
+      "translatedFrom": "904839ab3eb72881"
+    },
+    "el.x-empty-note.sub": {
+      "de": "Zeigt nirgendwohin.",
+      "en": "Points nowhere.",
+      "translatedFrom": "4960abbd20e0a314"
+    },
+    "el.x-graufurth.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-graufurth.name": {
+      "de": "Graufurth",
+      "en": "Graufurth",
+      "translatedFrom": "d179a27d6dba24b1"
+    },
+    "el.x-graufurth.sub": {
+      "de": "An der nördlichen Küste.",
+      "en": "On the northern coast.",
+      "translatedFrom": "70f43b3cbc0dbbfb"
+    },
+    "el.x-inselhafen.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-inselhafen.name": {
+      "de": "Inselhafen",
+      "en": "Island Harbour",
+      "translatedFrom": "f2fee7b9ba04ad29"
+    },
+    "el.x-inselhafen.sub": {
+      "de": "Auf der vorgelagerten Insel.",
+      "en": "On the island off the coast.",
+      "translatedFrom": "ebe1eafe9b3b80f9"
+    },
+    "el.x-inselkarte.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-inselkarte.name": {
+      "de": "Inselkarte",
+      "en": "Island Map",
+      "translatedFrom": "265b2ee86af92dbd"
+    },
+    "el.x-inselkarte.notes": {
+      "de": "Eine zweite Karte neben der Weltkarte.",
+      "en": "A second map beside the world map.",
+      "translatedFrom": "4293c226f0e584e7"
+    },
+    "el.x-inselkarte.sub": {
+      "de": "Die vorgelagerten Inseln.",
+      "en": "The islands off the coast.",
+      "translatedFrom": "730c9a199cc08bbb"
+    },
+    "el.x-long-name.label": {
+      "de": "Stellvertreterin",
+      "en": "Deputy",
+      "translatedFrom": "595cf7fe4d875a3f"
+    },
+    "el.x-long-name.name": {
+      "de": "Hafenmeistereiangestelltenvertretungsvorsitzendenstellvertreterin",
+      "en": "Hafenmeistereiangestelltenvertretungsvorsitzendenstellvertreterin",
+      "translatedFrom": "5a86b964ea154862"
+    },
+    "el.x-long-name.notes": {
+      "de": "Niemand spricht ihren Namen ganz aus.",
+      "en": "Nobody says her name in full.",
+      "translatedFrom": "5aa780f182dd8008"
+    },
+    "el.x-long-name.sub": {
+      "de": "Trägt den längsten Titel des Hafens als Namen.",
+      "en": "Carries the longest title of the harbour as her name.",
+      "translatedFrom": "5e08524a9e5b2bf0"
+    },
+    "el.x-long-org.label": {
+      "de": "Bund",
+      "en": "League",
+      "translatedFrom": "c0af886e3d1a56e3"
+    },
+    "el.x-long-org.name": {
+      "de": "Vereinigte Gilde der Kartographen, Lotsen und Leuchtturmwärter",
+      "en": "United Cartographers', Pilots' and Lighthouse Keepers' Guild",
+      "translatedFrom": "6245420cf01ff8b3"
+    },
+    "el.x-long-org.notes": {
+      "de": "Gegründet, als keine Zunft allein den Nebel kartieren konnte.",
+      "en": "Founded when no trade alone could chart the fog.",
+      "translatedFrom": "8604d7e735d72e9c"
+    },
+    "el.x-long-org.sub": {
+      "de": "Drei Zünfte unter einem Siegel.",
+      "en": "Three trades under one seal.",
+      "translatedFrom": "18fb765c3544f22a"
+    },
+    "el.x-long-place.label": {
+      "de": "Viertel",
+      "en": "Quarter",
+      "translatedFrom": "ccc8d9c77e6ad775"
+    },
+    "el.x-long-place.name": {
+      "de": "Speicherviertel hinter der alten Fischhalle am nördlichen Kai",
+      "en": "Warehouse quarter behind the old fish hall on the north quay",
+      "translatedFrom": "1b10aaf3b87fe7c2"
+    },
+    "el.x-long-place.notes": {
+      "de": "Die Händler nennen es nur „hinter der Halle“.",
+      "en": "The traders only call it “behind the hall”.",
+      "translatedFrom": "d2e6914662fca903"
+    },
+    "el.x-long-place.sub": {
+      "de": "Ein Name, der auf keine Karte passt.",
+      "en": "A name that fits on no map.",
+      "translatedFrom": "a876fd9fbd6d72ce"
+    },
+    "el.x-nordhafen.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-nordhafen.name": {
+      "de": "Nordhafen",
+      "en": "North Harbour",
+      "translatedFrom": "57db917c0ba83e86"
+    },
+    "el.x-nordhafen.sub": {
+      "de": "An der nördlichen Küste.",
+      "en": "On the northern coast.",
+      "translatedFrom": "70f43b3cbc0dbbfb"
+    },
+    "el.x-tannenhain.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-tannenhain.name": {
+      "de": "Tannenhain",
+      "en": "Tannenhain",
+      "translatedFrom": "9eb858446ce41f53"
+    },
+    "el.x-tannenhain.sub": {
+      "de": "An der nördlichen Küste.",
+      "en": "On the northern coast.",
+      "translatedFrom": "70f43b3cbc0dbbfb"
+    },
+    "el.x-weltkarte.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-weltkarte.name": {
+      "de": "Weltkarte",
+      "en": "World Map",
+      "translatedFrom": "e730154ddc48c707"
+    },
+    "el.x-weltkarte.notes": {
+      "de": "Die Karte, auf der die Werkstatt ihre Orte misst.",
+      "en": "The map on which the workshop measures its places.",
+      "translatedFrom": "9d5c98e4eb6381d1"
+    },
+    "el.x-weltkarte.sub": {
+      "de": "Die Küsten des Nordens.",
+      "en": "The coasts of the north.",
+      "translatedFrom": "6bebed2ee31cc8b9"
+    },
+    "field.origin": {
+      "de": "Herkunft",
+      "en": "Origin",
+      "translatedFrom": "514fce97d25723d5"
+    },
+    "field.role": {
+      "de": "Rolle",
+      "en": "Role",
+      "translatedFrom": "0038a9cf86613cec"
+    },
+    "folder.act1": {
+      "de": "I · Nordhafen",
+      "en": "I · North Harbour",
+      "translatedFrom": "6d5dfc0023fdff95"
+    },
+    "folder.act2": {
+      "de": "II · Kartennebel",
+      "en": "II · Map Fog",
+      "translatedFrom": "befc3268e349623d"
+    },
+    "folder.x-gone": {
+      "de": "Gelöschter Ordner",
+      "en": "Deleted folder",
+      "translatedFrom": "0b1f0d86feff3a33"
+    },
+    "mara.notes.drive.h": {
+      "de": "Was sie antreibt",
+      "en": "What drives her",
+      "translatedFrom": "c3f0c2f4f76a2d8b"
+    },
+    "mara.notes.drive.p": {
+      "de": "Mara will herausfinden, weshalb die Karten ihres Vaters eine Küste zeigen, die es nicht geben dürfte.",
+      "en": "Mara wants to know why her father's maps show a coast that should not exist.",
+      "translatedFrom": "f2c17b88a26ef14b"
+    },
+    "mara.notes.intro": {
+      "de": "Kartographin zwischen Pflicht und Neugier.",
+      "en": "A cartographer caught between duty and curiosity.",
+      "translatedFrom": "37fdf865cf7253fd"
+    },
+    "mara.notes.open.h": {
+      "de": "Offene Frage",
+      "en": "Open question",
+      "translatedFrom": "a929ab329e9748a2"
+    },
+    "mara.notes.open.p": {
+      "de": "Wird sie ihm vertrauen, wenn die letzte sichere Route verschwindet?",
+      "en": "Will she trust him when the last safe route disappears?",
+      "translatedFrom": "cce714f41da8cf68"
+    },
+    "mara.notes.traces.h": {
+      "de": "Spuren im Nordhafen",
+      "en": "Traces in North Harbour",
+      "translatedFrom": "951c46c7ab6fdbe6"
+    },
+    "mara.notes.traces.p": {
+      "de": "Iven Rook kennt den Zugang zum Gezeitenarchiv. Er hilft ihr bei der Öffnung des Atlas, verschweigt aber seine Verbindung zur Gilde. Tilo Krey bringt sie über das Wasser, wenn es sonst niemand tut.",
+      "en": "Iven Rook knows the way into the Tidal Archive. He helps her with the Opening of the Atlas but keeps quiet about his ties to the Guild. Tilo Krey takes her across the water when nobody else will.",
+      "translatedFrom": "1f4b7c92c45de149"
+    },
+    "moment.t1.note": {
+      "de": "Mara erreicht die Stadt und sucht das Archiv.",
+      "en": "Mara reaches the city and looks for the archive.",
+      "translatedFrom": "88fe8f337cf382ba"
+    },
+    "moment.t1.title": {
+      "de": "Ankunft im Nordhafen",
+      "en": "Arrival in North Harbour",
+      "translatedFrom": "2c2946fc9b0970f5"
+    },
+    "moment.t2.note": {
+      "de": "Die erste verborgene Route erscheint.",
+      "en": "The first hidden route appears.",
+      "translatedFrom": "923f580d502f6d32"
+    },
+    "moment.t2.title": {
+      "de": "Öffnung des Atlas",
+      "en": "Opening of the Atlas",
+      "translatedFrom": "5047a6f0b66bca20"
+    },
+    "moment.t3.note": {
+      "de": "Mara liest die Küstenlinie ihres Vaters.",
+      "en": "Mara reads her father's coastline.",
+      "translatedFrom": "68365e10ac045fc8"
+    },
+    "moment.t3.title": {
+      "de": "Das letzte Blatt",
+      "en": "The Last Sheet",
+      "translatedFrom": "64129ca0142525a0"
+    },
+    "moment.t4.note": {
+      "de": "In der Stadt heißt es, die Karten veränderten sich.",
+      "en": "The city says the maps are changing.",
+      "translatedFrom": "32f74be7bac0d5df"
+    },
+    "moment.t4.title": {
+      "de": "Gerüchte am Salzmarkt",
+      "en": "Rumours at the Salt Market",
+      "translatedFrom": "7cd1ab71f4dcb979"
+    },
+    "moment.t5.note": {
+      "de": "Der Hafenrat lässt die Brücken schließen.",
+      "en": "The Harbour Council has the bridges closed.",
+      "translatedFrom": "7f0f2a5f695c5841"
+    },
+    "moment.t5.title": {
+      "de": "Der Hafen wird gesperrt",
+      "en": "The Harbour Is Closed",
+      "translatedFrom": "527d7bd5440d58ad"
+    },
+    "moment.t6.note": {
+      "de": "Die Gilde erklärt Iven und Mara zu Verrätern.",
+      "en": "The Guild declares Iven and Mara traitors.",
+      "translatedFrom": "ca82e3fab08a2a6d"
+    },
+    "moment.t6.title": {
+      "de": "Bruch mit der Gilde",
+      "en": "Break with the Guild",
+      "translatedFrom": "5e74b72e97f81157"
+    },
+    "moment.t7.note": {
+      "de": "Tilo bringt sie durch den Kartennebel zur Klippe.",
+      "en": "Tilo takes them through the map fog to the cliff.",
+      "translatedFrom": "cefca62531be0ecd"
+    },
+    "moment.t7.title": {
+      "de": "Die Überfahrt",
+      "en": "The Crossing",
+      "translatedFrom": "e91d053afbf6384b"
+    },
+    "moment.t8.note": {
+      "de": "Der Weg über das Wasser wird sichtbar.",
+      "en": "The path across the water becomes visible.",
+      "translatedFrom": "4a65a53b128380d3"
+    },
+    "moment.t8.title": {
+      "de": "Die offene Küste",
+      "en": "The Open Coast",
+      "translatedFrom": "be4646b13e2a7619"
+    },
+    "month.1.name": {
+      "de": "Ebbmond",
+      "en": "Ebbmoon",
+      "translatedFrom": "44b0d35f3f59ebaf"
+    },
+    "month.1.short": {
+      "de": "Ebb",
+      "en": "Ebb",
+      "translatedFrom": "3e8b132fad544d95"
+    },
+    "month.2.name": {
+      "de": "Flutmond",
+      "en": "Floodmoon",
+      "translatedFrom": "1a9483423c547ee8"
+    },
+    "month.2.short": {
+      "de": "Flu",
+      "en": "Fld",
+      "translatedFrom": "f772cde572390f57"
+    },
+    "month.3.name": {
+      "de": "Nippmond",
+      "en": "Neapmoon",
+      "translatedFrom": "26362af84a9ef33b"
+    },
+    "month.3.short": {
+      "de": "Nip",
+      "en": "Nea",
+      "translatedFrom": "588cfcad89c0c09d"
+    },
+    "month.4.name": {
+      "de": "Springmond",
+      "en": "Springmoon",
+      "translatedFrom": "6cf5e05feee37e31"
+    },
+    "month.4.short": {
+      "de": "Spr",
+      "en": "Spr",
+      "translatedFrom": "f2e14aeacb236fcc"
+    },
+    "month.5.name": {
+      "de": "Strandmond",
+      "en": "Strandmoon",
+      "translatedFrom": "0352644e79f43fbf"
+    },
+    "month.5.short": {
+      "de": "Str",
+      "en": "Str",
+      "translatedFrom": "8084a51b3c649e88"
+    },
+    "month.6.name": {
+      "de": "Nebelmond",
+      "en": "Fogmoon",
+      "translatedFrom": "0c07e362d88c6f51"
+    },
+    "month.6.short": {
+      "de": "Neb",
+      "en": "Fog",
+      "translatedFrom": "00bb1b12ece2767f"
+    },
+    "month.7.name": {
+      "de": "Sturmmond",
+      "en": "Stormmoon",
+      "translatedFrom": "90434d98319abaa2"
+    },
+    "month.7.short": {
+      "de": "Stu",
+      "en": "Sto",
+      "translatedFrom": "83044321c6c5de09"
+    },
+    "month.8.name": {
+      "de": "Stillmond",
+      "en": "Slackmoon",
+      "translatedFrom": "05ecf3dd5a39fefd"
+    },
+    "month.8.short": {
+      "de": "Sti",
+      "en": "Sla",
+      "translatedFrom": "f25a59c2d999419a"
+    },
+    "symbol.1": {
+      "de": "…",
+      "en": "…",
+      "translatedFrom": "b4935894c8ce16bd"
+    },
+    "symbol.2": {
+      "de": "—",
+      "en": "—",
+      "translatedFrom": "bda050585a00f0f6"
+    },
+    "symbol.3": {
+      "de": "»",
+      "en": "“",
+      "translatedFrom": "07e83e3f7f1d21d7"
+    },
+    "symbol.4": {
+      "de": "«",
+      "en": "”",
+      "translatedFrom": "a6810a42adaa4d55"
+    },
+    "weekday.1.name": {
+      "de": "Erstflut",
+      "en": "Firstflood",
+      "translatedFrom": "37e161c69f39ff68"
+    },
+    "weekday.1.short": {
+      "de": "Ers",
+      "en": "Fir",
+      "translatedFrom": "c8c39abfcec736f1"
+    },
+    "weekday.2.name": {
+      "de": "Zweitflut",
+      "en": "Secondflood",
+      "translatedFrom": "d557717ae48eb308"
+    },
+    "weekday.2.short": {
+      "de": "Zwe",
+      "en": "Sec",
+      "translatedFrom": "a24015cb9631483b"
+    },
+    "weekday.3.name": {
+      "de": "Ebbtag",
+      "en": "Ebbday",
+      "translatedFrom": "63e3f7b47eb38786"
+    },
+    "weekday.3.short": {
+      "de": "Ebb",
+      "en": "Ebb",
+      "translatedFrom": "3e8b132fad544d95"
+    },
+    "weekday.4.name": {
+      "de": "Tiefwasser",
+      "en": "Lowwater",
+      "translatedFrom": "183f2b01a5624e90"
+    },
+    "weekday.4.short": {
+      "de": "Tie",
+      "en": "Low",
+      "translatedFrom": "a66eab2f9c529bfe"
+    },
+    "weekday.5.name": {
+      "de": "Hochwasser",
+      "en": "Highwater",
+      "translatedFrom": "8c0cfd0f9b761ac5"
+    },
+    "weekday.5.short": {
+      "de": "Hoc",
+      "en": "Hig",
+      "translatedFrom": "f4c2d16e73af3c1f"
+    },
+    "weekday.6.name": {
+      "de": "Ruhetag",
+      "en": "Restday",
+      "translatedFrom": "e79aa42d7d188af6"
+    },
+    "weekday.6.short": {
+      "de": "Ruh",
+      "en": "Res",
+      "translatedFrom": "7a20673e3d2f712a"
+    },
+    "word.ebbpfad.d": {
+      "de": "Trockenfallender Weg durch das Hafenbecken",
+      "en": "A path through the harbour basin that runs dry at low tide",
+      "translatedFrom": "c45e3af6e2a23f80"
+    },
+    "word.ebbpfad.w": {
+      "de": "Ebbpfad",
+      "en": "ebbpath",
+      "translatedFrom": "e303d2cb26dc6084"
+    },
+    "word.gezeitenarchiv.d": {
+      "de": "Zentrales Archiv der Stadt",
+      "en": "The city's central archive",
+      "translatedFrom": "cec29552027071f7"
+    },
+    "word.gezeitenarchiv.w": {
+      "de": "Gezeitenarchiv",
+      "en": "Tidal Archive",
+      "translatedFrom": "9ff86a6cf94cf228"
+    },
+    "word.kartennebel.d": {
+      "de": "Dunstband, in dem Küstenlinien unlesbar werden",
+      "en": "A band of haze in which coastlines become unreadable",
+      "translatedFrom": "5229a68b8f43258e"
+    },
+    "word.kartennebel.w": {
+      "de": "Kartennebel",
+      "en": "mapfog",
+      "translatedFrom": "8b459894871375b2"
+    },
+    "word.lichtsaum.d": {
+      "de": "Schimmernde Grenze auf alten Karten",
+      "en": "Shimmering border on old maps",
+      "translatedFrom": "125cc266044ad54d"
+    },
+    "word.lichtsaum.w": {
+      "de": "Lichtsaum",
+      "en": "glimmerline",
+      "translatedFrom": "d83f272b97e086bc"
+    },
+    "word.nipptide.d": {
+      "de": "Schwache Gezeit, in der die Karten stillhalten",
+      "en": "A weak tide in which the maps hold still",
+      "translatedFrom": "36d6083d49bd70e8"
+    },
+    "word.nipptide.w": {
+      "de": "Nipptide",
+      "en": "neaptide",
+      "translatedFrom": "68ab9cb1d5688354"
+    },
+    "world.title": {
+      "de": "Der gläserne Atlas",
+      "en": "The Glass Atlas",
+      "translatedFrom": "233cbf9ac6944b16"
+    }
+  }
+}
