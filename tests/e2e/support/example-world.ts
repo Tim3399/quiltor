@@ -104,14 +104,11 @@ export async function seedExampleWorldWithHistory(
   const parts = include.includes("edge") ? include : [...include, "edge" as const];
   const world = await seedExampleWorld(page, { lang, include: parts, open: false });
   const { manuscript: payload, history } = buildExampleWorld(lang, { include: parts });
-  const chronicle = payload.chapters.find(
-    (chapter: { id: string }) => chapter.id === history.chapterId,
-  );
-  const other = payload.chapters.find(
-    (chapter: { id: string }) => chapter.id === history.otherChapterId,
-  );
-  expect(chronicle && other, "the check part holds the chapters of its history").toBeTruthy();
-  const originalOther: string = other.body;
+  if (!history) throw new Error("the check part describes no history");
+  const chronicle = payload.chapters.find((chapter) => chapter.id === history.chapterId);
+  const other = payload.chapters.find((chapter) => chapter.id === history.otherChapterId);
+  if (!chronicle || !other) throw new Error("the check part holds the chapters of its history");
+  const originalOther = other.body;
 
   for (const version of history.versions) {
     chronicle.body = version.text;
