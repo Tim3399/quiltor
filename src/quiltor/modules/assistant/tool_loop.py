@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -77,10 +77,11 @@ def _failure(
 
 
 def _trusted_catalog(
-    catalog: Iterable[dict[str, Any]],
+    catalog: Iterable[Mapping[str, Any]],
 ) -> tuple[dict[str, Any], ...] | None:
-    specs = tuple(catalog)
-    if any(not isinstance(item, dict) for item in specs):
+    entries = tuple(catalog)
+    specs = [item for item in entries if isinstance(item, dict)]
+    if len(specs) != len(entries):
         return None
     names = tuple(item.get("name") for item in specs)
     if len(specs) != len(EXPECTED_READ_TOOL_NAMES) or set(names) != set(EXPECTED_READ_TOOL_NAMES):

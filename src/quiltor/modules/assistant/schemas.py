@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from quiltor.modules.assistant.relationship_appearance import (
@@ -203,7 +203,7 @@ def reply_schema(allowed_kinds: Iterable[str] | None = None) -> dict[str, Any]:
 
 
 def tool_step_schema(
-    tool_catalog: Iterable[dict[str, Any]],
+    tool_catalog: Iterable[Mapping[str, Any]],
     allowed_kinds: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Strict JSON step contract for runtimes without native function calling."""

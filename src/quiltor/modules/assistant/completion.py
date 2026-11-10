@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any, Protocol
 
@@ -192,7 +193,7 @@ def _world_extraction_contract(question: str, figures: dict[str, Any]) -> dict[s
 
 def _proposal_envelopes(
     proposals: list[dict[str, Any]],
-    sources: list[dict[str, Any]],
+    sources: Sequence[Mapping[str, Any]],
     decisions: list[Any],
 ) -> list[dict[str, Any]]:
     operation_for_kind = {
