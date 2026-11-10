@@ -972,6 +972,24 @@ describe("active expanded map chrome", () => {
     await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
   });
 
+  it("frames the level again when an opened-out map folds back into its card", async () => {
+    // The view was framed on the places standing on the sheet; folding the sheet away leaves
+    // the card at the sheet's corner, outside that framing. The old green came from an arrival
+    // fit that had never run and fired here by accident (T-79).
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    flowInstance.fitView.mockClear();
+
+    fireEvent.click(screen.getByTestId("place-node-weltkarte"));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
+    expect(flowInstance.fitView).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Weltkarte einklappen" })[0]);
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+  });
+
   it("falls back to the root when the open level disappears", () => {
     const content = (nodes: FigureState["nodes"]) => (
       <I18nProvider>

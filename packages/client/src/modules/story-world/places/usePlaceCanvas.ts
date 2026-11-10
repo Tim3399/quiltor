@@ -367,6 +367,22 @@ export function usePlaceCanvas({
     ],
   );
 
+  // A map folded back into its card takes the sheet the view was framed on with it, and
+  // leaves the card where the sheet's corner was -- often outside the view, so the author
+  // watches the map vanish and nothing take its place. The level is framed again, as on
+  // arrival. Before T-79 this happened only by accident: the arrival fit on a level that held
+  // nothing but the map never ran, stayed armed, and fired at the collapse.
+  const openMapIds = laidOutMaps.map((place) => place.id).join("\n");
+  const [framedMapIds, setFramedMapIds] = useState(openMapIds);
+  if (framedMapIds !== openMapIds) {
+    const open = new Set(openMapIds.split("\n"));
+    const folded = framedMapIds
+      .split("\n")
+      .some((id) => id && !open.has(id) && places.some((place) => place.id === id));
+    setFramedMapIds(openMapIds);
+    if (folded) setPendingFit(true);
+  }
+
   const maps = useMemo(
     () =>
       createPlaceMapNodes({

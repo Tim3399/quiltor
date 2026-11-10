@@ -78,8 +78,25 @@ test("Expanded header keeps crop, lock, enter and collapse actions on the same m
     .getByRole("button", { name: "Welt", exact: true })
     .click();
   await expect(chrome).toBeVisible();
+  // Arriving frames the places on the sheet; an author collapses once that view has settled.
+  await waitForMapViewport(page);
   await chrome.getByRole("button", { name: "Weltkarte einklappen" }).click();
   await expect(chrome).toHaveCount(0);
+  // The card takes the sheet's corner, outside the framing the sheet had: the level is framed
+  // again, so the card the map folded into is where the author can see it (T-79).
+  await expect
+    .poll(async () => {
+      const pane = await page.locator(".places-flow-area .react-flow__pane").boundingBox();
+      const box = await page.locator('.react-flow__node[data-id="x-weltkarte"]').boundingBox();
+      if (!pane || !box) return "not drawn";
+      const inside =
+        box.x >= pane.x &&
+        box.y >= pane.y &&
+        box.x + box.width <= pane.x + pane.width &&
+        box.y + box.height <= pane.y + pane.height;
+      return inside ? "in view" : `outside the canvas at ${box.x},${box.y}`;
+    })
+    .toBe("in view");
   await closePlaceSheet(page);
   await expect
     .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapExpanded)
