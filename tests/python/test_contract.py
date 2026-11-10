@@ -78,9 +78,10 @@ class InvokeChatTests(unittest.TestCase):
         body = {
             "choices": [
                 {
+                    "finish_reason": "stop",
                     "message": {
                         "content": json.dumps({"message": "hi", "citations": [], "proposals": []})
-                    }
+                    },
                 }
             ]
         }

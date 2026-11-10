@@ -125,7 +125,14 @@ class LocalInferenceEngine:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):
             raise InferenceUnavailableError("Local inference is unavailable for this build.")
         if not self.endpoint.external:
-            return invoke_chat(self.url, payload, include_metadata=True, api_key=self._sidecar_key)
+            # The local server is ours to hold to the contract: a reply without usage is refused.
+            return invoke_chat(
+                self.url,
+                payload,
+                include_metadata=True,
+                api_key=self._sidecar_key,
+                require_usage=True,
+            )
         request = {**payload, "model": self.endpoint.model_name}
         if self._json_object_only:
             request = json_object_fallback(request)

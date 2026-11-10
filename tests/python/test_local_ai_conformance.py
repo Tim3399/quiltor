@@ -9,6 +9,11 @@ Case numbers follow the contract's table (local-ai-contract v1, section 5). A ca
 once, as one JSON line with its status and raw answer, when `QUILTOR_CONFORMANCE_ARTIFACT` is
 set: that is how CI keeps the real answers of a pinned llama-server.
 
+Client mode (`ClientCheckerTests`, cases C16-C24, C36, C37) turns the question round: a mock
+server misbehaves and the client in `shared/contract.py` must raise the class the contract
+names and not use the content. C21 (plausibility), C34 (model identity) and C15 (the schema lint,
+part 3) are not asked here.
+
 What only the bridge can be asked (a server that is still loading, a key, a body that lies about
 its length, a generation that crashes) lives in `BridgeOnlyTests`.
 """
@@ -19,10 +24,13 @@ import json
 import os
 import socket
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import StringIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 from unittest.mock import patch
 
 from conformance_support import (
@@ -35,6 +43,21 @@ from conformance_support import (
     load_bridge,
     start_bridge,
 )
+
+from quiltor.infrastructure.inference.shared.contract import (
+    InferenceHTTPError,
+    count_tokens,
+    invoke_chat,
+    normalise_error,
+    refuses_json_schema,
+)
+from quiltor.modules.assistant.jobs import classify_assistant_error
+from quiltor.modules.assistant.ports import (
+    IncompleteInferenceResponse,
+    InferenceContextTooLargeError,
+    InferenceValidationError,
+)
+from quiltor.modules.assistant.runtime import AssistantRuntime
 
 SCHEMA = {
     "type": "object",
@@ -417,6 +440,371 @@ class RecordingTests(BridgeFixture, unittest.TestCase):
     def run_llama_mode() -> unittest.TestResult:
         suite = unittest.defaultTestLoader.loadTestsFromTestCase(LlamaConformanceTests)
         return unittest.TextTestRunner(stream=StringIO(), verbosity=0).run(suite)
+
+
+# --- Client mode: the checker in shared/contract.py against a server that misbehaves ----------
+
+KEY = "sk-test-0123456789abcdefghijklmnopqrstuvwxyz"
+PARSABLE = json.dumps({"answer": "ok"})
+USAGE = {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}
+
+
+def completion(
+    content: str = PARSABLE,
+    finish_reason: str | None = "stop",
+    *,
+    usage: Any = USAGE,
+    choices: int = 1,
+    **message: Any,
+) -> dict[str, Any]:
+    choice: dict[str, Any] = {
+        "index": 0,
+        "message": {"role": "assistant", "content": content, **message},
+    }
+    if finish_reason is not None:
+        choice["finish_reason"] = finish_reason
+    body: dict[str, Any] = {"id": "chatcmpl-1", "model": "local", "choices": [choice] * choices}
+    if usage is not ABSENT:
+        body["usage"] = usage
+    return body
+
+
+ABSENT = object()
+
+
+class _Mock(BaseHTTPRequestHandler):
+    """A server that answers one scripted reply to every request and counts them."""
+
+    reply: ClassVar[tuple[int, Any]] = (200, {})
+    # Replies handed out one by one before `reply` takes over.
+    queue: ClassVar[list[tuple[int, Any]]] = []
+    calls: ClassVar[list[dict[str, Any]]] = []
+
+    def log_message(self, format: str, *args: Any) -> None:
+        pass
+
+    def do_POST(self) -> None:
+        raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        type(self).calls.append(json.loads(raw))
+        status, body = type(self).queue.pop(0) if type(self).queue else type(self).reply
+        data = (body if isinstance(body, str) else json.dumps(body)).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+class ClientCheckerTests(unittest.TestCase):
+    """invoke_chat and count_tokens as the contract's client (cases C16-C24, C36, C37).
+
+    The mock answers whatever the case needs; the client must raise the class the contract names
+    and must not use the content of an answer it cannot trust.
+    """
+
+    def setUp(self) -> None:
+        self.mock = type("Mock", (_Mock,), {"calls": [], "queue": []})
+        server = ThreadingHTTPServer(("127.0.0.1", 0), self.mock)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.url = f"http://127.0.0.1:{server.server_address[1]}"
+
+    def answer(self, status: int, body: Any) -> None:
+        self.mock.reply = (status, body)
+
+    def ask(self, **options: Any) -> dict[str, Any]:
+        return invoke_chat(self.url, {"messages": []}, **options)
+
+    # --- C16: the content must be what the schema call promised -----------------------------
+
+    def test_c16_content_that_is_not_json_is_not_used(self):
+        self.answer(200, completion("not json at all"))
+        with self.assertRaises(InferenceValidationError):
+            self.ask()
+        self.answer(200, completion('["a list, not an object"]'))
+        with self.assertRaises(InferenceValidationError):
+            self.ask(include_metadata=True)
+
+    # --- C17: length, always ----------------------------------------------------------------
+
+    def test_c17_length_is_incomplete_even_when_the_content_parses(self):
+        self.answer(200, completion(PARSABLE, "length"))
+        with self.assertRaises(IncompleteInferenceResponse) as caught:
+            self.ask()
+        self.assertEqual(caught.exception.finish_reason, "length")
+        self.assertEqual(caught.exception.raw_content, PARSABLE)
+
+    def test_c17_a_cut_off_fragment_is_incomplete_too(self):
+        self.answer(200, completion('{"answer": "ab', "length"))
+        with self.assertRaises(IncompleteInferenceResponse):
+            self.ask()
+
+    def _runtime(self) -> AssistantRuntime:
+        engine = SimpleNamespace(
+            identity=self.url,
+            invoke=lambda payload: invoke_chat(
+                self.url, payload, include_metadata=True, require_usage=True
+            ),
+        )
+        # _invoke_with_growth only reaches the engine; the other collaborators are not touched.
+        return AssistantRuntime(
+            Path("."),
+            Path("."),
+            cast(Any, engine),
+            progress=cast(Any, None),
+            read_tools=cast(Any, None),
+            token_cache=cast(Any, None),
+        )
+
+    def test_c17_the_growth_retry_asks_again_with_more_room(self):
+        self.mock.queue = [(200, completion(PARSABLE, "length")), (200, completion())]
+        result = self._runtime()._invoke_with_growth({"messages": [], "max_tokens": 100}, 1000)
+        self.assertEqual(result["answer"], "ok")
+        self.assertEqual([call["max_tokens"] for call in self.mock.calls], [100, 200])
+
+    def test_c17_f10_with_the_room_used_up_a_parsable_length_answer_is_refused(self):
+        """F10 (a), strict: `length` means the server cut the answer off. When no larger limit
+        fits, the content is not used even though it would pass the schema."""
+        self.answer(200, completion(PARSABLE, "length"))
+        runtime = self._runtime()
+        prompt_tokens = 8192 - 256 - 50  # a room of 50 tokens, the request already asks for 100
+        with self.assertRaises(InferenceValidationError):
+            runtime._invoke_with_growth({"messages": [], "max_tokens": 100}, prompt_tokens)
+        self.assertEqual(len(self.mock.calls), 1)
+
+    # --- C18, C19: what else a finish_reason or a content can be ----------------------------
+
+    def test_c18_a_finish_reason_other_than_stop_or_length_is_an_error(self):
+        for reason in ("content_filter", "error", "tool_calls", "something_new", None):
+            with self.subTest(finish_reason=reason):
+                self.answer(200, completion(PARSABLE, reason))
+                with self.assertRaises(InferenceValidationError):
+                    self.ask()
+
+    def test_c19_an_empty_content_or_a_refusal_is_an_error(self):
+        self.answer(200, completion(""))
+        with self.assertRaises(InferenceValidationError):
+            self.ask()
+        self.answer(200, completion(PARSABLE, refusal="I cannot help with that."))
+        with self.assertRaises(InferenceValidationError):
+            self.ask()
+
+    # --- C20: the context error, however the server names it --------------------------------
+
+    def test_c20_a_context_error_is_a_context_error_whoever_says_it(self):
+        bodies = {
+            "llama-server": {
+                "error": {
+                    "code": 400,
+                    "message": "the request exceeds the available context size",
+                    "type": "exceed_context_size_error",
+                    "n_prompt_tokens": 9000,
+                    "n_ctx": 8192,
+                }
+            },
+            "contract": {
+                "error": {
+                    "message": "prompt too long",
+                    "type": "invalid_request_error",
+                    "param": "messages",
+                    "code": "context_too_large",
+                }
+            },
+            "openai": {
+                "error": {
+                    "message": "This model's maximum context length is 8192 tokens.",
+                    "type": "invalid_request_error",
+                    "param": "messages",
+                    "code": "context_length_exceeded",
+                }
+            },
+        }
+        for name, body in bodies.items():
+            with self.subTest(server=name):
+                self.answer(400, body)
+                with self.assertRaises(InferenceContextTooLargeError) as caught:
+                    self.ask()
+                self.assertEqual(classify_assistant_error(caught.exception), "context_too_large")
+
+    def test_c20_the_same_words_under_another_status_are_not_a_context_error(self):
+        self.answer(500, {"error": {"type": "exceed_context_size_error", "message": "x"}})
+        with self.assertRaises(InferenceHTTPError):
+            self.ask()
+
+    # --- C22, C23, C24: the envelope, normalised --------------------------------------------
+
+    def test_c22_a_llama_style_envelope_is_read_into_the_contracts_terms(self):
+        self.answer(
+            400,
+            {"error": {"code": 400, "message": "bad", "type": "invalid_request_error"}},
+        )
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        error = caught.exception
+        self.assertEqual(error.status, 400)
+        self.assertIsNone(error.error_code)  # N1: an integer code is no code
+        self.assertEqual(error.upstream_code, "400")
+        self.assertEqual(error.error_type, "invalid_request_error")
+        self.assertIsNone(error.param)
+
+    def test_c23_an_error_inside_a_200_is_an_error_and_its_content_is_not_used(self):
+        body = {"error": {"code": 502, "message": "upstream failed"}, **completion()}
+        self.answer(200, body)
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        self.assertEqual(caught.exception.status, 502)
+        self.assertEqual(caught.exception.upstream_code, "502")  # N8
+
+    def test_c24_a_groq_style_envelope_gets_null_param_and_code(self):
+        self.answer(400, {"error": {"message": "bad request", "type": "invalid_request_error"}})
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        self.assertIsNone(caught.exception.param)
+        self.assertIsNone(caught.exception.error_code)
+        self.assertIsNone(caught.exception.upstream_code)
+        self.assertEqual(caught.exception.error_type, "invalid_request_error")
+
+    def test_an_answer_that_is_no_envelope_has_no_code_and_a_type_from_its_status(self):
+        for status, body, expected in (
+            (503, "Service Unavailable", "service_unavailable_error"),
+            (400, {"error": "just a string"}, "invalid_request_error"),
+            (500, "<html>", "api_error"),
+            (429, {"detail": "slow down"}, "rate_limit_error"),
+        ):
+            with self.subTest(status=status):
+                self.answer(status, body)
+                with self.assertRaises(InferenceHTTPError) as caught:
+                    self.ask()
+                self.assertEqual(caught.exception.error_type, expected)
+                self.assertIsNone(caught.exception.error_code)
+
+    def test_the_tokenizer_error_is_read_the_same_way(self):
+        self.answer(400, {"error": {"code": 400, "type": "exceed_context_size_error"}})
+        with self.assertRaises(InferenceContextTooLargeError):
+            count_tokens(self.url, "text")
+
+    # --- C36, C37 ---------------------------------------------------------------------------
+
+    def test_c36_zero_or_two_choices_are_an_error(self):
+        for count in (0, 2):
+            with self.subTest(choices=count):
+                self.answer(200, completion(choices=count))
+                with self.assertRaises(InferenceValidationError):
+                    self.ask()
+
+    def test_c37_a_local_answer_without_usage_is_an_error(self):
+        for usage in (ABSENT, None, {}, {"prompt_tokens": 1}, "many"):
+            with self.subTest(usage=usage):
+                self.answer(200, completion(usage=usage))
+                with self.assertRaises(InferenceValidationError):
+                    self.ask(require_usage=True)
+
+    def test_c37_an_external_provider_may_leave_usage_out(self):
+        self.answer(200, completion(usage=ABSENT))
+        self.assertEqual(self.ask()["answer"], "ok")
+        self.assertEqual(self.ask(include_metadata=True)["_runtime"]["promptTokens"], None)
+
+    def test_a_complete_answer_passes_and_reports_its_usage(self):
+        self.answer(200, completion())
+        result = self.ask(include_metadata=True, require_usage=True)
+        self.assertEqual(result["answer"], "ok")
+        self.assertEqual(result["_runtime"]["totalTokens"], 17)
+        self.assertEqual(result["_runtime"]["finishReason"], "stop")
+
+    # --- The key and the envelope ------------------------------------------------------------
+
+    def test_a_key_echoed_inside_the_envelope_is_replaced_before_it_is_read(self):
+        body = {"error": {"message": f"bad key {KEY}", "type": KEY, "param": KEY, "code": KEY}}
+        self.answer(401, body)
+        with self.assertRaises(InferenceHTTPError) as caught:
+            invoke_chat(self.url, {"messages": []}, api_key=KEY)
+        error = caught.exception
+        everything = " ".join(
+            str(part)
+            for part in (error, error.detail, error.error_type, error.error_code, error.param)
+        )
+        self.assertNotIn(KEY, everything)
+        self.assertEqual(error.error_type, "***")
+
+    def test_what_an_envelope_carries_is_cut_short(self):
+        self.answer(400, {"error": {"type": "t" * 5000, "param": "p" * 5000}})
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        self.assertLessEqual(len(caught.exception.error_type or ""), 100)
+        self.assertLessEqual(len(caught.exception.param or ""), 100)
+
+    # --- refuses_json_schema reads the envelope ----------------------------------------------
+
+    def test_a_refusal_naming_response_format_is_a_json_schema_refusal(self):
+        self.answer(400, {"error": {"message": "unsupported", "param": "response_format"}})
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        self.assertTrue(refuses_json_schema(caught.exception))
+
+    def test_an_error_naming_another_parameter_is_not_one_even_if_the_text_mentions_it(self):
+        self.answer(
+            400,
+            {
+                "error": {
+                    "message": "max_tokens too large, response_format is fine",
+                    "param": "max_tokens",
+                }
+            },
+        )
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        self.assertFalse(refuses_json_schema(caught.exception))
+
+    def test_without_an_envelope_the_markers_in_the_text_still_decide(self):
+        self.answer(
+            404,
+            {"error": {"message": "No endpoints found for the requested parameters", "code": 404}},
+        )
+        with self.assertRaises(InferenceHTTPError) as caught:
+            self.ask()
+        self.assertTrue(refuses_json_schema(caught.exception))
+
+    # --- normalise_error on its own -----------------------------------------------------------
+
+    def test_normalise_error_covers_the_listed_deviations(self):
+        cases = {
+            "N1 integer code": (
+                {"error": {"code": 400, "message": "m"}},
+                (None, "400", None),
+            ),
+            "N2 own types": (
+                {"error": {"code": 503, "type": "unavailable_error"}},
+                ("unavailable", "unavailable_error", None),
+            ),
+            "N2 not supported": (
+                {"error": {"code": 501, "type": "not_supported_error"}},
+                ("unsupported_parameter", "not_supported_error", None),
+            ),
+            "N8 openrouter": (
+                {"error": {"code": 402, "message": "m", "metadata": {"raw": "x"}}},
+                (None, "402", None),
+            ),
+            "N12 groq": ({"error": {"message": "m", "type": "t"}}, (None, None, None)),
+            "N15 openai": (
+                {"error": {"code": "context_length_exceeded", "param": "messages"}},
+                ("context_too_large", "context_length_exceeded", "messages"),
+            ),
+            "contract code kept": (
+                {"error": {"code": "invalid_request", "param": "model"}},
+                ("invalid_request", None, "model"),
+            ),
+        }
+        for name, (body, (code, upstream, param)) in cases.items():
+            with self.subTest(name):
+                error = normalise_error(400, body)
+                self.assertEqual(
+                    (error.code, error.upstream_code, error.param), (code, upstream, param)
+                )
+        self.assertEqual(
+            normalise_error(400, json.dumps({"error": {"code": 400}})).upstream_code, "400"
+        )
+        self.assertEqual(normalise_error(400, b"\xff not json").code, None)
 
 
 if __name__ == "__main__":
