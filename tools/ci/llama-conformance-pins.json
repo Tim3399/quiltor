@@ -1,0 +1,29 @@
+{
+  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Nothing here was measured locally (D-94: no download outside CI): every deviation is the expectation from local-ai-contract v1 section 5.1 until a CI run has written the real answers. 'sha256: null' means the model is not pinned yet; only a spike run (workflow input spike=true) may use it, and it prints the digest to pin.",
+  "models": [
+    {
+      "name": "smollm2-135m-instruct",
+      "repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
+      "file": "smollm2-135m-instruct-q8_0.gguf",
+      "license": "Apache-2.0 [unverified]",
+      "approximate_bytes": 145000000,
+      "sha256": null
+    },
+    {
+      "name": "qwen2.5-0.5b-instruct",
+      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      "license": "Apache-2.0 [unverified]",
+      "approximate_bytes": 491000000,
+      "sha256": null
+    }
+  ],
+  "known_deviations": {
+    "b12183": {
+      "C22": ["N1", "N2", "N3"],
+      "C20": ["N2"],
+      "C17": ["N4"]
+    },
+    "b10218": {}
+  }
+}
