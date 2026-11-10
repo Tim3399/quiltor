@@ -67,7 +67,8 @@ export async function runRelayLoop(options: RelayLoopOptions): Promise<RelayLoop
   const idleFloorMs = options.idleFloorMs ?? IDLE_FLOOR_MS;
   while (!signal.aborted) {
     let next: Awaited<ReturnType<AssistantRelayGateway["relayNext"]>>;
-    const polledAt = Date.now();
+    // A monotonic clock: a wall clock set back during the poll would stretch the pause (F-61-26).
+    const polledAt = performance.now();
     try {
       next = await relay.relayNext(jobId, signal);
     } catch {
@@ -76,7 +77,7 @@ export async function runRelayLoop(options: RelayLoopOptions): Promise<RelayLoop
       continue;
     }
     if (next.kind === "idle") {
-      const early = idleFloorMs - (Date.now() - polledAt);
+      const early = Math.min(idleFloorMs - (performance.now() - polledAt), idleFloorMs);
       if (early > 0) await wait(early, signal);
       continue;
     }
