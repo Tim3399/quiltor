@@ -4,6 +4,7 @@ import {
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
+  placeCardCommand,
 } from "./support/expanded-map-fixture";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
@@ -219,15 +220,21 @@ test("Compact pin toggles remain keyboard reachable without replacing map action
   const fixture = await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
   const graufurthNode = placeNode(page, "x-graufurth");
-  const toPin = graufurthNode.getByRole("button", {
-    name: "Ort Graufurth als Stecknadel anzeigen",
-  });
+  // On a phone the card's commands are in the inspector sheet (D-T-219-F2). The toggle
+  // there keeps the focus as it flips, so the keyboard can turn the place back at once.
+  const toPin = await placeCardCommand(
+    page,
+    "x-graufurth",
+    "Ort Graufurth als Stecknadel anzeigen",
+  );
   await toPin.focus();
   await expect(toPin).toBeFocused();
   await page.keyboard.press("Enter");
   const pin = page.locator('.place-node-pin[data-place-id="x-graufurth"]');
   await expect(pin).toBeVisible();
-  const toCard = pin.getByRole("button", { name: "Ort Graufurth als Karte anzeigen" });
+  const toCard = page
+    .getByRole("dialog", { name: "Orte-Inspector" })
+    .getByRole("button", { name: "Ort Graufurth als Karte anzeigen", exact: true });
   await expect(toCard).toBeFocused();
   await page.keyboard.press("Space");
   await expect(graufurthNode.locator(".story-node")).toBeVisible();
