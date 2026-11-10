@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { de } from "../../../../../../locales/de";
+import en from "../../../../../../locales/en";
 import type { MessageKey } from "../../../i18n";
 import {
   allMapDistances,
@@ -17,6 +18,7 @@ import {
 } from "./placeMap";
 
 const t = (key: MessageKey) => de[key];
+const tEn = (key: MessageKey) => en[key];
 
 describe("map scale instruments", () => {
   const scale = { unitsPer100px: 25, unitLabel: "km" };
@@ -144,15 +146,19 @@ describe("nearestMapDistances", () => {
 
 describe("formatDistance", () => {
   it("shows an abstract unit label when no scale is set", () => {
-    expect(formatDistance(500, t)).toBe("500 Einheiten (kein Maßstab gesetzt)");
+    expect(formatDistance(500, t, undefined, "de")).toBe("500 Einheiten (kein Maßstab gesetzt)");
   });
 
   it("converts to the configured scale and unit label", () => {
-    expect(formatDistance(500, t, { unitsPer100px: 2, unitLabel: "Meilen" })).toBe("10 Meilen");
+    expect(formatDistance(500, t, { unitsPer100px: 2, unitLabel: "Meilen" }, "de")).toBe(
+      "10 Meilen",
+    );
   });
 
-  it("rounds to two decimal places", () => {
-    expect(formatDistance(333, t, { unitsPer100px: 1, unitLabel: "km" })).toBe("3.33 km");
+  it("rounds to two decimal places, with the decimal mark of the interface language", () => {
+    const scale = { unitsPer100px: 1, unitLabel: "km" };
+    expect(formatDistance(333, t, scale, "de")).toBe("3,33 km");
+    expect(formatDistance(333, tEn, scale, "en")).toBe("3.33 km");
   });
 });
 
@@ -176,25 +182,41 @@ describe("a scale taken from a measured stretch", () => {
 
 describe("reading a typed scale", () => {
   it("accepts only a positive number, so the server's rule cannot be broken", () => {
-    expect(parseScaleInput("0")).toBeUndefined();
-    expect(parseScaleInput("-12")).toBeUndefined();
-    expect(parseScaleInput("")).toBeUndefined();
-    expect(parseScaleInput("  ")).toBeUndefined();
-    expect(parseScaleInput("abc")).toBeUndefined();
-    expect(parseScaleInput("0.0667")).toBe(0.0667);
-    expect(parseScaleInput("50")).toBe(50);
+    expect(parseScaleInput("0", "de")).toBeUndefined();
+    expect(parseScaleInput("-12", "de")).toBeUndefined();
+    expect(parseScaleInput("", "de")).toBeUndefined();
+    expect(parseScaleInput("  ", "de")).toBeUndefined();
+    expect(parseScaleInput("abc", "de")).toBeUndefined();
+    expect(parseScaleInput("0.0667", "de")).toBe(0.0667);
+    expect(parseScaleInput("50", "de")).toBe(50);
+    expect(parseScaleInput("0,0667", "de")).toBe(0.0667);
+    expect(parseScaleInput("0,0667", "en")).toBe(0.0667);
+    expect(parseScaleInput("0.0667", "en")).toBe(0.0667);
   });
 });
 
 describe("formatScale", () => {
   it("rounds the reading to three significant digits", () => {
-    expect(formatScale({ unitsPer100px: 200 / 3, unitLabel: "km" }, t)).toBe("66.7 km pro 100px");
-    expect(formatScale({ unitsPer100px: 0.066666, unitLabel: "km" }, t)).toBe(
-      "0.0667 km pro 100px",
+    expect(formatScale({ unitsPer100px: 200 / 3, unitLabel: "km" }, t, "de")).toBe(
+      "66,7 km pro 100px",
     );
-    expect(formatScale({ unitsPer100px: 0.15, unitLabel: "km" }, t)).toBe("0.15 km pro 100px");
-    expect(formatScale({ unitsPer100px: 1500, unitLabel: "m" }, t)).toBe("1500 m pro 100px");
-    expect(formatScale(undefined, t)).toBe("");
+    expect(formatScale({ unitsPer100px: 0.066666, unitLabel: "km" }, t, "de")).toBe(
+      "0,0667 km pro 100px",
+    );
+    expect(formatScale({ unitsPer100px: 0.15, unitLabel: "km" }, t, "de")).toBe(
+      "0,15 km pro 100px",
+    );
+    expect(formatScale({ unitsPer100px: 1500, unitLabel: "m" }, t, "de")).toBe("1500 m pro 100px");
+    expect(formatScale(undefined, t, "de")).toBe("");
+  });
+
+  it("uses the decimal mark of the interface language, and the same digits", () => {
+    expect(formatScale({ unitsPer100px: 0.15, unitLabel: "km" }, tEn, "en")).toBe(
+      "0.15 km per 100px",
+    );
+    expect(formatScale({ unitsPer100px: 200 / 3, unitLabel: "km" }, tEn, "en")).toBe(
+      "66.7 km per 100px",
+    );
   });
 });
 

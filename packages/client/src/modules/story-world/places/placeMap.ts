@@ -1,5 +1,6 @@
 import type { MessageKey } from "../../../i18n";
 import type { MapScale } from "../model";
+import { formatPlaceNumber, parsePlaceNumber } from "./placeNumber";
 
 /** The physical distance between two adjacent grid lines, when a scale exists. */
 export function physicalGridDistance(
@@ -120,11 +121,12 @@ export function nearestMapDistances(
 export function formatScale(
   scale: { unitsPer100px: number; unitLabel: string } | undefined,
   t: (key: MessageKey) => string,
+  locale: string,
 ): string {
   if (!scale) return "";
   // Three significant digits: a scale taken from a measured stretch is kept exact
   // (66.666...), but nobody reads more of it than this.
-  const shown = Number(scale.unitsPer100px.toPrecision(3));
+  const shown = formatPlaceNumber(scale.unitsPer100px, locale, { significant: 3 });
   return `${shown} ${scale.unitLabel} ${t("perHundredPx")}`;
 }
 
@@ -145,21 +147,20 @@ export function scaleFromMeasurement(
 }
 
 /** A typed scale, or nothing when it is not one the server would accept (> 0). */
-export function parseScaleInput(text: string): number | undefined {
-  if (!text.trim()) return undefined;
-  const value = Number(text);
-  return Number.isFinite(value) && value > 0 ? value : undefined;
+export function parseScaleInput(text: string, locale: string): number | undefined {
+  const value = parsePlaceNumber(text, locale);
+  return value !== undefined && value > 0 ? value : undefined;
 }
 
 export function formatDistance(
   distance: number,
   t: (key: MessageKey) => string,
-  scale?: { unitsPer100px: number; unitLabel: string },
+  scale: { unitsPer100px: number; unitLabel: string } | undefined,
+  locale: string,
 ): string {
   if (!scale) return t("unitsNoScale").replace("{n}", String(Math.round(distance)));
   const units = (distance / 100) * scale.unitsPer100px;
-  const rounded = Math.round(units * 100) / 100;
-  return `${rounded} ${scale.unitLabel}`;
+  return `${formatPlaceNumber(units, locale, { fraction: 2 })} ${scale.unitLabel}`;
 }
 
 /** How a frame resize began: its drawn size then, and whether it may distort. */

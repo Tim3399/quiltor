@@ -147,12 +147,12 @@ test("A pin and a point on the opened-out harbour map are measured in its scale"
   await page.mouse.click(click.x, click.y);
 
   const label = await targetedLabel(page);
-  const match = /^Punkt – Salzmarkt: ([\d.]+) km$/.exec(label);
+  const match = /^Punkt – Salzmarkt: ([\d,]+) km$/.exec(label);
   expect(match, `targeted line reads "${label}"`).not.toBeNull();
   await expect(page.locator(".react-flow__node-measurePoint")).toHaveCount(1);
   const anchor = await pinAnchor(page, world.id, mapId, world.ids.figures.salzmarkt);
   const expected = kilometres(anchor, flow);
-  expect(Number(match?.[1])).toBeCloseTo(expected, 1);
+  expect(Number(match?.[1]?.replace(",", "."))).toBeCloseTo(expected, 1);
 });
 
 test("Two points on the harbour map are measured, and Escape takes them away", async ({ page }) => {
@@ -167,9 +167,9 @@ test("Two points on the harbour map are measured, and Escape takes them away", a
   await page.mouse.click(second.x, second.y);
 
   await expect(page.locator(".react-flow__node-measurePoint")).toHaveCount(2);
-  const match = /^Punkt – Punkt: ([\d.]+) km$/.exec(await targetedLabel(page));
+  const match = /^Punkt – Punkt: ([\d,]+) km$/.exec(await targetedLabel(page));
   expect(match).not.toBeNull();
-  expect(Number(match?.[1])).toBeCloseTo(expected, 1);
+  expect(Number(match?.[1]?.replace(",", "."))).toBeCloseTo(expected, 1);
 
   await page.keyboard.press("Escape");
   await expect(page.locator(".places-measure-overlays")).toHaveCount(0);

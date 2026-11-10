@@ -856,7 +856,7 @@ describe("active expanded map chrome", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weltkarte feststellen" }));
     expect(changes.at(-1)?.nodes[0].pinned).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Maßstab von Weltkarte" }));
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Maßstab" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Maßstab" }), {
       target: { value: "50" },
     });
     expect(changes.at(-1)?.nodes[0].mapScale).toEqual({ unitsPer100px: 50, unitLabel: "km" });
@@ -1150,7 +1150,7 @@ describe("measuring to a free point", () => {
 
     expect(targeted()).toHaveAttribute(
       "aria-label",
-      expect.stringMatching(/^Hafen – Punkt: [\d.]+ km$/),
+      expect.stringMatching(/^Hafen – Punkt: [\d,]+ km$/),
     );
   });
 

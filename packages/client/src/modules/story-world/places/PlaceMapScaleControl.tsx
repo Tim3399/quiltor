@@ -4,6 +4,7 @@ import { Button, IconButton, Popover, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { MapScale } from "../model";
 import { parseScaleInput } from "./placeMap";
+import { formatPlaceNumber } from "./placeNumber";
 import "./PlaceMapScaleControl.css";
 
 export interface PlaceMapScaleControlProps {
@@ -19,8 +20,8 @@ export interface PlaceMapScaleControlProps {
 }
 
 /** What the field shows for a stored scale: a measured 66.666… reads as 66.67. */
-function shownScale(value: number): string {
-  return String(Number(value.toPrecision(4)));
+function shownScale(value: number, locale: string): string {
+  return formatPlaceNumber(value, locale, { significant: 4 });
 }
 
 /**
@@ -41,12 +42,12 @@ export function ScaleValueField({
   fieldClassName?: string;
   className?: string;
 }) {
-  const { t } = useI18n();
-  const [draft, setDraft] = useState(() => shownScale(value));
+  const { t, locale } = useI18n();
+  const [draft, setDraft] = useState(() => shownScale(value, locale));
   const [shownFor, setShownFor] = useState(value);
   if (shownFor !== value) {
     setShownFor(value);
-    if (parseScaleInput(draft) !== value) setDraft(shownScale(value));
+    if (parseScaleInput(draft, locale) !== value) setDraft(shownScale(value, locale));
   }
   return (
     <TextField
@@ -54,15 +55,14 @@ export function ScaleValueField({
       className={className}
       label={t("scale")}
       labelHidden
-      type="number"
-      step="any"
+      inputMode="decimal"
       value={draft}
       onChange={(event: ChangeEvent<HTMLInputElement>) => {
         setDraft(event.target.value);
-        const parsed = parseScaleInput(event.target.value);
+        const parsed = parseScaleInput(event.target.value, locale);
         if (parsed !== undefined) onValue(parsed);
       }}
-      onBlur={() => setDraft(shownScale(value))}
+      onBlur={() => setDraft(shownScale(value, locale))}
     />
   );
 }
