@@ -25,6 +25,7 @@ function renderSearch(
   onShowSetAside = vi.fn(),
   onOpenChapterTrash = vi.fn(),
   syncAvailable?: boolean,
+  versionsAvailable?: boolean,
 ) {
   const onWorkspace = vi.fn();
   const onCommand = vi.fn();
@@ -41,6 +42,7 @@ function renderSearch(
         onShowSetAside={onShowSetAside}
         onOpenChapterTrash={onOpenChapterTrash}
         syncAvailable={syncAvailable}
+        versionsAvailable={versionsAvailable}
       />
     </I18nProvider>,
   );
@@ -149,6 +151,18 @@ describe("SearchDialog entries for the versions dialog", () => {
     }
     // The dialogs they replaced are no longer named anywhere in the palette.
     expect(screen.queryByRole("option", { name: /Verlauf öffnen|Sicherung öffnen/ })).toBeNull();
+  });
+
+  it("offers no way into the versions dialog while the world is an example preview", () => {
+    const versionEntries =
+      /Versionen öffnen|Version festhalten|Automatische Sicherungen öffnen|Mit anderen Geräten abgleichen/;
+    renderSearch(vi.fn(), manuscript, vi.fn(), vi.fn(), true, false);
+    expect(screen.queryByRole("option", { name: versionEntries })).toBeNull();
+    expect(screen.getByRole("option", { name: /Figuren/ })).toBeInTheDocument();
+    cleanup();
+
+    renderSearch(vi.fn(), manuscript, vi.fn(), vi.fn(), true, true);
+    expect(screen.getAllByRole("option", { name: versionEntries })).toHaveLength(4);
   });
 
   it("offers the sync command only where the server syncs with other devices", () => {

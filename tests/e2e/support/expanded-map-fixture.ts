@@ -135,6 +135,20 @@ export async function closePlaceSheet(page: Page) {
   }
 }
 
+/**
+ * A command of a place card, where the user reaches it. Up to 820px the places workspace is
+ * compact: selecting a card opens the inspector as a sheet over the canvas, so the card carries
+ * no commands and the sheet offers them (D-T-219-F2). Wider, they are the card's own.
+ */
+export async function placeCardCommand(page: Page, nodeId: string, name: string) {
+  const node = page.locator(`.react-flow__node[data-id="${nodeId}"]`);
+  if ((page.viewportSize()?.width ?? 0) > 820) return node.getByRole("button", { name });
+  const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
+  if (!(await sheet.isVisible())) await node.click();
+  await expect(sheet).toBeVisible();
+  return sheet.getByRole("button", { name, exact: true });
+}
+
 export async function selectMapChild(page: Page) {
   const child = page.locator('.react-flow__node[data-id="x-graufurth"]');
   await child.click();

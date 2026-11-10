@@ -59,7 +59,7 @@ compared all 16 imported images with prior `HEAD` Linux images and the accepted 
 
 - `light-world-gate-compact-linux.png` and `dark-world-gate-compact-linux.png` — accepted. The new
   two-column compact import/create grid and world row stay inside 390px, preserve readable labels,
-  and show no overlap or clipped action. [Dark example](../../tests/e2e/visual-baseline.spec.ts-snapshots/dark-world-gate-compact-linux.png).
+  and show no overlap or clipped action. Dark example: `tests/e2e/visual-baseline.spec.ts-snapshots/dark-world-gate-compact-linux.png` (retaken in T-214-5b for the help button).
 - `light-expanded-map-{wide,regular}-linux.png` and
   `dark-expanded-map-{wide,regular}-linux.png` — all four accepted. Prior differences are confined
   to the two priority controls (`2,015` changed pixels per light image and `2,044` per dark image,
@@ -94,7 +94,7 @@ intent:
 - `light-world-gate-compact-darwin.png` and `dark-world-gate-compact-darwin.png` — accepted. The
   compact two-column action grid, locale/theme controls, world row, chevron, and delete action are
   fully visible at 390px in both themes. The new composition matches the reviewed Linux and Windows
-  layout without overlap or horizontal clipping. [Light example](../../tests/e2e/visual-baseline.spec.ts-snapshots/light-world-gate-compact-darwin.png).
+  layout without overlap or horizontal clipping. Light example: `tests/e2e/visual-baseline.spec.ts-snapshots/light-world-gate-compact-darwin.png` (retaken in T-214-5b for the help button).
 - `light-expanded-map-{wide,regular}-darwin.png` and
   `dark-expanded-map-{wide,regular}-darwin.png` — all four accepted. Each prior comparison changes
   about two thousand pixels and visually confines the material change to the two priority controls.

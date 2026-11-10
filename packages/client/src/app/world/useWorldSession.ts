@@ -31,7 +31,10 @@ export function useWorldSession(
   const [authError] = useState(() => new URLSearchParams(location.search).get("authError"));
   const [loadError, setLoadError] = useState("");
   const [trashError, setTrashError] = useState("");
+  const [previewExpired, setPreviewExpired] = useState(false);
   const loadGeneration = useRef(0);
+  // The open world, for leaving it: an unchanged preview is discarded on the way out.
+  const openWorld = useRef<WorldInfo | null>(null);
   // Which world the HTTP gateway points at right now, and which load pointed it there.
   const selection = useRef({ worldId: "", generation: 0 });
   const pendingCreatedWorld = useRef<{
@@ -79,6 +82,8 @@ export function useWorldSession(
           { worldId: result.world.id, generation, source },
         );
         setWorld(result.world);
+        openWorld.current = result.world;
+        setPreviewExpired(false);
         return true;
       } catch (error) {
         if (generation !== loadGeneration.current) return false;
@@ -126,6 +131,16 @@ export function useWorldSession(
     if (authError) history.replaceState(null, "", location.pathname);
   }, [authError]);
 
+  // Closing the tab or reloading leaves an unchanged preview too. A reload returns to the
+  // world list for every world, so nothing is lost; the request survives the page (keepalive).
+  const previewId = world?.preview ? world.id : "";
+  useEffect(() => {
+    if (!previewId) return;
+    const leave = () => quiltorClient.application.worlds.discardPreview(previewId);
+    window.addEventListener("pagehide", leave);
+    return () => window.removeEventListener("pagehide", leave);
+  }, [previewId]);
+
   const open = useCallback(
     (id: string) => {
       const generation = ++loadGeneration.current;
@@ -137,6 +152,25 @@ export function useWorldSession(
     },
     [loadWorld],
   );
+  /** A fresh preview of the example world (T-214-5b); the server decides everything else. */
+  const openExample = useCallback(
+    (lang: string) => {
+      const generation = ++loadGeneration.current;
+      pendingCreatedWorld.current = null;
+      setLoadError("");
+      return loadWorld(quiltorClient.application.worlds.openExample(lang), generation, "open").then(
+        () => undefined,
+      );
+    },
+    [loadWorld],
+  );
+  /** The save that made the open preview real hands its world back: title and mark. */
+  const adoptWorld = useCallback((adopted: WorldInfo) => {
+    if (openWorld.current?.id !== adopted.id) return;
+    openWorld.current = adopted;
+    setWorld(adopted);
+  }, []);
+  const markPreviewExpired = useCallback(() => setPreviewExpired(true), []);
   const create = useCallback(
     async (title: string, backupUrl: string) => {
       const retry = pendingCreatedWorld.current;
@@ -228,6 +262,12 @@ export function useWorldSession(
     [loadWorld],
   );
   const close = useCallback(() => {
+    const leaving = openWorld.current;
+    openWorld.current = null;
+    setPreviewExpired(false);
+    // Left without a change: the preview goes, and leaves nothing in the list (D-127). A
+    // world that became real meanwhile stays; the server decides that, not this check.
+    if (leaving?.preview) quiltorClient.application.worlds.discardPreview(leaving.id);
     const generation = ++loadGeneration.current;
     pendingCreatedWorld.current = null;
     quiltorClient.application.worlds.select("");
@@ -265,7 +305,11 @@ export function useWorldSession(
     loadError,
     trash,
     trashError,
+    previewExpired,
     open,
+    openExample,
+    adoptWorld,
+    markPreviewExpired,
     create,
     remove,
     loadTrash,

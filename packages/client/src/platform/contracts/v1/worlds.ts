@@ -6,6 +6,8 @@ export interface WorldInfoWireV1 {
   backupUrl: string;
   updated: string;
   deletedAt?: string;
+  origin?: "example";
+  preview?: true;
 }
 
 export function decodeWorldInfoV1(value: unknown): WorldInfo {
@@ -15,6 +17,8 @@ export function decodeWorldInfoV1(value: unknown): WorldInfo {
     title: wire.title,
     backupUrl: wire.backupUrl,
     updated: wire.updated,
+    ...(wire.origin ? { origin: wire.origin } : {}),
+    ...(wire.preview ? { preview: wire.preview } : {}),
   };
 }
 
@@ -41,7 +45,10 @@ function requireWorldInfo(value: unknown): WorldInfoWireV1 {
     typeof wire.backupUrl !== "string" ||
     typeof wire.updated !== "string" ||
     (wire.deletedAt !== undefined &&
-      (typeof wire.deletedAt !== "string" || Number.isNaN(Date.parse(wire.deletedAt))))
+      (typeof wire.deletedAt !== "string" || Number.isNaN(Date.parse(wire.deletedAt)))) ||
+    // The only origin there is; anything else is a server this client does not know.
+    (wire.origin !== undefined && wire.origin !== "example") ||
+    (wire.preview !== undefined && wire.preview !== true)
   ) {
     throw new TypeError("Invalid world wire value");
   }

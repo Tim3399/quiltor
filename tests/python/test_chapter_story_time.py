@@ -48,16 +48,16 @@ class _CoordinatedRepository(SQLiteDocumentRepository):
         self._ready = threading.Barrier(2)
         self._first_committed = threading.Event()
 
-    def save(self, kind, state, expected_revision, database):
+    def save(self, kind, state, expected_revision, database, *, promote=True):
         self._ready.wait(timeout=5)
         if kind == self._first:
             try:
-                return super().save(kind, state, expected_revision, database)
+                return super().save(kind, state, expected_revision, database, promote=promote)
             finally:
                 self._first_committed.set()
         if not self._first_committed.wait(timeout=5):
             raise TimeoutError("The first concurrent document save did not finish.")
-        return super().save(kind, state, expected_revision, database)
+        return super().save(kind, state, expected_revision, database, promote=promote)
 
 
 def _timeline() -> dict:
