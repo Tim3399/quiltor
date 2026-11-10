@@ -66,6 +66,7 @@ from quiltor.application.backups import WorldBackupContext as BackupContext
 from quiltor.application.backups.ports import SnapshotKind
 from quiltor.application.history import HistoryRevisionNotFound
 from quiltor.application.history.types import HistoryContext
+from quiltor.application.observability import StructuredLogger
 from quiltor.domain.text_offsets import utf16_offsets_to_indices
 
 FORMAT_VERSION = CURRENT_FORMAT_VERSION
@@ -472,9 +473,11 @@ class SnapshotStore:
         remote_gateway: RemoteBackupGateway | None = None,
         *,
         now: Callable[[], datetime] = datetime.now,
+        structured_logger: StructuredLogger | None = None,
     ):
         self._history_dir = history_dir
         self._remote_gateway = remote_gateway
+        self._structured_logger = structured_logger
         # Tests hand in a clock to give snapshots distinct dates; the server never does.
         self._now = now
         # What a chapter looked like in one snapshot, by (snapshot id, chapter id). A
@@ -856,6 +859,9 @@ class SnapshotStore:
                 log.append("Snapshot uploaded to the backup endpoint.")
             result = {
                 "ok": True,
+                # Whether this request wrote a version. A client cannot tell from the
+                # history head: another tab may have moved it in between (T-167).
+                "created": False,
                 "log": log or ["Everything is already backed up."],
                 "status": self.status(ctx),
             }
@@ -893,14 +899,23 @@ class SnapshotStore:
         entry["id"] = manifest_identifier(entry, FORMAT_VERSION)
         entry = validate_manifest(entry, expected_world=ctx.root.name).document
         self._append_entry(ctx, entry)
-        self._append_label(ctx, entry["id"], kind)
+        try:
+            self._append_label(ctx, entry["id"], kind)
+        except OSError as error:
+            # The snapshot exists once its index line is written. A missing label only
+            # words the display, which then falls back to the stored name; a 500 here
+            # would make a retry say "already backed up" and skip the upload (T-165).
+            if self._structured_logger is not None:
+                self._structured_logger.event(
+                    "warning", "backup.label_failed", error_type=type(error).__name__
+                )
         log.append("Snapshot created.")
 
         warning = None
         if push:
             warning = self._push(ctx, entry, authorization, snapshot_created=True)
             log.append("Snapshot uploaded to the backup endpoint.")
-        result = {"ok": True, "log": log, "status": self.status(ctx)}
+        result = {"ok": True, "created": True, "log": log, "status": self.status(ctx)}
         if push and warning is not None:
             result["warnings"] = [warning]
         return result

@@ -17,6 +17,7 @@ from quiltor.bootstrap.application import AssistantServices, build_identity
 from quiltor.bootstrap.web import build_web_application
 from quiltor.delivery.http import routes as api_routes
 from quiltor.hosts.web import server
+from tests.python import late_body
 from tests.python.test_server_logging import _directories, _LiveServer
 
 # The install endpoints, each with the call on the application that does the work.
@@ -87,6 +88,21 @@ class HostedInstallTest(_InstallStubs):
                 line = self.only("install.forbidden_hosted")
                 self.assertEqual(line["level"], "warning")
                 self.assertEqual(line["route"], path)
+
+    def test_a_refused_install_arrives_whole(self):
+        """The refusal comes before the body is read; the server must still drain it,
+        or closing the socket resets the connection on Windows (T-103, T-158)."""
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/writing-assistance/install",
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps({"worldId": self.world_id}).encode(),
+                )
+                self.assertEqual(answer.status, 403, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "install.forbidden_hosted")
 
 
 class LocalInstallTest(_InstallStubs):

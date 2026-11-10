@@ -216,7 +216,7 @@ Realm, roles and session:
 
 - Realm `quiltor` with the client scope `quiltor-roles`. The scope puts the realm roles into the flat `roles` claim of the ID token; only that claim counts, Quiltor reads neither `realm_access` nor `resource_access`.
 - Only accounts with the role `premium` (set with `QUILTOR_PREMIUM_ROLE`) may use the AI assistant. Without it the server answers `403 assistant.premium_required`, and the interface shows a notice.
-- Roles are read again at every token refresh; a role granted or withdrawn takes effect without signing in again.
+- Roles are read again at every token refresh; a role granted or withdrawn takes effect without signing in again. They are read from the ID token in the refresh response: if Keycloak sends no ID token with the refresh, the previous roles stay, and a withdrawal only takes effect at the next sign-in. With the `openid` scope Keycloak includes the ID token by default; the mapper of the `quiltor-roles` scope needs "Add to ID token".
 - The realm decides how long a session lasts (idle and maximum). When Keycloak ends the session, Quiltor answers `401` at the next refresh. Unsaved text stays in the editor and as a draft on the device until the author signs in again in a new tab.
 
 Environment variables:

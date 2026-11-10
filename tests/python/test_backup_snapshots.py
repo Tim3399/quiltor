@@ -122,11 +122,25 @@ class SnapshotStoreTest(SnapshotStoreCase):
         result = self.store.commit(ctx, "Erster Stand", push=False)
         self.assertTrue(result["ok"])
         self.assertIn("Snapshot created.", result["log"])
+        self.assertIs(result["created"], True)
 
         history = self.store.history(ctx)
         self.assertEqual(len(history), 1)
         self.assertEqual(history[0]["subject"], "Erster Stand")
         self.assertEqual(history[0]["shortHash"], history[0]["hash"][:8])
+
+    def test_a_label_that_cannot_be_written_leaves_the_snapshot_kept(self):
+        """The index line is written first; a full disk afterwards must not turn the
+        kept version into an error, or a retry says "already backed up" (T-165)."""
+        ctx = self._world("world-a")
+        self._write(ctx, "# Kapitel\n\nErster Text.\n")
+        with patch.object(SnapshotStore, "_append_label", side_effect=OSError(28, "full")):
+            result = self.store.commit(ctx, "Erster Stand", push=False)
+        self.assertTrue(result["ok"])
+        self.assertIn("Snapshot created.", result["log"])
+        history = self.store.history(ctx)
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["kind"], "manual", "the kind falls back to the stored name")
 
     def test_history_marks_server_generated_names_as_automatic(self):
         """The client shows its own wording for a name the server made up; an
@@ -252,8 +266,8 @@ class SnapshotStoreTest(SnapshotStoreCase):
     def test_an_interruption_between_index_and_label_reads_as_the_fallback(self):
         ctx = self._world("world-a")
         with patch.object(SnapshotStore, "_append_label", side_effect=OSError("power cut")):
-            with self.assertRaises(OSError):
-                self.store.commit(ctx, "", push=False)
+            # Kept, not an error: the index line is there (T-165).
+            self.assertTrue(self.store.commit(ctx, "", push=False)["ok"])
 
         (entry,) = self.store.history(ctx)
         self.assertEqual(entry["kind"], "automatic")
@@ -364,6 +378,7 @@ class SnapshotStoreTest(SnapshotStoreCase):
         again = self.store.commit(ctx, "Nochmal", push=False)
         self.assertTrue(again["ok"])
         self.assertIn("Everything is already backed up.", again["log"])
+        self.assertIs(again["created"], False)
         self.assertEqual(len(self.store.history(ctx)), 1)
 
     def test_history_is_newest_first(self):

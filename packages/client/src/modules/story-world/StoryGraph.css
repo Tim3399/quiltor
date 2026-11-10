@@ -134,10 +134,10 @@
   gap: var(--space-6);
   overflow: hidden;
   font: 600 var(--font-size-body-emphasis) var(--prose);
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .story-node strong svg {
+  flex: none;
   width: 14px;
   color: var(--rose-text);
 }
@@ -260,17 +260,14 @@
   font: 600 var(--font-size-label-compact) / 1.6 var(--ui);
 }
 /* The ellipsis sits on the name's own element: text-overflow reaches only a block container,
-   and the strong around it is a flex box that also holds a symbol. A name too long for the
-   pill is cut with "..." here, and the symbol beside it (skull, pin) keeps its size and
-   place instead of being cut off with the text. */
-.story-node.zoom-overview.is-important .node-name {
+   and the strong around it is a flex box that also holds a symbol. A name too long for its
+   node is cut with "..." here, at every zoom tier, and the symbol beside it (skull, pin)
+   keeps its size and place instead of being cut off with the text. */
+.story-node .node-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.story-node.zoom-overview.is-important strong svg {
-  flex: none;
 }
 .story-node.zoom-overview .node-guests {
   display: none;

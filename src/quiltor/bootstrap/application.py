@@ -171,7 +171,11 @@ def build_application_services(
             os.environ.get("QUILTOR_BACKUP_OIDC_ALLOW_INSECURE_LOOPBACK", "") == "1"
         ),
     )
-    history = SnapshotStore(lambda: worlds.data_directory / "history", remote_backups)
+    history = SnapshotStore(
+        lambda: worlds.data_directory / "history",
+        remote_backups,
+        structured_logger=observability.logger,
+    )
     synchronization = SynchronizationUseCases(
         worlds,
         documents,
@@ -232,16 +236,11 @@ def load_example_world(lang: str) -> ExampleWorldSource:
     return ExampleWorldSource(document, image.read_bytes())
 
 
-def build_backup_authorizer(
-    backups: BackupUseCases,
-    *,
-    expected_hosted_issuer: str = "",
-) -> EndpointBoundBackupAuthorizer:
+def build_backup_authorizer(backups: BackupUseCases) -> EndpointBoundBackupAuthorizer:
     return EndpointBoundBackupAuthorizer(
         default_endpoint=backups.default_endpoint,
         environment_token=lambda: os.environ.get("QUILTOR_BACKUP_TOKEN", ""),
         endpoint_token=backups.access_token,
-        expected_hosted_issuer=expected_hosted_issuer,
     )
 
 
