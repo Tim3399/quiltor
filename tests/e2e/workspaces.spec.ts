@@ -2812,16 +2812,16 @@ test("The text margin switches stay centred and close to the text block", async 
   const title = page.locator(".chapter-title");
   const initialTitleBox = await title.boundingBox();
   expect(initialTitleBox).not.toBeNull();
-  // Two measures, not one. The switch hangs on the text block -- `--space-24` in front of it
-  // -- and `--space-8` is only the floor the rule sets against that with `max()`, so it does
-  // not slide out of view in a narrow window. As long as this is checked wide, the first
-  // measure applies; the floor used to win, because the text block was narrower still.
-  const [edgeGap, windowGap] = await page
-    .locator(".text-layout")
-    .evaluate((layout) => [
-      Number.parseFloat(getComputedStyle(layout).getPropertyValue("--space-24")),
-      Number.parseFloat(getComputedStyle(layout).getPropertyValue("--space-8")),
-    ]);
+  // Two measures, not one. The switch hangs on the sheet -- `--space-12` outside its edge, the
+  // same distance as the focus mode's margin tabs (T-242; it used to reach `--space-24` into
+  // the sheet) -- and `--space-8` is only the floor the rule sets against that with `max()`, so
+  // it does not slide out of view in a narrow window. Wide, the first measure applies.
+  const sheet = page.locator(".editor-page");
+  const layout = page.locator(".text-layout");
+  const [edgeGap, windowGap] = await layout.evaluate((element) => [
+    Number.parseFloat(getComputedStyle(element).getPropertyValue("--space-12")),
+    Number.parseFloat(getComputedStyle(element).getPropertyValue("--space-8")),
+  ]);
   const closeChapters = page.getByRole("button", { name: "Kapitelnavigation schließen" });
   const closeAid = page.getByRole("button", { name: "Details schließen" });
   const chapters = page.getByRole("button", { name: "Kapitelnavigation öffnen" });
@@ -2833,20 +2833,28 @@ test("The text margin switches stay centred and close to the text block", async 
     expect(box!.x).toBeCloseTo(initialTitleBox!.x, 0);
   };
   const expectLeftEdgeGap = async () => {
-    const [titleBox, chapterBox] = await Promise.all([title.boundingBox(), chapters.boundingBox()]);
-    expect(titleBox).not.toBeNull();
+    const [sheetBox, chapterBox, layoutBox] = await Promise.all([
+      sheet.boundingBox(),
+      chapters.boundingBox(),
+      layout.boundingBox(),
+    ]);
+    expect(sheetBox).not.toBeNull();
     expect(chapterBox).not.toBeNull();
-    const gap = titleBox!.x - (chapterBox!.x + chapterBox!.width);
-    expect(gap).toBeCloseTo(edgeGap, 0);
-    expect(gap).toBeGreaterThanOrEqual(windowGap);
+    expect(sheetBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(edgeGap, 0);
+    expect(chapterBox!.x - layoutBox!.x).toBeGreaterThanOrEqual(windowGap);
   };
   const expectRightEdgeGap = async () => {
-    const [titleBox, aidBox] = await Promise.all([title.boundingBox(), writingAid.boundingBox()]);
-    expect(titleBox).not.toBeNull();
+    const [sheetBox, aidBox, layoutBox] = await Promise.all([
+      sheet.boundingBox(),
+      writingAid.boundingBox(),
+      layout.boundingBox(),
+    ]);
+    expect(sheetBox).not.toBeNull();
     expect(aidBox).not.toBeNull();
-    const gap = aidBox!.x - (titleBox!.x + titleBox!.width);
-    expect(gap).toBeCloseTo(edgeGap, 0);
-    expect(gap).toBeGreaterThanOrEqual(windowGap);
+    expect(aidBox!.x - (sheetBox!.x + sheetBox!.width)).toBeCloseTo(edgeGap, 0);
+    expect(layoutBox!.x + layoutBox!.width - (aidBox!.x + aidBox!.width)).toBeGreaterThanOrEqual(
+      windowGap,
+    );
   };
 
   // Each one-sided state has a non-zero editor balance. The edge toggle must follow that offset
@@ -2872,18 +2880,16 @@ test("The text margin switches stay centred and close to the text block", async 
   await expect(chapters).toBeVisible();
   await expect(writingAid).toBeVisible();
 
-  const [titleBox, chapterBox, aidBox, layoutBox] = await Promise.all([
-    title.boundingBox(),
+  await expectLeftEdgeGap();
+  await expectRightEdgeGap();
+  const [chapterBox, aidBox, layoutBox] = await Promise.all([
     chapters.boundingBox(),
     writingAid.boundingBox(),
-    page.locator(".text-layout").boundingBox(),
+    layout.boundingBox(),
   ]);
-  expect(titleBox).not.toBeNull();
   expect(chapterBox).not.toBeNull();
   expect(aidBox).not.toBeNull();
   expect(layoutBox).not.toBeNull();
-  expect(titleBox!.x - (chapterBox!.x + chapterBox!.width)).toBeCloseTo(edgeGap, 0);
-  expect(aidBox!.x - (titleBox!.x + titleBox!.width)).toBeCloseTo(edgeGap, 0);
   expect(chapterBox!.y + chapterBox!.height / 2).toBeCloseTo(
     layoutBox!.y + layoutBox!.height / 2,
     0,
