@@ -25,6 +25,7 @@ export function SearchDialog({
   onShowSetAside,
   onOpenChapterTrash,
   syncAvailable = false,
+  versionsAvailable = true,
 }: {
   manuscript: Manuscript;
   figures: FigureState;
@@ -37,6 +38,8 @@ export function SearchDialog({
   onOpenChapterTrash: () => void;
   /** Offers the sync command; a hosted server has no device sync (D-61). */
   syncAvailable?: boolean;
+  /** Offers the ways into the versions dialog; an example preview is neither synced nor versioned. */
+  versionsAvailable?: boolean;
 }) {
   const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
@@ -55,10 +58,14 @@ export function SearchDialog({
         ["places", t("switchToPlaces"), "view"],
         ["storyboard", t("switchToStoryboard"), "view"],
         ["focus", t("toggleFocus"), "action"],
-        ["history", t("openVersions"), "action"],
-        ["snapshot", t("openVersionSave"), "action", shortcut("S", locale, { shift: true })],
-        ["backups", t("openAutoBackups"), "action"],
-        ...(syncAvailable ? ([["sync", t("openSync"), "action"]] as const) : []),
+        ...(versionsAvailable
+          ? ([
+              ["history", t("openVersions"), "action"],
+              ["snapshot", t("openVersionSave"), "action", shortcut("S", locale, { shift: true })],
+              ["backups", t("openAutoBackups"), "action"],
+              ...(syncAvailable ? ([["sync", t("openSync"), "action"]] as const) : []),
+            ] as const)
+          : []),
       ] as const
     ).map(([id, label, kind, shortcutLabel]) => ({
       id: `command-${id}`,
@@ -129,6 +136,7 @@ export function SearchDialog({
     t,
     locale,
     syncAvailable,
+    versionsAvailable,
   ]);
   return (
     <CommandPalette

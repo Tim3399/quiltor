@@ -1,4 +1,12 @@
-import { ChevronsDownUp, ChevronsUpDown, MapPin, Trash2, X } from "lucide-react";
+import {
+  ChevronsDownUp,
+  ChevronsUpDown,
+  CornerDownRight,
+  MapPin,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   Button,
@@ -29,6 +37,9 @@ export function PlaceInspector({
   onRemoveMapImage,
   onPlaceDisplayChange,
   onDelete,
+  onOpenLevel,
+  levelFilled = false,
+  onExpandMap,
 }: {
   selected: FigureNode | null;
   state: FigureState;
@@ -41,6 +52,15 @@ export function PlaceInspector({
   onRemoveMapImage: (place: FigureNode) => void;
   onPlaceDisplayChange?: (place: FigureNode, display: "card" | "pin") => void;
   onDelete?: (place: FigureNode) => void;
+  /**
+   * The card's own commands, offered here where the card cannot show them: on a phone the
+   * inspector is a sheet over the whole canvas, so the commands on the card lie under it
+   * (D-T-219-F2). Given only there, like onDelete.
+   */
+  onOpenLevel?: (place: FigureNode) => void;
+  /** Whether the place already holds a level, which turns "start" into "open". */
+  levelFilled?: boolean;
+  onExpandMap?: (place: FigureNode) => void;
 }) {
   const { t } = useI18n();
   const [nameDraft, setNameDraft] = useState(selected?.name ?? "");
@@ -149,6 +169,31 @@ export function PlaceInspector({
                   : t("placeShowAsPin", { name: selected.name })}
               </Button>
             )}
+            {/* In the card's order: the display toggle above, then open out, then the level. */}
+            {isMap && onExpandMap ? (
+              <Button
+                className="places-display-action"
+                appearance="secondary"
+                labelOverflow="wrap"
+                icon={<ChevronsUpDown />}
+                onClick={() => onExpandMap(selected)}
+              >
+                {t("placeExpandMap", { name: selected.name })}
+              </Button>
+            ) : null}
+            {onOpenLevel ? (
+              <Button
+                className="places-display-action"
+                appearance="secondary"
+                labelOverflow="wrap"
+                icon={levelFilled ? <CornerDownRight /> : <Plus />}
+                onClick={() => onOpenLevel(selected)}
+              >
+                {levelFilled
+                  ? t("placeOpenLevel", { name: selected.name })
+                  : t("placeStartLevel", { name: selected.name })}
+              </Button>
+            ) : null}
             <NoteEditor
               owner={{ kind: "place", id: selected.id }}
               label={t("profileNotes")}

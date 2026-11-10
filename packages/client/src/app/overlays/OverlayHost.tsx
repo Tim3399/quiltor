@@ -46,6 +46,7 @@ export function OverlayHost({
   flushAll,
   onDocumentsReplaced,
   syncAvailable = false,
+  versionsAvailable = true,
   pendingRename,
   onManuscriptChange,
   onCloseRename,
@@ -73,6 +74,8 @@ export function OverlayHost({
   onDocumentsReplaced: () => void;
   /** Whether this server syncs with other devices (D-61): the sync tab and its command. */
   syncAvailable?: boolean;
+  /** False while the open world is an example preview: the palette offers no versions. */
+  versionsAvailable?: boolean;
   pendingRename: PendingEntityRename | null;
   onManuscriptChange: (manuscript: Manuscript) => void;
   onCloseRename: () => void;
@@ -124,6 +127,7 @@ export function OverlayHost({
           onShowSetAside={onShowSetAside}
           onOpenChapterTrash={onOpenChapterTrash}
           syncAvailable={syncAvailable}
+          versionsAvailable={versionsAvailable}
         />
       )}
       {overlay === "versions" && (

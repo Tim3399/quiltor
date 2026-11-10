@@ -43,6 +43,9 @@ def upload_place_map(handler, request: Request, app) -> None:
     try:
         with app.lock:
             image = app.place_maps.store(content, request.db_path)
+            if getattr(request.world, "preview", False):
+                # A map the author uploads is a change: the preview becomes a real world.
+                app.finish_promotion(request.world.id)
     except MapImageRejected as error:
         return _reject_upload(handler, app, error.code, error)
 

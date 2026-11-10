@@ -111,6 +111,9 @@ def snapshot(handler, request: Request, app) -> None:
     world = handler.world_from_body(request.session, payload)
     if world is None:
         return
+    if getattr(world, "preview", False):
+        # A preview of the example world keeps no history until it is the author's (T-214-5a).
+        return handler.send_api_error(409, error_code="world.preview", retryable=False)
     message = (payload.get("message") or "").strip()
     push = bool(payload.get("push"))
     if push and not app.syncable:

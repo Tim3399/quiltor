@@ -17,6 +17,7 @@ export function WorldSessionBoundary({
   theme,
   onTheme,
   onOpen,
+  onOpenExample,
   onCreate,
   onDelete,
   trash,
@@ -37,6 +38,7 @@ export function WorldSessionBoundary({
   theme: ThemePreference;
   onTheme: (theme: ThemePreference) => void;
   onOpen: (id: string) => Promise<void>;
+  onOpenExample?: (lang: string) => Promise<void>;
   onCreate: (title: string, backupUrl: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   trash: (WorldInfo & { deletedAt: string })[] | null;
@@ -68,6 +70,7 @@ export function WorldSessionBoundary({
         onTheme={onTheme}
         error={loadError}
         onOpen={onOpen}
+        onOpenExample={onOpenExample}
         onCreate={onCreate}
         onDelete={onDelete}
         trash={trash}

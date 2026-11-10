@@ -45,6 +45,9 @@ class WebWorldContext:
     id: str
     document_location: DocumentLocation
     backup: WorldBackupContext
+    # An unchanged preview of the example world (T-214-5a). The first change a route writes
+    # makes it real; sync and backups refuse it until then.
+    preview: bool = False
 
     @property
     def db_path(self) -> Path:
@@ -68,6 +71,7 @@ class WorldRouteServices:
     worlds: Any
     lock: threading.Lock
     syncable: bool = True
+    example_worlds: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +80,8 @@ class DocumentRouteServices:
     lock: threading.Lock
     render_pdf: Callable[[str], bytes]
     issue_render_token: Callable[[str], str]
+    # A preview's first saved change makes it a real world with a title of its own.
+    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +130,7 @@ class PlaceMapRouteServices:
     place_maps: Any
     observability: ObservabilityServices
     lock: threading.Lock
+    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +152,7 @@ class HistoryRouteServices:
     # The one write the history routes have (T-87 B): putting a version back. Only
     # that bound use case, not the whole backups slice, so the routes stay narrow.
     restore_version: Any = None
+    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,7 +314,7 @@ class WebApplication:
             location,
             title=opened.summary.title,
         )
-        return WebWorldContext(world_id, location, context)
+        return WebWorldContext(world_id, location, context, preview=opened.summary.preview)
 
     def issue_render_token(self, subject: str) -> str:
         return self.identity.issue_render_token(subject)
@@ -333,13 +341,19 @@ class WebApplication:
         """Expose only the capabilities owned by the selected route context."""
 
         if path.startswith("/api/worlds"):
-            return WorldRouteServices(self.application.worlds, self.lock, self.syncable)
+            return WorldRouteServices(
+                self.application.worlds,
+                self.lock,
+                self.syncable,
+                self.application.example_worlds,
+            )
         if path in {"/api/state", "/api/manuscript", "/api/storyboards", "/api/book.pdf"}:
             return DocumentRouteServices(
                 self.application.documents,
                 self.lock,
                 self.render_pdf,
                 self.issue_render_token,
+                self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/assistant"):
             return AssistantRouteServices(
@@ -373,7 +387,12 @@ class WebApplication:
                 self.syncable,
             )
         if path.startswith("/api/place-map"):
-            return PlaceMapRouteServices(self.application.place_maps, self.observability, self.lock)
+            return PlaceMapRouteServices(
+                self.application.place_maps,
+                self.observability,
+                self.lock,
+                self.application.worlds.finish_promotion,
+            )
         if path.startswith("/api/project-transfer"):
             return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
         if path.startswith("/api/manuscript-import"):
@@ -385,6 +404,7 @@ class WebApplication:
                 self.application.history,
                 self.lock,
                 self.application.backups.restore_version,
+                self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/writing-assistance"):
             return WritingAssistanceRouteServices(
