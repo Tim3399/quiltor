@@ -206,7 +206,12 @@ def run_batches(
         count_tokens,
     )
     untitled = UNTITLED_CHAPTER.get(language, UNTITLED_CHAPTER[DEFAULT_ASSISTANT_LANGUAGE])
-    titles = {chapter["id"]: chapter.get("title") or untitled for chapter in chapters}
+    titles = {
+        chapter["id"]: title
+        if isinstance(title := chapter.get("title"), str) and title
+        else untitled
+        for chapter in chapters
+    }
     trace: list[dict[str, Any]] = [
         {"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}
     ]

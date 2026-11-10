@@ -38,7 +38,10 @@ sys.path.insert(0, str(REPO / "tools" / "evaluation" / "assistant"))
 _seed: Any = importlib.import_module("seed_synthetic_world")
 EDGES, MANUSCRIPT, NODES, TIMELINE = _seed.EDGES, _seed.MANUSCRIPT, _seed.NODES, _seed.TIMELINE
 
-from quiltor.application.story_world.read_tools import read_tool_catalog  # noqa: E402
+from quiltor.application.story_world.read_tools import (  # noqa: E402
+    ReadToolSpec,
+    read_tool_catalog,
+)
 from quiltor.modules.assistant.completion import complete_request  # noqa: E402
 
 # Chapters tc01-tc08 of the synthetic world, forced into the context the way the editor does
@@ -76,7 +79,7 @@ class _TokenCache:
 
 
 class _ReadTools:
-    def catalog(self) -> tuple[dict[str, Any], ...]:
+    def catalog(self) -> tuple[ReadToolSpec, ...]:
         return tuple(read_tool_catalog())
 
     def execute_many(self, calls: list[dict[str, Any]], **_: Any) -> Any:

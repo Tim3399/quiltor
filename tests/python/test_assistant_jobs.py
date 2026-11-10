@@ -18,6 +18,9 @@ from tests.python.narrowing import present
 
 WORLD_ID = "a" * 32
 
+# A busy CI runner sometimes needs more than 3 s; wait returns as soon as the job is done.
+JOB_WAIT_SECONDS = 15
+
 
 def intent(question: str) -> dict:
     return {
@@ -340,7 +343,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     intent=intent("hello"),
                     execution=execution("hello"),
                 )
-                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
                 self.assertEqual(terminal["status"], "failed")
                 self.assertFalse((data / "worlds" / f"{WORLD_ID}.sqlite3").exists())
             finally:
@@ -375,8 +378,8 @@ class AssistantJobRunnerTests(unittest.TestCase):
                 self.assertEqual(assistant.max_active, 1)
 
                 assistant.release_first.set()
-                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=3)
-                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=3)
+                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
+                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
                 self.assertEqual(first_done["status"], "completed")
                 self.assertEqual(second_done["status"], "completed")
                 self.assertEqual(assistant.calls, ["first", "second"])
@@ -427,7 +430,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     execution=request,
                 )
 
-                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
 
                 self.assertEqual(terminal["status"], "completed")
                 result = terminal["result"]
@@ -486,7 +489,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     execution=request,
                 )
 
-                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
 
                 result = terminal["result"]
                 self.assertEqual(result["sources"], [])
@@ -529,8 +532,8 @@ class AssistantJobRunnerTests(unittest.TestCase):
                 self.assertEqual(assistant.max_active, 1)
 
                 assistant.release_first.set()
-                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=3)
-                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=3)
+                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
+                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
                 self.assertEqual(first_done["status"], "cancelled")
                 self.assertEqual(second_done["status"], "completed")
                 self.assertEqual(assistant.max_active, 1)
