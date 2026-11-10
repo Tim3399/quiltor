@@ -225,7 +225,7 @@ an optional job), and a pull request that touches the manifest, `llamacpp.py`,
 `shared/contract.py`, the suite or its own files. It reads the repository only and
 uses no secret. Its first run of a new model needs the `spike` input, which allows
 a model whose SHA-256 is not pinned yet and prints the digest to pin. How the job
-grades a run, the model candidates and the known deviations per llama.cpp release
+grades a run, the one approved model and the known deviations per llama.cpp release
 are in [docs/architecture/local-ai-conformance.md](../../docs/architecture/local-ai-conformance.md).
 
 `test.yml` offers it as that optional job: a manual dispatch with

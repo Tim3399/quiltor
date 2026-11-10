@@ -38,7 +38,7 @@ The script:
 1. fetches llama-server with the product's own installer (`install_runtime`: the release
    document, the asset's published SHA-256, the redirect origins), for the release it is asked
    about;
-2. fetches the first model candidate that works (`install_model`: the commit-pinned Hugging
+2. fetches the one approved model (`install_model`: the commit-pinned Hugging
    Face tree gives the SHA-256), and compares it with the digest pinned in
    `tools/ci/llama-conformance-pins.json`;
 3. starts the server with `runtimes.llamacpp.start`, the same arguments and the same
@@ -54,12 +54,13 @@ The script:
 The model only has to carry a chat template (the server starts with `--jinja`) and answer a
 schema-constrained request; the grammar decides the tokens, so a tiny model is enough for the
 envelope, `usage`, `finish_reason` and the context error. That is an assumption until a CI run
-shows it (T-179 F4). The script tries the candidates in order and reports why one was unusable.
+shows it (T-179 F4). There is exactly one model: the user approved the download of SmolLM2
+135M and no other, not even as a fallback. `load_pins` refuses a pins file that lists any
+other model, so a second candidate cannot slip in through the pins.
 
-| Candidate             | File                                | Size         | Licence                       | Digest     |
-| --------------------- | ----------------------------------- | ------------ | ----------------------------- | ---------- |
-| SmolLM2 135M Instruct | `smollm2-135m-instruct-q8_0.gguf`   | about 145 MB | Apache-2.0 (not yet verified) | not pinned |
-| Qwen2.5 0.5B Instruct | `qwen2.5-0.5b-instruct-q4_k_m.gguf` | about 491 MB | Apache-2.0 (not yet verified) | not pinned |
+| Model                 | File                              | Size         | Licence                       | Digest     |
+| --------------------- | --------------------------------- | ------------ | ----------------------------- | ---------- |
+| SmolLM2 135M Instruct | `smollm2-135m-instruct-q8_0.gguf` | about 145 MB | Apache-2.0 (not yet verified) | not pinned |
 
 Sizes and licences are expectations, not measurements. The first run is a spike
 (`spike: true`): it may use a model whose digest is not pinned, and its summary prints the
