@@ -441,6 +441,32 @@ class InstallManifestTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     safe_relative_path(invalid)
 
+    def test_model_redirects_may_reach_hugging_faces_cdn_hosts_only(self):
+        # Hugging Face answered a resolve URL with a 302 to us.aws.cdn.hf.co
+        # (observed 2026-11-10), a host the allow-list did not name.
+        artifact = huggingface_artifacts(
+            "owner/model",
+            [{"type": "file", "path": "m.gguf", "size": 2, "lfs": {"oid": "b" * 64}}],
+            revision="d" * 40,
+        )["m.gguf"]
+        request = transfer.urllib.request.Request(artifact.url)
+
+        def follow(target: str):
+            policy = transfer._ArtifactRedirect(artifact)
+            return policy.redirect_request(
+                request, cast(Any, MagicMock()), 302, "Found", cast(Any, {}), target
+            )
+
+        self.assertIsNotNone(follow("https://us.aws.cdn.hf.co/repos/ab/cd/blob?sig=x"))
+        for foreign in (
+            "https://evil.example/m.gguf",
+            "https://hf.co.evil.example/m.gguf",
+            "http://us.aws.cdn.hf.co/m.gguf",
+        ):
+            with self.subTest(target=foreign):
+                with self.assertRaisesRegex(ValueError, "trusted HTTPS origins"):
+                    follow(foreign)
+
     def test_model_tree_is_requested_in_pages_hugging_face_accepts(self):
         # Hugging Face answers a larger page with HTTP 400 ("Invalid limit for
         # index tree pagination"), which used to surface as a bare "HTTP Error
