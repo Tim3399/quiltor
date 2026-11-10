@@ -45,19 +45,20 @@ for the README and ships as the example world; the edge part (ids `x-...`) never
 
 ## Chapters
 
-| Id                | Part | Where   | Title                        | Purpose                                          |
-| ----------------- | ---- | ------- | ---------------------------- | ------------------------------------------------ |
-| `c-arrival`       | base | act-one | Die Ankunft                  |                                                  |
-| `c-archive`       | base | act-one | Das Archiv                   |                                                  |
-| `c-sheet`         | base | act-one | Das letzte Blatt             |                                                  |
-| `c-market`        | base | act-one | Gerüchte am Salzmarkt        |                                                  |
-| `c-storm`         | base | act-two | Vor dem Sturm                |                                                  |
-| `c-break`         | base | act-two | Bruch mit der Gilde          |                                                  |
-| `c-crossing`      | base | act-two | Die Überfahrt                |                                                  |
-| `c-coast`         | base | act-two | Die offene Küste             |                                                  |
-| `x-empty-chapter` | edge | act-two | Leeres Kapitel               | chapter without text and without a note          |
-| `c-prologue`      | base | bin     | Prolog: Was der Atlas wusste |                                                  |
-| `x-trash-orphan`  | edge | bin     | Verworfener Entwurf          | chapter in the bin whose folder no longer exists |
+| Id                | Part | Where   | Title                        | Purpose                                                                                                   |
+| ----------------- | ---- | ------- | ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `c-arrival`       | base | act-one | Die Ankunft                  |                                                                                                           |
+| `c-archive`       | base | act-one | Das Archiv                   |                                                                                                           |
+| `c-sheet`         | base | act-one | Das letzte Blatt             |                                                                                                           |
+| `c-market`        | base | act-one | Gerüchte am Salzmarkt        |                                                                                                           |
+| `c-storm`         | base | act-two | Vor dem Sturm                |                                                                                                           |
+| `c-break`         | base | act-two | Bruch mit der Gilde          |                                                                                                           |
+| `c-crossing`      | base | act-two | Die Überfahrt                |                                                                                                           |
+| `c-coast`         | base | act-two | Die offene Küste             |                                                                                                           |
+| `x-empty-chapter` | edge | act-two | Leeres Kapitel               | chapter without text and without a note                                                                   |
+| `x-chronicle`     | edge | act-two | Die Chronik des Hafens       | chapter with three texts; seedExampleWorldWithHistory saves them as versions, the first creates it (T-86) |
+| `c-prologue`      | base | bin     | Prolog: Was der Atlas wusste |                                                                                                           |
+| `x-trash-orphan`  | edge | bin     | Verworfener Entwurf          | chapter in the bin whose folder no longer exists                                                          |
 
 ## Moments
 

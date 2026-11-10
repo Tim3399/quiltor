@@ -74,6 +74,7 @@ export const WORLD = {
     cCrossing: "c-crossing",
     cCoast: "c-coast",
     xEmptyChapter: "x-empty-chapter",
+    xChronicle: "x-chronicle",
     cPrologue: "c-prologue",
     xTrashOrphan: "x-trash-orphan",
   },

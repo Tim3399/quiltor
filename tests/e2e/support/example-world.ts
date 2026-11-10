@@ -89,6 +89,53 @@ export async function seedExampleWorld(
 }
 
 /**
+ * The test world with a version history (T-86): the check part is included, and the chapter
+ * `x-chronicle` is saved as four versions with a note each. Version 1 creates the chapter, 2 and
+ * 4 change its text, 3 changes only another chapter. The working copy ends equal to version 4.
+ */
+export async function seedExampleWorldWithHistory(
+  page: Page,
+  {
+    lang = "de",
+    include = ["base", "edge"],
+    open = true,
+  }: ExampleWorldOptions & { open?: boolean } = {},
+): Promise<SeededExampleWorld> {
+  const parts = include.includes("edge") ? include : [...include, "edge" as const];
+  const world = await seedExampleWorld(page, { lang, include: parts, open: false });
+  const { manuscript: payload, history } = buildExampleWorld(lang, { include: parts });
+  const chronicle = payload.chapters.find(
+    (chapter: { id: string }) => chapter.id === history.chapterId,
+  );
+  const other = payload.chapters.find(
+    (chapter: { id: string }) => chapter.id === history.otherChapterId,
+  );
+  expect(chronicle && other, "the check part holds the chapters of its history").toBeTruthy();
+  const originalOther: string = other.body;
+
+  for (const version of history.versions) {
+    chronicle.body = version.text;
+    other.body = version.elsewhere ? originalOther + history.appended.text : originalOther;
+    await putVersioned(page, `/api/manuscript?world=${world.id}`, (revision) => ({
+      contract: "quiltor.manuscript",
+      version: 1,
+      revision,
+      payload,
+    }));
+    const saved = await page.request.post("/api/backup", {
+      data: { worldId: world.id, message: version.note, push: false },
+    });
+    expect(saved.ok(), await saved.text()).toBe(true);
+  }
+
+  if (open) {
+    await page.goto(`/?world=${world.id}`);
+    await page.getByRole("toolbar", { name: "Manuskript" }).waitFor();
+  }
+  return world;
+}
+
+/**
  * The test world as the client's models, for specs that mock the server. The raw payloads go
  * through the client's own decoders first, so a world the client could not read fails here.
  */

@@ -71,6 +71,17 @@ export const texts = {
   "ch.x-empty.title": "Leeres Kapitel",
   "ch.x-orphan.title": "Verworfener Entwurf",
   "ch.x-orphan.body": "Ein Entwurf aus einem Ordner, den es nicht mehr gibt.",
+  "ch.x-chronicle.title": "Die Chronik des Hafens",
+  "ch.x-chronicle.body-1": "Die Chronik beginnt mit dem ersten Schiff im Nebel.",
+  "ch.x-chronicle.body-2":
+    "Die Chronik beginnt mit dem ersten Schiff im Nebel. Der Hafenmeister notiert es als Erster.",
+  "ch.x-chronicle.body-3":
+    "Die Chronik beginnt mit dem ersten Schiff im Nebel. Der Hafenmeister notiert es als Erster, und die Gilde streitet bis heute darüber.",
+  "ch.x-chronicle.elsewhere": " Ein Satz an anderer Stelle.",
+  "ch.x-chronicle.note-1": "Chronik angelegt",
+  "ch.x-chronicle.note-2": "Hafenmeister ergänzt",
+  "ch.x-chronicle.note-3": "Anderes Kapitel angepasst",
+  "ch.x-chronicle.note-4": "Streit der Gilde ergänzt",
   "folder.x-gone": "Gelöschter Ordner",
   "board.x.title": "Prüfteil",
   "board.x-layers.title": "Ebenen",

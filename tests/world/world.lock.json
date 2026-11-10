@@ -1065,6 +1065,33 @@
       "time": 22,
       "title": "⟦moment.t8.title⟧"
     },
+    "world.history": {
+      "chapterId": "x-chronicle",
+      "otherChapterId": "c-arrival"
+    },
+    "world.history.appended": {
+      "text": "⟦ch.x-chronicle.elsewhere⟧"
+    },
+    "world.history.versions[#0]": {
+      "elsewhere": false,
+      "note": "⟦ch.x-chronicle.note-1⟧",
+      "text": "⟦ch.x-chronicle.body-1⟧"
+    },
+    "world.history.versions[#1]": {
+      "elsewhere": false,
+      "note": "⟦ch.x-chronicle.note-2⟧",
+      "text": "⟦ch.x-chronicle.body-2⟧"
+    },
+    "world.history.versions[#2]": {
+      "elsewhere": true,
+      "note": "⟦ch.x-chronicle.note-3⟧",
+      "text": "⟦ch.x-chronicle.body-2⟧"
+    },
+    "world.history.versions[#3]": {
+      "elsewhere": true,
+      "note": "⟦ch.x-chronicle.note-4⟧",
+      "text": "⟦ch.x-chronicle.body-3⟧"
+    },
     "world.manuscript.activeSymbols[#0]": "⟦symbol.1⟧",
     "world.manuscript.activeSymbols[#1]": "⟦symbol.2⟧",
     "world.manuscript.activeSymbols[#2]": "⟦symbol.3⟧",
@@ -1153,6 +1180,12 @@
       },
       "title": "⟦ch.c5.title⟧"
     },
+    "world.manuscript.chapters[x-chronicle]": {
+      "body": "⟦ch.x-chronicle.body-3⟧",
+      "id": "x-chronicle",
+      "note": "",
+      "title": "⟦ch.x-chronicle.title⟧"
+    },
     "world.manuscript.chapters[x-empty-chapter]": {
       "body": "",
       "id": "x-empty-chapter",
@@ -1234,6 +1267,13 @@
       "kind": "chapter",
       "parentFolderId": "act-two",
       "position": 0
+    },
+    "world.manuscript.structure.items[item-x-chronicle]": {
+      "chapterId": "x-chronicle",
+      "id": "item-x-chronicle",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 5
     },
     "world.manuscript.structure.items[item-x-empty-chapter]": {
       "chapterId": "x-empty-chapter",
@@ -2013,6 +2053,51 @@
       "de": "Prolog: Was der Atlas wusste",
       "en": "Prologue: What the Atlas Knew",
       "translatedFrom": "372ee6c3d8791e65"
+    },
+    "ch.x-chronicle.body-1": {
+      "de": "Die Chronik beginnt mit dem ersten Schiff im Nebel.",
+      "en": "The chronicle begins with the first ship in the fog.",
+      "translatedFrom": "ad50b7996f6ad855"
+    },
+    "ch.x-chronicle.body-2": {
+      "de": "Die Chronik beginnt mit dem ersten Schiff im Nebel. Der Hafenmeister notiert es als Erster.",
+      "en": "The chronicle begins with the first ship in the fog. The harbour master is the first to note it.",
+      "translatedFrom": "1a345fb9161f499a"
+    },
+    "ch.x-chronicle.body-3": {
+      "de": "Die Chronik beginnt mit dem ersten Schiff im Nebel. Der Hafenmeister notiert es als Erster, und die Gilde streitet bis heute darüber.",
+      "en": "The chronicle begins with the first ship in the fog. The harbour master is the first to note it, and the guild still argues about it.",
+      "translatedFrom": "4e3c0119d902dfc2"
+    },
+    "ch.x-chronicle.elsewhere": {
+      "de": " Ein Satz an anderer Stelle.",
+      "en": " A sentence elsewhere.",
+      "translatedFrom": "06677ececcff284f"
+    },
+    "ch.x-chronicle.note-1": {
+      "de": "Chronik angelegt",
+      "en": "Chronicle created",
+      "translatedFrom": "e42a3bdcbfa1668c"
+    },
+    "ch.x-chronicle.note-2": {
+      "de": "Hafenmeister ergänzt",
+      "en": "Harbour master added",
+      "translatedFrom": "b0e7f6f5c1f5ab7c"
+    },
+    "ch.x-chronicle.note-3": {
+      "de": "Anderes Kapitel angepasst",
+      "en": "Another chapter adjusted",
+      "translatedFrom": "3d29787764a633bd"
+    },
+    "ch.x-chronicle.note-4": {
+      "de": "Streit der Gilde ergänzt",
+      "en": "Guild dispute added",
+      "translatedFrom": "fa7441962fe804d5"
+    },
+    "ch.x-chronicle.title": {
+      "de": "Die Chronik des Hafens",
+      "en": "The Harbour Chronicle",
+      "translatedFrom": "3615986055523460"
     },
     "ch.x-empty.title": {
       "de": "Leeres Kapitel",
