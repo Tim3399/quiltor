@@ -613,11 +613,13 @@ class StoryWorldReadTools:
             context_ids=context_ids,
             vocabulary=vocabulary,
         )
-        candidates = as_array(result.get("candidates") or []) or []
-        result["candidates"] = deepcopy(candidates[:MAX_RESOLUTION_CANDIDATES])
-        result["candidateCount"] = len(candidates)
-        result["truncated"] = len(candidates) > MAX_RESOLUTION_CANDIDATES
-        return result
+        candidates = result["candidates"]
+        return {
+            **result,
+            "candidates": deepcopy(candidates[:MAX_RESOLUTION_CANDIDATES]),
+            "candidateCount": len(candidates),
+            "truncated": len(candidates) > MAX_RESOLUTION_CANDIDATES,
+        }
 
     @staticmethod
     def _get_entity(raw: object, _manuscript: JsonObject, figures: JsonObject) -> JsonObject:
