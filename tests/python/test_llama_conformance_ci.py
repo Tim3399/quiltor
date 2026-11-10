@@ -102,7 +102,9 @@ class PinTests(unittest.TestCase):
         """Only SmolLM2 135M is approved for download; no second candidate, no fallback."""
         models = script.load_pins()["models"]
         self.assertEqual([m["name"] for m in models], ["smollm2-135m-instruct"])
-        self.assertEqual(models[0]["repo"], "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF")
+        self.assertEqual(models[0]["repo"], "bartowski/SmolLM2-135M-Instruct-GGUF")
+        self.assertEqual(models[0]["file"], "SmolLM2-135M-Instruct-Q8_0.gguf")
+        self.assertEqual(models[0]["revision"], "09816acd5d99df7be770d85ea30822623dab342c")
         self.assertEqual(list(script.APPROVED_MODELS), ["smollm2-135m-instruct"])
 
     def test_a_second_or_other_model_in_the_pins_is_refused(self):
@@ -116,10 +118,12 @@ class PinTests(unittest.TestCase):
             "sha256": None,
         }
         swapped = dict(pins["models"][0], repo="someone/SmolLM2-135M-Instruct-GGUF")
+        moved = dict(pins["models"][0], revision="0" * 40)
         for name, models in (
             ("a fallback after SmolLM2", [*pins["models"], qwen]),
             ("another model instead", [qwen]),
             ("SmolLM2 from another repository", [swapped]),
+            ("SmolLM2 at another revision", [moved]),
             ("no model", []),
         ):
             with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
@@ -152,8 +156,9 @@ class PinTests(unittest.TestCase):
             path = Path(folder, "pins.json")
             model = {
                 "name": "smollm2-135m-instruct",
-                "repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
-                "file": "smollm2-135m-instruct-q8_0.gguf",
+                "repo": "bartowski/SmolLM2-135M-Instruct-GGUF",
+                "file": "SmolLM2-135M-Instruct-Q8_0.gguf",
+                "revision": "09816acd5d99df7be770d85ea30822623dab342c",
                 "sha256": "ABC",
             }
             bad = {"models": [model], "known_deviations": {}}
