@@ -176,8 +176,29 @@ async function openStory(page: Page, story: string, theme: "light" | "dark" = "l
   await page.addStyleTag({
     content: `${storyCanvasSelector} *, ${storyCanvasSelector} *::before, ${storyCanvasSelector} *::after, ${storyPortalSelector}, ${storyPortalSelector} *, ${storyPortalSelector} *::before, ${storyPortalSelector} *::after { transition: none !important; }`,
   });
+  // The style above stops transitions, not keyframes: a sheet that opens with its story slides
+  // in for 220 ms, and a popover rises 16 px. Geometry taken in that time is the motion, not the
+  // layout (T-174, T-170). Wait for every finite animation; spinners run forever and are left.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
   return canvas;
 }
+
+test("a story is handed over only after its entry animation has ended", async ({ page }) => {
+  await openStory(page, "Sheet/Default");
+  const sheet = await page.locator(".ui-sheet").evaluate((element) => ({
+    running: element.getAnimations().filter((animation) => animation.playState === "running")
+      .length,
+    transform: getComputedStyle(element).transform,
+  }));
+  expect(sheet).toEqual({ running: 0, transform: "none" });
+});
 
 async function expectNarrowHostContract(component: Locator, width: number) {
   await component.evaluate((element, inlineSize) => {

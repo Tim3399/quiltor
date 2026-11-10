@@ -698,6 +698,20 @@ class FormerCrashTests(unittest.TestCase):
         document["nodes"][0]["profile"]["noteReferences"][0]["target"]["kind"] = ["entity"]
         self.assertFalse(valid_figures(document))
 
+    def test_an_epoch_year_past_the_calendar_is_rejected(self) -> None:
+        # T-142: date() raises OverflowError, not ValueError, for a year near 2**53.
+        document = {
+            "nodes": [],
+            "edges": [],
+            "timeSystem": {
+                "id": "t",
+                "name": "",
+                "kind": "gregorian",
+                "epochYear": 9007199254740991,
+            },
+        }
+        self.assertFalse(valid_figures(document))
+
     def test_an_unhashable_chapter_mark_kind_is_rejected(self) -> None:
         document = manuscript()
         document["chapters"][0]["marks"] = [{"kind": ["bold"], "from": 0, "to": 1}]

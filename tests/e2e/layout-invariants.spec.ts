@@ -225,6 +225,8 @@ const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as cons
 
 // From the project's own width down: each project walks the widths below it, so the compact
 // project stays at the phone and the wide one covers every breakpoint in between.
+const WIDER_FONT = '[role="toolbar"], [role="toolbar"] * { letter-spacing: 0.08em !important; }';
+
 const TOOLBAR_WIDTHS = [
   1440, 1280, 1180, 1100, 1024, 960, 900, 860, 820, 768, 719, 640, 560, 500, 430, 390, 360, 320,
 ];
@@ -402,6 +404,31 @@ for (const workspace of workspaces) {
       expect(messages).toEqual([]);
     });
   }
+
+  /*
+   * T-150: the same rule with text wider than macOS's system font (see T-148 below). A toolbar
+   * that only fits Segoe UI or the Linux fonts would wrap or clip on a Mac, where no CI run
+   * photographs it.
+   */
+  test(`${workspace}: every toolbar stays one row with a wider font`, async ({ page }) => {
+    await openWorld(page);
+    if (workspace !== "Text") {
+      await page.getByRole("button", { name: workspace, exact: true }).click();
+    }
+    // Test-only: roughly 15 percent wider text than Segoe UI, more than the macOS difference.
+    await page.addStyleTag({ content: WIDER_FONT });
+    await waitForSettledLayout(page);
+    const start = page.viewportSize() ?? { width: 1440, height: 900 };
+    const messages: string[] = [];
+    for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+      await page.setViewportSize({ width, height: start.height });
+      await waitForSettledLayout(page);
+      for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+        messages.push(`${width}px: ${finding.message}`);
+      }
+    }
+    expect(messages).toEqual([]);
+  });
 }
 
 /*
