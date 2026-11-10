@@ -6,6 +6,13 @@
   /* minmax(0, 1fr) prevents a wide workspace toolbar from widening the viewport. */
   grid-template-columns: minmax(0, 1fr);
 }
+.app-frame[data-notice] {
+  grid-template-rows: var(--bar) auto minmax(0, 1fr) var(--status-bar);
+}
+.app-notice {
+  min-width: 0;
+  padding: var(--space-8) var(--space-12) 0;
+}
 .app-workspace {
   min-height: 0;
 }

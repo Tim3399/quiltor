@@ -22,6 +22,12 @@ export type SelectionCardProps = Omit<
   indicator?: ReactNode;
   selected?: boolean;
   /**
+   * A dashed edge: the card stands for something set apart from its neighbours, such as a
+   * world that came from the example world. A line style alone is no label -- the consumer
+   * names the difference in `description` and `label` as well.
+   */
+  dashed?: boolean;
+  /**
    * "wrap" lets the description break onto further lines instead of ending in an ellipsis.
    * For cards whose description is the explanation the choice depends on.
    */
@@ -52,6 +58,7 @@ export const SelectionCard = forwardRef<HTMLButtonElement, SelectionCardProps>(
       actions,
       actionsLabel,
       selected = false,
+      dashed = false,
       descriptionLayout = "single-line",
       className,
       onSelect,
@@ -66,6 +73,7 @@ export const SelectionCard = forwardRef<HTMLButtonElement, SelectionCardProps>(
         className={classNames(
           "selection-card",
           selected && "selection-card--selected",
+          dashed && "selection-card--dashed",
           descriptionLayout === "wrap" && "selection-card--wrap-description",
           className,
         )}

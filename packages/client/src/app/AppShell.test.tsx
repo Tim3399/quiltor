@@ -88,6 +88,36 @@ describe("AppShell", () => {
     expect(more).toHaveFocus();
   });
 
+  it("offers no versions, backups or sync while the world is an example preview", () => {
+    const shell = (onVersions?: () => void) => (
+      <I18nProvider>
+        <AppShell
+          title="Welt"
+          workspace="text"
+          onWorkspace={() => undefined}
+          phase="idle"
+          retry={() => undefined}
+          theme="light"
+          onTheme={() => undefined}
+          onSearch={() => undefined}
+          onVersions={onVersions}
+          onAssistant={() => undefined}
+          onExitWorld={() => undefined}
+        >
+          <div />
+        </AppShell>
+      </I18nProvider>
+    );
+    const { rerender } = render(shell());
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Versionen & Sicherungen" }),
+    ).not.toBeInTheDocument();
+    // Once the preview has become real, the entry is back.
+    rerender(shell(() => undefined));
+    expect(screen.getByRole("menuitem", { name: "Versionen & Sicherungen" })).toBeInTheDocument();
+  });
+
   it("says how old a saved state is, but only once it has an age", () => {
     const now = Date.UTC(2026, 8, 3, 12, 0, 0);
     vi.spyOn(Date, "now").mockReturnValue(now);

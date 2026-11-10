@@ -54,6 +54,8 @@ def _summary(record: dict[str, str]) -> WorldSummary:
         backup_url=record.get("backupUrl", ""),
         updated=record.get("updated", ""),
         deleted_at=record.get("deletedAt", ""),
+        origin=record.get("origin", ""),
+        preview=bool(record.get("previewCreatedAt")),
     )
 
 
@@ -74,6 +76,8 @@ class SQLiteWorldRepository:
         self.paths.backups.mkdir(parents=True, exist_ok=True)
         self.paths.worlds.mkdir(parents=True, exist_ok=True)
         schema.initialize(self.paths.database)
+        # Previews nobody changed or discarded: a crash, a closed laptop, a lost beacon.
+        world_catalog.discard_expired_previews(paths=self.paths)
 
     def is_valid_id(self, world_id: str) -> bool:
         return world_catalog.WORLD_ID_RE.fullmatch(world_id or "") is not None
@@ -97,6 +101,22 @@ class SQLiteWorldRepository:
             world_catalog.create_world(title, backup_url, owner_sub=owner_sub, paths=self.paths)
         )
 
+    def create_preview(self, title: str, owner_sub: str) -> WorldSummary:
+        return _summary(
+            world_catalog.create_world(
+                title, "", owner_sub=owner_sub, paths=self.paths, preview=True
+            )
+        )
+
+    def discard_preview(self, world_id: str, owner_sub: str | None) -> None:
+        world_catalog.discard_preview_world(world_id, owner_sub=owner_sub, paths=self.paths)
+
+    def discard_expired_previews(self) -> list[str]:
+        return world_catalog.discard_expired_previews(paths=self.paths)
+
+    def finish_promotion(self, world_id: str) -> WorldSummary:
+        return _summary(world_catalog.finish_promotion(world_id, paths=self.paths))
+
     def set_backup_url(self, world_id: str, backup_url: str) -> str:
         return world_catalog.set_backup_url(world_id, backup_url, paths=self.paths)
 
@@ -114,7 +134,10 @@ class SQLiteWorldRepository:
         record = next(
             (
                 world
-                for world in world_catalog.list_worlds(owner_sub=owner_sub, paths=self.paths)
+                # None: a preview of the example world is opened by its id too, and says so.
+                for world in world_catalog.list_worlds(
+                    owner_sub=owner_sub, paths=self.paths, preview=None
+                )
                 if world["id"] == world_id
             ),
             None,
