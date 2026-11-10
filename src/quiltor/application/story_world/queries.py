@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from typing import Any
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
-from quiltor.domain.story_world.world_state import state_after, state_at, state_before
+from quiltor.domain.story_world.knowledge import PublicKnowledgeChunk, build_knowledge, retrieve
+from quiltor.domain.story_world.world_state import (
+    WorldState,
+    state_after,
+    state_at,
+    state_before,
+)
 
 
 def _objects(value: object) -> list[JsonObject]:
@@ -114,11 +118,8 @@ class StoryWorldQueries:
     @staticmethod
     def get_world_state(
         story_world: Mapping[str, object], moment_id: str, *, phase: str = "at"
-    ) -> dict[str, Any]:
-        """Project the canonical temporal world through the shared domain resolver.
-
-        `dict[str, Any]` is the domain's `WorldState`; see T-19 P3.
-        """
+    ) -> WorldState:
+        """Project the canonical temporal world through the shared domain resolver."""
 
         projectors = {"before": state_before, "at": state_at, "after": state_after}
         if phase not in projectors:
@@ -132,7 +133,7 @@ class StoryWorldQueries:
         *,
         chapter_ids: Sequence[str] = (),
         limit: int = 8,
-    ) -> list[JsonObject]:
+    ) -> list[PublicKnowledgeChunk]:
         """Search manuscript prose/notes without mixing in world-model chunks."""
 
         allowed = set(chapter_ids)

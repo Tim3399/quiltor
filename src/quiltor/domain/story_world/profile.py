@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
-from typing import Any
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
 
@@ -37,7 +36,7 @@ def _extra_row(field: object) -> tuple[JsonObject, str, str] | None:
     return row, key, value
 
 
-def normalize_profile(profile: Mapping[str, object] | None, owner_id: str) -> dict[str, Any]:
+def normalize_profile(profile: Mapping[str, object] | None, owner_id: str) -> JsonObject:
     """Return a detached notes-first profile while accepting every pre-v10 shape.
 
     A present ``fields`` collection is authoritative. Otherwise the five old
@@ -48,7 +47,7 @@ def normalize_profile(profile: Mapping[str, object] | None, owner_id: str) -> di
 
     source: Mapping[str, object] = profile or {}
     legacy_keys = {key for key, _ in LEGACY_PROFILE_FIELDS}
-    canonical: dict[str, Any] = {
+    canonical: JsonObject = {
         key: deepcopy(value)
         for key, value in source.items()
         if key not in {"fields", "extra", *legacy_keys}
@@ -72,8 +71,8 @@ def normalize_profile(profile: Mapping[str, object] | None, owner_id: str) -> di
                 canonical["extra"] = deepcopy(source["extra"])
         return canonical
 
-    projected: list[dict[str, Any]] = []
-    invalid_legacy: dict[str, Any] = {}
+    projected: list[JsonObject] = []
+    invalid_legacy: JsonObject = {}
     for key, label in LEGACY_PROFILE_FIELDS:
         if key not in source:
             continue
