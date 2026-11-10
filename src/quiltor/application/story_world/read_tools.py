@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 from quiltor.application.story_world.queries import StoryWorldQueries
 from quiltor.application.story_world.use_cases import StoryWorldUseCases
@@ -57,11 +57,50 @@ class _ReadToolInputError(ValueError):
     pass
 
 
+class ReadToolSpec(TypedDict):
+    """One read tool as the catalog describes it to a model or an MCP client."""
+
+    name: str
+    description: str
+    # A JSON Schema, open by nature.
+    inputSchema: JsonObject
+    readOnly: Literal[True]
+    sideEffectFree: Literal[True]
+    limits: dict[str, int]
+
+
+class ReadToolFault(TypedDict):
+    code: str
+    message: str
+
+
+class ReadToolSuccess(TypedDict):
+    name: str
+    ok: Literal[True]
+    readOnly: Literal[True]
+    sideEffectFree: Literal[True]
+    worldRevision: int
+    # Each tool answers in a shape of its own, read as JSON by the model or an MCP client.
+    result: Any
+
+
+class ReadToolFailure(TypedDict):
+    name: str
+    ok: Literal[False]
+    readOnly: Literal[True]
+    sideEffectFree: Literal[True]
+    worldRevision: int
+    error: ReadToolFault
+
+
+type ReadToolEnvelope = ReadToolSuccess | ReadToolFailure
+
+
 @runtime_checkable
 class ReadToolExecutor(Protocol):
     """Injection boundary for a future backend-controlled model tool loop."""
 
-    def catalog(self) -> tuple[dict[str, Any], ...]: ...
+    def catalog(self) -> tuple[ReadToolSpec, ...]: ...
 
     def execute(
         self,
@@ -71,7 +110,7 @@ class ReadToolExecutor(Protocol):
         manuscript: Mapping[str, Any],
         figures: Mapping[str, Any],
         world_revision: int,
-    ) -> dict[str, Any]: ...
+    ) -> ReadToolEnvelope: ...
 
     def execute_many(
         self,
@@ -80,10 +119,10 @@ class ReadToolExecutor(Protocol):
         manuscript: Mapping[str, Any],
         figures: Mapping[str, Any],
         world_revision: int,
-    ) -> tuple[dict[str, Any], ...]: ...
+    ) -> tuple[ReadToolEnvelope, ...]: ...
 
 
-def _object_schema(properties: dict[str, Any], required: Sequence[str] = ()) -> dict[str, Any]:
+def _object_schema(properties: JsonObject, required: Sequence[str] = ()) -> JsonObject:
     return {
         "type": "object",
         "required": list(required),
@@ -92,11 +131,11 @@ def _object_schema(properties: dict[str, Any], required: Sequence[str] = ()) -> 
     }
 
 
-def _text_schema(maximum: int, *, minimum: int = 1) -> dict[str, Any]:
+def _text_schema(maximum: int, *, minimum: int = 1) -> JsonObject:
     return {"type": "string", "minLength": minimum, "maxLength": maximum}
 
 
-def _id_list_schema(maximum: int) -> dict[str, Any]:
+def _id_list_schema(maximum: int) -> JsonObject:
     return {
         "type": "array",
         "maxItems": maximum,
@@ -105,7 +144,7 @@ def _id_list_schema(maximum: int) -> dict[str, Any]:
     }
 
 
-def read_tool_catalog() -> tuple[dict[str, Any], ...]:
+def read_tool_catalog() -> tuple[ReadToolSpec, ...]:
     """Return fresh strict schemas so callers cannot mutate the canonical catalog."""
 
     shared = {"maxOutputBytes": MAX_READ_TOOL_OUTPUT_BYTES}
@@ -221,7 +260,7 @@ def _valid_revision(value: object) -> bool:
     return type(value) is int and 0 <= value <= MAX_SAFE_REVISION
 
 
-def _error(name: object, revision: int, code: str) -> JsonObject:
+def _error(name: object, revision: int, code: str) -> ReadToolFailure:
     messages = {
         "unknown_tool": "The requested read tool is not available.",
         "invalid_arguments": "The read tool arguments are invalid or exceed their limits.",
@@ -241,14 +280,14 @@ def _error(name: object, revision: int, code: str) -> JsonObject:
     }
 
 
-def _bounded_envelope(envelope: JsonObject, name: str, revision: int) -> JsonObject:
+def _bounded_envelope(envelope: ReadToolSuccess, name: str, revision: int) -> ReadToolEnvelope:
     encoded = json.dumps(envelope, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) <= MAX_READ_TOOL_OUTPUT_BYTES:
         return envelope
     return _error(name, revision, "result_too_large")
 
 
-def _success(name: str, revision: int, result: object) -> JsonObject:
+def _success(name: str, revision: int, result: object) -> ReadToolEnvelope:
     return _bounded_envelope(
         {
             "name": name,
@@ -477,7 +516,7 @@ def _chunk_view(chunk: Mapping[str, object]) -> tuple[JsonObject, bool]:
 class StoryWorldReadTools:
     """Pure dispatcher implementing the shared read-tool execution port."""
 
-    def catalog(self) -> tuple[dict[str, Any], ...]:
+    def catalog(self) -> tuple[ReadToolSpec, ...]:
         return read_tool_catalog()
 
     def execute(
@@ -488,7 +527,7 @@ class StoryWorldReadTools:
         manuscript: Mapping[str, Any],
         figures: Mapping[str, Any],
         world_revision: int,
-    ) -> dict[str, Any]:
+    ) -> ReadToolEnvelope:
         if not _valid_revision(world_revision):
             return _error(name, 0, "invalid_snapshot")
         if name not in READ_TOOL_NAMES:
@@ -518,7 +557,7 @@ class StoryWorldReadTools:
         manuscript: Mapping[str, Any],
         figures: Mapping[str, Any],
         world_revision: int,
-    ) -> tuple[dict[str, Any], ...]:
+    ) -> tuple[ReadToolEnvelope, ...]:
         revision = world_revision if _valid_revision(world_revision) else 0
         valid_call_list = isinstance(calls, (list, tuple))
         too_many_calls = valid_call_list and len(calls) > MAX_READ_TOOL_CALLS
@@ -538,7 +577,7 @@ class StoryWorldReadTools:
         # Snapshot inputs cross a transport boundary and must fail closed on copy errors.
         except Exception:  # noqa: BLE001
             return (_error("unknown", revision, "invalid_snapshot"),)
-        results: list[dict[str, Any]] = []
+        results: list[ReadToolEnvelope] = []
         for call_item in calls:
             call = as_mapping(call_item)
             if call is None:
@@ -562,7 +601,7 @@ class StoryWorldReadTools:
         manuscript: JsonObject,
         figures: JsonObject,
         revision: int,
-    ) -> JsonObject:
+    ) -> ReadToolEnvelope:
         if not isinstance(name, str) or name not in READ_TOOL_NAMES:
             return _error(name, revision, "unknown_tool")
         try:
@@ -811,7 +850,7 @@ def execute_read_tool(
     manuscript: Mapping[str, Any],
     figures: Mapping[str, Any],
     world_revision: int,
-) -> dict[str, Any]:
+) -> ReadToolEnvelope:
     return StoryWorldReadTools().execute(
         name,
         arguments,
@@ -827,7 +866,7 @@ def execute_read_tools(
     manuscript: Mapping[str, Any],
     figures: Mapping[str, Any],
     world_revision: int,
-) -> tuple[dict[str, Any], ...]:
+) -> tuple[ReadToolEnvelope, ...]:
     return StoryWorldReadTools().execute_many(
         calls,
         manuscript=manuscript,
@@ -840,8 +879,13 @@ __all__ = [
     "MAX_READ_TOOL_CALLS",
     "MAX_READ_TOOL_OUTPUT_BYTES",
     "READ_TOOL_NAMES",
+    "ReadToolEnvelope",
     "ReadToolExecutor",
+    "ReadToolFailure",
+    "ReadToolFault",
     "ReadToolName",
+    "ReadToolSpec",
+    "ReadToolSuccess",
     "StoryWorldReadTools",
     "execute_read_tool",
     "execute_read_tools",
