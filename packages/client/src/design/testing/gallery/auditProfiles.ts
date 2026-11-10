@@ -239,7 +239,7 @@ export const designAuditProfiles = {
     priority: "P0",
     coverage: {
       default: ["Default"],
-      variants: ["WithTrailingActions"],
+      variants: ["WithTrailingActions", "Dashed"],
       selection: ["Selected"],
       disabled: ["Disabled"],
       longContent: ["LongContent"],

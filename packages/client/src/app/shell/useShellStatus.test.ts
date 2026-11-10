@@ -10,7 +10,10 @@ describe("logout destination", () => {
     expect(logoutDestination({ logoutUrl: "https://identity.example.test/logout" })).toBe(
       "https://identity.example.test/logout",
     );
-    expect(logoutDestination({})).toBe("/login");
+    expect(logoutDestination({})).toBe("/login?ui_locales=de");
+    quiltorClient.platform.preferences.set("quiltor-interface-language", "en");
+    expect(logoutDestination({})).toBe("/login?ui_locales=en");
+    localStorage.clear();
   });
 });
 

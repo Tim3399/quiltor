@@ -1,3 +1,5 @@
+import type { WorldInfo } from "../../modules/story-world";
+import { decodeWorldInfoV1 } from "../contracts/v1/worlds";
 import type { VersionedDocument, VersionedDocumentGateway } from "../application";
 import { ApplicationGatewayError } from "../application";
 import { type DecodedDocumentV1, DOCUMENT_MEDIA_TYPE_V1 } from "../contracts/v1/documentEnvelope";
@@ -125,12 +127,21 @@ export function createDocumentTransport<TModel extends object>(
     if (taggedRevision !== undefined && taggedRevision !== record.revision) {
       throw invalidDocumentResponse();
     }
+    let world: WorldInfo | undefined;
+    if (record.world !== undefined) {
+      try {
+        world = decodeWorldInfoV1(record.world);
+      } catch {
+        throw invalidDocumentResponse();
+      }
+    }
     if (isCurrentWorldSelection(state, selection)) state.revisions[kind] = record.revision;
     return {
       ok: true as const,
       zeit: record.zeit,
       revision: record.revision,
       ...(record.warnings ? { warnings: record.warnings as Array<"backup.mirror_failed"> } : {}),
+      ...(world ? { world } : {}),
     };
   };
 

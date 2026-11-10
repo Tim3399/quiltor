@@ -1,12 +1,13 @@
-import { expect, test } from "./support/transient-network";
 import {
   closePlaceSheet,
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
+  placeCardCommand,
   selectMapChild,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { expect, test } from "./support/transient-network";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -93,7 +94,7 @@ test("Expanded header keeps crop, lock, enter and collapse actions on the same m
     await expect(page.getByRole("dialog", { name: "Orte-Inspector" })).toBeVisible();
   }
   await closePlaceSheet(page);
-  await expect(page.getByRole("button", { name: "Weltkarte aufklappen" }).first()).toBeVisible();
+  await expect(await placeCardCommand(page, "x-weltkarte", "Weltkarte aufklappen")).toBeVisible();
 });
 
 test("Footer scale edits persist through the map state and update map measurements", async ({
@@ -226,7 +227,7 @@ test("Reduced motion expansion frames immediately without intermediate camera tr
       },
     );
   });
-  await page.getByRole("button", { name: "Weltkarte aufklappen" }).first().click();
+  await (await placeCardCommand(page, "x-weltkarte", "Weltkarte aufklappen")).click();
   await expect(page.locator(".place-map-chrome")).toBeVisible();
   await waitForMapViewport(page);
   const frames = await page.evaluate(() => [

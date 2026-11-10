@@ -16,6 +16,10 @@ const singleViewportSpecs = [
   // Every block sets its own viewport and isMobile through test.use, so the three projects
   // ran the very same test three times.
   "**/mobile-workspace-tabs.spec.ts",
+  // The example-world preview is a server-side flow (open, promote, discard) seen through the
+  // world list and one bar; no viewport changes what is sent or kept. The narrow layouts of
+  // the world list are covered by world-gate-responsive.spec.ts.
+  "**/example-world-preview.spec.ts",
 ];
 
 export default defineConfig({

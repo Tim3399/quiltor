@@ -75,8 +75,12 @@ class DocumentUseCases:
         state: dict[str, Any],
         expected_revision: int | None,
         location: DocumentLocation,
+        *,
+        promote: bool = True,
     ) -> int:
-        return self.save_with_status(kind, state, expected_revision, location).revision
+        return self.save_with_status(
+            kind, state, expected_revision, location, promote=promote
+        ).revision
 
     def save_with_status(
         self,
@@ -84,7 +88,13 @@ class DocumentUseCases:
         state: dict[str, Any],
         expected_revision: int | None,
         location: DocumentLocation,
+        *,
+        promote: bool = True,
     ) -> DocumentSaveResult:
+        """Save one document. Every route write promotes: a preview of the example world
+        becomes a real world in the same transaction (T-214-5a). Only the server filling a
+        fresh preview passes `promote=False`; that write keeps no local backup either, since
+        a preview never gets one."""
         with self._observer.observe("persistence", f"save_{kind}"):
             validators = {
                 "manuscript": valid_manuscript,
@@ -113,8 +123,11 @@ class DocumentUseCases:
                         "invalid chapter story-time reference",
                         params=params,
                     )
-            self._local_backups.backup_if_due(location.database, location.backups)
-            revision = self._documents.save(kind, state, expected_revision, location.database)
+            if promote:
+                self._local_backups.backup_if_due(location.database, location.backups)
+            revision = self._documents.save(
+                kind, state, expected_revision, location.database, promote=promote
+            )
             try:
                 with self._observer.observe("backup", f"mirror_{kind}"):
                     if kind == "manuscript":

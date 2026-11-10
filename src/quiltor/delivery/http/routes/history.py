@@ -89,6 +89,8 @@ def restore(handler, request: Request, app) -> None:
                 request.session.sub,
                 revision_id,
             )
+            if getattr(world, "preview", False):
+                app.finish_promotion(world.id)
     except ApplicationError as exc:
         return handler.send_exception(exc)
     except BackupContractError as exc:

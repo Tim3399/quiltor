@@ -23,7 +23,14 @@ import {
   nextMeasureTargets,
 } from "./placeCanvasModel";
 import { cropOf, cropPatch, type ImageCrop } from "./placeImageCrop";
-import { hasMapSize, isPlace, levelTrail, placesOnLevel, scaleForLevel } from "./placeLevels";
+import {
+  hasLevelContents,
+  hasMapSize,
+  isPlace,
+  levelTrail,
+  placesOnLevel,
+  scaleForLevel,
+} from "./placeLevels";
 import {
   formatDistance,
   formatScale,
@@ -552,6 +559,10 @@ function PlacesWorkspaceInner({
       onRemoveMapImage={removeMapImage}
       onPlaceDisplayChange={setPlaceDisplay}
       onDelete={compact ? requestPlaceDeletion : undefined}
+      // On a phone the inspector is a sheet over the canvas: the card's commands come here.
+      onOpenLevel={compact ? openLevel : undefined}
+      levelFilled={selected ? hasLevelContents(state.nodes, selected.id) : false}
+      onExpandMap={compact ? expandMap : undefined}
     />
   );
 

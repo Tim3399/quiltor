@@ -286,6 +286,7 @@ class StdlibIdentityGateway:
         *,
         issuer: str | None = None,
         client_id: str | None = None,
+        ui_locales: str | None = None,
     ) -> tuple[str, str]:
         document = self.discover(issuer)
         selected_client = client_id if client_id is not None else self.client_id
@@ -313,6 +314,8 @@ class StdlibIdentityGateway:
             "code_challenge": challenge,
             "code_challenge_method": "S256",
         }
+        if ui_locales:
+            params["ui_locales"] = ui_locales
         return f"{document['authorization_endpoint']}?{urllib.parse.urlencode(params)}", state
 
     def consume_pending_login(self, state: str) -> dict[str, Any] | None:

@@ -316,4 +316,42 @@ describe("WorldGate", () => {
     expect(list).toHaveAttribute("data-surface", "panel");
     expect(list.closest(".world-list-panel")).toHaveAttribute("data-long", "true");
   });
+
+  it("offers the example world in the help menu, in the interface language", async () => {
+    const onOpenExample = vi.fn().mockResolvedValue(undefined);
+    renderGate([world("paper")], { onOpenExample });
+
+    fireEvent.click(screen.getByRole("button", { name: "Hilfe" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Beispielwelt öffnen" }));
+
+    await waitFor(() => expect(onOpenExample).toHaveBeenCalledWith("de"));
+  });
+
+  it("offers the example world as a button only while there is no world yet", async () => {
+    const onOpenExample = vi.fn().mockResolvedValue(undefined);
+    renderGate([], { onOpenExample });
+
+    fireEvent.click(screen.getByRole("button", { name: "Beispielwelt öffnen" }));
+    await waitFor(() => expect(onOpenExample).toHaveBeenCalledWith("de"));
+    expect(screen.getByText(/wird erst zu deiner/)).toBeInTheDocument();
+
+    cleanup();
+    renderGate([world("paper")], { onOpenExample });
+    expect(screen.queryByRole("button", { name: "Beispielwelt öffnen" })).toBeNull();
+  });
+
+  it("marks a world from the example world in its text and label, not only its edge", () => {
+    renderGate([
+      world("own", "Nordhafen"),
+      { ...world("atlas", "Der gläserne Atlas"), origin: "example" },
+    ]);
+
+    const example = screen.getByRole("button", {
+      name: "Der gläserne Atlas – Beispielwelt – Welt öffnen",
+    });
+    expect(example.closest(".selection-card")).toHaveClass("selection-card--dashed");
+    expect(within(example).getByText(/^Beispielwelt · /)).toBeInTheDocument();
+    const own = screen.getByRole("button", { name: "Nordhafen – Welt öffnen" });
+    expect(own.closest(".selection-card")).not.toHaveClass("selection-card--dashed");
+  });
 });
