@@ -227,3 +227,10 @@ uses no secret. Its first run of a new model needs the `spike` input, which allo
 a model whose SHA-256 is not pinned yet and prints the digest to pin. How the job
 grades a run, the model candidates and the known deviations per llama.cpp release
 are in [docs/architecture/local-ai-conformance.md](../../docs/architecture/local-ai-conformance.md).
+
+`test.yml` offers it as that optional job: a manual dispatch with
+`llama_conformance: true` (and `llama_spike: true` for a first run) calls it
+beside the usual jobs. It is dispatch-only -- `workflow_call` does not offer the
+input, so `release.yml` never runs it -- and `browser-e2e` does not need it: a run
+that does not ask for it skips it on purpose, and the gate and the verdict never
+see it. The job grants `contents: read` and nothing more.
