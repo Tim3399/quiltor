@@ -4618,9 +4618,18 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
         }
 
     def run_check(self, data, responses) -> str:
+        # The HEAD and the download draw from the same queue, in the order the check asks.
+        queue = iter(responses) if isinstance(responses, list) else None
+
+        def answer(*_args, **_kwargs):
+            if queue is None:
+                raise responses
+            return next(queue)
+
         output = io.StringIO()
         with (
-            patch.object(release_preflight.urllib.request, "urlopen", side_effect=responses),
+            patch.object(release_preflight, "_open_head", side_effect=answer),
+            patch.object(release_preflight.urllib.request, "urlopen", side_effect=answer),
             contextlib.redirect_stdout(output),
         ):
             release_preflight._check_pinned_writing_data(data)
@@ -4650,6 +4659,47 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
                 self.assertRaisesRegex(release_preflight.PreflightError, "Pinned writing data"),
             ):
                 self.run_check(self.pin(), responses)
+
+    def test_head_stays_head_behind_a_redirect(self):
+        # GitHub answers a release asset with a 302 to its storage; urllib would follow it with
+        # a GET and start the download the HEAD is there to avoid.
+        import http.server
+        import threading
+
+        methods: list[tuple[str, str]] = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def _answer(self):
+                methods.append((self.command, self.path))
+                if self.path == "/asset":
+                    self.send_response(302)
+                    self.send_header("Location", "/storage")
+                    self.send_header("Content-Length", "0")
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "6")
+                self.end_headers()
+                if self.command == "GET" and self.path == "/storage":
+                    self.wfile.write(b"sqlite")
+
+            do_HEAD = _answer
+            do_GET = _answer
+
+            def log_message(self, *_args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/asset"
+            with release_preflight._open_head(url, 10) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get("Content-Length"), "6")
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(methods, [("HEAD", "/asset"), ("HEAD", "/storage")])
 
     def test_check_is_not_part_of_the_matrix_coverage(self):
         self.assertNotIn(release_preflight.WRITING_DATA_LABEL, release_preflight.COVERAGE)
