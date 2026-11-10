@@ -14,7 +14,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from math import isfinite
-from typing import Any, Literal, TypeGuard
+from typing import Any, Literal, NotRequired, TypedDict, TypeGuard
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.profile import normalize_profile
@@ -68,6 +68,15 @@ class InvalidDocumentWireV1(ValueError):
         self.field = field
 
 
+class DocumentEnvelopeV1(TypedDict):
+    """A document on the wire: contract, version, the document itself and its revision."""
+
+    contract: str
+    version: Literal[1]
+    payload: dict[str, Any]
+    revision: NotRequired[int]
+
+
 @dataclass(frozen=True)
 class DocumentWireV1:
     kind: DocumentKind
@@ -78,8 +87,8 @@ class DocumentWireV1:
     def contract(self) -> str:
         return _CONTRACTS[self.kind]
 
-    def to_mapping(self) -> dict[str, Any]:
-        envelope: dict[str, Any] = {
+    def to_mapping(self) -> DocumentEnvelopeV1:
+        envelope: DocumentEnvelopeV1 = {
             "contract": self.contract,
             "version": 1,
             "payload": deepcopy(self.payload),
@@ -830,7 +839,7 @@ def _envelope_integer(
 
 def encode_document_v1(
     kind: DocumentKind, payload: dict[str, Any], revision: int | None = None
-) -> dict[str, Any]:
+) -> DocumentEnvelopeV1:
     """Create the canonical v1 envelope and validate the producer output too."""
 
     wire = DocumentWireV1(kind=kind, payload=deepcopy(payload), revision=revision)
