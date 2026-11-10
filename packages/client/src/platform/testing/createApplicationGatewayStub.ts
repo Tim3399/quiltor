@@ -122,6 +122,7 @@ export function createApplicationGatewayStub(
       diff: () => notStubbed("history.diff"),
       textVersion: () => notStubbed("history.textVersion"),
       chapterComparison: () => notStubbed("history.chapterComparison"),
+      chapterTimeline: () => notStubbed("history.chapterTimeline"),
       restore: () => notStubbed("history.restore"),
       ...overrides.history,
     },
