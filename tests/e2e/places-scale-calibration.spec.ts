@@ -125,9 +125,41 @@ async function stretchOnMap(page: Page, worldId: string, mapId: string) {
     const to = { x: from.x + 300, y: from.y };
     const a = await toScreen(page, from);
     const b = await toScreen(page, to);
-    if ((await bareMap(page, mapId, a)) && (await bareMap(page, mapId, b))) return { a, b };
+    if ((await bareMap(page, mapId, a)) && (await bareMap(page, mapId, b))) {
+      return measured(await viewportZoom(page), a, b);
+    }
   }
   throw new Error("No bare stretch of 300 flow units on the harbour picture.");
+}
+
+/** The zoom of the flow viewport: screen pixels per flow unit. */
+async function viewportZoom(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const viewport = document.querySelector<HTMLElement>(".places-flow-area .react-flow__viewport");
+    if (!viewport) throw new Error("No viewport.");
+    return new DOMMatrixReadOnly(getComputedStyle(viewport).transform).a;
+  });
+}
+
+/**
+ * The two ends as the mouse can reach them, and the scale a length laid on them makes.
+ *
+ * A mouse position is a whole pixel, and a flow unit is a fraction of one once the map has
+ * been zoomed out to fit: at 0.83 one pixel of rounding is 1.2 flow units, so a stretch
+ * planned as 300 units is measured as 301.2 and its 3 km read 0.996 km per 100px on macOS,
+ * where the picture needs that zoom-out. The ends are therefore rounded here, and the scale
+ * the app must show is worked out from the rounded ends, the way the app measures them.
+ */
+function measured(zoom: number, from: Point, to: Point) {
+  const a = { x: Math.round(from.x), y: Math.round(from.y) };
+  const b = { x: Math.round(to.x), y: Math.round(to.y) };
+  const flowLength = Math.hypot(b.x - a.x, b.y - a.y) / zoom;
+  return {
+    a,
+    b,
+    /** Units per 100 flow units for `length` laid on the stretch, as the footer reads it. */
+    scaleFor: (length: number) => Number(((length * 100) / flowLength).toPrecision(3)),
+  };
 }
 
 /** Waits until the stored scale is the one shown, so a reload cannot outrun the autosave. */
@@ -157,17 +189,37 @@ test("(a) Two clicks across 300 flow units at 3 km make 1 km per 100px, kept aft
   const mapId = world.ids.figures.nordhafen;
   await expect(footerScale(page)).toContainText("0.15 km pro 100px");
   await startCalibration(page);
-  const { a, b } = await stretchOnMap(page, world.id, mapId);
+  const { a, b, scaleFor } = await stretchOnMap(page, world.id, mapId);
   await page.mouse.click(a.x, a.y);
   await expect(page.getByText("Setze das Ende der Strecke.")).toBeVisible();
   await page.mouse.click(b.x, b.y);
   await applyLength(page, "3");
 
-  await expect(footerScale(page)).toContainText("1 km pro 100px");
-  await savedScale(page, world.id, mapId, 1);
+  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await savedScale(page, world.id, mapId, scaleFor(3));
   await page.reload();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
-  await expect(footerScale(page)).toContainText("1 km pro 100px");
+  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+});
+
+test("(a2) Zoomed out, the mouse's whole pixels make the scale of the stretch they span", async ({
+  page,
+}) => {
+  const world = await openHarbourMap(page);
+  const mapId = world.ids.figures.nordhafen;
+  // One step out, as macOS needs to bring the picture clear of the inspector: a flow unit is
+  // then 0.83 pixel, and the two ends the mouse can hit are up to 1.2 units off the plan.
+  await page.locator(".react-flow__controls-zoomout").click();
+  await waitForMapViewport(page);
+  await startCalibration(page);
+  const { a, b, scaleFor } = await stretchOnMap(page, world.id, mapId);
+  await page.mouse.click(a.x, a.y);
+  await expect(page.getByText("Setze das Ende der Strecke.")).toBeVisible();
+  await page.mouse.click(b.x, b.y);
+  await applyLength(page, "3");
+
+  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await savedScale(page, world.id, mapId, scaleFor(3));
 });
 
 test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays where it was", async ({
@@ -177,7 +229,7 @@ test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays wh
   const mapId = world.ids.figures.nordhafen;
   const before = await stored(page, world.id, mapId);
   await startCalibration(page);
-  const { a, b } = await stretchOnMap(page, world.id, mapId);
+  const { a, b, scaleFor } = await stretchOnMap(page, world.id, mapId);
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
   await page.mouse.move((a.x + b.x) / 2, a.y, { steps: 6 });
@@ -185,8 +237,8 @@ test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays wh
   await page.mouse.up();
   await applyLength(page, "3");
 
-  await expect(footerScale(page)).toContainText("1 km pro 100px");
-  await savedScale(page, world.id, mapId, 1);
+  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
+  await savedScale(page, world.id, mapId, scaleFor(3));
   const after = await stored(page, world.id, mapId);
   expect([after.mapX, after.mapY, after.x, after.y]).toEqual([
     before.mapX,
@@ -196,7 +248,7 @@ test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays wh
   ]);
   await page.reload();
   await page.getByRole("button", { name: "Orte", exact: true }).click();
-  await expect(footerScale(page)).toContainText("1 km pro 100px");
+  await expect(footerScale(page)).toContainText(`${scaleFor(3)} km pro 100px`);
   const reloaded = await stored(page, world.id, mapId);
   expect([reloaded.mapX, reloaded.mapY]).toEqual([before.mapX, before.mapY]);
 });
