@@ -4658,7 +4658,7 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
 
         def answer(*_args, **_kwargs):
             if queue is None:
-                raise responses
+                raise cast(BaseException, responses)
             return next(queue)
 
         output = io.StringIO()
@@ -4720,7 +4720,7 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
             do_HEAD = _answer
             do_GET = _answer
 
-            def log_message(self, *_args):
+            def log_message(self, format: str, *args: Any) -> None:
                 pass
 
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
