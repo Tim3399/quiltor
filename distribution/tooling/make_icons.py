@@ -8,15 +8,24 @@ Produces:
   distribution/assets/icons/icon.iconset/*.png macOS iconset source images
   distribution/assets/icons/icon.icns          macOS icon (generated on macOS)
   distribution/assets/icons/tray.png           runtime tray/menu-bar icon
+  apps/web/public/favicon.ico                  web app favicon (16, 32, 48)
+  apps/web/public/favicon-32.png               web app favicon as PNG
+  apps/web/public/apple-touch-icon.png         home-screen icon, opaque, 180 px
+  apps/web/public/email-logo.png               logo the Keycloak mails load, opaque, 192 px
+
+The web icons are derived from the iconset images, not drawn again, so a logo change
+carries over to them and they stay the desktop icon at another size.
 
 Swap these files out once real branding exists -- nothing downstream cares how the
 icon was produced, only that icon.ico/icon.icns exist at these paths.
 
     python distribution/tooling/make_icons.py
+    python distribution/tooling/make_icons.py --check   # web icons still match the iconset
 """
 
 from __future__ import annotations
 
+import io
 import shutil
 import subprocess
 import sys
@@ -27,6 +36,9 @@ from PIL import Image, ImageDraw, ImageFont
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = REPO_ROOT / "distribution" / "assets" / "icons"
 ICONSET_DIR = OUT_DIR / "icon.iconset"
+WEB_DIR = REPO_ROOT / "apps" / "web" / "public"
+# The opaque icons sit on white: dark mail clients and home screens cannot tint it.
+WEB_BACKGROUND = (255, 255, 255)
 
 # From packages/client/src/design/colors.css :root -- the warm paper/ink palette Quiltor's light
 # theme uses everywhere else, so the icon doesn't introduce a new color language.
@@ -129,13 +141,91 @@ def _write_icns_if_available() -> None:
     print(f"Wrote {target}")
 
 
-def main() -> None:
+def _opaque(image: Image.Image) -> Image.Image:
+    flat = Image.new("RGB", image.size, WEB_BACKGROUND)
+    flat.paste(image, mask=image.getchannel("A"))
+    return flat
+
+
+def _png(image: Image.Image) -> bytes:
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
+
+def web_icons(iconset_dir: Path = ICONSET_DIR) -> dict[str, bytes]:
+    """The web icons, derived from the iconset images (name -> file bytes)."""
+
+    large = Image.open(iconset_dir / "icon_512x512.png").convert("RGBA")
+    medium = Image.open(iconset_dir / "icon_256x256.png").convert("RGBA")
+    ico = io.BytesIO()
+    large.save(ico, format="ICO", sizes=[(16, 16), (32, 32), (48, 48)])
+    lanczos = Image.Resampling.LANCZOS
+    return {
+        "favicon.ico": ico.getvalue(),
+        "favicon-32.png": _png(large.resize((32, 32), lanczos)),
+        "apple-touch-icon.png": _png(_opaque(large).resize((180, 180), lanczos)),
+        "email-logo.png": _png(_opaque(medium.resize((192, 192), lanczos))),
+    }
+
+
+def _frames(data: bytes) -> list[tuple[str, tuple[int, int], bytes]]:
+    """Every picture a file holds, as (mode, size, pixels); an ICO holds one per size."""
+
+    image = Image.open(io.BytesIO(data))
+    if image.format != "ICO":
+        return [(image.mode, image.size, image.tobytes())]
+    frames = []
+    for size in sorted(image.info["sizes"]):
+        # IcoImageFile keeps every size in `ico`; the base class it is typed as does not.
+        frame = getattr(image, "ico").getimage(size)  # noqa: B009
+        frames.append((frame.mode, frame.size, frame.tobytes()))
+    return frames
+
+
+def check_web_icons(iconset_dir: Path = ICONSET_DIR, web_dir: Path = WEB_DIR) -> list[str]:
+    """
+    Which web icons no longer show the iconset, as messages; empty when all do.
+
+    Pixels are compared, not bytes: the PNG encoder's output can differ between Pillow
+    builds while the picture is the same.
+    """
+
+    problems = []
+    for name, expected in web_icons(iconset_dir).items():
+        path = web_dir / name
+        if not path.exists():
+            problems.append(f"{path} is missing")
+        elif _frames(path.read_bytes()) != _frames(expected):
+            problems.append(f"{path} does not match the app icon")
+    return problems
+
+
+def _write_web_icons() -> None:
+    for name, data in web_icons().items():
+        (WEB_DIR / name).write_bytes(data)
+    print(f"Wrote {WEB_DIR} (favicon.ico, favicon-32.png, apple-touch-icon.png, email-logo.png)")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if args == ["--check"]:
+        problems = check_web_icons()
+        for problem in problems:
+            print(problem, file=sys.stderr)
+        if problems:
+            print("Run python distribution/tooling/make_icons.py to redraw them.", file=sys.stderr)
+            return 1
+        print("Web icons match the app icon.")
+        return 0
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     master = _render_master()
     _write_ico(master)
     _write_iconset(master)
     _write_tray_png(master)
     _write_icns_if_available()
+    _write_web_icons()
+    return 0
 
 
 if __name__ == "__main__":
