@@ -315,6 +315,26 @@ describe("VersionsDialog, restoring a version", () => {
     expect(screen.getByRole("button", { name: "Quiltor neu laden" })).toBeVisible();
   });
 
+  // T-166: the server keeps the current state as "before restore" first; when the restore then
+  // fails, that entry exists and the list has to show it without reopening the dialog.
+  it("reads the list again when a restore fails after the server kept the current state", async () => {
+    const { onDocumentsReplaced } = renderDialog();
+    await chooseManualVersion();
+    restore.mockImplementationOnce(async () => {
+      commits = [beforeRestore, manual];
+      throw new Error("Restore failed");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Diese Version wiederherstellen" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Wiederherstellen" }),
+    );
+    expect(await screen.findByText("Restore failed")).toBeVisible();
+    expect(
+      await within(states()).findByRole("button", { name: /Vor Wiederherstellung, 29\.10\.2026/ }),
+    ).toBeVisible();
+    expect(onDocumentsReplaced).not.toHaveBeenCalled();
+  });
+
   it("sends nothing to the server when the open work could not be saved", async () => {
     const { onDocumentsReplaced, flush } = renderDialog();
     await chooseManualVersion();

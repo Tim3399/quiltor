@@ -234,6 +234,8 @@ export function VersionsPanel({
       setNotice({ tone: "danger", text: applicationErrorMessage(error) });
       setRestoreTarget(null);
       restoreInFlight.current = false;
+      // The server may have kept the current state as "before restore" before it failed (T-166).
+      await loadLog().catch(() => undefined);
     } finally {
       setRestoring(false);
     }
