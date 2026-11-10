@@ -29,6 +29,10 @@ def capabilities(handler, request: Request, app) -> None:
                 "assistantInstall": app.assistant_install,
                 "writingDataInstall": app.writing_data_install,
                 "grammarInstall": app.grammar_install,
+                # Jobs may run on the user's own engine (T-61).
+                "clientAi": app.client_ai,
+                # QUILTOR_TEST_HOOKS=1 only; the client then offers its test profile (T-61).
+                "testHooks": app.test_hooks,
             },
             # Allowed, not reachable: whether the model answers stays in
             # /api/assistant/status, so this route never probes the network.

@@ -11,6 +11,7 @@ export type {
   AssistantSource,
 } from "./model";
 export { applyAssistantProposalsWithResult } from "./proposals";
+export type { AssistantEngineWire } from "./engines/types";
 
 export const loadAssistantDrawer = () =>
   import("./AssistantDrawer").then(({ AssistantDrawer }) => ({ default: AssistantDrawer }));

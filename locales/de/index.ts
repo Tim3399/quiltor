@@ -1,4 +1,5 @@
 import { assistant } from "./assistant";
+import { assistantClientAi } from "./assistantClientAi";
 import { auth } from "./auth";
 import { common } from "./common";
 import { figures } from "./figures";
@@ -27,6 +28,7 @@ const catalog = {
   ...timeline,
   ...tools,
   ...assistant,
+  ...assistantClientAi,
   ...places,
   ...writing,
   ...menus,

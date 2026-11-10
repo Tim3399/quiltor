@@ -1,6 +1,7 @@
 import type { MessageKey } from "../../i18n";
 import type { AssistantGateway } from "../application";
 import { createAssistantJobsHttpGateway } from "./assistantJobs";
+import { createAssistantRelayHttpGateway } from "./assistantRelay";
 import { type HttpApplicationState, requestJson, withWorldQuery } from "./request";
 
 export function createAssistantHttpGateway(state: HttpApplicationState): AssistantGateway {
@@ -32,6 +33,7 @@ export function createAssistantHttpGateway(state: HttpApplicationState): Assista
         error: string;
       }>("/api/assistant/install/status"),
     ...createAssistantJobsHttpGateway(state),
+    ...createAssistantRelayHttpGateway(state),
     progress: (id: string) =>
       requestJson<{
         ok: boolean;

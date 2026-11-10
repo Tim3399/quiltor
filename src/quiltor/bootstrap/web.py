@@ -188,6 +188,10 @@ class CapabilitiesRouteServices:
     grammar_install: bool
     # Per session: may this account use the server-side assistant (T-58).
     is_premium: Callable[[SessionData], bool] = lambda session: True
+    # May a job run on the user's own engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
+    client_ai: bool = False
+    # QUILTOR_TEST_HOOKS=1 only: the client may offer its test profile (T-61 part 6/8).
+    test_hooks: bool = False
 
 
 DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
@@ -341,6 +345,8 @@ class WebApplication:
     assistant_client_ai: bool = True
     # Header for every text/html answer (QUILTOR_CSP, T-61); None sends none.
     content_security_policy: tuple[str, str] | None = None
+    # QUILTOR_TEST_HOOKS=1, read from the environment only, never from a request (T-61).
+    test_hooks: bool = False
 
     @property
     def installable(self) -> bool:
@@ -496,6 +502,8 @@ class WebApplication:
                 writing_data_installable(self),
                 grammar_installable(self),
                 self.identity.is_premium,
+                client_ai=self.assistant_client_ai,
+                test_hooks=self.test_hooks,
             )
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
@@ -575,6 +583,7 @@ def build_web_application(
     )
     version_file = resources.version_file()
     version = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "dev"
+    test_hooks = os.environ.get("QUILTOR_TEST_HOOKS", "") == "1"
     return WebApplication(
         application=application,
         capabilities=capabilities,
@@ -603,8 +612,9 @@ def build_web_application(
         content_security_policy=content_security_policy(
             csp_mode(os.environ.get("QUILTOR_CSP", "")),
             connect_extra=csp_connect_extra(os.environ.get("QUILTOR_CSP_CONNECT_EXTRA", "")),
-            test_hooks=os.environ.get("QUILTOR_TEST_HOOKS", "") == "1",
+            test_hooks=test_hooks,
         ),
+        test_hooks=test_hooks,
     )
 
 

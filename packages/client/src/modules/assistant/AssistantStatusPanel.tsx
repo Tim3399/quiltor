@@ -1,11 +1,13 @@
 import { Bot, Database, Download, RotateCw } from "lucide-react";
-import { Alert, Button, ProgressBar } from "../../design";
+import { Alert, Button, ProgressBar, SegmentedControl } from "../../design";
 import { useI18n } from "../../i18n";
 import {
   installAllowed,
   useInstanceCapabilities,
   useUserCapabilities,
 } from "../../shared/capabilities";
+import type { AssistantEngineKind } from "./engines/types";
+import { useEngineChoice } from "./engines/useEngineChoice";
 import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
@@ -28,8 +30,28 @@ export function AssistantStatusPanel({
   // The capabilities say whether this account may use the server's assistant; the
   // status field is the fallback for an older server, and missing means allowed.
   const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
+  const choice = useEngineChoice(status?.premium !== false);
+  const onServer = choice.engine === "server";
+  const EnginePanel = choice.slot?.Panel;
+  const engineLabels: Record<AssistantEngineKind, string> = {
+    server: t("assistantEngineServer"),
+    webllm: t("assistantEngineBrowser"),
+    cloud: t("assistantEngineOwnKey"),
+  };
   return (
     <>
+      {/* Only a real choice is shown: with the server alone nothing changes for the user. */}
+      {choice.available.length > 1 && (
+        <SegmentedControl
+          className="assistant-engine-choice"
+          size="compact"
+          label={t("assistantEngineLabel")}
+          value={choice.engine}
+          options={choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] }))}
+          onChange={choice.choose}
+        />
+      )}
+      {EnginePanel && <EnginePanel />}
       <div className="assistant-scope">
         <Database />
         <span>
@@ -39,12 +61,12 @@ export function AssistantStatusPanel({
       </div>
       {/* Without the premium role nothing here can help: no model to reach, nothing to install
           (the install would answer 403). Only `false` counts -- older servers send no field. */}
-      {status && !serverAi && (
+      {onServer && status && !serverAi && (
         <Alert className="assistant-offline" tone="info" icon={<Bot />}>
           <p>{t("errorAssistantPremiumRequired")}</p>
         </Alert>
       )}
-      {status && serverAi && !status.available && (
+      {onServer && status && serverAi && !status.available && (
         <Alert
           className="assistant-offline"
           tone="warning"
