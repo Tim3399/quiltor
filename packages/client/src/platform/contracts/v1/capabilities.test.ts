@@ -24,7 +24,7 @@ describe("capabilities v1 decoder", () => {
       version: 1,
       instance: {
         ...hostedFixture.instance,
-        clientAi: true,
+        futureFlag: true,
         deviceSync: "false",
         assistantInstall: 0,
         grammarInstall: null,
@@ -36,6 +36,8 @@ describe("capabilities v1 decoder", () => {
         multiUser: true,
         signOut: true,
         writingDataInstall: false,
+        clientAi: true,
+        testHooks: false,
       },
       user: { serverAi: true },
     });

@@ -9,6 +9,8 @@ const INSTANCE_CAPABILITY_KEYS = [
   "assistantInstall",
   "writingDataInstall",
   "grammarInstall",
+  "clientAi",
+  "testHooks",
 ] as const;
 
 type InstanceCapabilityKey = (typeof INSTANCE_CAPABILITY_KEYS)[number];

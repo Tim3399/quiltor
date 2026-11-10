@@ -7,18 +7,26 @@
   "additionalProperties": false,
   "required": ["ok", "version", "instance", "user"],
   "properties": {
-    "ok": { "const": true },
-    "version": { "const": 1 },
+    "ok": {
+      "const": true
+    },
+    "version": {
+      "const": 1
+    },
     "instance": {
       "type": "object",
-      "additionalProperties": { "type": "boolean" },
+      "additionalProperties": {
+        "type": "boolean"
+      },
       "required": [
         "multiUser",
         "signOut",
         "deviceSync",
         "assistantInstall",
         "writingDataInstall",
-        "grammarInstall"
+        "grammarInstall",
+        "clientAi",
+        "testHooks"
       ],
       "properties": {
         "multiUser": {
@@ -44,13 +52,23 @@
         "grammarInstall": {
           "description": "A request may install LanguageTool on this server.",
           "type": "boolean"
+        },
+        "clientAi": {
+          "description": "A user may run assistant jobs on an engine of their own, in the browser or with their own provider key (QUILTOR_ASSISTANT_CLIENT_AI, T-61).",
+          "type": "boolean"
+        },
+        "testHooks": {
+          "description": "The server runs with QUILTOR_TEST_HOOKS=1, so the client may offer its test profile. Read from the environment only; false on every real installation.",
+          "type": "boolean"
         }
       }
     },
     "user": {
       "description": "Flags of the asking session; they can change with a token refresh, so the client re-reads them.",
       "type": "object",
-      "additionalProperties": { "type": "boolean" },
+      "additionalProperties": {
+        "type": "boolean"
+      },
       "properties": {
         "serverAi": {
           "description": "This session may use the server-side assistant (the premium role on a shared server, always locally). Allowed, not reachable: reachability stays in /api/assistant/status.",

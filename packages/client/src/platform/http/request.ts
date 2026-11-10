@@ -95,6 +95,8 @@ function localizedStructuredErrorMessage(
 ): string | undefined {
   const messages = currentMessages();
   if (code === "assistant.premium_required") return messages.errorAssistantPremiumRequired;
+  if (code === "assistant.client_job_running") return messages.errorAssistantClientJobRunning;
+  if (code === "assistant.client_ai_disabled") return messages.errorAssistantClientAiDisabled;
   if (code === "assistant.too_many_jobs") {
     // The server names its own limit (QUILTOR_ASSISTANT_MAX_OPEN_JOBS); without a usable number
     // the category's generic message is the honest answer.

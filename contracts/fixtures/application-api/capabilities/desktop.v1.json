@@ -7,7 +7,9 @@
     "deviceSync": true,
     "assistantInstall": true,
     "writingDataInstall": true,
-    "grammarInstall": true
+    "grammarInstall": true,
+    "clientAi": true,
+    "testHooks": false
   },
   "user": {
     "serverAi": true

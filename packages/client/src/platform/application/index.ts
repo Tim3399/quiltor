@@ -35,7 +35,13 @@ export interface ApplicationGateway {
   readonly synchronization: SynchronizationGateway;
 }
 
-export type { AssistantBatchRequest, AssistantGateway } from "./assistant";
+export type {
+  AssistantBatchRequest,
+  AssistantGateway,
+  AssistantRelayGateway,
+  RelayAnswered,
+  RelayNext,
+} from "./assistant";
 export type { BackupGateway, BackupLoginStart, BackupLoginStatus } from "./backup";
 export type { CapabilitiesGateway } from "./capabilities";
 export type {

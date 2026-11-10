@@ -134,6 +134,8 @@ export function createApplicationGatewayStub(
       wait: () => notStubbed("assistant.wait"),
       chat: () => notStubbed("assistant.chat"),
       progress: () => notStubbed("assistant.progress"),
+      relayNext: () => notStubbed("assistant.relayNext"),
+      relayAnswer: () => notStubbed("assistant.relayAnswer"),
       ...overrides.assistant,
     },
     writingAssistance: {

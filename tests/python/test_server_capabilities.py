@@ -5,15 +5,20 @@ flag comes from the same function as the `installable` its status route reports.
 """
 
 import json
+import os
+import tempfile
 import unittest
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application.capabilities import Feature
+from quiltor.bootstrap import build_identity, build_web_application
+from quiltor.bootstrap.application import AssistantServices
 from quiltor.delivery.http import routes as api_routes
 from tests.python.test_operator_only_routes import _InstallStubs
 from tests.python.test_server_auth import _LiveAuthServerTestCase
+from tests.python.test_server_logging import _directories
 
 FIXTURES = (
     Path(__file__).resolve().parents[2]
@@ -111,6 +116,54 @@ class SingleUserCapabilitiesTest(_InstallStubs):
     def test_locally_the_server_ai_is_always_allowed(self):
         _, _, body = self.capabilities()
         self.assertEqual(body["user"], {"serverAi": True})
+
+    def test_client_ai_follows_its_switch(self):
+        for allowed in (True, False):
+            self.application.assistant_client_ai = allowed
+            with self.subTest(allowed=allowed):
+                _, _, body = self.capabilities()
+                self.assertIs(body["instance"]["clientAi"], allowed)
+
+    def test_test_hooks_reports_what_the_application_was_built_with(self):
+        self.application.test_hooks = True
+        _, _, body = self.capabilities()
+        self.assertIs(body["instance"]["testHooks"], True)
+
+
+class TestHooksWiringTest(unittest.TestCase):
+    """QUILTOR_TEST_HOOKS comes from the environment only and is off by default (T-61, I-4)."""
+
+    def _build(self, environment: dict[str, str]):
+        cleared = {"QUILTOR_TEST_HOOKS": "", "QUILTOR_CSP": "", "QUILTOR_CSP_CONNECT_EXTRA": ""}
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.dict(os.environ, {**cleared, **environment}),
+            patch(
+                "quiltor.bootstrap.web.build_assistant_services",
+                return_value=AssistantServices(MagicMock(), MagicMock()),
+            ),
+        ):
+            application = build_web_application(
+                identity=build_identity(False),
+                ensure_assistant_installed=False,
+                app_directories=_directories(Path(tmp)),
+            )
+            application.close()
+            return application
+
+    def test_without_the_environment_there_is_no_flag_and_no_origin(self):
+        application = self._build({})
+        self.assertIs(application.test_hooks, False)
+        _, value = application.content_security_policy or ("", "")
+        self.assertNotIn("client-ai.example.test", value)
+
+    def test_only_the_value_1_turns_the_hooks_on(self):
+        for value, expected in (("1", True), ("0", False), ("true", False), ("yes", False)):
+            with self.subTest(value=value):
+                application = self._build({"QUILTOR_TEST_HOOKS": value})
+                self.assertIs(application.test_hooks, expected)
+                _, policy = application.content_security_policy or ("", "")
+                self.assertIs("client-ai.example.test" in policy, expected)
 
 
 class HostedCapabilitiesTest(_LiveAuthServerTestCase):
