@@ -141,19 +141,17 @@ test("a long name is cut with an ellipsis in the compact and detail tiers too", 
   await openScene(page);
   for (const tier of ["compact", "detail"] as const) {
     // The same node, put into the other tier: the rule under test is the tier's CSS.
-    const cut = await page
-      .locator('[data-id="fav-lang"] .story-node')
-      .evaluate((element, next) => {
-        element.classList.remove("zoom-overview", "zoom-compact", "zoom-detail");
-        element.classList.add(`zoom-${next}`);
-        element.style.setProperty("--node-compact-width", "98px");
-        element.style.setProperty("--node-compact-height", "33px");
-        const name = element.querySelector<HTMLElement>(".node-name") as HTMLElement;
-        return {
-          textOverflow: getComputedStyle(name).textOverflow,
-          truncated: name.scrollWidth > name.clientWidth,
-        };
-      }, tier);
+    const cut = await page.locator('[data-id="fav-lang"] .story-node').evaluate((element, next) => {
+      element.classList.remove("zoom-overview", "zoom-compact", "zoom-detail");
+      element.classList.add(`zoom-${next}`);
+      element.style.setProperty("--node-compact-width", "98px");
+      element.style.setProperty("--node-compact-height", "33px");
+      const name = element.querySelector<HTMLElement>(".node-name") as HTMLElement;
+      return {
+        textOverflow: getComputedStyle(name).textOverflow,
+        truncated: name.scrollWidth > name.clientWidth,
+      };
+    }, tier);
     // Without its own ellipsis rule the name is flex text: no ellipsis, and no box of its own
     // to overflow either, so it is cut hard at the node's edge.
     expect(cut.textOverflow, tier).toBe("ellipsis");
