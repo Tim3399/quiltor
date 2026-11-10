@@ -159,7 +159,8 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
             response["job"]["id"],
             cast(LocalIdentity, self.app.identity).master_sub,
             self.world_id,
-            timeout=3,
+            # A busy CI runner sometimes needs more than 3 s; wait returns as soon as the job is done.
+            timeout=15,
         )
 
     def _interactions(self):

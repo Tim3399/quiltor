@@ -8,7 +8,15 @@ kept for logs and local diagnostics; HTTP, MCP, and native hosts serialize the
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, NotRequired, TypedDict
+
+
+class StructuredError(TypedDict):
+    """An application failure as every host serializes it."""
+
+    code: str
+    retryable: bool
+    params: NotRequired[dict[str, Any]]
 
 
 class ApplicationError(Exception):
@@ -26,8 +34,8 @@ class ApplicationError(Exception):
         super().__init__(message or self.code)
         self.params = dict(params or {})
 
-    def structured(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {
+    def structured(self) -> StructuredError:
+        payload: StructuredError = {
             "code": self.code,
             "retryable": bool(self.retryable),
         }
