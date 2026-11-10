@@ -37,6 +37,7 @@ export const LINKS = [
   "check:i18n",
   "check:readme-screenshots",
   "check:platform",
+  "check:icons",
   "lint:biome",
   "lint:eslint",
   "check:format",

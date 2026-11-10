@@ -105,6 +105,31 @@ def _skip(label: str) -> None:
 WRITING_DATA_LABEL = "Pinned writing data asset is published and matches"
 
 
+class _KeepHeadRedirect(urllib.request.HTTPRedirectHandler):
+    """Follows a redirect with the method it was given when that is HEAD.
+
+    urllib turns every redirected request into a GET, and GitHub answers a release asset with a
+    302 to its storage: the HEAD would start the download it is meant to avoid.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        follow = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if follow is None or req.get_method() != "HEAD":
+            return follow
+        return urllib.request.Request(
+            follow.full_url,
+            headers=dict(follow.header_items()),
+            origin_req_host=req.origin_req_host,
+            unverifiable=True,
+            method="HEAD",
+        )
+
+
+def _open_head(url: str, timeout: float):
+    request = urllib.request.Request(url, method="HEAD")
+    return urllib.request.build_opener(_KeepHeadRedirect).open(request, timeout=timeout)
+
+
 def _check_pinned_writing_data(data: Any = release_manifest._UNSET, timeout: float = 60.0) -> None:
     """The asset the registry pins must be downloadable and carry the pinned bytes and digest.
 
@@ -123,9 +148,7 @@ def _check_pinned_writing_data(data: Any = release_manifest._UNSET, timeout: flo
     for asset in assets:
         url, expected_bytes = str(asset["url"]), asset["bytes"]
         try:
-            with urllib.request.urlopen(
-                urllib.request.Request(url, method="HEAD"), timeout=timeout
-            ) as response:
+            with _open_head(url, timeout) as response:
                 status = response.status
                 length = response.headers.get("Content-Length")
             if status != 200:

@@ -1,10 +1,65 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { lazyModules, viteFsUrl, warmUp } from "./warm-vite.mjs";
+import warmGallery, {
+  shouldWarm,
+  WARM_TIMEOUT_MS,
+} from "../../tests/design/warm-gallery.setup.mjs";
+import { importAcrossReloads, lazyModules, viteFsUrl, warmUp } from "./warm-vite.mjs";
+
+test("an import the page reloaded under runs again once it has loaded, a few times at most", async () => {
+  const destroyed = new Error("page.evaluate: Execution context was destroyed");
+  let tries = 0;
+  let waits = 0;
+  const flaky = async () => {
+    tries += 1;
+    if (tries < 3) throw destroyed;
+    return "done";
+  };
+  assert.equal(await importAcrossReloads(flaky, async () => (waits += 1)), "done");
+  assert.deepEqual([tries, waits], [3, 2]);
+
+  await assert.rejects(
+    importAcrossReloads(
+      async () => {
+        throw destroyed;
+      },
+      async () => {},
+    ),
+    /Execution context was destroyed/,
+  );
+  await assert.rejects(
+    importAcrossReloads(
+      async () => {
+        throw new Error("404 Not Found");
+      },
+      async () => assert.fail("no reload to wait for"),
+    ),
+    /404/,
+  );
+});
+
+test("the design config warms its own gallery before the first test, in CI", async () => {
+  const config = readFileSync(
+    new URL("../../playwright.design.config.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(config, /globalSetup: "\.\/tests\/design\/warm-gallery\.setup\.mjs"/);
+
+  const calls = [];
+  const warm = async (options) => calls.push(options);
+  const designConfig = { projects: [{ use: { baseURL: "http://127.0.0.1:4174" } }] };
+  await warmGallery(designConfig, { warm, env: { CI: "true" } });
+  assert.deepEqual(calls, [{ url: "http://127.0.0.1:4174", timeoutMs: WARM_TIMEOUT_MS }]);
+
+  await warmGallery(designConfig, { warm, env: {} });
+  await warmGallery(designConfig, { warm, env: { CI: "true", QUILTOR_DESIGN_WARM: "0" } });
+  assert.equal(calls.length, 1);
+  assert.equal(shouldWarm({ CI: "1" }), true);
+});
 
 const never = () => new Promise(() => {});
 

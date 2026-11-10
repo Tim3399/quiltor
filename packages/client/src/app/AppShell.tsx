@@ -41,17 +41,30 @@ const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
 // all, so a tick at that resolution is enough -- and it runs only while there is a time to be
 // seen in the first place.
 //
-// The clock is an external store read in whole ticks: the snapshot is the current tick number,
-// so it is stable between ticks (as useSyncExternalStore requires) and a render that happens
-// long after the last tick still sees the right time, without an effect to catch up. The timer
-// is armed for the next tick boundary and runs only while `active`.
+// The clock is an external store read in whole ticks: the snapshot is the time it was first read
+// in the current tick, so it is stable between ticks (as useSyncExternalStore requires) and a
+// render that happens long after the last tick still sees the right time, without an effect to
+// catch up. The timer is armed for the next tick boundary and runs only while `active`.
+//
+// The snapshot is that real time, not the tick boundary: from the boundary it would lag up to
+// 30 s, and since relativeTime rounds down the bar would show a minute too little for that
+// long. The reader starts afresh whenever the clock is switched on, so a saved state that
+// appears mid-tick is measured from the moment it appears.
 const TICK_MS = 30_000;
-const readTick = () => Math.floor(Date.now() / TICK_MS);
+let clock = { tick: Number.NaN, now: 0 };
+const readNow = () => {
+  const now = Date.now();
+  const tick = Math.floor(now / TICK_MS);
+  if (tick !== clock.tick) clock = { tick, now };
+  return clock.now;
+};
 
 function useMinuteTick(active: boolean) {
   const subscribe = useCallback(
     (onTick: () => void) => {
       if (!active) return () => undefined;
+      // React reads the snapshot again right after subscribing and renders the fresh time.
+      clock = { tick: Number.NaN, now: 0 };
       let timer = 0;
       const arm = () => {
         timer = window.setTimeout(
@@ -67,7 +80,7 @@ function useMinuteTick(active: boolean) {
     },
     [active],
   );
-  return useSyncExternalStore(subscribe, readTick) * TICK_MS;
+  return useSyncExternalStore(subscribe, readNow);
 }
 
 export function AppShell({

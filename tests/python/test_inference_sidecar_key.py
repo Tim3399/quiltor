@@ -6,7 +6,9 @@ never appears in a process list, and a redirect never carries it to another host
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import socket
@@ -283,6 +285,37 @@ def _load_bridge():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class BridgeLogTests(unittest.TestCase):
+    """What the bridge prints lands in its log file next to the data (T-64, F-58-6)."""
+
+    def test_the_key_never_reaches_the_bridge_log(self):
+        env = patch.dict(os.environ, {"QUILTOR_SIDECAR_KEY": KEY})
+        env.start()
+        self.addCleanup(env.stop)
+        bridge = _load_bridge()
+
+        class Tokenizer:
+            def encode(self, text):
+                return list(range(len(text.split())))
+
+        bridge.STATE.update(ready=True, tokenizer=Tokenizer())
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            server, url = _serve(bridge.Handler)
+            try:
+                count_tokens(url, "zwei Worte", api_key=KEY)
+                with self.assertRaisesRegex(RuntimeError, "HTTP 401"):
+                    count_tokens(url, "zwei Worte", api_key=f"{KEY}-wrong")
+                with self.assertRaisesRegex(RuntimeError, "HTTP 401"):
+                    invoke_chat(url, CHAT_PAYLOAD)
+            finally:
+                server.shutdown()
+                server.server_close()
+        log = printed.getvalue()
+        self.assertIn("MLX bridge:", log, "the bridge logged nothing, so nothing was checked")
+        self.assertNotIn(KEY, log)
 
 
 class BridgeHandlerTests(unittest.TestCase):
