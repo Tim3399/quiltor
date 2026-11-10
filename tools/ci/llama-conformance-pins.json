@@ -3,10 +3,12 @@
   "models": [
     {
       "name": "smollm2-135m-instruct",
-      "repo": "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
-      "file": "smollm2-135m-instruct-q8_0.gguf",
-      "license": "Apache-2.0 [unverified]",
-      "approximate_bytes": 145000000,
+      "repo": "bartowski/SmolLM2-135M-Instruct-GGUF",
+      "revision": "09816acd5d99df7be770d85ea30822623dab342c",
+      "file": "SmolLM2-135M-Instruct-Q8_0.gguf",
+      "license": "Apache-2.0 (model card of the repository)",
+      "origin": "imatrix quantisation of HuggingFaceTB/SmolLM2-135M-Instruct by bartowski, made with llama.cpp b3991",
+      "approximate_bytes": 144811360,
       "sha256": null
     }
   ],

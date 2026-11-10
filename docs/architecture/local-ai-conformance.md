@@ -55,12 +55,15 @@ The model only has to carry a chat template (the server starts with `--jinja`) a
 schema-constrained request; the grammar decides the tokens, so a tiny model is enough for the
 envelope, `usage`, `finish_reason` and the context error. That is an assumption until a CI run
 shows it (T-179 F4). There is exactly one model: the user approved the download of SmolLM2
-135M and no other, not even as a fallback. `load_pins` refuses a pins file that lists any
+135M and no other, not even as a fallback. HuggingFaceTB publishes no GGUF, so the file comes
+from a third party the user approved by name: `bartowski/SmolLM2-135M-Instruct-GGUF`, an imatrix
+quantisation of `HuggingFaceTB/SmolLM2-135M-Instruct` (llama.cpp b3991), pinned at revision
+`09816acd5d99df7be770d85ea30822623dab342c`. `load_pins` refuses a pins file that lists any
 other model, so a second candidate cannot slip in through the pins.
 
-| Model                 | File                              | Size         | Licence                       | Digest     |
-| --------------------- | --------------------------------- | ------------ | ----------------------------- | ---------- |
-| SmolLM2 135M Instruct | `smollm2-135m-instruct-q8_0.gguf` | about 145 MB | Apache-2.0 (not yet verified) | not pinned |
+| Model                 | File                              | Size              | Licence                 | Digest     |
+| --------------------- | --------------------------------- | ----------------- | ----------------------- | ---------- |
+| SmolLM2 135M Instruct | `SmolLM2-135M-Instruct-Q8_0.gguf` | 144 811 360 bytes | Apache-2.0 (model card) | not pinned |
 
 Sizes and licences are expectations, not measurements. The first run is a spike
 (`spike: true`): it may use a model whose digest is not pinned, and its summary prints the

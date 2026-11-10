@@ -106,20 +106,22 @@ class _Collector(unittest.TestResult):
 # --- Pins --------------------------------------------------------------------------------------
 
 
-# The only model whose download the user approved (T-179, D-4c): SmolLM2 135M, about 145 MB.
+# The only model whose download the user approved (T-179, D-4c, D-4d): SmolLM2 135M, about 145 MB,
+# as the imatrix quantisation by bartowski (HuggingFaceTB publishes no GGUF), at one revision.
 # The pins must name exactly this one; any other model -- a second candidate, a fallback -- is
 # refused before anything is downloaded. Adding one is the user's decision, not a pins edit.
 APPROVED_MODELS = {
     "smollm2-135m-instruct": (
-        "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
-        "smollm2-135m-instruct-q8_0.gguf",
+        "bartowski/SmolLM2-135M-Instruct-GGUF",
+        "SmolLM2-135M-Instruct-Q8_0.gguf",
+        "09816acd5d99df7be770d85ea30822623dab342c",
     ),
 }
 
 
 def load_pins(path: Path = PINS_PATH) -> dict[str, Any]:
     pins = json.loads(path.read_text(encoding="utf-8"))
-    named = [(m["name"], m["repo"], m["file"]) for m in pins["models"]]
+    named = [(m["name"], m["repo"], m["file"], m.get("revision")) for m in pins["models"]]
     approved = [(name, *source) for name, source in APPROVED_MODELS.items()]
     if named != approved:
         raise ValueError(
@@ -263,7 +265,7 @@ def install(home: Path, release: str, model: dict[str, Any]) -> Path:
     installer.LLAMA_CPP_RELEASE = release
     paths = installer.InstallerPaths.from_home(home)
     installer.install_runtime(paths=paths)
-    installer.install_model(model["repo"], model["file"], paths=paths)
+    installer.install_model(model["repo"], model["file"], paths=paths, revision=model["revision"])
     return paths.models / model["file"]
 
 
