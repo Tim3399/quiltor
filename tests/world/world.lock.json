@@ -820,6 +820,8 @@
       "accent": "ink",
       "id": "x-masslos-ebene",
       "label": "⟦el.x-masslos-ebene.label⟧",
+      "mapX": 1300,
+      "mapY": 600,
       "name": "⟦el.x-masslos-ebene.name⟧",
       "profile": {
         "fields": [],
@@ -827,7 +829,7 @@
       },
       "sub": "⟦el.x-masslos-ebene.sub⟧",
       "type": "ort",
-      "x": 2740,
+      "x": 1980,
       "y": 80
     },
     "world.figures.nodes[x-masslose-karte]": {
@@ -850,8 +852,8 @@
       },
       "sub": "⟦el.x-masslose-karte.sub⟧",
       "type": "ort",
-      "x": 200,
-      "y": 200
+      "x": 1220,
+      "y": 770
     },
     "world.figures.nodes[x-nordhafen]": {
       "accent": "ink",

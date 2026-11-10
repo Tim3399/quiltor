@@ -117,13 +117,15 @@ export function describeEdge(api, world) {
     // A map with its picture but no frame size, the way older or foreign documents arrive
     // (T-79). The server fills the size in from the picture when the world is loaded; the
     // stored document keeps it absent until the next ordinary save. It stands on a level of
-    // its own, so no other spec's framing or expanded-map state ever sees it.
-    node("x-masslos-ebene", "ort", 2740, 80, {}, ""),
+    // its own, so no other spec's framing or expanded-map state ever sees it. The level's own
+    // card stands inside the area the world level and the figures board already span: placed
+    // beyond it, it would widen the first framing and push other specs' places off a phone.
+    node("x-masslos-ebene", "ort", 1980, 80, { mapX: 1300, mapY: 600 }, ""),
     node(
       "x-masslose-karte",
       "ort",
-      200,
-      200,
+      1220,
+      770,
       {
         parentPlaceId: "x-masslos-ebene",
         mapX: 200,

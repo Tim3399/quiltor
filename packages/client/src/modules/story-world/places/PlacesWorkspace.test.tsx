@@ -1192,8 +1192,11 @@ describe("resizing a map with a scale", () => {
       </I18nProvider>
     );
   }
-  const stored = (onChange: ReturnType<typeof vi.fn>) =>
-    (onChange.mock.calls.at(-1)?.[0] as FigureState).nodes[0];
+  const stored = (onChange: ReturnType<typeof vi.fn>) => {
+    const last = onChange.mock.calls.at(-1);
+    if (!last) throw new Error("Nothing was written.");
+    return (last[0] as FigureState).nodes[0];
+  };
 
   it("writes size and recomputed scale in one change, and one undo takes both back", () => {
     const onChange = vi.fn();

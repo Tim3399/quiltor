@@ -88,10 +88,10 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
   // must not turn a distortion back into a proportional resize, and a changed
   // `keepAspectRatio` would rebind the resizer in the middle of the gesture.
   const gesture = useRef<ResizeGesture | null>(null);
-  const [, setGestureEnded] = useState(0);
+  // The mode as state, so the prop can read it while rendering; the ref keeps the start.
+  const [frozenFree, setFrozenFree] = useState<boolean | null>(null);
   const shiftHeld = useKeyPress("Shift");
-  // eslint-disable-next-line react-hooks/refs -- read on purpose: the frozen mode of the running gesture decides the prop, and every start and end re-renders
-  const free = gesture.current?.free ?? shiftHeld;
+  const free = frozenFree ?? shiftHeld;
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!data.adjusting) return;
@@ -165,13 +165,13 @@ export function PlaceMapNode({ data, selected }: NodeProps<PlaceMapFlowNode>) {
         lineClassName="place-map-node__line nokey"
         onResizeStart={(_, start) => {
           gesture.current = { start: mapBoxOf(start), free: shiftHeld };
-          setGestureEnded((count) => count + 1);
+          setFrozenFree(shiftHeld);
         }}
         onResize={(_, box) => data.onResizeLive(place, mapBoxOf(box))}
         onResizeEnd={(_, box) => {
           const began = gesture.current;
           gesture.current = null;
-          setGestureEnded((count) => count + 1);
+          setFrozenFree(null);
           data.onResize(place, mapBoxOf(box), began);
         }}
       />
