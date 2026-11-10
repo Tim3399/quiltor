@@ -353,6 +353,27 @@ class RefreshSessionTests(unittest.TestCase):
         self.assertEqual(session.access_token, "access-0")
         self.assertEqual(self.provider.token_requests, 0)
 
+    def test_a_render_session_never_asks_the_provider(self):
+        """A render-token session carries no tokens at all; `access_expires_at == 0` means
+        it never expires, so no clock reading may turn it into a token request (T-68)."""
+        render = self.gateway.create_session("alice", "", "")
+        for _ in range(3):
+            self.now += 10_000
+            self.assertIsNotNone(self.gateway.refresh_session(render))
+        self.assertEqual(self.provider.token_requests, 0)
+
+    def test_tokens_without_an_expiry_are_not_refreshed(self):
+        """A token endpoint that sends no `expires_in` leaves the expiry at 0: never due,
+        or every request would go to the provider (T-68, F-58-9)."""
+        self.gateway.store_session_tokens(
+            self.session_id,
+            {"access_token": "access-1", "refresh_token": "refresh-1"},
+            verified_claims={"sub": "alice", "roles": ["premium"]},
+        )
+        self.now += 10_000
+        self.assertEqual(present(self._refresh()).access_token, "access-1")
+        self.assertEqual(self.provider.token_requests, 0)
+
     def test_a_withdrawn_role_is_gone_after_the_refresh(self):
         self.provider.roles = []
         self._expire()

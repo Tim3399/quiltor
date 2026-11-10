@@ -33,6 +33,8 @@ import release_preflight  # noqa: E402
 import set_version  # noqa: E402
 import workflow_contract  # noqa: E402
 
+from tests.python.git_bash import find_bash  # noqa: E402
+
 BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
 TEST_WORKFLOW = REPO_ROOT / ".github/workflows/test.yml"
@@ -359,6 +361,41 @@ class ApplyVersionTests(VersionRepoTestCase):
         self.assertEqual(seen["version"], expected)
         self.assertEqual(seen["versions"], before)
         self.assertEqual(set(self.versions().values()), {seen["version"]})
+
+    def test_a_failed_version_update_puts_the_retaken_screenshots_back(self):
+        pictures = self.repo / "docs" / "screenshots" / "de"
+        pictures.mkdir(parents=True)
+        (pictures / "manifest.json").write_text('{"version": "old"}\n', encoding="utf-8")
+        self._git("add", "-A")
+        self._git(
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "pictures",
+        )
+
+        def retake(repo_root, version):
+            (pictures / "manifest.json").write_text(f'{{"version": "{version}"}}\n', "utf-8")
+            (pictures / "new-view.png").write_bytes(b"png")
+
+        stderr = io.StringIO()
+        with (
+            patch.object(set_version, "REPO_ROOT", self.repo),
+            patch.object(set_version, "run_preflight"),
+            patch.object(set_version, "refresh_readme_screenshots", side_effect=retake),
+            patch.object(set_version, "apply_version", side_effect=OSError("disk full")),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(set_version.main(["minor"]), 1)
+
+        self.assertEqual(self._git("status", "--porcelain").strip(), "")
+        self.assertIn("docs/screenshots is back at the last commit", stderr.getvalue())
 
     def test_failed_screenshots_write_no_version(self):
         before = self.versions()
@@ -3272,9 +3309,9 @@ def run_gate_script(workflow, values):
     sees it, so the values go in as assignments ahead of the script, and the script on stdin.
     """
 
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
-        raise unittest.SkipTest("bash is not installed")
+        raise unittest.SkipTest("needs bash (Git Bash on Windows; WSL's bash is not usable here)")
     aggregator = workflow_contract._job_body(workflow, "browser-e2e")
     script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
     assert script is not None, "browser-e2e has no run block"
@@ -3672,9 +3709,9 @@ def run_step_script(workflow, job, step_name, preamble, cwd=None):
     Returns (exit code, output).
     """
 
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
-        raise unittest.SkipTest("bash is not installed")
+        raise unittest.SkipTest("needs bash (Git Bash on Windows; WSL's bash is not usable here)")
     body = workflow_contract._job_body(workflow, job)
     start = body.find(f"      - name: {step_name}\n")
     if start < 0:  # the name is not the step's first key (`- id: x` comes first)
@@ -4616,9 +4653,18 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
         }
 
     def run_check(self, data, responses) -> str:
+        # The HEAD and the download draw from the same queue, in the order the check asks.
+        queue = iter(responses) if isinstance(responses, list) else None
+
+        def answer(*_args, **_kwargs):
+            if queue is None:
+                raise cast(BaseException, responses)
+            return next(queue)
+
         output = io.StringIO()
         with (
-            patch.object(release_preflight.urllib.request, "urlopen", side_effect=responses),
+            patch.object(release_preflight, "_open_head", side_effect=answer),
+            patch.object(release_preflight.urllib.request, "urlopen", side_effect=answer),
             contextlib.redirect_stdout(output),
         ):
             release_preflight._check_pinned_writing_data(data)
@@ -4648,6 +4694,47 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
                 self.assertRaisesRegex(release_preflight.PreflightError, "Pinned writing data"),
             ):
                 self.run_check(self.pin(), responses)
+
+    def test_head_stays_head_behind_a_redirect(self):
+        # GitHub answers a release asset with a 302 to its storage; urllib would follow it with
+        # a GET and start the download the HEAD is there to avoid.
+        import http.server
+        import threading
+
+        methods: list[tuple[str, str]] = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def _answer(self):
+                methods.append((self.command, self.path))
+                if self.path == "/asset":
+                    self.send_response(302)
+                    self.send_header("Location", "/storage")
+                    self.send_header("Content-Length", "0")
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "6")
+                self.end_headers()
+                if self.command == "GET" and self.path == "/storage":
+                    self.wfile.write(b"sqlite")
+
+            do_HEAD = _answer
+            do_GET = _answer
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/asset"
+            with release_preflight._open_head(url, 10) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get("Content-Length"), "6")
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(methods, [("HEAD", "/asset"), ("HEAD", "/storage")])
 
     def test_check_is_not_part_of_the_matrix_coverage(self):
         self.assertNotIn(release_preflight.WRITING_DATA_LABEL, release_preflight.COVERAGE)

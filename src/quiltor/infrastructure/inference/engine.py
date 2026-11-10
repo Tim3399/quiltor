@@ -139,15 +139,18 @@ class LocalInferenceEngine:
         except RuntimeError as exc:
             if not refuses_json_schema(exc):
                 raise
-        # Exactly one retry, and the provider is remembered as json_object-only, so a refusal
-        # never turns into a loop. The reply is still checked against the schema upstream.
-        self._json_object_only = True
-        return invoke_chat(
+        # Exactly one retry, so a refusal never turns into a loop. The provider is remembered
+        # as json_object-only only once json_object worked: a 400 that merely names
+        # response_format for another reason fails the retry too and must not switch the
+        # process for good (T-187). The reply is still checked against the schema upstream.
+        answer = invoke_chat(
             self.url,
             json_object_fallback(request),
             include_metadata=True,
             api_key=self.endpoint.api_key,
         )
+        self._json_object_only = True
+        return answer
 
     def count_tokens(self, text: str) -> int:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):

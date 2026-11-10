@@ -61,8 +61,10 @@ class WritingAssistanceService:
             or len(query) > 200
         ):
             raise ValueError("invalid language lookup")
-        if self.repository.version() != self.expected_version:
-            raise FileNotFoundError("language data is not installed or outdated")
+        # An outdated database still answers: status() reports it as stale and the UI
+        # offers the update, but the author keeps the words that are there (T-155).
+        if self.repository.version() is None:
+            raise FileNotFoundError("language data is not installed")
         return {
             "ok": True,
             "query": query,
