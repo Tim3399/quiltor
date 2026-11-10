@@ -202,6 +202,33 @@ describe("idle polls (F-61-24)", () => {
     expect(vi.mocked(relay.relayNext).mock.calls.length).toBeLessThanOrEqual(11);
   });
 
+  it("never waits longer than the floor when the clock is set back during a poll", async () => {
+    // The wall clock jumps an hour back while each poll is out (F-61-26). The pause must come
+    // from a monotonic clock and never exceed the floor, or the job misses its pickup deadline.
+    vi.useFakeTimers();
+    const relay: AssistantRelayGateway = {
+      relayNext: vi.fn(async (): Promise<RelayNext> => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        vi.setSystemTime(Date.now() - 3_600_000);
+        return { kind: "idle" };
+      }),
+      relayAnswer: vi.fn(),
+    };
+    const controller = new AbortController();
+    const loop = runRelayLoop({
+      jobId: "job",
+      executor: executor(),
+      relay,
+      signal: controller.signal,
+    });
+    await vi.advanceTimersByTimeAsync(3_000);
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await loop).toBe("aborted");
+    // One poll at the start and one per second: an hour-long sleep would leave just one.
+    expect(vi.mocked(relay.relayNext).mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("does not wait after a long poll that held its full time", async () => {
     vi.useFakeTimers();
     let calls = 0;
