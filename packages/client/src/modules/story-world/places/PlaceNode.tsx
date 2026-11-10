@@ -265,34 +265,39 @@ export function PlaceNode({
           // would put text on the card that nothing can reach.
           secondary={item.mapImageId ? undefined : item.sub}
         />
-        {data.zoomTier !== "overview" && !data.measuring && item.mapImageId ? (
-          <IconButton
-            className="place-node__enter nodrag nopan"
-            size="compact"
-            appearance="ghost"
-            label={t("placeExpandMap", { name: item.name })}
-            icon={<ChevronsUpDown />}
-            onClick={(event) => {
-              event.stopPropagation();
-              data.onExpandMap(item);
-            }}
-          />
-        ) : null}
-        {data.zoomTier !== "overview" && !data.measuring && !item.mapImageId ? (
-          <IconButton
-            className="place-node__enter nodrag nopan"
-            size="compact"
-            appearance="ghost"
-            label={t("placeShowAsPin", { name: item.name })}
-            icon={<ChevronsDownUp />}
-            onClick={(event) => {
-              event.stopPropagation();
-              pendingFocusLabel.current = t("placeShowAsCard", { name: item.name });
-              data.onPlaceDisplayChange(item, "pin");
-            }}
-          />
-        ) : null}
-        {data.zoomTier !== "overview" && !data.measuring ? (
+      </StoryNodeCard>
+      {data.zoomTier !== "overview" && !data.measuring ? (
+        // The card's commands are its sibling, not its children: the card clips what lies
+        // outside it, and on a touch screen they hang below it, where the tap that selects
+        // the card cannot reach them (D-T-219-F2). On a desktop they sit in its corner.
+        <div className="place-node__commands">
+          {item.mapImageId ? (
+            <IconButton
+              className="place-node__enter nodrag nopan"
+              size="compact"
+              appearance="ghost"
+              label={t("placeExpandMap", { name: item.name })}
+              icon={<ChevronsUpDown />}
+              onClick={(event) => {
+                event.stopPropagation();
+                data.onExpandMap(item);
+              }}
+            />
+          ) : null}
+          {!item.mapImageId ? (
+            <IconButton
+              className="place-node__enter nodrag nopan"
+              size="compact"
+              appearance="ghost"
+              label={t("placeShowAsPin", { name: item.name })}
+              icon={<ChevronsDownUp />}
+              onClick={(event) => {
+                event.stopPropagation();
+                pendingFocusLabel.current = t("placeShowAsCard", { name: item.name });
+                data.onPlaceDisplayChange(item, "pin");
+              }}
+            />
+          ) : null}
           <IconButton
             className="place-node__enter nodrag nopan"
             size="compact"
@@ -308,8 +313,8 @@ export function PlaceNode({
               data.onOpenLevel(item);
             }}
           />
-        ) : null}
-      </StoryNodeCard>
+        </div>
+      ) : null}
     </div>
   );
 }
