@@ -72,7 +72,10 @@ class _FakeSidecar(_Quiet):
             content = json.dumps({"answer": "ok"})
             self._reply(
                 200,
-                {"choices": [{"message": {"content": content}, "finish_reason": "stop"}]},
+                {
+                    "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                },
             )
 
 

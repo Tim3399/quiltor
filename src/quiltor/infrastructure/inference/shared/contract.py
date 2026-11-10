@@ -6,10 +6,12 @@ import os
 import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from typing import Any
 
 from quiltor.modules.assistant.ports import (
     IncompleteInferenceResponse,
+    InferenceContextTooLargeError,
     InferenceTimeoutError,
     InferenceUnavailableError,
     InferenceValidationError,
@@ -21,25 +23,151 @@ DEFAULT_CHAT_TIMEOUT_SECONDS = 600
 EXTERNAL_ERROR_DETAIL_CHARS = 300
 
 
-class InferenceHTTPError(RuntimeError):
-    """An HTTP error from the model server, with the status kept for callers that branch on it."""
+# How much of an error body is read at all, and how long a field taken from it may be.
+ERROR_BODY_READ_BYTES = 64 * 1024
+ERROR_FIELD_CHARS = 100
 
-    def __init__(self, message: str, status: int, detail: str) -> None:
+
+class InferenceHTTPError(RuntimeError):
+    """An HTTP error from the model server, with the status kept for callers that branch on it.
+
+    `error_type`, `error_code`, `param` and `upstream_code` are the error as local-ai-contract
+    3.3 normalises it (see `normalise_error`); all of them are None when the server sent no
+    envelope. `detail` stays the raw, redacted and cut text.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status: int,
+        detail: str,
+        *,
+        error_type: str | None = None,
+        error_code: str | None = None,
+        param: str | None = None,
+        upstream_code: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
         self.detail = detail
+        self.error_type = error_type
+        self.error_code = error_code
+        self.param = param
+        self.upstream_code = upstream_code
 
 
-def _error_detail(exc: urllib.error.HTTPError, api_key: str | None) -> str:
+@dataclass(frozen=True)
+class NormalisedError:
+    """An error response in the contract's own terms (local-ai-contract 3.1 and 3.3)."""
+
+    status: int
+    code: str | None
+    error_type: str | None
+    param: str | None
+    # What the server itself called it, when that is not the contract's name (N1, N2, N8, N15).
+    upstream_code: str | None
+
+
+# N2 and N15: classes servers name themselves, and the contract code each one means.
+_UPSTREAM_CODES = {
+    "exceed_context_size_error": "context_too_large",
+    "context_length_exceeded": "context_too_large",
+    "not_supported_error": "unsupported_parameter",
+    "unavailable_error": "unavailable",
+}
+
+
+def _field(value: Any) -> str | None:
+    """A short string from an error body, or None: nothing else is let through."""
+    if isinstance(value, str) and value:
+        return value[:ERROR_FIELD_CHARS]
+    return None
+
+
+def _type_for_status(status: int) -> str:
+    if status == 429:
+        return "rate_limit_error"
+    if status == 503:
+        return "service_unavailable_error"
+    if status >= 500:
+        return "api_error"
+    return "invalid_request_error"
+
+
+def normalise_error(status: int, body: str | bytes | dict[str, Any] | None) -> NormalisedError:
+    """Read an error body into the contract's envelope (3.1), whichever server wrote it.
+
+    - N1, N8: an integer `code` is no code; it becomes `upstream_code`, `code` stays None.
+    - N2, N15: a server's own class (llama `exceed_context_size_error`, OpenAI
+      `context_length_exceeded`) maps to the contract code, the server's name goes to
+      `upstream_code`.
+    - N12: a missing `param` or `code` is None, never an error.
+    - N20: anything that is not an envelope (a bare string, no JSON) has no code and no param;
+      its type comes from the status.
+
+    Only short strings are taken from the body, so what a server echoes cannot travel on.
+    """
+    document: Any = body
+    if isinstance(body, (str, bytes)):
+        try:
+            document = json.loads(body)
+        except ValueError:
+            document = None
+    error = document.get("error") if isinstance(document, dict) else None
+    if not isinstance(error, dict):
+        return NormalisedError(status, None, _type_for_status(status), None, None)
+
+    raw_code = error.get("code")
+    error_type = _field(error.get("type"))
+    code = _field(raw_code)
+    upstream_code = None
+    if isinstance(raw_code, int) and not isinstance(raw_code, bool):
+        upstream_code = str(raw_code)
+    for named in (error_type, code):
+        if named in _UPSTREAM_CODES:
+            code, upstream_code = _UPSTREAM_CODES[named], named
+            break
+    return NormalisedError(
+        status,
+        code,
+        error_type or _type_for_status(status),
+        _field(error.get("param")),
+        upstream_code,
+    )
+
+
+def _error_body(exc: urllib.error.HTTPError, api_key: str | None) -> tuple[str, str]:
+    """The error body with the key replaced, and the cut version kept as `detail`.
+
+    The key is replaced before the text is parsed or kept anywhere: a provider may echo the
+    request, headers included, in its error body (T-58 P5).
+    """
     try:
-        body = exc.read().decode("utf-8", errors="replace").strip()
+        body = exc.read(ERROR_BODY_READ_BYTES).decode("utf-8", errors="replace").strip()
     except Exception:  # noqa: BLE001 - an unreadable error body is replaced by the reason
         body = ""
     if not api_key:
-        return body[:1000] if body else str(exc.reason)
-    # A provider may echo the request -- headers included -- in its error body. The key is
-    # replaced before the text goes anywhere, and the body is cut short (T-58 P5).
-    return (body or str(exc.reason)).replace(api_key, "***")[:EXTERNAL_ERROR_DETAIL_CHARS]
+        return body, body[:1000] if body else str(exc.reason)
+    redacted = (body or str(exc.reason)).replace(api_key, "***")
+    return redacted, redacted[:EXTERNAL_ERROR_DETAIL_CHARS]
+
+
+def _http_error(exc: urllib.error.HTTPError, api_key: str | None, what: str) -> RuntimeError:
+    """The exception a server's error response becomes: a context error, or an HTTP error."""
+    body, detail = _error_body(exc, api_key)
+    error = normalise_error(exc.code, body)
+    message = f"{what} responded with HTTP {exc.code}: {detail}"
+    if error.code == "context_too_large" and exc.code == 400:
+        return InferenceContextTooLargeError(message)
+    return InferenceHTTPError(
+        message,
+        exc.code,
+        detail,
+        error_type=error.error_type,
+        error_code=error.code,
+        param=error.param,
+        upstream_code=error.upstream_code,
+    )
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -91,27 +219,59 @@ def chat_timeout_seconds() -> int:
         return DEFAULT_CHAT_TIMEOUT_SECONDS
 
 
-def json_schema_format(
-    schema: dict[str, Any],
-    name: str = "quiltor_reply",
-) -> dict[str, Any]:
-    """Build the response_format that forces JSON-schema-constrained decoding.
+def _usage_is_complete(usage: Any) -> bool:
+    if not isinstance(usage, dict):
+        return False
+    return all(
+        isinstance(usage.get(name), int) and not isinstance(usage.get(name), bool)
+        for name in ("prompt_tokens", "completion_tokens", "total_tokens")
+    )
 
-    The schema must be nested under json_schema.schema -- a flatter
-    top-level "schema" key is silently ignored by llama.cpp (and by every
-    other OpenAI-compatible server), which disables constrained decoding
-    without raising any error. This is the one shape every runtime backend
-    (llama.cpp, MLX, a remote endpoint via QUILTOR_AI_URL) must honour.
+
+def _read_choice(result: Any, *, require_usage: bool) -> tuple[str, str]:
+    """The one choice of a chat response, checked as local-ai-contract section 4 asks.
+
+    Returns its content and finish_reason. A response that breaks the contract is an
+    `InferenceValidationError`:
+
+    - an `error` object in a 200 answer (N9) is an `InferenceHTTPError` instead: the server
+      failed after it had answered;
+    - not exactly one choice (C36);
+    - a `refusal` or an empty content (C19);
+    - a finish_reason that is neither "stop" nor "length" (C18);
+    - no `usage`, when the caller asks for it (C37: only the local path, where the server is
+      ours to hold to the contract; an external provider may leave it out).
     """
-
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": name,
-            "strict": True,
-            "schema": schema,
-        },
-    }
+    if not isinstance(result, dict):
+        raise ValueError("response is not an object")
+    if result.get("error") is not None:
+        error = normalise_error(502, result)
+        raise InferenceHTTPError(
+            "The local model answered with an error inside a successful response.",
+            502,
+            "error inside HTTP 200",
+            error_type=error.error_type,
+            error_code=error.code,
+            param=error.param,
+            upstream_code=error.upstream_code,
+        )
+    invalid = InferenceValidationError(
+        "The local model did not return a valid structured response."
+    )
+    choices = result["choices"]
+    if not isinstance(choices, list) or len(choices) != 1:
+        raise invalid
+    if require_usage and not _usage_is_complete(result.get("usage")):
+        raise invalid
+    choice = choices[0]
+    message = choice["message"]
+    content = message["content"]
+    finish_reason = choice.get("finish_reason")
+    if message.get("refusal") or not isinstance(content, str) or not content.strip():
+        raise invalid
+    if finish_reason not in {"stop", "length"}:
+        raise invalid
+    return content, finish_reason
 
 
 def invoke_chat(
@@ -120,11 +280,17 @@ def invoke_chat(
     timeout: int | float | None = None,
     include_metadata: bool = False,
     api_key: str | None = None,
+    require_usage: bool = False,
 ) -> dict[str, Any]:
     """POST an OpenAI-compatible /v1/chat/completions request.
 
     Chat inference uses a deliberately generous timeout because large prompts
     can spend several minutes in prompt evaluation on CPU-only machines.
+
+    The answer is held to the contract (see `_read_choice`). `finish_reason: length` is always
+    an `IncompleteInferenceResponse`, even when the cut-off content happens to parse: the
+    server stopped, so a shorter list or a missing field would pass as complete. The caller
+    may grow the output limit and ask again.
     """
 
     effective_timeout = timeout if timeout is not None else chat_timeout_seconds()
@@ -141,16 +307,11 @@ def invoke_chat(
         with _authorized_open(request, effective_timeout, api_key) as response:
             result = json.loads(response.read())
 
-        choice = result["choices"][0]
-        content = choice["message"]["content"]
-        finish_reason = choice.get("finish_reason")
+        content, finish_reason = _read_choice(result, require_usage=require_usage)
 
     except urllib.error.HTTPError as exc:
         # HTTPError inherits from URLError, so handle it first.
-        detail = _error_detail(exc, api_key)
-        raise InferenceHTTPError(
-            f"The local model responded with HTTP {exc.code}: {detail}", exc.code, detail
-        ) from exc
+        raise _http_error(exc, api_key, "The local model") from exc
 
     except TimeoutError as exc:
         raise InferenceTimeoutError(effective_timeout) from exc
@@ -162,10 +323,13 @@ def invoke_chat(
 
         raise InferenceUnavailableError(f"The local model is unreachable: {exc.reason}") from exc
 
-    except (KeyError, ValueError, TypeError) as exc:
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
         raise InferenceValidationError(
             "The local model did not return a valid structured response."
         ) from exc
+
+    if finish_reason == "length":
+        raise IncompleteInferenceResponse(content, finish_reason)
 
     try:
         parsed = json.loads(content)
@@ -174,7 +338,7 @@ def invoke_chat(
             usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
 
             parsed["_runtime"] = {
-                "finishReason": finish_reason or "unknown",
+                "finishReason": finish_reason,
                 "promptTokens": usage.get("prompt_tokens"),
                 "completionTokens": usage.get("completion_tokens"),
                 "totalTokens": usage.get("total_tokens"),
@@ -183,13 +347,7 @@ def invoke_chat(
 
         return parsed
 
-    except ValueError as exc:
-        if finish_reason == "length":
-            raise IncompleteInferenceResponse(
-                content,
-                finish_reason,
-            ) from exc
-
+    except (ValueError, TypeError) as exc:
         raise InferenceValidationError(
             "The local model did not return a valid structured response."
         ) from exc
@@ -244,10 +402,19 @@ _JSON_SCHEMA_REFUSAL_MARKERS = (
 
 
 def refuses_json_schema(exc: BaseException) -> bool:
+    """Whether a provider refused `response_format: json_schema` itself.
+
+    A provider that sends the error envelope says which parameter it means: only a refusal that
+    names `response_format` counts, whatever else the message mentions. A provider without one
+    (N20: OpenRouter's 404, a bare string) is read by the markers in its text, as before. This
+    never lets a refusal through that the markers alone would have turned away.
+    """
     if not isinstance(exc, InferenceHTTPError):
         return False
     if exc.status not in _JSON_SCHEMA_REFUSAL_STATUSES:
         return False
+    if exc.param is not None:
+        return exc.param.startswith("response_format")
     detail = exc.detail.lower()
     return any(marker in detail for marker in _JSON_SCHEMA_REFUSAL_MARKERS)
 
@@ -302,10 +469,7 @@ def count_tokens(
         return len(result["tokens"])
 
     except urllib.error.HTTPError as exc:
-        detail = _error_detail(exc, api_key)
-        raise InferenceHTTPError(
-            f"The local model tokenizer responded with HTTP {exc.code}: {detail}", exc.code, detail
-        ) from exc
+        raise _http_error(exc, api_key, "The local model tokenizer") from exc
 
     except TimeoutError as exc:
         raise InferenceTimeoutError(timeout) from exc
