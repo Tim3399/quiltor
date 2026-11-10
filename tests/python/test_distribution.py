@@ -591,6 +591,50 @@ class DesktopBuildContractTests(unittest.TestCase):
                     self.assertTrue(path.is_file(), path)
                     self.assertEqual(path.parent, REPO_ROOT / "src/quiltor/resources/example_world")
 
+    # Data files under src/quiltor a desktop bundle does not need, each with its reason.
+    # Anything else that is not Python must be in data_files(): PyInstaller packs modules only,
+    # and a data file the code reads at runtime is otherwise missing from the app (F-61-20).
+    NOT_IN_DESKTOP_BUNDLE = {
+        # Documentation for readers of the source.
+        "quiltor/hosts/mcp/README.md",
+        "quiltor/resources/sidecars/README.md",
+        # The checkout's profile; every bundle embeds its own generated one in its place.
+        "quiltor/infrastructure/platform/quiltor-build-profile.json",
+        # The Node PDF renderer of the container image; a desktop app renders through
+        # Playwright's Python driver or the system web view.
+        "quiltor/resources/sidecars/pdf/render-book-pdf.mjs",
+        # Ships only where MLX may be installed; test_direct_build_* covers that rule.
+        "quiltor/resources/sidecars/inference/mlx/requirements.lock",
+    }
+
+    def test_direct_desktop_bundles_carry_every_runtime_data_file(self):
+        source = REPO_ROOT / "src"
+        data = {
+            path.relative_to(source).as_posix()
+            for path in (source / "quiltor").rglob("*")
+            if path.is_file()
+            and path.suffix not in {".py", ".pyc"}
+            and "__pycache__" not in path.parts
+        }
+        self.assertIn("quiltor/bootstrap/csp-policy.json", data)
+        for profile_id in ("macos-direct", "windows-direct"):
+            with self.subTest(profile=profile_id):
+                packed = set()
+                for origin, destination in bundle.data_files(profile_id):
+                    origin_path = Path(origin)
+                    files = [origin_path] if origin_path.is_file() else []
+                    if origin_path.is_dir():
+                        files = [item for item in origin_path.rglob("*") if item.is_file()]
+                    for item in files:
+                        inside = (
+                            item.relative_to(origin_path)
+                            if origin_path.is_dir()
+                            else Path(item.name)
+                        )
+                        packed.add((Path(destination) / inside).as_posix())
+                missing = sorted(data - packed - self.NOT_IN_DESKTOP_BUNDLE)
+                self.assertEqual(missing, [], "data files the desktop bundle would lack")
+
     def test_direct_desktop_bundles_embed_legal_documents(self):
         for profile_id in ("macos-direct", "windows-direct"):
             with self.subTest(profile=profile_id):

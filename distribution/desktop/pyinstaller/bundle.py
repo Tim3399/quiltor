@@ -187,6 +187,8 @@ def data_files(profile_id: str | None = None) -> list[tuple[str, str]]:
             "quiltor/resources/icons",
         ),
         (str(embedded), "quiltor/infrastructure/platform"),
+        # The Content-Security-Policy every HTML answer carries (T-61): read at every start.
+        (str(SOURCE_ROOT / "quiltor" / "bootstrap" / "csp-policy.json"), "quiltor/bootstrap"),
         # The example world (T-214): two documents and the harbour map, generated from
         # tests/world/ by `npm run world:update`. Only these three files are packed.
         *((str(SOURCE_ROOT / EXAMPLE_WORLD / name), EXAMPLE_WORLD) for name in EXAMPLE_WORLD_FILES),
