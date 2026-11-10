@@ -136,17 +136,30 @@ test("Known node kinds: every node type the canvases register is covered here", 
     ],
     [
       "packages/client/src/modules/story-world/places/PlaceCanvas.tsx",
-      /nodeTypes: \{ \.\.\.placeNodeTypes, ([^}]*) \}/,
+      // Across lines too: a formatter wraps the object once it grows.
+      /nodeTypes: \{\s*\.\.\.placeNodeTypes,([^}]*)\}/,
     ],
   ].flatMap(([file, pattern]) => {
     const match = readFileSync(file as string, "utf8").match(pattern as RegExp);
     if (!match) throw new Error(`No node type registration found in ${file}.`);
-    return match[1].split(",").map((entry) => entry.split(":")[0].trim());
+    return match[1]
+      .split(",")
+      .map((entry) => entry.split(":")[0].trim())
+      .filter(Boolean);
   });
   // story: figure card (no commands, asserted below). place: place card and pin.
   // placeMap / placeGround: the map surface and its ground, drawn without commands of their own;
-  // the map's commands live on its card and toolbar. storyboard: note, reference, board, group.
-  expect(registered.sort()).toEqual(["place", "placeGround", "placeMap", "story", "storyboard"]);
+  // the map's commands live on its card and toolbar. measurePoint: a free point set while
+  // measuring (T-79), a marker that is neither selectable nor focusable and has no commands.
+  // storyboard: note, reference, board, group.
+  expect(registered.sort()).toEqual([
+    "measurePoint",
+    "place",
+    "placeGround",
+    "placeMap",
+    "story",
+    "storyboard",
+  ]);
 });
 
 test("Place: the card and the pin list their commands in the same order", async ({

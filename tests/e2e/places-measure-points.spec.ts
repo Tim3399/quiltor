@@ -44,6 +44,7 @@ async function openHarbourMap(page: Page) {
  * and the measuring lines lie over the picture too, so the nearest bare spot is taken.
  */
 async function pointOnMap(page: Page, map: Locator, mapId: string, u: number, v: number) {
+  await mapInView(page, mapId);
   const box = await map.locator(".place-map-node__frame").boundingBox();
   if (!box) throw new Error("The map has no screen geometry.");
   const offsets = [0, 0.03, -0.03, 0.06, -0.06, 0.09, -0.09];
@@ -58,6 +59,37 @@ async function pointOnMap(page: Page, map: Locator, mapId: string, u: number, v:
     }
   }
   throw new Error(`No bare spot of the map picture near ${u}, ${v}.`);
+}
+
+/**
+ * Zooms out until the map's picture lies whole inside the free canvas: inside the canvas,
+ * left of the inspector. How large the first framing draws it depends on the platform's
+ * fonts and chrome (on macOS the picture ran under the inspector), so the points a test
+ * plans on the picture are only taken once all of it can be reached.
+ */
+async function mapInView(page: Page, mapId: string) {
+  const frame = page.locator(
+    `.react-flow__node-placeMap[data-id="${mapId}"] .place-map-node__frame`,
+  );
+  const canvas = page.locator(".places-flow-area");
+  const inspector = page.locator(".places-inspector");
+  for (let step = 0; step < 6; step += 1) {
+    const picture = await frame.boundingBox();
+    const area = await canvas.boundingBox();
+    if (!picture || !area) throw new Error("The map or the canvas has no screen geometry.");
+    const panel = (await inspector.count()) ? await inspector.boundingBox() : null;
+    const right = Math.min(area.x + area.width, panel ? panel.x : Number.POSITIVE_INFINITY);
+    if (
+      picture.x >= area.x + 8 &&
+      picture.y >= area.y + 8 &&
+      picture.x + picture.width <= right - 8 &&
+      picture.y + picture.height <= area.y + area.height - 8
+    )
+      return;
+    await page.locator(".react-flow__controls-zoomout").click();
+    await waitForMapViewport(page);
+  }
+  throw new Error("The map's picture does not fit the free canvas.");
 }
 
 /** Screen to flow units through the viewport's own transform. */

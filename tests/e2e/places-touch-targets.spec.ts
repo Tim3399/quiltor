@@ -56,7 +56,11 @@ async function placeId(shell: Locator) {
  * scrolled into view, as a user would scroll the sheet, once nothing moves any more. */
 async function measure(scope: Locator) {
   return scope.evaluateAll(async (elements) => {
-    await Promise.all(document.getAnimations().map((animation) => animation.finished));
+    // A cancelled animation rejects `finished` with an AbortError (it happens on macOS);
+    // cancelled, it does not move anything either, so it counts as settled.
+    await Promise.all(
+      document.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+    );
     return elements.map((element) => {
       element.scrollIntoView({ block: "center" });
       const rect = element.getBoundingClientRect();

@@ -54,6 +54,37 @@ async function startCalibration(page: Page) {
   await expect(page.getByText("Maßstab messen: Setze den Anfang der Strecke.")).toBeVisible();
 }
 
+/**
+ * Zooms out until the map's picture lies whole inside the free canvas: inside the canvas,
+ * left of the inspector. How large the first framing draws it depends on the platform's
+ * fonts and chrome (on macOS the picture ran under the inspector), so the points a test
+ * plans on the picture are only taken once all of it can be reached.
+ */
+async function mapInView(page: Page, mapId: string) {
+  const frame = page.locator(
+    `.react-flow__node-placeMap[data-id="${mapId}"] .place-map-node__frame`,
+  );
+  const canvas = page.locator(".places-flow-area");
+  const inspector = page.locator(".places-inspector");
+  for (let step = 0; step < 6; step += 1) {
+    const picture = await frame.boundingBox();
+    const area = await canvas.boundingBox();
+    if (!picture || !area) throw new Error("The map or the canvas has no screen geometry.");
+    const panel = (await inspector.count()) ? await inspector.boundingBox() : null;
+    const right = Math.min(area.x + area.width, panel ? panel.x : Number.POSITIVE_INFINITY);
+    if (
+      picture.x >= area.x + 8 &&
+      picture.y >= area.y + 8 &&
+      picture.x + picture.width <= right - 8 &&
+      picture.y + picture.height <= area.y + area.height - 8
+    )
+      return;
+    await page.locator(".react-flow__controls-zoomout").click();
+    await waitForMapViewport(page);
+  }
+  throw new Error("The map's picture does not fit the free canvas.");
+}
+
 /** Flow to screen through the viewport's transform. */
 async function toScreen(page: Page, flow: Point): Promise<Point> {
   return page.evaluate(({ x, y }) => {
@@ -83,6 +114,7 @@ async function bareMap(page: Page, mapId: string, point: Point) {
  * neither end lies on a place or on the map's own header and footer.
  */
 async function stretchOnMap(page: Page, worldId: string, mapId: string) {
+  await mapInView(page, mapId);
   const map = await stored(page, worldId, mapId);
   const left = Number(map.mapX ?? map.x);
   const top = Number(map.mapY ?? map.y);
