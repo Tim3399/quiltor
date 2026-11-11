@@ -385,7 +385,7 @@ def main(argv: list[str] | None = None) -> int:
                 r.unit.name: round(r.seconds, 2) for r in sorted(results, key=lambda r: r.unit.name)
             },
         }
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     print()
     for result in failed:
