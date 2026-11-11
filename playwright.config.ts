@@ -20,6 +20,9 @@ const singleViewportSpecs = [
   // world list and one bar; no viewport changes what is sent or kept. The narrow layouts of
   // the world list are covered by world-gate-responsive.spec.ts.
   "**/example-world-preview.spec.ts",
+  // Sync against a real endpoint is a flow between processes (browser, a second Quiltor, the
+  // backup server); no viewport changes what is sent. Each project would start all three again.
+  "**/cloud-sync-real-endpoint.spec.ts",
 ];
 
 export default defineConfig({
