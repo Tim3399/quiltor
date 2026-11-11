@@ -141,6 +141,26 @@ describe("ChapterHistoryPanel timeline", () => {
     expect(screen.getByText("+2 / −3 Wörter")).toBeInTheDocument();
   });
 
+  it("keeps a version picked beyond the log as the single view's choice", async () => {
+    history.chapterTimeline.mockResolvedValue(page([edited, created], null));
+    const commits = [edited];
+    const { props, rerender } = renderPanel({ commits, selectedRef: edited.hash });
+    await openTimeline();
+
+    fireEvent.click(screen.getByRole("button", { name: /Erster Entwurf/ }));
+    expect(props.onRefChange).toHaveBeenCalledWith(created.hash);
+    rerender(
+      <I18nProvider>
+        <ChapterHistoryPanel {...props} selectedRef={created.hash} />
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Eine Version" }));
+
+    const select = screen.getByRole("combobox", { name: "Version" }) as HTMLSelectElement;
+    expect(select.value).toBe(created.hash);
+    expect(within(select).getAllByRole("option")).toHaveLength(2);
+  });
+
   it("loads older versions through next", async () => {
     history.chapterTimeline
       .mockResolvedValueOnce(page([edited], edited.hash))
