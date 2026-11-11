@@ -24,6 +24,10 @@ class BrandFileTests(unittest.TestCase):
         ]
         self.assertEqual(stale, [])
 
+    def test_every_generated_file_including_the_client_module_is_current(self):
+        # check() also covers brandMark.generated.ts, which brand_files() leaves out.
+        self.assertEqual(make_brand.check(), [])
+
     def test_the_pictures_reference_no_web_font(self):
         for name, data in make_brand.brand_files().items():
             if name.endswith(".svg"):
