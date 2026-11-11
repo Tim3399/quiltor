@@ -341,7 +341,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         os.chdir(previous)
     units = order(plan_units(modules, load_durations(start), args.split_seconds), args)
-    expected = sum(u.expected for u in units)
+    # Counted from discovery, not from the plan: a unit the plan drops must still be missed.
+    expected = sum(sum(classes.values()) for classes in modules.values())
 
     before = snapshot(cwd, Path(args.home)) if args.check_leaks else None
     temp_root = Path(tempfile.mkdtemp(prefix="quiltor-backend-"))

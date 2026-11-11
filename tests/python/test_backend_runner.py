@@ -231,7 +231,7 @@ class BackendRunnerTests(unittest.TestCase):
         root = self.suite(test_shrinking=LOSES_A_TEST)
         code, output = self.run_runner(root)
         self.assertEqual(code, 1, output)
-        self.assertIn("ran 1 tests, 2 were discovered", output)
+        self.assertIn("FAILED unit test_shrinking: ran 1 tests, 2 were discovered", output)
         self.assertIn("COUNT MISMATCH: ran 1 tests, 2 were discovered", output)
 
     def test_quiltor_variables_do_not_reach_the_units(self):
