@@ -61,9 +61,9 @@ quantisation of `HuggingFaceTB/SmolLM2-135M-Instruct` (llama.cpp b3991), pinned 
 `09816acd5d99df7be770d85ea30822623dab342c`. `load_pins` refuses a pins file that lists any
 other model, so a second candidate cannot slip in through the pins.
 
-| Model                 | File                              | Size              | Licence                 | Digest     |
-| --------------------- | --------------------------------- | ----------------- | ----------------------- | ---------- |
-| SmolLM2 135M Instruct | `SmolLM2-135M-Instruct-Q8_0.gguf` | 144 811 360 bytes | Apache-2.0 (model card) | not pinned |
+| Model                 | File                              | Size              | Licence                 | Digest                                                                               |
+| --------------------- | --------------------------------- | ----------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| SmolLM2 135M Instruct | `SmolLM2-135M-Instruct-Q8_0.gguf` | 144 811 360 bytes | Apache-2.0 (model card) | `5a1395716f7913741cc51d98581b9b1228d80987a9f7d3664106742eb06bba83` (run 42884579021) |
 
 Sizes and licences are expectations, not measurements. The first run is a spike
 (`spike: true`): it may use a model whose digest is not pinned, and its summary prints the
@@ -73,14 +73,30 @@ is downloaded.
 
 ### Known deviations per pin
 
-| Release                      | Known deviations                                                                     | Cases    | Source                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------ | -------- | ---------------------------------------------------------- |
-| `b12183`                     | N1 (integer `error.code`, no `param`), N2 (own error types), N3 (extra error fields) | C22, C20 | T-194 via contract 5.1; expectation, not yet measured here |
-| `b10218` (the product's pin) | none recorded                                                                        | none     | not yet measured; the first run decides                    |
+Measured in [run 42884579021](https://github.com/Tim3399/quiltor/actions/runs/42884579021)
+(spike, SmolLM2 135M Q8_0). The raw answers are kept as
+`tests/python/fixtures/llama-conformance/llama-answers-<release>.jsonl`, and
+`llama_conformance.py --release <release> --replay <file>` grades them again exactly as CI does,
+without fetching or starting anything.
 
-The list is the expectation from the contract (section 5.1) until a run has written the real
-answers. After the first run, replace it with what the artifact shows. A change of
-`LLAMA_CPP_RELEASE` needs an entry here and in the pins file; a test fails otherwise.
+| Case | `b10218` (the product's pin) | `b12183`    | What the server answered                                                   | Contract code |
+| ---- | ---------------------------- | ----------- | -------------------------------------------------------------------------- | ------------- |
+| C01  | pass                         | pass        | 200, `finish_reason: stop`                                                 |               |
+| C02  | fail, known                  | fail, known | 200 and an answer to a request without `model` (400 expected)              | open          |
+| C03  | fail, known                  | fail, known | 200 and an answer to the role `robot` (400 expected)                       | open          |
+| C17  | pass                         | pass        | 200, `finish_reason: length` after one token                               |               |
+| C20  | pass                         | pass        | 400 `exceed_context_size_error`, integer `code`, `n_prompt_tokens`/`n_ctx` |               |
+| C22  | fail, known                  | fail, known | 200: its trigger is the request of C02, so no error envelope comes back    | open          |
+| C39  | skip                         | skip        | 404, `/x/v1/tokenize` is not offered                                       |               |
+| C40a | skip                         | skip        | 404, `/x/v1/health` is not offered                                         |               |
+
+Both releases grade **conformant with known deviations**. The contract's section 5.1 has no code
+for C02, C03 or C22, so the pins file lists them as `open: …` with what was seen; a code is never
+invented for them. N1 to N3 (the error envelope) are still unmeasured: C22 never received an
+error, and C20 passes because it accepts the server's own type. The table in section 5.1 expected
+N1 to N4 for `b12183` on C22, C20 and C17; the measurement shows C17 and C20 passing there.
+
+A change of `LLAMA_CPP_RELEASE` needs an entry here and in the pins file; a test fails otherwise.
 
 A deviation is not a defect to hide: the client normalises N1 to N4 in
 `shared/contract.py` (T-179 part 2), so Quiltor is conformant against a server that deviates in

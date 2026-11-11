@@ -191,6 +191,57 @@ class PinTests(unittest.TestCase):
         self.assertLessEqual(set(releases), set(script.load_pins()["known_deviations"]))
 
 
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "llama-conformance"
+
+
+class RecordedRunTests(unittest.TestCase):
+    """The first real run (42884579021), replayed and graded exactly as CI grades it."""
+
+    def replay(self, release: str) -> tuple[int, str]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = script.main(
+                ["--release", release, "--replay", str(FIXTURES / f"llama-answers-{release}.jsonl")]
+            )
+        return code, output.getvalue()
+
+    def test_each_pin_is_conformant_with_known_deviations(self):
+        for release in ("b10218", "b12183"):
+            with self.subTest(release=release):
+                code, summary = self.replay(release)
+                self.assertEqual(code, 0, summary)
+                self.assertIn(f"llama-server {release}: {script.KNOWN_DEVIATIONS}", summary)
+                self.assertNotIn("Listed as deviating but passing now", summary)
+
+    def test_a_recorded_line_is_graded_like_ci(self):
+        """C02 as recorded: 200 to a request without model -- a failure the list names."""
+        line = json.loads(
+            (FIXTURES / "llama-answers-b10218.jsonl").read_text(encoding="utf-8").splitlines()[1]
+        )
+        self.assertEqual((line["case"], line["status"]), ("C02", 200))
+        _, summary = self.replay("b10218")
+        self.assertRegex(summary, r"\| C02 \| fail \| known: open: a request without model")
+
+    def test_a_deviation_dropped_from_the_list_turns_the_run_red(self):
+        pins = script.load_pins()
+        for release in ("b10218", "b12183"):
+            for case in pins["known_deviations"][release]:
+                with self.subTest(release=release, case=case):
+                    fewer = json.loads(json.dumps(pins))
+                    del fewer["known_deviations"][release][case]
+                    with patch.object(script, "load_pins", return_value=fewer):
+                        code, summary = self.replay(release)
+                    self.assertEqual(code, 1, summary)
+                    self.assertIn(f"Not on the list of known deviations:** {case}", summary)
+
+    def test_every_listed_deviation_names_a_contract_code_or_says_it_is_open(self):
+        for release, cases in script.load_pins()["known_deviations"].items():
+            for case, codes in cases.items():
+                for code in codes:
+                    with self.subTest(release=release, case=case):
+                        self.assertRegex(code, r"^(N\d+|open: .+)$")
+
+
 class StartTests(unittest.TestCase):
     def test_the_server_starts_with_the_products_arguments_and_the_key_stays_out_of_argv(self):
         with tempfile.TemporaryDirectory() as folder:
