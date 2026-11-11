@@ -21,12 +21,20 @@ on:
         description: "Run the full Windows and macOS matrix"
         type: boolean
         default: true
+      block_ubuntu_mirror:
+        description: "Test the apt cache: block the Ubuntu archives in the Linux browser jobs"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       full_matrix:
         description: "Run the full matrix (release mode); reduce only on purpose"
         type: boolean
         default: true
+      block_ubuntu_mirror:
+        description: "Test the apt cache: block the Ubuntu archives in the Linux browser jobs"
+        type: boolean
+        default: false
     outputs:
       verdict:
         description: "full-success only when every job the full matrix requires succeeded"
@@ -351,7 +359,30 @@ jobs:
         with:
           python-version: "3.12.10"
       - run: npm ci
-      # apt with a time limit and one mirror switch; red if both attempts fail.
+      # apt with a time limit; from the cache if the mirror does not answer, otherwise one mirror
+      # switch; red if that fails too.
+      # The packages of the last good install, for an Ubuntu mirror that does not answer (D-176).
+      # The key names the runner image and the Playwright version, which together fix the package
+      # list; there is no fallback key, so a cache of another image is never installed.
+      - name: Name the apt package cache
+        id: apt-cache-key
+        run: echo "key=apt-debs-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the apt package cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/quiltor-apt
+          key: ${{ steps.apt-cache-key.outputs.key }}
+      # Test of the cache: a manual run with this input blocks the Ubuntu archives, so the job
+      # can only install from the cache that an earlier normal run saved.
+      - name: Block the Ubuntu archives (test of the apt cache)
+        if: inputs.block_ubuntu_mirror
+        run: |
+          sudo tee -a /etc/hosts >/dev/null <<'HOSTS'
+          127.0.0.1 archive.ubuntu.com
+          127.0.0.1 azure.archive.ubuntu.com
+          127.0.0.1 security.ubuntu.com
+          127.0.0.1 ports.ubuntu.com
+          HOSTS
       - name: Install Chromium
         run: bash tools/dev/playwright-linux.sh
       - name: Install the application
@@ -448,7 +479,30 @@ jobs:
         with:
           python-version: "3.12.10"
       - run: npm ci
-      # apt with a time limit and one mirror switch; red if both attempts fail.
+      # apt with a time limit; from the cache if the mirror does not answer, otherwise one mirror
+      # switch; red if that fails too.
+      # The packages of the last good install, for an Ubuntu mirror that does not answer (D-176).
+      # The key names the runner image and the Playwright version, which together fix the package
+      # list; there is no fallback key, so a cache of another image is never installed.
+      - name: Name the apt package cache
+        id: apt-cache-key
+        run: echo "key=apt-debs-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the apt package cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/quiltor-apt
+          key: ${{ steps.apt-cache-key.outputs.key }}
+      # Test of the cache: a manual run with this input blocks the Ubuntu archives, so the job
+      # can only install from the cache that an earlier normal run saved.
+      - name: Block the Ubuntu archives (test of the apt cache)
+        if: inputs.block_ubuntu_mirror
+        run: |
+          sudo tee -a /etc/hosts >/dev/null <<'HOSTS'
+          127.0.0.1 archive.ubuntu.com
+          127.0.0.1 azure.archive.ubuntu.com
+          127.0.0.1 security.ubuntu.com
+          127.0.0.1 ports.ubuntu.com
+          HOSTS
       - name: Install Chromium
         run: bash tools/dev/playwright-linux.sh
       - name: Install the application
