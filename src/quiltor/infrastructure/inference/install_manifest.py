@@ -283,6 +283,7 @@ def huggingface_artifacts(
             allowed_redirect_origins=(
                 "https://cdn-lfs.hf.co",
                 "https://cdn-lfs-us-1.hf.co",
+                "https://us.aws.cdn.hf.co",
                 "https://cas-bridge.xethub.hf.co",
                 "https://transfer.xethub.hf.co",
             ),
