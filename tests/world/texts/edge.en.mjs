@@ -78,6 +78,17 @@ export const texts = {
   "ch.x-empty.title": "Empty Chapter",
   "ch.x-orphan.title": "Discarded Draft",
   "ch.x-orphan.body": "A draft from a folder that no longer exists.",
+  "ch.x-chronicle.title": "The Harbour Chronicle",
+  "ch.x-chronicle.body-1": "The chronicle begins with the first ship in the fog.",
+  "ch.x-chronicle.body-2":
+    "The chronicle begins with the first ship in the fog. The harbour master is the first to note it.",
+  "ch.x-chronicle.body-3":
+    "The chronicle begins with the first ship in the fog. The harbour master is the first to note it, and the guild still argues about it.",
+  "ch.x-chronicle.elsewhere": " A sentence elsewhere.",
+  "ch.x-chronicle.note-1": "Chronicle created",
+  "ch.x-chronicle.note-2": "Harbour master added",
+  "ch.x-chronicle.note-3": "Another chapter adjusted",
+  "ch.x-chronicle.note-4": "Guild dispute added",
   "folder.x-gone": "Deleted folder",
   "board.x.title": "Check part",
   "board.x-layers.title": "Layers",

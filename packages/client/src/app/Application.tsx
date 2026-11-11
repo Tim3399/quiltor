@@ -969,6 +969,7 @@ export function App() {
                   openChapterTrashToken={openChapterTrashToken}
                   chapterFilter={chapterFilter}
                   onChapterFilter={setChapterFilter}
+                  versionsAvailable={versionsAvailable}
                 />
               </NoteReferenceProvider>
             </AppShell>

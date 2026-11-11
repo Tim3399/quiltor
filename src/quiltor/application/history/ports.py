@@ -36,5 +36,14 @@ class HistoryReader(Protocol):
         chapter_id: str,
     ) -> dict[str, Any]: ...
 
+    def chapter_timeline(
+        self,
+        context: HistoryContext,
+        /,
+        chapter_id: str,
+        limit: int = 20,
+        before: str = "",
+    ) -> dict[str, Any]: ...
+
 
 __all__ = ["HistoryReader"]
