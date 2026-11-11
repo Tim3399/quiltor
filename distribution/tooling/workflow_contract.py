@@ -1916,7 +1916,7 @@ def validate_brand_tests_run(sources: dict[Path, str], contract: dict[str, objec
             )
     for needed in (
         'discover -s tests/python -t tests/python -p "test_make_[bi]*.py" -v',
-        'grep "\\.\\.\\. skipped" "$log" | grep -qv "needs macOS and its iconutil"',
+        'grep -q "skipped"',
     ):
         if needed not in frontend:
             raise WorkflowContractError(

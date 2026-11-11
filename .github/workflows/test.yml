@@ -248,8 +248,7 @@ jobs:
           set -euo pipefail
           log="$RUNNER_TEMP/brand-tests.log"
           python -m unittest discover -s tests/python -t tests/python -p "test_make_[bi]*.py" -v 2>&1 | tee "$log"
-          # The iconutil test is macOS-only by design; any other skip means missing tools.
-          if grep "\.\.\. skipped" "$log" | grep -qv "needs macOS and its iconutil"; then
+          if grep -q "skipped" "$log"; then
             echo "::error::A brand or icon test was skipped; the generator tools are missing."
             exit 1
           fi

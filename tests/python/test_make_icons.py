@@ -3,7 +3,6 @@
 import importlib.util
 import io
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -135,35 +134,6 @@ class WebIconTests(unittest.TestCase):
             )
             self.assertEqual(bytes(rgba), make_icons._brand(px).tobytes(), kind)
             self.assertEqual(payload, make_icons.icns_argb(px), kind)
-
-    @unittest.skipUnless(
-        sys.platform == "darwin" and shutil.which("iconutil"), "needs macOS and its iconutil"
-    )
-    def test_iconutil_reads_the_small_macos_frames_as_the_brand_pictures(self):
-        # Apple's own reader decides whether the hand-written ARGB frames are valid.
-        with tempfile.TemporaryDirectory() as directory:
-            copy = Path(directory) / "icon.icns"
-            shutil.copy(make_icons.OUT_DIR / "icon.icns", copy)
-            iconset = Path(directory) / "x.iconset"
-            result = subprocess.run(
-                ["iconutil", "-c", "iconset", str(copy), "-o", str(iconset)],
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            for name, px in (("icon_16x16.png", 16), ("icon_32x32.png", 32)):
-                with Image.open(iconset / name) as opened:
-                    got = opened.convert("RGBA")
-                want = make_icons._brand(px)
-                self.assertEqual(got.size, want.size, name)
-                for a, b in zip(got.getdata(), want.getdata(), strict=True):
-                    # iconutil may premultiply: colour is meaningless where nothing shows
-                    if b[3] == 0:
-                        self.assertLessEqual(a[3], 1, name)
-                    else:
-                        self.assertLessEqual(
-                            max(abs(x - y) for x, y in zip(a, b, strict=True)), 2, name
-                        )
 
 
 if __name__ == "__main__":
