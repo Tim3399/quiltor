@@ -16,7 +16,10 @@ import { uid } from "../../../shared/id";
 import { GraphEdgeInspector, graphEdgeLineStyle, graphRelationshipKind } from "../../graph";
 import type { FigureEdge, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
+import type { Manuscript } from "../../manuscript";
+import { timelineMomentUsageText } from "../timeline/MomentHeader";
 import { insertTimelineMoment, removeTimelineMoment } from "../timeline/order";
+import { chaptersUsingTimelineMoment } from "../timeline/TimelineWorkspace";
 import { FigureCanvas } from "./FigureCanvas";
 import { FigureInspector } from "./FigureInspector";
 import { FigureNodeContextMenu, type FigureNodeMenuState } from "./FigureNodeContextMenu";
@@ -45,6 +48,8 @@ export type FigureWorkspaceProps = {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  /** Chapters anchor their story time on moments; a moment in use must not be deleted here. */
+  manuscript?: Readonly<Manuscript>;
 };
 
 export function FigureWorkspace(props: FigureWorkspaceProps) {
@@ -65,6 +70,7 @@ function FigureWorkspaceInner({
   onRedo,
   canUndo = false,
   canRedo = false,
+  manuscript,
 }: FigureWorkspaceProps) {
   const { locale, t } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -95,6 +101,9 @@ function FigureWorkspaceInner({
     ? relationshipLabelEditor(selectedEdge, timeline, activeMomentId)
     : null;
   const inspectorOpen = Boolean(selected || visibleSelectedEdge);
+  const chaptersUsingMoment = (momentId: string) =>
+    manuscript ? chaptersUsingTimelineMoment(manuscript, momentId) : [];
+  const activeMomentChapters = activeMomentId ? chaptersUsingMoment(activeMomentId) : [];
   const selectNode = useCallback((id: string) => {
     setSelectedId(id);
     setSelectedEdgeId(null);
@@ -382,7 +391,14 @@ function FigureWorkspaceInner({
                   ),
                 })
               }
-              onDelete={setDeleteMoment}
+              onDelete={(moment) => {
+                if (!chaptersUsingMoment(moment.id).length) setDeleteMoment(moment);
+              }}
+              deleteBlockedReason={
+                activeMomentChapters.length
+                  ? timelineMomentUsageText(t, activeMomentChapters)
+                  : undefined
+              }
             />
           )}
         </FigureCanvas>
@@ -480,6 +496,10 @@ function FigureWorkspaceInner({
           cancelLabel={t("cancel")}
           confirmLabel={t("deleteMoment")}
           onConfirm={() => {
+            if (chaptersUsingMoment(deleteMoment.id).length) {
+              setDeleteMoment(null);
+              return;
+            }
             onChange({
               ...state,
               timeline: removeTimelineMoment(timeline, deleteMoment.id),
