@@ -21,6 +21,7 @@ from quiltor.application.documents import (
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.domain.manuscript import story_time_anchor_issue, valid_story_time_reference
 from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
+from quiltor.infrastructure.persistence.adapters.place_maps import SQLitePlaceMapRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript, revisions, schema, story_world
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 from tests.python.narrowing import present
@@ -201,6 +202,7 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
             SQLiteDocumentRepository(),
             cast(BackupRepository, _Backups()),
             cast(UseCaseObserver, _Observer()),
+            SQLitePlaceMapRepository(),
         )
 
     def tearDown(self):
@@ -294,6 +296,7 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
                     _CoordinatedRepository(first),
                     cast(BackupRepository, _Backups()),
                     cast(UseCaseObserver, _Observer()),
+                    SQLitePlaceMapRepository(),
                 )
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     futures = {

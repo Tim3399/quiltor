@@ -109,13 +109,38 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
 
     // 2. What sits on a card sits on it. A button outside is not merely ugly, it is out of
     //    reach.
+    //
+    //    Only the part of a control that can be seen counts. A card clips its text area, and
+    //    a note's reference buttons lie below that area's edge until the note is scrolled --
+    //    nobody sees them there, and whether they lie above or below the card's own edge
+    //    depends on how far the editor has rendered by the time this runs (fonts, loading).
+    //    A control is measured through the boxes that clip it between it and its card; one
+    //    wholly outside them is not on the card at all.
+    const clipped = (control: Element, card: Element) => {
+      let inner = box(control);
+      for (let up = control.parentElement; up && up !== card; up = up.parentElement) {
+        const style = getComputedStyle(up);
+        if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+        const edge = box(up);
+        const left = style.overflowX === "visible" ? inner.left : Math.max(inner.left, edge.left);
+        const right =
+          style.overflowX === "visible" ? inner.right : Math.min(inner.right, edge.right);
+        const top = style.overflowY === "visible" ? inner.top : Math.max(inner.top, edge.top);
+        const bottom =
+          style.overflowY === "visible" ? inner.bottom : Math.min(inner.bottom, edge.bottom);
+        if (left >= right || top >= bottom) return null;
+        inner = new DOMRect(left, top, right - left, bottom - top);
+      }
+      return inner;
+    };
     for (const card of document.querySelectorAll(
       ".story-node, .place-map-node, .storyboard-node",
     )) {
       const outer = box(card);
       for (const control of card.querySelectorAll("button")) {
         if (!visible(control)) continue;
-        const inner = box(control);
+        const inner = clipped(control, card);
+        if (!inner) continue;
         const escapes =
           inner.left < outer.left - tol ||
           inner.right > outer.right + tol ||
@@ -841,4 +866,34 @@ test("Text: the writing aid's search button sits on the line of its field", asyn
   });
 
   expect(offset).toBe("");
+});
+
+/*
+ * The card check measures what can be seen of a control. A button outside its card is found,
+ * wherever it lies; one that a clipping box between it and the card hides is not on the card,
+ * and one only partly hidden is measured by the part that shows.
+ */
+test("Cards: a button outside its card is found, one clipped away is not", async ({ page }) => {
+  const card = (inside: string) => `
+    <article class="story-node" style="position:relative;overflow:hidden;width:200px;height:100px;margin:40px">
+      ${inside}
+    </article>`;
+  const button = (style: string) =>
+    `<button style="position:absolute;width:40px;height:20px;${style}">x</button>`;
+  const clip = (inside: string) =>
+    `<div style="position:absolute;left:0;top:0;width:200px;height:60px;overflow:hidden">${inside}</div>`;
+  const findings = async (html: string) => {
+    await page.setContent(`<!doctype html><body>${html}</body>`);
+    return violations(page, TOLERANCE);
+  };
+
+  expect(await findings(card(button("left:10px;top:10px;")))).toEqual([]);
+  expect(await findings(card(button("left:10px;top:130px;")))).toHaveLength(1);
+  expect(await findings(card(clip(button("left:10px;top:70px;"))))).toEqual([]);
+  expect(await findings(card(clip(button("left:10px;top:50px;"))))).toEqual([]);
+  expect(await findings(card(clip(button("left:180px;top:10px;"))))).toHaveLength(0);
+  expect(await findings(card(clip(button("left:10px;top:-30px;"))))).toEqual([]);
+  // A clipping box wider than the card hides nothing that lies past the card's edge.
+  const wide = `<div style="position:absolute;left:0;top:0;width:400px;height:100px;overflow:hidden">${button("left:230px;top:10px;")}</div>`;
+  expect(await findings(card(wide))).toHaveLength(1);
 });

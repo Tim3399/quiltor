@@ -37,6 +37,8 @@ export const WORLD = {
     xTannenhain: "x-tannenhain",
     xInselkarte: "x-inselkarte",
     xInselhafen: "x-inselhafen",
+    xMasslosEbene: "x-masslos-ebene",
+    xMassloseKarte: "x-masslose-karte",
   },
   relationships: {
     e1: "e1",

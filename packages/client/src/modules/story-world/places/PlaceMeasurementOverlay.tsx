@@ -1,9 +1,10 @@
 import { Ruler } from "lucide-react";
 import type { ReactNode } from "react";
-import { TextField } from "../../../design";
+import { Button, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { ModeBanner } from "../ModeBanner";
 import type { FigureState } from "../model";
+import { ScaleValueField } from "./PlaceMapScaleControl";
 import "./PlaceMeasurementOverlay.css";
 
 export function PlaceMeasurementOverlay({
@@ -11,12 +12,15 @@ export function PlaceMeasurementOverlay({
   scale,
   onScale,
   onStop,
+  onCalibrate,
   trail,
 }: {
   measureSelection: string[];
   scale?: FigureState["mapScale"];
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
   onStop: () => void;
+  /** Starts setting this level's scale by measuring a stretch: the same target as the field. */
+  onCalibrate?: () => void;
   /** The level trail joins the column, so trail, hint and scale never share a spot. */
   trail?: ReactNode;
 }) {
@@ -33,16 +37,11 @@ export function PlaceMeasurementOverlay({
       </ModeBanner>
       <div className="places-scale-legend">
         <div className="places-scale-value-group">
-          <TextField
+          <ScaleValueField
             fieldClassName="places-scale-value-field"
             className="places-scale-value"
-            label={t("scale")}
-            labelHidden
-            type="number"
-            min="0.01"
-            step="0.01"
             value={scale?.unitsPer100px ?? 1}
-            onChange={(event) => onScale({ unitsPer100px: Number(event.target.value) || 1 })}
+            onValue={(unitsPer100px) => onScale({ unitsPer100px })}
           />
           <span>{t("perHundredPx")}</span>
         </div>
@@ -54,6 +53,11 @@ export function PlaceMeasurementOverlay({
           value={scale?.unitLabel ?? t("unitsDefault")}
           onChange={(event) => onScale({ unitLabel: event.target.value })}
         />
+        {onCalibrate ? (
+          <Button size="compact" appearance="secondary" icon={<Ruler />} onClick={onCalibrate}>
+            {t("calibrateScale")}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

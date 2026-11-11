@@ -53,10 +53,10 @@ describe("TextWorkspace layout and panels", () => {
       /\.text-layout\.has-balanced-editor \.editor-page\s*\{[^}]*transform:/s,
     );
     expect(workspaceCss).toMatch(
-      /\.text-layout\.no-binder:not\(\.no-inspector\) \.panel-edge-toggle--left:not\(\.is-open\)\s*\{[^}]*var\(--space-24\) \+\s*var\(--editor-balance-offset\)/s,
+      /\.text-layout\.no-binder:not\(\.no-inspector\) \.panel-edge-toggle--left:not\(\.is-open\)\s*\{[^}]*var\(--space-12\) \+\s*var\(--editor-balance-offset\)/s,
     );
     expect(workspaceCss).toMatch(
-      /\.text-layout\.no-inspector:not\(\.no-binder\) \.panel-edge-toggle--right:not\(\.is-open\)\s*\{[^}]*var\(--space-24\) -\s*var\(--editor-balance-offset\)/s,
+      /\.text-layout\.no-inspector:not\(\.no-binder\) \.panel-edge-toggle--right:not\(\.is-open\)\s*\{[^}]*var\(--space-12\) -\s*var\(--editor-balance-offset\)/s,
     );
     expect(turnCss).toMatch(
       /\.chapter-turn__action\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,

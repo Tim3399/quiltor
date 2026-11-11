@@ -15,6 +15,7 @@ from typing import Any
 from quiltor.application.documents import DocumentKind, DocumentUseCases
 from quiltor.application.errors import ApplicationError
 from quiltor.application.place_maps import PlaceMapUseCases
+from quiltor.application.worlds.types import PublicWorld
 from quiltor.application.worlds.use_cases import WorldUseCases
 
 EXAMPLE_LANGUAGES = ("de", "en")
@@ -61,7 +62,7 @@ class ExampleWorldUseCases:
         self._place_maps = place_maps
         self._source = source
 
-    def open(self, owner_sub: str, requested_language: object) -> dict[str, Any]:
+    def open(self, owner_sub: str, requested_language: object) -> PublicWorld:
         """Make a fresh preview for `owner_sub` and return its record (`preview: true`)."""
 
         self._worlds.discard_expired_previews()
