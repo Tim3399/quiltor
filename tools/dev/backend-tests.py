@@ -281,7 +281,7 @@ def compare(before: dict, after: dict) -> list[str]:
 
 
 def parse(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--workers", type=int, default=default_workers())
     parser.add_argument(
         "--serial", action="store_true", help="run the plain reference command instead"
