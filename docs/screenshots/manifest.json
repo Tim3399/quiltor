@@ -1,5 +1,5 @@
 {
-  "version": "3.25.0",
+  "version": "3.25.1",
   "platform": "win32",
   "viewport": {
     "width": 1440,
@@ -11,8 +11,8 @@
     "world-graph.png": "4594bf35290e9e5c78834bbcd4a3de16f3de7826bd63d7cd3590d2915a9b22a8",
     "timeline-playback.png": "583ca0cd7cb8cf02fac74e1b43488b47ddf455adfdb69d4ee6602f9d57e0d63b",
     "timeline-manager.png": "7cbe91deedb831a3640233397c4ab907fdea252c1a32c5a3ff68e3a2ddf204b4",
-    "places.png": "e2eefcfe5f776e455e7385b520f969a08ae518ee9fd0935565338dee27c14c7b",
-    "storyboard.png": "587e72dedd23e2b21eb163ce4c19dcc91ebc6c69970e47af6167a96acd792fcc",
+    "places.png": "65d5e0b14e4bb9a2b4c5b0fb9eab8128025f0046a4135b0405af64fd6ad92d5e",
+    "storyboard.png": "44fa44bae8841b2c952d4c7d605ae0b0be97bdb9a16c7814b2ec66fd702618e6",
     "shared-notes.png": "1ca0cf3628a22f8a25c9999f160d734724044002bc778e199430e07a54ccbbc7"
   }
 }
