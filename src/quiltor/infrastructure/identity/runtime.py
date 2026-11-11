@@ -259,7 +259,7 @@ class StdlibIdentityGateway:
             )
         return validated
 
-    def discover(self, issuer: str | None = None) -> dict[str, Any]:
+    def discover(self, issuer: str | None = None, *, retry: bool = True) -> dict[str, Any]:
         selected = (issuer if issuer is not None else self.issuer).rstrip("/")
         if not selected:
             raise ValueError("OIDC issuer is not configured.")
@@ -273,7 +273,7 @@ class StdlibIdentityGateway:
             return dict(cached[1])
         # Only a success is stored below: a failure raises out of here, so the next
         # login asks the provider again instead of replaying the outage.
-        document = self._validate_discovery(self._fetch_discovery(selected), selected)
+        document = self._validate_discovery(self._fetch_discovery(selected, retry), selected)
         with self._lock:
             if selected not in self._discovery and len(self._discovery) >= MAX_DISCOVERY_ISSUERS:
                 oldest = min(self._discovery, key=lambda item: self._discovery[item][0])
@@ -284,11 +284,11 @@ class StdlibIdentityGateway:
             self._discovery[selected] = (now + DISCOVERY_TTL_SECONDS, document)
         return dict(document)
 
-    def _fetch_discovery(self, issuer: str) -> dict[str, Any]:
+    def _fetch_discovery(self, issuer: str, retry: bool = True) -> dict[str, Any]:
         """Fetch the discovery document, asking again while the provider is briefly away."""
         url = f"{issuer}/.well-known/openid-configuration"
         started = time.monotonic()
-        for delay in (*DISCOVERY_RETRY_DELAYS, None):
+        for delay in (*(DISCOVERY_RETRY_DELAYS if retry else ()), None):
             try:
                 return self._transport.request(url)
             except ProviderUnavailable:
@@ -712,7 +712,7 @@ class StdlibIdentityGateway:
         post_logout_redirect_uri: str | None = None,
     ) -> str | None:
         try:
-            document = self.discover()
+            document = self.discover(retry=False)
         except Exception:  # noqa: BLE001 - an unreachable discovery document means no end-session endpoint
             return None
         endpoint = document.get("end_session_endpoint")
