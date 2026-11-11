@@ -66,6 +66,8 @@ SCHEMA = {
     "additionalProperties": False,
 }
 CONTEXT_ERRORS = {"context_too_large", "exceed_context_size_error", "context_length_exceeded"}
+# llama-server's own error types (contract errors.md 3.3, N2).
+LLAMA_ERROR_TYPES = {"exceed_context_size_error", "not_supported_error", "unavailable_error"}
 
 
 if TYPE_CHECKING:
@@ -90,6 +92,10 @@ def chat_body(**overrides: Any) -> dict[str, Any]:
     return {key: value for key, value in body.items() if value is not None}
 
 
+# The request of C01 without its closing brace: nothing but the JSON itself is wrong.
+BROKEN_JSON = json.dumps(chat_body()).encode()[:-1]
+
+
 def assert_envelope(case: unittest.TestCase, answer: Answer) -> dict[str, Any]:
     """The error envelope of contract 3.1, returned for further checks."""
     body = answer.json()
@@ -106,6 +112,23 @@ def assert_envelope(case: unittest.TestCase, answer: Answer) -> dict[str, Any]:
     for name in set(error) - {"message", "type", "param", "code"}:
         case.assertTrue(name.startswith("x_"), f"extra field {name!r} lacks the x_ prefix")
     return error
+
+
+def envelope_deviations(error: dict[str, Any]) -> list[str]:
+    """The contract's N codes (errors.md 3.3) an error object shows, in order.
+
+    N1: an integer `code` or no `param`. N2: one of llama-server's own types. N3: an extra
+    field without the x_ prefix. An empty list is the envelope of contract 3.1.
+    """
+    found = []
+    if not isinstance(error.get("code"), (str, type(None))) or "param" not in error:
+        found.append("N1")
+    if error.get("type") in LLAMA_ERROR_TYPES:
+        found.append("N2")
+    known = {"message", "type", "param", "code"}
+    if any(not name.startswith("x_") for name in set(error) - known):
+        found.append("N3")
+    return found
 
 
 class ServerCases(_Mixin):
@@ -162,9 +185,14 @@ class ServerCases(_Mixin):
             {error.get("code"), error.get("type")} & CONTEXT_ERRORS,
             f"not a context error: {answer.raw}",
         )
+        deviations = envelope_deviations(error)
+        self.assertEqual(deviations, [], f"envelope deviations: {', '.join(deviations)}")
+        assert_envelope(self, answer)
+        self.assertEqual(error["code"], "context_too_large", answer.raw)
 
     def test_c22_an_error_comes_in_the_contract_envelope(self):
-        answer = self.call("C22", "POST", "/v1/chat/completions", chat_body(model=None))
+        # A body that is no JSON: every server must refuse it, whatever else it tolerates.
+        answer = self.call("C22", "POST", "/v1/chat/completions", BROKEN_JSON)
         self.assertGreaterEqual(answer.status, 400, answer.raw)
         assert_envelope(self, answer)
 

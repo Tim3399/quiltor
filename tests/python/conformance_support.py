@@ -69,7 +69,10 @@ class ServerUnderTest:
         body: Any = None,
         headers: dict[str, str] | None = None,
     ) -> Answer:
-        data = None if body is None else json.dumps(body).encode()
+        # Bytes go out as they are: that is how a case sends a body that is no JSON at all.
+        data = (
+            body if isinstance(body, bytes) else None if body is None else json.dumps(body).encode()
+        )
         request = urllib.request.Request(f"{self.base_url}{path}", data=data, method=method)
         if data is not None:
             request.add_header("Content-Type", "application/json")
