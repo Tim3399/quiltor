@@ -8,7 +8,7 @@ The 16 and 24 px pictures are the logo's small form.
 Produces:
   distribution/assets/icons/icon.ico           multi-resolution Windows icon
   distribution/assets/icons/icon.iconset/*.png macOS iconset source images
-  distribution/assets/icons/icon.icns          macOS icon (iconutil on macOS, Pillow elsewhere)
+  distribution/assets/icons/icon.icns          macOS icon, written by this script (ic04-ic14)
   distribution/assets/icons/tray.png           runtime tray/menu-bar icon
   apps/web/public/favicon.ico                  web app favicon (16, 32, 48)
   apps/web/public/favicon-32.png               web app favicon as PNG
@@ -23,8 +23,6 @@ Produces:
 from __future__ import annotations
 
 import io
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -94,17 +92,87 @@ def _write_tray_png() -> None:
     print(f"Wrote {target}")
 
 
-def _write_icns_if_available() -> None:
-    iconutil = shutil.which("iconutil")
+ICNS_SIZES = [16, 32, 64, 128, 256, 512, 1024]
+# The 1x frames of the two smallest sizes that Pillow cannot write: macOS reads them as
+# 32-bit ARGB elements (type -> pixel size).
+ICNS_ARGB_FRAMES = {b"ic04": 16, b"ic05": 32}
+
+
+def _rle(channel: bytes) -> bytes:
+    """One colour channel in the run-length form of icns ARGB elements."""
+
+    out = bytearray()
+    i = 0
+    while i < len(channel):
+        run = 1
+        while i + run < len(channel) and channel[i + run] == channel[i] and run < 130:
+            run += 1
+        if run >= 3:
+            out += bytes([0x80 + run - 3, channel[i]])
+            i += run
+            continue
+        start = i
+        i += run
+        while i < len(channel) and i - start < 128:
+            if channel[i : i + 3] == bytes([channel[i]]) * 3:
+                break
+            i += 1
+        out += bytes([i - start - 1]) + channel[start:i]
+    return bytes(out)
+
+
+def icns_argb(size: int) -> bytes:
+    """The payload of an ic04/ic05 element: "ARGB", then the A, R, G, B planes, each run-length coded."""
+
+    pixels = _brand(size).tobytes()  # RGBA, straight alpha
+    planes = (pixels[3::4], pixels[0::4], pixels[1::4], pixels[2::4])
+    return b"ARGB" + b"".join(_rle(plane) for plane in planes)
+
+
+def icns_elements(data: bytes) -> list[tuple[bytes, bytes]]:
+    """(type, payload) of every element of an ICNS file, the table of contents included."""
+
+    if data[:4] != b"icns" or int.from_bytes(data[4:8], "big") != len(data):
+        raise ValueError("not a well-formed ICNS file")
+    elements, offset = [], 8
+    while offset < len(data):
+        length = int.from_bytes(data[offset + 4 : offset + 8], "big")
+        elements.append((data[offset : offset + 4], data[offset + 8 : offset + length]))
+        offset += length
+    return elements
+
+
+def _icns(elements: list[tuple[bytes, bytes]]) -> bytes:
+    """An ICNS file with a table of contents, from its pictures in storage order."""
+
+    toc = b"".join(kind + (8 + len(payload)).to_bytes(4, "big") for kind, payload in elements)
+    parts = [(b"TOC ", toc), *elements]
+    body = b"".join(
+        kind + (8 + len(payload)).to_bytes(4, "big") + payload for kind, payload in parts
+    )
+    return b"icns" + (8 + len(body)).to_bytes(4, "big") + body
+
+
+def icns_file() -> bytes:
+    """
+    The macOS icon: Pillow's PNG frames (ic07-ic14) plus ic04/ic05, the 16 and 32 px 1x frames.
+
+    Pillow cannot write the two smallest 1x frames, and without them macOS scales a larger
+    picture down in lists and menus. iconutil would write them, but it exists only on macOS and
+    this file is checked in, so one writer makes the same bytes on every host.
+    """
+
+    pictures = [_brand(size) for size in ICNS_SIZES]
+    buffer = io.BytesIO()
+    pictures[-1].save(buffer, format="ICNS", append_images=pictures[:-1])
+    kept = [(kind, data) for kind, data in icns_elements(buffer.getvalue()) if kind != b"TOC "]
+    small = [(kind, icns_argb(size)) for kind, size in ICNS_ARGB_FRAMES.items()]
+    return _icns(small + kept)
+
+
+def _write_icns() -> None:
     target = OUT_DIR / "icon.icns"
-    if iconutil is None:
-        # Pillow writes ICNS too; it takes each size from the images handed to it.
-        sizes = [16, 32, 64, 128, 256, 512, 1024]
-        pictures = [_brand(size) for size in sizes]
-        pictures[-1].save(target, format="ICNS", append_images=pictures[:-1])
-        print(f"Wrote {target} (Pillow)")
-        return
-    subprocess.run([iconutil, "-c", "icns", str(ICONSET_DIR), "-o", str(target)], check=True)
+    target.write_bytes(icns_file())
     print(f"Wrote {target}")
 
 
@@ -184,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     _write_ico()
     _write_iconset()
     _write_tray_png()
-    _write_icns_if_available()
+    _write_icns()
     _write_web_icons()
     return 0
 

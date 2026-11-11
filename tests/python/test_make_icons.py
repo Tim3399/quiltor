@@ -80,6 +80,61 @@ class WebIconTests(unittest.TestCase):
                 self.assertEqual(image.size, expected.size, label)
                 self.assertEqual(image.convert("RGBA").tobytes(), expected.tobytes(), label)
 
+    def test_the_macos_icon_stores_every_frame_macos_looks_for(self):
+        data = (make_icons.OUT_DIR / "icon.icns").read_bytes()
+        kinds = [kind.decode("ascii") for kind, _ in make_icons.icns_elements(data)]
+        # ic04/ic05 are the 16 and 32 px 1x frames; without them macOS scales a larger one down.
+        self.assertEqual(
+            kinds,
+            [
+                "TOC ",
+                "ic04",
+                "ic05",
+                "ic07",
+                "ic08",
+                "ic09",
+                "ic10",
+                "ic11",
+                "ic12",
+                "ic13",
+                "ic14",
+            ],
+        )
+        # and the writer still makes the same list, so a redraw cannot drop them again
+        written = [
+            kind.decode("ascii") for kind, _ in make_icons.icns_elements(make_icons.icns_file())
+        ]
+        self.assertEqual(written, kinds)
+
+    def test_the_small_macos_frames_decode_to_the_brand_pictures(self):
+        elements = dict(make_icons.icns_elements((make_icons.OUT_DIR / "icon.icns").read_bytes()))
+        for kind, px in make_icons.ICNS_ARGB_FRAMES.items():
+            payload = elements[kind]
+            self.assertEqual(payload[:4], b"ARGB", kind)
+            planes, rest = [], payload[4:]
+            for _ in range(4):  # alpha, red, green, blue
+                plane = bytearray()
+                while len(plane) < px * px:
+                    control, rest = rest[0], rest[1:]
+                    if control < 0x80:
+                        plane += rest[: control + 1]
+                        rest = rest[control + 1 :]
+                    else:
+                        plane += rest[:1] * (control - 0x80 + 3)
+                        rest = rest[1:]
+                self.assertEqual(len(plane), px * px, kind)
+                planes.append(bytes(plane))
+            self.assertEqual(rest, b"", kind)
+            rgba = bytearray(px * px * 4)
+            rgba[0::4], rgba[1::4], rgba[2::4], rgba[3::4] = (
+                planes[1],
+                planes[2],
+                planes[3],
+                planes[0],
+            )
+            self.assertEqual(bytes(rgba), make_icons._brand(px).tobytes(), kind)
+            self.assertEqual(payload, make_icons.icns_argb(px), kind)
+
 
 if __name__ == "__main__":
     unittest.main()
