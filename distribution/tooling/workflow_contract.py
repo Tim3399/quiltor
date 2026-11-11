@@ -95,6 +95,12 @@ def toolchain_lock(path: Path = TOOLCHAIN_LOCK) -> dict[str, object]:
     for name, value in tools.items():
         if not isinstance(value, str) or tool_version.fullmatch(value) is None:
             raise WorkflowContractError(f"Python build tool {name} is not exactly pinned")
+    brand_tools = document.get("brandTools")
+    if not isinstance(brand_tools, dict) or set(brand_tools) != {"fonttools", "numpy", "Pillow"}:
+        raise WorkflowContractError("the brand generator tool lock is incomplete")
+    for name, value in brand_tools.items():
+        if not isinstance(value, str) or tool_version.fullmatch(value) is None:
+            raise WorkflowContractError(f"brand tool {name} is not exactly pinned")
     if not isinstance(artifact_runtimes, dict) or set(artifact_runtimes) != {
         "pythonPackage",
         "webOci",
@@ -1892,6 +1898,32 @@ def validate_required_step_conditions(sources: dict[Path, str]) -> None:
                 )
 
 
+def validate_brand_tests_run(sources: dict[Path, str], contract: dict[str, object]) -> None:
+    """
+    The brand and icon tests run in the frontend job with the pinned generator tools.
+
+    Without fontTools, numpy and Pillow both modules skip themselves, and a test that is
+    skipped everywhere protects nothing (T-262). The job installs the pins from
+    toolchains.json (`brandTools`) and fails when either module reports a skip.
+    """
+
+    tools = cast(dict[str, str], contract["brandTools"])
+    frontend = _job_body(sources[WORKFLOW_ROOT / "test.yml"], "frontend")
+    for name, version in tools.items():
+        if f'"{name}=={version}"' not in frontend:
+            raise WorkflowContractError(
+                f"the frontend job must install the pinned brand tool {name}=={version}"
+            )
+    for needed in (
+        'discover -s tests/python -t tests/python -p "test_make_[bi]*.py" -v',
+        'grep -q "skipped"',
+    ):
+        if needed not in frontend:
+            raise WorkflowContractError(
+                f"the frontend job must run the brand and icon tests and fail on a skip: {needed}"
+            )
+
+
 def validate_type_check_extras(sources: dict[Path, str], pyproject: Path | None = None) -> None:
     """
     The frontend job installs the optional packages pyright needs with the pyproject's own pins.
@@ -2775,7 +2807,9 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         sources = _workflow_sources(WORKFLOW_ROOT)
         locked_actions = action_lock(ACTION_LOCK)
         validate_actions(sources, locked_actions)
-        validate_toolchains(sources, toolchain_lock(TOOLCHAIN_LOCK))
+        lock = toolchain_lock(TOOLCHAIN_LOCK)
+        validate_toolchains(sources, lock)
+        validate_brand_tests_run(sources, lock)
         validate_rust_toolchain_steps(sources)
         validate_job_runtime_setups(sources, locked_actions)
         validate_cargo(sources)
