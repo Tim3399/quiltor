@@ -280,8 +280,22 @@ function InteractiveGraphEdgeLabel({
         height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
       }
     : undefined;
-  // Hidden, not shrunk: the label leaves the DOM, so it is neither clickable nor a tab stop.
-  if (safeViewportZoom < INTERACTIVE_LABEL_MIN_ZOOM) return null;
+  // Below the threshold the label is shown, not offered: no hit target that could take a card's
+  // clicks, no tab stop. The edge line and the card's relationship list stay the way in.
+  if (safeViewportZoom < INTERACTIVE_LABEL_MIN_ZOOM) {
+    return (
+      <div
+        className={className.replace(" is-interactive", "")}
+        data-edge-label-id={id}
+        data-label-display-only="true"
+        aria-hidden="true"
+        title={labelTitle}
+        style={positionStyle}
+      >
+        {children}
+      </div>
+    );
+  }
   const hitTargetStyle = hitTargetSize
     ? {
         ...positionStyle,

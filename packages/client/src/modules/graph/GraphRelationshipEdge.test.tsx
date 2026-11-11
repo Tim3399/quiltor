@@ -176,7 +176,7 @@ describe("GraphRelationshipEdge", () => {
     expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
   });
 
-  it("keeps a 44px interactive hit area through graph zoom and hides the label below the threshold", () => {
+  it("keeps a 44px interactive hit area through graph zoom and only shows the label below the threshold", () => {
     const props = edgeProps({
       label: "sucht",
       data: {
@@ -186,11 +186,18 @@ describe("GraphRelationshipEdge", () => {
       },
     });
 
-    // At 0.5 a 44px target (88 canvas units) would reach into a card: no label, no tab stop.
+    // At 0.5 a 44px target (88 canvas units) would reach into a card: the label stays readable,
+    // but has no hit target, no role and no tab stop.
     xyflow.zoom = 0.5;
     const { rerender } = render(<GraphRelationshipEdge {...props} />);
+    const shown = document.querySelector<HTMLElement>('[data-edge-label-id="edge"]');
+    expect(shown).not.toBeNull();
+    expect(shown).toHaveTextContent("sucht");
+    expect(shown).toHaveAttribute("aria-hidden", "true");
+    expect(shown).not.toHaveClass("is-interactive");
+    expect(shown?.tagName).toBe("DIV");
+    expect(shown?.querySelector("button, [tabindex], [role]")).toBeNull();
     expect(screen.queryByRole("button", { name: "sucht" })).toBeNull();
-    expect(document.querySelector(".graph-edge-label")).toBeNull();
 
     xyflow.zoom = 0.8;
     rerender(<GraphRelationshipEdge {...props} />);
