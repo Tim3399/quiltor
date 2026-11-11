@@ -1,5 +1,5 @@
 {
-  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Measured in run 42884579021 (spike, both releases; raw answers in tests/python/fixtures/llama-conformance/). A deviation the contract (local-ai-contract v1, errors.md 3.3) names carries its N code; one it does not name carries 'open:' and a short description: it is a gap in the contract, listed so the gate can run, never a code nobody defined. Nothing here was measured locally (D-94).",
+  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Measured in run 42884579021 (spike, both releases; raw answers in tests/python/fixtures/llama-conformance/). A deviation carries the N code of the contract (local-ai-contract v1, errors.md 3.3; N22 and N23 proposed in D-174 for C02 and C03). A case whose request changed after the run carries 'open:' until the next run measures it. Nothing here was measured locally (D-94).",
   "models": [
     {
       "name": "smollm2-135m-instruct",
@@ -14,17 +14,19 @@
   ],
   "known_deviations": {
     "b12183": {
-      "C02": ["open: a request without model is answered (200), not refused"],
-      "C03": ["open: an unknown role is answered (200), not refused"],
+      "C02": ["N22"],
+      "C03": ["N23"],
+      "C20": ["N1", "N2", "N3"],
       "C22": [
-        "open: provoked with a request without model, which is answered (200) -- the envelope is never reached"
+        "open: not measured yet -- the case now sends a broken JSON body; run 42884579021 recorded the answer to the old request"
       ]
     },
     "b10218": {
-      "C02": ["open: a request without model is answered (200), not refused"],
-      "C03": ["open: an unknown role is answered (200), not refused"],
+      "C02": ["N22"],
+      "C03": ["N23"],
+      "C20": ["N1", "N2", "N3"],
       "C22": [
-        "open: provoked with a request without model, which is answered (200) -- the envelope is never reached"
+        "open: not measured yet -- the case now sends a broken JSON body; run 42884579021 recorded the answer to the old request"
       ]
     }
   }

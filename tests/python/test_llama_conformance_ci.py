@@ -214,13 +214,23 @@ class RecordedRunTests(unittest.TestCase):
                 self.assertNotIn("Listed as deviating but passing now", summary)
 
     def test_a_recorded_line_is_graded_like_ci(self):
-        """C02 as recorded: 200 to a request without model -- a failure the list names."""
+        """C02 as recorded: 200 to a request without model -- N22 on the list."""
         line = json.loads(
             (FIXTURES / "llama-answers-b10218.jsonl").read_text(encoding="utf-8").splitlines()[1]
         )
         self.assertEqual((line["case"], line["status"]), ("C02", 200))
         _, summary = self.replay("b10218")
-        self.assertRegex(summary, r"\| C02 \| fail \| known: open: a request without model")
+        self.assertRegex(summary, r"\| C02 \| fail \| known: N22\. ")
+
+    def test_the_recorded_context_error_shows_n1_to_n3_on_each_pin(self):
+        """C20 as recorded: the context error comes back, but not in the contract envelope."""
+        for release in ("b10218", "b12183"):
+            with self.subTest(release=release):
+                _, summary = self.replay(release)
+                self.assertRegex(
+                    summary,
+                    r"\| C20 \| fail \| known: N1, N2, N3\. .*envelope deviations: N1, N2, N3",
+                )
 
     def test_a_deviation_dropped_from_the_list_turns_the_run_red(self):
         pins = script.load_pins()
