@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "distribution" / "tooling"))
@@ -56,6 +57,28 @@ class WebIconTests(unittest.TestCase):
             self.assertEqual(picture, make_icons.brand_png(px).read_bytes(), name)
         tray = (make_icons.OUT_DIR / "tray.png").read_bytes()
         self.assertEqual(tray, make_icons.brand_png(64).read_bytes())
+
+    def test_the_windows_icon_holds_the_brand_picture_at_every_size(self):
+        data = (make_icons.OUT_DIR / "icon.ico").read_bytes()
+        frames = make_icons._frames(data)
+        self.assertEqual([size for _, size, _ in frames], [(s, s) for s in make_icons.ICO_SIZES])
+        self.assertEqual(frames, make_icons._frames(make_icons._ico(make_icons.ICO_SIZES)))
+
+    def test_the_macos_icon_holds_the_brand_picture_at_every_size_it_stores(self):
+        with Image.open(make_icons.OUT_DIR / "icon.icns") as opened:
+            # IcnsImageFile picks a size by assignment and load(scale); its stubs say neither.
+            image = cast(Any, opened)
+            stored = sorted(image.info["sizes"])
+            self.assertTrue(stored, "icon.icns holds no pictures")
+            for width, height, scale in stored:
+                px = width * scale
+                self.assertEqual(width, height)
+                image.size = (width, height)
+                image.load(scale)
+                expected = make_icons._brand(px)
+                label = f"{width}@{scale}x"
+                self.assertEqual(image.size, expected.size, label)
+                self.assertEqual(image.convert("RGBA").tobytes(), expected.tobytes(), label)
 
 
 if __name__ == "__main__":
