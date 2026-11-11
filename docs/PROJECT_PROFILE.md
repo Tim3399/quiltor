@@ -130,6 +130,21 @@ trigger automatic publication. Release publication verifies the exact revision a
 digests and promotes existing artifacts without rebuilding. See
 [the release workflow boundary](../.github/workflows/README.md).
 
+### Before every release
+
+- [ ] **Run the llama conformance run** on the release branch and wait for it to pass:
+
+  ```bash
+  gh workflow run test.yml --ref <branch> -f llama_conformance=true -f full_matrix=false
+  ```
+
+  It installs the pinned llama.cpp runtime and model the way an author's first setup does, so it
+  is the run that notices when Hugging Face moves its download host again (T-249, T-250). The
+  allowed redirect hosts are a static list in `install_manifest.py`; a release built against an
+  outdated list fails every new installation with "the provider changed its download server".
+  The run downloads several gigabytes: start it only with the user's approval. The workflow
+  itself never starts it on its own.
+
 ## Exceptions and pending work
 
 | Requirement                                    | Actual behavior / reason                                                                            | Next step or review condition                                                                                                                              |

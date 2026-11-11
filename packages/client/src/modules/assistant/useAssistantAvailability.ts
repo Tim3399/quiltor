@@ -20,6 +20,8 @@ export type AssistantInstallState = {
   phase: string;
   percent: number;
   error: string;
+  /** Set for failures the interface explains in its own words; see installErrorText. */
+  errorCode?: string;
 };
 
 /**

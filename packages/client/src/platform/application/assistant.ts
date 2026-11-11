@@ -35,6 +35,8 @@ export interface AssistantGateway {
     phase: string;
     percent: number;
     error: string;
+    /** A failure the interface explains itself, e.g. "download_host_changed". */
+    errorCode?: string;
   }>;
   jobStatus(id: string, signal?: AbortSignal): Promise<AssistantJobState>;
   cancelJob(id: string): Promise<AssistantJobState>;
