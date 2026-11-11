@@ -16,6 +16,7 @@ import {
   type GraphPoint,
   type GraphRect,
   type GraphSize,
+  graphEdgeLabelHitTargetSize,
   placeGraphEdgeLabels,
   sampleGraphSmoothStepPath,
 } from "./edgeLabelPlacement";
@@ -271,11 +272,14 @@ function InteractiveGraphEdgeLabel({
 }: InteractiveGraphEdgeLabelProps) {
   const viewportZoom = useStore((state) => state.transform[2]);
   const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
+  // Placement reserved the 44-unit target plus its clearance; growing past that would let the
+  // invisible part of the target cover a card when the graph is zoomed out.
   const hitTargetSize = labelSize
-    ? {
-        width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
-        height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
-      }
+    ? graphEdgeLabelHitTargetSize(
+        labelSize,
+        { width: INTERACTIVE_TARGET_SIZE, height: INTERACTIVE_TARGET_SIZE },
+        safeViewportZoom,
+      )
     : undefined;
   const hitTargetStyle = hitTargetSize
     ? {

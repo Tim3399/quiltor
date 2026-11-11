@@ -177,7 +177,7 @@ describe("GraphRelationshipEdge", () => {
   });
 
   it("keeps a 44px interactive hit area through graph zoom without enlarging the label card", () => {
-    xyflow.zoom = 0.5;
+    xyflow.zoom = 0.8;
     render(
       <GraphRelationshipEdge
         {...edgeProps({
@@ -194,13 +194,35 @@ describe("GraphRelationshipEdge", () => {
     const hitTarget = screen.getByRole("button", { name: "sucht" });
     const labelCard = hitTarget.querySelector<HTMLElement>(".graph-edge-label__card");
     expect(hitTarget).toHaveStyle({
-      width: "88px",
-      height: "88px",
-      minWidth: "88px",
-      minHeight: "88px",
+      width: "55px",
+      height: "55px",
+      minWidth: "55px",
+      minHeight: "55px",
     });
     expect(hitTarget).toHaveAttribute("data-label-overflow", "visible");
     expect(labelCard).toHaveStyle({ width: "44px", height: "24px" });
+  });
+
+  it("stops growing the hit area at the room placement reserved when zoomed far out", () => {
+    xyflow.zoom = 0.4;
+    render(
+      <GraphRelationshipEdge
+        {...edgeProps({
+          label: "sucht",
+          data: {
+            labelPlacement: { x: 180, y: 0 },
+            labelSize: { width: 44, height: 24 },
+            onLabelClick: vi.fn(),
+          },
+        })}
+      />,
+    );
+
+    // 44 reserved plus 8 clearance on each side, not 44 / 0.4 = 110.
+    expect(screen.getByRole("button", { name: "sucht" })).toHaveStyle({
+      width: "60px",
+      height: "60px",
+    });
   });
 
   it("keeps the shared label portal above selected nodes and the connection preview", () => {

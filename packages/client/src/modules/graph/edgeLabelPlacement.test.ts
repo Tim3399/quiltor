@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   type GraphEdgeLabelRequest,
   type GraphRect,
+  graphEdgeLabelHitTargetSize,
   placeGraphEdgeLabels,
   sampleGraphSmoothStepPath,
 } from "./edgeLabelPlacement";
@@ -253,5 +254,74 @@ describe("graph edge label placement", () => {
       hit.y >= card.y + card.height + 8 ||
       hit.y + hit.height <= card.y - 8;
     expect(apart, "the hit target keeps its clearance from the card").toBe(true);
+  });
+});
+
+describe("zoom-independent hit targets", () => {
+  const card: GraphRect = { x: 0, y: 0, width: 240, height: 100 };
+  const reserved = { width: 44, height: 44 };
+  const labelSize = { width: 60, height: 24 };
+
+  function overlap(first: GraphRect, second: GraphRect): number {
+    const width =
+      Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x);
+    const height =
+      Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y);
+    return width > 0 && height > 0 ? width * height : 0;
+  }
+
+  it.each([0.4, 0.55])("keeps every rendered hit target off the cards at zoom %s", (zoom) => {
+    // Edges run past the card at every distance from touching to well clear, above, below and
+    // beside it, so some of them place their label right at the edge of the reserved room.
+    const requests: GraphEdgeLabelRequest[] = [];
+    for (let gap = 0; gap <= 60; gap += 2) {
+      const below = card.y + card.height + gap;
+      const right = card.x + card.width + gap;
+      requests.push(
+        {
+          id: `below-${gap}`,
+          source: { x: -80, y: below },
+          target: { x: 320, y: below },
+          idealCenter: { x: 120, y: below },
+          size: labelSize,
+          hitTarget: reserved,
+        },
+        {
+          id: `right-${gap}`,
+          source: { x: right, y: -80 },
+          target: { x: right, y: 180 },
+          idealCenter: { x: right, y: 50 },
+          size: labelSize,
+          hitTarget: reserved,
+        },
+      );
+    }
+    let checked = 0;
+    for (const request of requests) {
+      const placement = placeGraphEdgeLabels([request], [card]).get(request.id);
+      if (!placement || placement.collides) continue;
+      // The zoom only enters at render time: placement is the same at every zoom.
+      const size = graphEdgeLabelHitTargetSize(labelSize, reserved, zoom);
+      const rendered = {
+        x: placement.center.x - size.width / 2,
+        y: placement.center.y - size.height / 2,
+        ...size,
+      };
+      expect(overlap(rendered, card), request.id).toBe(0);
+      checked += 1;
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it("still aims for 44 screen pixels where the reserved room allows it", () => {
+    expect(graphEdgeLabelHitTargetSize(labelSize, reserved, 1)).toEqual({ width: 60, height: 44 });
+    expect(graphEdgeLabelHitTargetSize(labelSize, reserved, 0.8)).toEqual({
+      width: 60,
+      height: 55,
+    });
+    expect(graphEdgeLabelHitTargetSize(labelSize, reserved, 0.08)).toEqual({
+      width: 60,
+      height: 60,
+    });
   });
 });
