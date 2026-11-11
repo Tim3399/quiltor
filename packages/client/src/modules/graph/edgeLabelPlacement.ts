@@ -446,3 +446,20 @@ export function placeGraphEdgeLabels(
   }
   return placements;
 }
+
+/**
+ * Lowest zoom at which a label's hit target can keep `reserved` screen pixels.
+ *
+ * The target is `reserved / zoom` canvas units, so it grows as the graph zooms out. Placement runs
+ * once, independent of zoom, so labels never jump; it keeps `reserved` plus `clearance` on every
+ * side free of nodes. Below this zoom the full-size target would reach into a card and take its
+ * clicks, so an interactive label is not rendered there at all.
+ */
+export function graphEdgeLabelMinZoom(
+  reserved: number,
+  clearance: number = DEFAULT_CLEARANCE,
+): number {
+  const target = nonNegative(reserved, 0);
+  const room = target + nonNegative(clearance, DEFAULT_CLEARANCE) * 2;
+  return room > 0 ? target / room : 0;
+}
