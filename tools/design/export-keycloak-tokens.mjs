@@ -117,6 +117,13 @@ export const COMPONENT_ROLES = Object.freeze([
   ["mark-radius", "components/PageState/PageState.css", ".page-state__mark", "border-radius"],
   ["mark-shadow", "components/PageState/PageState.css", ".page-state__mark", "box-shadow"],
   ["title-color", "components/PageState/PageState.css", ".page-state h1", "color"],
+  ["title-margin", "components/PageState/PageState.css", ".page-state h1", "margin"],
+  [
+    "actions-margin-top",
+    "components/PageState/PageState.css",
+    ".page-state__actions",
+    "margin-top",
+  ],
   ["copy-max", "components/PageState/PageState.css", ".page-state__copy", "max-width"],
   ["actions-gap", "components/PageState/PageState.css", ".page-state__actions", "gap"],
   // the panel card of the world gate, used for the form

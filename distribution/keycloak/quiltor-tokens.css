@@ -74,6 +74,8 @@
   --q-mark-radius: 13px;
   --q-mark-shadow: 0 3px 12px rgb(23 21 15 / 0.18);
   --q-title-color: #17150f;
+  --q-title-margin: 18px 0 8px;
+  --q-actions-margin-top: 20px;
   --q-copy-max: 58ch;
   --q-actions-gap: 8px;
   --q-panel-bg: #f4e9d9;
