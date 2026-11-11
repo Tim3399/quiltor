@@ -63,9 +63,17 @@ export function ChapterHistoryPanel({
     selectedRef,
     setSelectedRef: onRefChange,
   });
-  const chosen =
-    commits.find((commit) => commit.hash === selectedRef) ??
-    timeline.entries.find((entry) => entry.hash === selectedRef);
+  // The timeline pages further back than the 40 log entries in `commits`, and it drops its
+  // entries when the single view takes over. Keep the version picked there so the select
+  // can still offer it and shows the same version as the editor.
+  const picked = timeline.entries.find((entry) => entry.hash === selectedRef);
+  const [remembered, setRemembered] = useState<ChapterTimelineEntry | undefined>(undefined);
+  if (picked && picked !== remembered) setRemembered(picked);
+  const listed = commits.find((commit) => commit.hash === selectedRef);
+  const beyondLog = listed
+    ? undefined
+    : (picked ?? (remembered?.hash === selectedRef ? remembered : undefined));
+  const chosen = listed ?? beyondLog;
   const chosenName = chosen ? snapshotName(chosen, t, locale) : undefined;
   const additions = projection?.changes.filter((change) => change.kind === "added").length ?? 0;
   const removals = projection?.changes.filter((change) => change.kind === "removed").length ?? 0;
@@ -187,6 +195,11 @@ export function ChapterHistoryPanel({
                 {snapshotName(commit, t, locale)}
               </option>
             ))}
+            {beyondLog && (
+              <option key={beyondLog.hash} value={beyondLog.hash}>
+                {snapshotName(beyondLog, t, locale)}
+              </option>
+            )}
           </Select>
         ) : (
           state === "idle" && <EmptyState title={t("noVersion")} headingLevel={3} size="compact" />
