@@ -1340,6 +1340,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "'Acquire::http::Timeout \"30\";'",
                 "'Acquire::Queue-Mode \"host\";'",
             ),
+            ("no install from the cache", "    install_from_cache\n", ""),
+            ("no kept packages", "save_to_cache\n\nnpx", "npx"),
             (
                 "a third attempt",
                 "\nnpx playwright install chromium",
@@ -1377,6 +1379,22 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 )
                 with self.assertRaisesRegex(
                     workflow_contract.WorkflowContractError, "without a time limit"
+                ):
+                    workflow_contract.validate_linux_playwright_install(mutated, script)
+
+    def test_linux_browser_jobs_restore_the_apt_package_cache(self):
+        sources = workflow_contract._workflow_sources()
+        script = (REPO_ROOT / "tools/dev/playwright-linux.sh").read_text(encoding="utf-8")
+        for name in workflow_contract.PLAYWRIGHT_LINUX_CACHED_WORKFLOWS:
+            path = TEST_WORKFLOW.parent / name
+            with self.subTest(path=name):
+                self.assertIn(workflow_contract.PLAYWRIGHT_LINUX_CACHE_PATH, sources[path])
+                mutated = dict(sources)
+                mutated[path] = mutated[path].replace(
+                    workflow_contract.PLAYWRIGHT_LINUX_CACHE_PATH, "path: ~/.cache/other"
+                )
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, "apt package cache"
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
 
@@ -1873,7 +1891,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 self.assertIn(gate, runner_links)
         self.assertNotIn("build", runner_links)
 
-    def test_test_workflow_caches_npm_only(self):
+    def test_test_workflow_caches_npm_and_the_apt_packages_only(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_test_caches(sources)
         install = "      - name: Install Chromium\n"
@@ -1890,6 +1908,12 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "      - uses: actions/cache/restore@0000000000000000000000000000000000000000\n"
                 + install,
                 "may not use actions/cache",
+            ),
+            (
+                "another path under actions/cache",
+                "          path: ~/.cache/quiltor-apt\n",
+                "          path: ~/.cache/ms-playwright\n",
+                "caches npm and the apt packages only",
             ),
         )
         for name, original, replacement, error in mutations:

@@ -766,7 +766,13 @@ PLAYWRIGHT_LINUX_EVIDENCE = (
     "the browser's system packages are missing\"\n"
     "    exit 1\n",
     "npx playwright install chromium",
+    # An unreachable mirror (D-176): the packages of an earlier install come from the cache.
+    "    install_from_cache\n    npx playwright install chromium\n    exit 0\n",
+    'sudo dpkg --skip-same-version --install "$CACHE_DIR"/*.deb',
+    "save_to_cache\n\nnpx playwright install chromium",
 )
+PLAYWRIGHT_LINUX_CACHE_PATH = "path: ~/.cache/quiltor-apt"
+PLAYWRIGHT_LINUX_CACHED_WORKFLOWS = ("test.yml", "visual-baselines-bootstrap.yml")
 
 
 def _linux_steps(job: str) -> list[str] | None:
@@ -791,6 +797,15 @@ def validate_linux_playwright_install(sources: dict[Path, str], script: str | No
 
     for path, source in sources.items():
         for name, job in _job_blocks(source):
+            if (
+                path.name in PLAYWRIGHT_LINUX_CACHED_WORKFLOWS
+                and f"bash {PLAYWRIGHT_LINUX}" in job
+                and PLAYWRIGHT_LINUX_CACHE_PATH not in job
+            ):
+                raise WorkflowContractError(
+                    f"{path.name}:{name} installs Chromium without restoring the apt package "
+                    "cache: a Ubuntu mirror that does not answer would turn the job red"
+                )
             steps = _linux_steps(job)
             if steps is None:
                 continue
@@ -1485,7 +1500,7 @@ def validate_frontend_gates_once(sources: dict[Path, str]) -> None:
 
 def validate_test_caches(sources: dict[Path, str]) -> None:
     """
-    test.yml caches npm and nothing else.
+    test.yml caches npm and the apt packages of the Linux browser jobs, nothing else.
 
     A browser cache would save at most the 7-27 s Chromium download per job, a pip cache less
     than half a minute (docs/quality/ci.md, "Caches"). Neither is worth the cache-poisoning
@@ -1493,8 +1508,15 @@ def validate_test_caches(sources: dict[Path, str]) -> None:
     """
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
-    if re.search(r"uses:\s+actions/cache(?:/[a-z]+)?@", workflow):
+    if re.search(r"uses:\s+actions/cache/[a-z]+@", workflow):
         raise WorkflowContractError("test.yml may not use actions/cache; it caches npm only")
+    # The one exception (D-176): the .deb files of Playwright's system packages, for an Ubuntu
+    # mirror that does not answer. See "Caches" in docs/quality/ci.md.
+    for step in re.split(r"^      - ", workflow, flags=re.MULTILINE)[1:]:
+        if re.search(r"uses:\s+actions/cache@", step) and (PLAYWRIGHT_LINUX_CACHE_PATH not in step):
+            raise WorkflowContractError(
+                "test.yml may not use actions/cache; it caches npm and the apt packages only"
+            )
     caches = set(re.findall(r"^\s+cache:\s*([^\s#]+)", workflow, re.MULTILINE))
     if caches - {"npm"}:
         raise WorkflowContractError(
@@ -1857,6 +1879,9 @@ STEP_CONDITIONS = (
 )
 # Status functions are for collecting results after a test step, so only uploads may use them.
 UPLOAD_CONDITIONS = ("failure()", "always()", "${{ !cancelled() }}")
+# The one step a manual input switches on: it blocks the Ubuntu archives to test the apt cache.
+MIRROR_BLOCK_STEP = "name: Block the Ubuntu archives"
+MIRROR_BLOCK_CONDITION = "inputs.block_ubuntu_mirror"
 
 
 def validate_required_step_conditions(sources: dict[Path, str]) -> None:
@@ -1876,6 +1901,9 @@ def validate_required_step_conditions(sources: dict[Path, str]) -> None:
         for step in re.split(r"^      - ", body, flags=re.MULTILINE)[1:]:
             for condition in re.findall(r"^(?:        )?if:[ ]*([^\n]*)$", step, re.MULTILINE):
                 if any(pattern.fullmatch(condition) for pattern in STEP_CONDITIONS):
+                    continue
+                # The test of the apt cache (D-176) blocks the Ubuntu archives; it runs no test.
+                if condition == MIRROR_BLOCK_CONDITION and MIRROR_BLOCK_STEP in step:
                     continue
                 if condition in UPLOAD_CONDITIONS and re.search(
                     r"^        uses: actions/upload-artifact@", step, re.MULTILINE

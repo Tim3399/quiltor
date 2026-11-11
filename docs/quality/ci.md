@@ -171,6 +171,20 @@ The portable release gate is 21 of the 24 minutes; the artifact jobs after it ta
 Test caches npm and nothing else: `setup-node` with `cache: npm`, keyed on the system and
 `package-lock.json`, in the jobs that run `npm ci`. That cache predates this measurement and stays.
 
+The one cache added since is the apt packages of the Linux browser jobs (and of the baseline
+workflow). It does not save time; it is there for the day the Ubuntu mirror does not answer.
+archive.ubuntu.com was unreachable for more than 3.5 h on 2026-11-11 and every Linux slot was red
+(D-176, T-257). `tools/dev/playwright-linux.sh` keeps the `.deb` files of a successful
+`playwright install-deps` in `~/.cache/quiltor-apt`; the workflows restore and save that directory
+with `actions/cache` under `apt-debs-<runner image version>-playwright-<version>`. The key has no
+fallback, so packages of another image are never restored. When apt fails in the first attempt and
+the directory holds packages, the script installs them with `dpkg` without a network: the same
+files as before, so the same fonts and the same rendering. Without a cache it switches the mirror
+as before. To test it, start test.yml by hand with `block_ubuntu_mirror`: that blocks the Ubuntu
+archives in `/etc/hosts` of the Linux browser jobs, and the log must show "installing the packages
+of the cache". A normal run on the same image and Playwright version has to have saved the cache
+first.
+
 Two more caches were built and taken out again, because the numbers above do not carry them:
 
 | Candidate           | Most it can save per job                                         | Why it is not used                                                                                              |
@@ -180,9 +194,11 @@ Two more caches were built and taken out again, because the numbers above do not
 
 Each restored cache is also a way into the job: whatever a cache entry holds runs or is imported
 there. GitHub scopes entries by ref, so a pull request cannot write what main restores, but fewer
-caches still mean less to keep that way. `workflow_contract.py` fails if test.yml uses
-`actions/cache` or any `cache:` other than npm; adding one means measuring it first and changing
-that rule with it.
+caches still mean less to keep that way. A restored `.deb` is installed as root, which is why the
+key names image and Playwright version and why a cache entry is only ever written by a run of the
+same ref. `workflow_contract.py` fails if test.yml uses `actions/cache` for anything but the apt
+packages, or any `cache:` other than npm; adding one means measuring it first and changing that
+rule with it.
 
 ### Windows without `--with-deps`
 
