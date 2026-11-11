@@ -29,6 +29,30 @@ async function openFromMenu(page: Page) {
   return dialog;
 }
 
+// Holding a version is a save, a snapshot and a fresh read of the list, in that order; the
+// notice only follows the read. Under load that chain outlasts a 5 s text wait, so the test
+// waits for the server's answers instead and then expects the notice straight away (T-243).
+async function holdVersion(page: Page, dialog: ReturnType<Page["getByRole"]>) {
+  const snapshot = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/backup",
+  );
+  // The list may still be loading from opening the dialog; only a read sent after the
+  // snapshot answered is the one the notice waits for.
+  let answered = false;
+  void snapshot.then(() => {
+    answered = true;
+  });
+  const listed = page.waitForRequest(
+    (request) =>
+      answered && request.method() === "GET" && new URL(request.url()).pathname === "/api/history",
+  );
+  await dialog.getByRole("button", { name: "Version festhalten", exact: true }).click();
+  expect((await snapshot).ok()).toBeTruthy();
+  const read = await (await listed).response();
+  expect(read?.ok()).toBeTruthy();
+}
+
 async function openPalette(page: Page) {
   await page.keyboard.press("Control+KeyK");
   await expect(page.getByRole("heading", { name: "Suchen & Befehle" })).toBeVisible();
@@ -65,7 +89,7 @@ test("A held version restores the exact earlier text and keeps the state it repl
   );
   await expect(dialog.getByRole("checkbox")).toHaveCount(0);
   await dialog.getByLabel("Was hat sich geändert?").fill("Hafen am Morgen");
-  await dialog.getByRole("button", { name: "Version festhalten", exact: true }).click();
+  await holdVersion(page, dialog);
   await expect(dialog).toContainText("Version festgehalten.");
   const states = dialog.getByRole("navigation", { name: "Stände" });
   const held = states.getByRole("button", { name: /· Hafen am Morgen/ });
@@ -73,7 +97,7 @@ test("A held version restores the exact earlier text and keeps the state it repl
   // Holding on again without a change records nothing, says so and keeps the note.
   const stateCount = await states.getByRole("button").count();
   await dialog.getByLabel("Was hat sich geändert?").fill("Nochmal");
-  await dialog.getByRole("button", { name: "Version festhalten", exact: true }).click();
+  await holdVersion(page, dialog);
   await expect(dialog).toContainText("Seit der letzten Version hat sich nichts geändert.");
   await expect(dialog.getByLabel("Was hat sich geändert?")).toHaveValue("Nochmal");
   await expect(states.getByRole("button")).toHaveCount(stateCount);
