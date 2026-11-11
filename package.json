@@ -49,6 +49,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:tools": "node --test tools/audit/*.test.mjs tools/dev/*.test.mjs tools/documentation/*.test.mjs tests/world/*.test.mjs",
+    "test:backend": "node tools/dev/python.mjs --needs quiltor tools/dev/backend-tests.py",
+    "test:backend:serial": "node tools/dev/python.mjs --needs quiltor -m unittest discover -s tests/python -t tests/python",
     "test:audit-rules": "playwright test --config playwright.audit.config.ts --project rules",
     "test:e2e": "playwright test && npm run test:design",
     "design:gallery": "vite --config vite.design.config.ts",

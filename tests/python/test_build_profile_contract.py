@@ -215,7 +215,15 @@ class GrammarBackendSelectionTests(unittest.TestCase):
         """The frontend has one GrammarStatus shape; a missing key there would
         be an undefined at runtime rather than a type error."""
         unavailable = grammar.UnavailableGrammar(Path("/nonexistent")).status()
-        with tempfile.TemporaryDirectory() as folder:
+        # No real `java -version`: the JVM leaves JavaLauncher.log and hsperfdata_<user> in
+        # the temp directory, and whether it runs at all depended on the machine.
+        with (
+            tempfile.TemporaryDirectory() as folder,
+            patch(
+                "quiltor.infrastructure.writing_assistance.languagetool._java_version",
+                return_value=21,
+            ),
+        ):
             real = LanguageToolManager(Path(folder)).status()
         self.assertEqual(set(unavailable), set(real))
 
