@@ -7,7 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
  *
  *   node tools/design/export-keycloak-tokens.mjs           write distribution/keycloak/quiltor-tokens.css
  *   node tools/design/export-keycloak-tokens.mjs --check   fail when that file is stale
- *   node tools/design/export-keycloak-tokens.mjs --lint <theme css>   literal check of the theme
+ *   node tools/design/export-keycloak-tokens.mjs --lint <theme css> --tokens <file> [--tokens <file>]
+ *       literal and role check of the theme CSS against the token files it loads
  *
  * The theme lives in the infrastructure repository, so it cannot import these files. It
  * carries a copy of the generated file instead, and this check keeps the reference copy here
@@ -382,28 +383,51 @@ export function componentRoles(components, themes, tokens) {
  * theme invented instead of taking it from Quiltor.
  */
 const SCOPE =
-  /^(color|background(-color)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|accent-color|fill|font(-size)?|border(-[a-z]+)?-radius|box-shadow|height|min-height|max-height|width|min-width|max-width|padding(-[a-z]+)?|margin(-[a-z]+)?|gap|row-gap|column-gap|outline-offset|outline-width|border-width)$/;
+  /^(color|background(-color|-image)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|accent-color|fill|font(-size)?|border(-[a-z]+)?-radius|box-shadow|height|min-height|max-height|width|min-width|max-width|padding(-[a-z]+)?|margin(-[a-z]+)?|gap|row-gap|column-gap|outline-offset|outline-width|border-width)$/;
 const KEYWORDS =
   /\b(0|none|auto|inherit|initial|unset|transparent|currentColor|solid|inset|normal|fit-content|max-content|min-content)\b/g;
 
-export function lintThemeCss(css) {
+export function lintThemeCss(css, known) {
   const problems = [];
   const clean = css.replaceAll(/\/\*[\s\S]*?\*\//g, (c) => c.replaceAll(/[^\n]/g, " "));
   for (const rule of clean.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     const selector = rule[1].trim();
     const qrCode = selector.includes("qr-code");
     const srOnly = /sr-only|kc-current-locale-link/.test(selector);
-    for (const d of rule[2].matchAll(/([a-z-]+)\s*:\s*([^;]+);/g)) {
+    // a declaration ends at ";" or at the end of the block (the last one needs no semicolon)
+    for (const d of rule[2].matchAll(/(--[\w-]+|[a-z-]+)\s*:\s*([^;]+?)\s*(?:;|$)/g)) {
       const [property, raw] = [d[1], d[2].trim()];
+      // the theme takes its roles from the generated files and defines none of its own
+      if (property.startsWith("--q-")) {
+        problems.push(
+          `${selector.split("\n").pop().trim()} { ${property} } -> defines a --q-* role itself`,
+        );
+        continue;
+      }
+      // a role the token files do not define (renamed or dropped in Quiltor) falls back silently
+      if (known) {
+        for (const ref of raw.matchAll(/var\(\s*(--q-[\w-]+)/g)) {
+          if (!known.has(ref[1]))
+            problems.push(
+              `${selector.split("\n").pop().trim()} { ${property}: ${raw} } -> unknown ${ref[1]}`,
+            );
+        }
+      }
       if (!SCOPE.test(property)) continue;
       let rest = raw
         .replaceAll(/var\(\s*--q-[\w-]+\s*\)/g, " ")
         .replaceAll(/env\([^)]*\)/g, " ")
+        // relative theme images and the gradient function itself; colours inside it still count
+        .replaceAll(/url\(\s*["']?\.\.?\/[^)]*\)/g, " ")
+        .replaceAll(/\b(linear|radial)-gradient\(/g, " (")
+        .replaceAll(/\b(center|contain|cover|no-repeat)\b/g, " ")
         .replaceAll(/!important/g, " ")
         .replaceAll(KEYWORDS, " ")
         .replaceAll(/\b(calc|min|max|clamp)\(/g, " (")
         .replaceAll(/[(),*+/]/g, " ")
         .replaceAll(/\b100%/g, " ")
+        // a full-height page: Quiltor gets it from html/body height 100%, Keycloak needs the viewport
+        .replaceAll(/\b100d?vh\b/g, " ")
         .replaceAll(/\b50%/g, srOnly ? " " : "50%")
         .trim();
       const allowedPx =
@@ -563,7 +587,19 @@ function main(argv) {
   const lint = argv.indexOf("--lint");
   if (lint !== -1) {
     const file = argv[lint + 1];
-    const problems = lintThemeCss(readFileSync(file, "utf8"));
+    const known = new Set();
+    argv.forEach((arg, i) => {
+      if (arg !== "--tokens") return;
+      for (const m of readFileSync(argv[i + 1], "utf8").matchAll(/(--q-[\w-]+)\s*:/g))
+        known.add(m[1]);
+    });
+    if (!known.size) {
+      console.error(
+        "--lint needs the token files: --lint <css> --tokens quiltor-tokens.css --tokens quiltor-fonts.css",
+      );
+      return 2;
+    }
+    const problems = lintThemeCss(readFileSync(file, "utf8"), known);
     for (const problem of problems)
       console.error(`${file}: literal outside the exceptions: ${problem}`);
     return problems.length ? 1 : 0;

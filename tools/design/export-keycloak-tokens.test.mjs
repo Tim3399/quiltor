@@ -153,3 +153,50 @@ test("literal check: tokens and listed exceptions pass, invented values fail", (
   assert.equal(bad.length, 3);
   assert.match(bad.join(" | "), /#17150f/);
 });
+
+test("literal check: the full page height may use the viewport", () => {
+  assert.deepEqual(lintThemeCss(".page { min-height: 100vh; }"), []);
+  assert.deepEqual(lintThemeCss(".page { min-height: 100dvh; }"), []);
+  assert.equal(lintThemeCss(".page { min-height: 90vh; }").length, 1);
+});
+
+test("literal check: the last declaration needs no semicolon to be checked", () => {
+  assert.equal(lintThemeCss(".a { margin: 0; color: #123456 }").length, 1);
+  assert.equal(lintThemeCss(".a { padding: 24px }").length, 1);
+});
+
+test("literal check: background-image is in scope, colours inside a gradient count", () => {
+  assert.equal(
+    lintThemeCss(".a { background-image: linear-gradient(#ff0000, #00ff00); }").length,
+    1,
+  );
+  assert.deepEqual(
+    lintThemeCss(
+      '.a { background-image: linear-gradient(var(--q-x), var(--q-x)); } .b { background-image: url("../img/logo.svg"); }',
+    ),
+    [],
+  );
+});
+
+test("literal check: a role the token files do not define is reported", () => {
+  const known = new Set(["--q-ink"]);
+  assert.deepEqual(lintThemeCss(".a { color: var(--q-ink); }", known), []);
+  const unknown = lintThemeCss(".a { color: var(--q-does-not-exist); }", known);
+  assert.equal(unknown.length, 1);
+  assert.match(unknown[0], /unknown --q-does-not-exist/);
+});
+
+test("literal check: the theme may not define --q-* roles itself", () => {
+  const own = lintThemeCss(":root { --q-own: #ff00ff; } .a { color: var(--q-own); }");
+  assert.equal(own.length, 1);
+  assert.match(own[0], /defines a --q-\* role itself/);
+});
+
+test("literal check: a renamed role turns the real theme red", () => {
+  // the theme in the infrastructure repository is not here; the generated file stands in for it
+  const known = new Set(buildKeycloakTokens(readSources()).match(/--q-[\w-]+(?=:)/g));
+  assert.ok(known.has("--q-btn-primary-bg"));
+  known.delete("--q-btn-primary-bg");
+  const problems = lintThemeCss(".a { background: var(--q-btn-primary-bg); }", known);
+  assert.equal(problems.length, 1);
+});
