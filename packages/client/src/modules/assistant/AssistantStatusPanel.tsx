@@ -83,7 +83,9 @@ export function AssistantStatusPanel({
           )}
           {installState?.error && (
             <Alert className="assistant-offline-error" tone="danger">
-              {t("installAssistantError").replace("{error}", installState.error)}
+              {installState.errorCode === "download_host_changed"
+                ? t("installAssistantHostChanged")
+                : t("installAssistantError").replace("{error}", installState.error)}
             </Alert>
           )}
         </Alert>

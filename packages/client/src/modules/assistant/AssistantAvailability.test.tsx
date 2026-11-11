@@ -102,6 +102,26 @@ describe("assistant availability and installation", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
+  it("explains a changed download host without naming the host", async () => {
+    vi.mocked(api.status).mockResolvedValue(NOT_INSTALLED);
+    vi.mocked(api.installStatus).mockResolvedValue({
+      ok: true,
+      running: false,
+      phase: "",
+      percent: 0,
+      error: "Artifact redirect left its trusted HTTPS origins: new.cdn.example",
+      errorCode: "download_host_changed",
+    });
+    setup();
+
+    expect(
+      await screen.findByText(
+        "Einrichtung fehlgeschlagen: Der Anbieter hat seinen Download-Server geändert. Quiltor nutzt ihn aus Sicherheitsgründen nicht. Ein Update von Quiltor behebt das.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/new\.cdn\.example/)).not.toBeInTheDocument();
+  });
+
   it("re-checks status once installation reports it finished", async () => {
     vi.mocked(api.status).mockResolvedValueOnce(NOT_INSTALLED).mockResolvedValueOnce(ONLINE);
     vi.mocked(api.installStatus).mockResolvedValue({

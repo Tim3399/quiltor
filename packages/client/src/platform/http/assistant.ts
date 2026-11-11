@@ -30,6 +30,7 @@ export function createAssistantHttpGateway(state: HttpApplicationState): Assista
         phase: string;
         percent: number;
         error: string;
+        errorCode?: string;
       }>("/api/assistant/install/status"),
     ...createAssistantJobsHttpGateway(state),
     progress: (id: string) =>

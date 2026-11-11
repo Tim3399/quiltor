@@ -40,6 +40,26 @@ class TransferError(OSError):
     """
 
 
+class DownloadHostChangedError(ValueError):
+    """A download was redirected to a host the manifest does not trust.
+
+    Usually the provider moved its download servers (Hugging Face changed its
+    CDN host twice). Only an update of Quiltor's allow-list fixes that, so the
+    message says so instead of a bare policy violation. A ValueError still, so
+    existing callers keep treating it as a rejected artifact.
+    """
+
+    error_code = "download_host_changed"
+
+    def __init__(self, destination: str) -> None:
+        self.host = urlsplit(destination).hostname or ""
+        super().__init__(
+            "The provider's download server changed and Quiltor does not use it for "
+            "security reasons. Updating Quiltor fixes this. "
+            f"(Artifact redirect left its trusted HTTPS origins: {self.host or destination})"
+        )
+
+
 def _describe(url: str, error: Exception) -> str:
     if not isinstance(error, urllib.error.HTTPError):
         return f"{url} is unreachable: {getattr(error, 'reason', error)}"
@@ -104,7 +124,7 @@ class _ArtifactRedirect(urllib.request.HTTPRedirectHandler):
             or parsed.password
             or _origin(destination) not in self._allowed
         ):
-            raise ValueError("Artifact redirect left its trusted HTTPS origins.")
+            raise DownloadHostChangedError(destination)
         return super().redirect_request(req, fp, code, msg, headers, destination)
 
 

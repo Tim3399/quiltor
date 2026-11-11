@@ -27,6 +27,8 @@ export const assistant = {
   installPhaseModel: "Downloading the language model",
   installPhaseVerifying: "Verifying",
   installAssistantError: "Setup failed: {error}",
+  installAssistantHostChanged:
+    "Setup failed: the provider changed its download server. Quiltor does not use it for security reasons. Updating Quiltor fixes this.",
   assistantGreeting: "What should I record in your world?",
   assistantGreetingBody:
     "I can prepare characters and relationships, create moments, and review your world with citations.",

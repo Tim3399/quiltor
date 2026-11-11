@@ -464,8 +464,9 @@ class InstallManifestTests(unittest.TestCase):
             "http://us.aws.cdn.hf.co/m.gguf",
         ):
             with self.subTest(target=foreign):
-                with self.assertRaisesRegex(ValueError, "trusted HTTPS origins"):
+                with self.assertRaises(transfer.DownloadHostChangedError) as caught:
                     follow(foreign)
+                self.assertEqual(caught.exception.error_code, "download_host_changed")
 
     def test_model_tree_is_requested_in_pages_hugging_face_accepts(self):
         # Hugging Face answers a larger page with HTTP 400 ("Invalid limit for
@@ -794,6 +795,31 @@ class InstallAsyncTest(unittest.TestCase):
         self.assertFalse(state["running"])
         self.assertEqual(state["percent"], 100)
         self.assertEqual(state["error"], "")
+
+    def test_a_foreign_download_host_is_reported_by_its_own_code(self):
+        # The interface explains this one in its own words; the host itself
+        # stays in the message, which only the log and the console show.
+        def fake_install(runtime, *, on_progress=None, **kwargs):
+            raise transfer.DownloadHostChangedError("https://new.cdn.example/m.gguf")
+
+        with patch.object(installer, "install", fake_install):
+            self.assertTrue(self._start())
+            self._wait_until_idle()
+
+        state = self.coordinator.read()
+        self.assertEqual(state["errorCode"], "download_host_changed")
+        self.assertIn("new.cdn.example", str(state["error"]))
+        self.assertIn("Updating Quiltor fixes this", str(state["error"]))
+
+    def test_other_failures_carry_no_error_code(self):
+        def fake_install(runtime, *, on_progress=None, **kwargs):
+            raise SystemExit("unsupported platform")
+
+        with patch.object(installer, "install", fake_install):
+            self.assertTrue(self._start())
+            self._wait_until_idle()
+
+        self.assertEqual(self.coordinator.read()["errorCode"], "")
 
     def test_second_call_while_running_is_a_no_op(self):
         release = threading.Event()

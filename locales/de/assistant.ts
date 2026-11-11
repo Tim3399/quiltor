@@ -28,6 +28,8 @@ export const assistant = {
   installPhaseModel: "Sprachmodell wird geladen",
   installPhaseVerifying: "Wird geprüft",
   installAssistantError: "Einrichtung fehlgeschlagen: {error}",
+  installAssistantHostChanged:
+    "Einrichtung fehlgeschlagen: Der Anbieter hat seinen Download-Server geändert. Quiltor nutzt ihn aus Sicherheitsgründen nicht. Ein Update von Quiltor behebt das.",
   assistantGreeting: "Was soll ich in der Welt nachtragen?",
   assistantGreetingBody:
     "Ich kann Figuren und Beziehungen vorbereiten, Zeitpunkte anlegen und deine Welt mit Quellenangabe auswerten.",
