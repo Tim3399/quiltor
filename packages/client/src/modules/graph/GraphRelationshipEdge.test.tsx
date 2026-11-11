@@ -176,21 +176,24 @@ describe("GraphRelationshipEdge", () => {
     expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
   });
 
-  it("keeps a 44px interactive hit area through graph zoom without enlarging the label card", () => {
-    xyflow.zoom = 0.8;
-    render(
-      <GraphRelationshipEdge
-        {...edgeProps({
-          label: "sucht",
-          data: {
-            labelPlacement: { x: 180, y: 0 },
-            labelSize: { width: 44, height: 24 },
-            onLabelClick: vi.fn(),
-          },
-        })}
-      />,
-    );
+  it("keeps a 44px interactive hit area through graph zoom and hides the label below the threshold", () => {
+    const props = edgeProps({
+      label: "sucht",
+      data: {
+        labelPlacement: { x: 180, y: 0 },
+        labelSize: { width: 44, height: 24 },
+        onLabelClick: vi.fn(),
+      },
+    });
 
+    // At 0.5 a 44px target (88 canvas units) would reach into a card: no label, no tab stop.
+    xyflow.zoom = 0.5;
+    const { rerender } = render(<GraphRelationshipEdge {...props} />);
+    expect(screen.queryByRole("button", { name: "sucht" })).toBeNull();
+    expect(document.querySelector(".graph-edge-label")).toBeNull();
+
+    xyflow.zoom = 0.8;
+    rerender(<GraphRelationshipEdge {...props} />);
     const hitTarget = screen.getByRole("button", { name: "sucht" });
     const labelCard = hitTarget.querySelector<HTMLElement>(".graph-edge-label__card");
     expect(hitTarget).toHaveStyle({
@@ -199,30 +202,9 @@ describe("GraphRelationshipEdge", () => {
       minWidth: "55px",
       minHeight: "55px",
     });
+    expect(55 * xyflow.zoom).toBeGreaterThanOrEqual(44);
     expect(hitTarget).toHaveAttribute("data-label-overflow", "visible");
     expect(labelCard).toHaveStyle({ width: "44px", height: "24px" });
-  });
-
-  it("stops growing the hit area at the room placement reserved when zoomed far out", () => {
-    xyflow.zoom = 0.4;
-    render(
-      <GraphRelationshipEdge
-        {...edgeProps({
-          label: "sucht",
-          data: {
-            labelPlacement: { x: 180, y: 0 },
-            labelSize: { width: 44, height: 24 },
-            onLabelClick: vi.fn(),
-          },
-        })}
-      />,
-    );
-
-    // 44 reserved plus 8 clearance on each side, not 44 / 0.4 = 110.
-    expect(screen.getByRole("button", { name: "sucht" })).toHaveStyle({
-      width: "60px",
-      height: "60px",
-    });
   });
 
   it("keeps the shared label portal above selected nodes and the connection preview", () => {

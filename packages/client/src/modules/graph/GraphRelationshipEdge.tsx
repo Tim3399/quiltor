@@ -16,7 +16,7 @@ import {
   type GraphPoint,
   type GraphRect,
   type GraphSize,
-  graphEdgeLabelHitTargetSize,
+  graphEdgeLabelMinZoom,
   placeGraphEdgeLabels,
   sampleGraphSmoothStepPath,
 } from "./edgeLabelPlacement";
@@ -28,6 +28,8 @@ const LABEL_HEIGHT = 24;
 const LABEL_MIN_WIDTH = 44;
 const LABEL_MAX_WIDTH = 220;
 const INTERACTIVE_TARGET_SIZE = 44;
+// Below this zoom a 44px target no longer fits into the room placement keeps free of cards.
+const INTERACTIVE_LABEL_MIN_ZOOM = graphEdgeLabelMinZoom(INTERACTIVE_TARGET_SIZE);
 const JOURNEY_HANDLE_INLINE_RATIO = 0.26;
 
 export type GraphEdgeLabelBadge = "kinship" | "temporal";
@@ -272,15 +274,14 @@ function InteractiveGraphEdgeLabel({
 }: InteractiveGraphEdgeLabelProps) {
   const viewportZoom = useStore((state) => state.transform[2]);
   const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
-  // Placement reserved the 44-unit target plus its clearance; growing past that would let the
-  // invisible part of the target cover a card when the graph is zoomed out.
   const hitTargetSize = labelSize
-    ? graphEdgeLabelHitTargetSize(
-        labelSize,
-        { width: INTERACTIVE_TARGET_SIZE, height: INTERACTIVE_TARGET_SIZE },
-        safeViewportZoom,
-      )
+    ? {
+        width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+        height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+      }
     : undefined;
+  // Hidden, not shrunk: the label leaves the DOM, so it is neither clickable nor a tab stop.
+  if (safeViewportZoom < INTERACTIVE_LABEL_MIN_ZOOM) return null;
   const hitTargetStyle = hitTargetSize
     ? {
         ...positionStyle,

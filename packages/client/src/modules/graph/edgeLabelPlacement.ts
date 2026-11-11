@@ -448,29 +448,18 @@ export function placeGraphEdgeLabels(
 }
 
 /**
- * Size, in canvas units, of the hit target a label renders at `zoom`.
+ * Lowest zoom at which a label's hit target can keep `reserved` screen pixels.
  *
- * The target aims for `reserved` screen pixels, so it grows as `reserved / zoom` canvas units
- * when the graph zooms out. Placement runs once, independent of zoom, so labels never jump; it
- * keeps `reserved` plus `clearance` on every side free of nodes. The rendered target therefore
- * stops growing at `reserved + 2 * clearance`: at most it touches a card, it never covers one.
- * Below zoom `reserved / (reserved + 2 * clearance)` the target is smaller than `reserved` screen
- * pixels, which is the price of not moving labels while zooming: with 44 reserved, about 33 px at
- * zoom 0.55, 24 px at 0.4 and 5 px at the minimum zoom 0.08. This exception to the 44 px target
- * is recorded in docs/design/FRONTEND_STYLEGUIDE.md ("Touch, Hover und Ziehen"), decision D-177.
+ * The target is `reserved / zoom` canvas units, so it grows as the graph zooms out. Placement runs
+ * once, independent of zoom, so labels never jump; it keeps `reserved` plus `clearance` on every
+ * side free of nodes. Below this zoom the full-size target would reach into a card and take its
+ * clicks, so an interactive label is not rendered there at all.
  */
-export function graphEdgeLabelHitTargetSize(
-  labelSize: GraphSize,
-  reserved: GraphSize,
-  zoom: number,
+export function graphEdgeLabelMinZoom(
+  reserved: number,
   clearance: number = DEFAULT_CLEARANCE,
-): GraphSize {
-  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
-  const room = nonNegative(clearance, DEFAULT_CLEARANCE) * 2;
-  const side = (label: number, target: number) =>
-    Math.max(label, Math.min(target / safeZoom, target + room));
-  return {
-    width: side(labelSize.width, reserved.width),
-    height: side(labelSize.height, reserved.height),
-  };
+): number {
+  const target = nonNegative(reserved, 0);
+  const room = target + nonNegative(clearance, DEFAULT_CLEARANCE) * 2;
+  return room > 0 ? target / room : 0;
 }
