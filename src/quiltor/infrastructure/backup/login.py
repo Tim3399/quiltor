@@ -135,7 +135,8 @@ class BackupLoginRuntime:
     def _run_probe(self, base: str) -> None:
         try:
             issuer, scope = self.issuer_for(base)
-            self._gateway(issuer).discover()
+            # No retries: the status answer waits only PROBE_PATIENCE for this probe.
+            self._gateway(issuer).discover(retry=False)
             result = (issuer, scope, True)
         except Exception:  # noqa: BLE001 - a failed discovery probe is cached as "not available"
             result = ("", "", False)
