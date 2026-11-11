@@ -106,3 +106,18 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+.ui-menu__check {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+}
+
+.ui-menu__check > svg {
+  width: 100%;
+  height: 100%;
+}

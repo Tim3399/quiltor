@@ -28,3 +28,20 @@ export function Disabled() {
     />
   );
 }
+
+/** The way every workspace uses it from T-258 on: plain names, area in the legend, shortcut in the tooltip. */
+export function WithShortcuts() {
+  return (
+    <UndoRedoControls
+      label="Verlauf: Figuren"
+      undoLabel="Rückgängig"
+      redoLabel="Wiederholen"
+      undoShortcut={{ label: "Strg+Z", keys: "Control+Z" }}
+      redoShortcut={{ label: "Strg+Umschalt+Z", keys: "Control+Shift+Z" }}
+      onUndo={() => undefined}
+      onRedo={() => undefined}
+      canUndo
+      canRedo={false}
+    />
+  );
+}

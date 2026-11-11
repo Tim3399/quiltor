@@ -372,6 +372,22 @@ Farben unterscheiden Serien und Zustände, nicht automatisch „gut“ und „sc
 
 Bei Bewertungen sind Abgabe, Hover-Vorschau und tatsächlicher Mittelwert unterschiedliche Zustände. Anzahl und Berechnungsbasis müssen stimmen. Rechenbeispiel: Bei 4,4 von 5 sind vier Sterne ganz und der fünfte zu 40 Prozent gefüllt, nicht zu 44 Prozent.[^D37]
 
+### 7.4 Werkzeugzeile, Detailbereich und Verlauf
+
+Gleiche Handgriffe liegen in jedem Arbeitsbereich am gleichen Platz (T-258, Entscheidungen D-178 und D-180). Wer ein Element kennt, findet sich in jedem anderen zurecht.
+
+**Werkzeugzeile.** Die Reihenfolge ist immer: Erstellen · Schalter · Verlauf · „Weitere Aktionen“. Ein Arbeitsbereich hat höchstens ein „…“-Menü, und es gibt kein „Ansicht“-Menü.
+
+- **Häufig Ein- und Ausgeblendetes** steht als Schalter in der Zeile: `ToolbarButton` mit Symbol und kurzem, festem Text, `collapseAt="medium"`, Zustand über `aria-pressed`. Der Text wechselt nicht zwischen „einblenden“ und „ausblenden“; den Zustand trägt `aria-pressed`.
+- **Seltenes** steht im „…“: Einstellungen wie das Raster, einmalige Aktionen wie Anordnen, Export und Import. Einstellungen erscheinen dort als `MenuItemCheckbox` mit festem Namen und Häkchen.
+- **Kompakt** (bis 719 px Breite, `useCompactToolbar()`) stehen höchstens sechs Touch-Knöpfe in einer Zeile. Die Schalter mit der niedrigsten Priorität wandern ins „…“, der Verlauf wandert nie. Die Grenze richtet sich nur nach der Breite: Ein Tablet mit grobem Zeiger hat Platz für eine volle Zeile.
+
+**Detailbereich.** Jedes Element eines Weltbereichs öffnet dasselbe `DetailPanel`. Auf breiten Flächen ist es rechts angedockt, bis 820 px (`DETAIL_COMPACT_QUERY`) eine Schublade über der Fläche, bis 640 px am unteren Rand. Es ist auf jeder Breite ein begleitender Bereich (`complementary`) und nie modal (§7.2): kein Hintergrund, keine Fokusfalle, die Fläche dahinter bleibt bedienbar, Escape schließt. Der Kopf zeigt die Art, den Namen des Elements und „Schließen“. Reiter gibt es ab zwei Inhaltsgruppen; der erste enthält die eigenen Angaben des Elements.
+
+**Löschen.** Ein Element löscht man an genau einer Stelle: mit dem roten Knopf „_Art_ löschen“, etwa „Figur löschen“ (`DetailPanelDeleteButton`), im Fuß seines Detailbereichs. Er steht auf jedem Reiter am selben Platz und öffnet immer denselben Bestätigungsdialog, der die Folgen nennt und auf das Rückgängigmachen hinweist. Werkzeugzeilen und Menüs enthalten kein Löschen eines ganzen Elements. Teile eines Elements (Alias, Feld, Beziehung in einer Liste) dürfen an Ort und Stelle entfernt werden. Ist Löschen gerade nicht möglich, bleibt der Knopf sichtbar, ist deaktiviert und nennt den Grund.
+
+**Verlauf.** Rückgängig und Wiederholen stehen in jedem Arbeitsbereich an derselben Stelle der Werkzeugzeile, immer sichtbar als Symbol, auch bei 375 px. Die Knöpfe heißen überall „Rückgängig“ und „Wiederholen“; den Bereich nennt die Gruppe („Verlauf: Orte“), das Tastenkürzel der Hinweis („Rückgängig (Strg+Z)“).
+
 <a id="s08"></a>
 
 ## 8. Zustände, Speicherung und sichere Wiederherstellung
@@ -422,6 +438,8 @@ Debouncing, lokale Entwürfe und Wiederholungsversuche werden nach Inhalt, Risik
 | Irreversibel, finanziell oder betrieblich folgenreich | Explizite benannte Bestätigung; zusätzliche bewusste Eingabe nur bei entsprechendem Risiko. |
 
 Ein Bestätigungsdialog ist weder immer falsch noch immer ausreichend. Die Aktion muss konkret benannt sein; „Sind Sie sicher?“ allein erklärt keine Konsequenz. Ein pauschaler Halteknopf von wenigen hundert Millisekunden ersetzt keine Risikoanalyse.[^D12]
+
+Wo ein Element eines Weltbereichs gelöscht wird, regelt §7.4.
 
 Undo darf nur angeboten werden, wenn der Zustand zuverlässig wiederherstellbar ist. Ein kurz sichtbarer Toast SOLL nicht die einzige Möglichkeit sein, einen wesentlichen Verlust abzuwenden. Dauerhafte Wiederherstellung oder angemessene Zeitsteuerung berücksichtigen; reine Hover-Pause hilft Tastaturnutzung nicht.[^D48][^W10]
 

@@ -1,2 +1,2 @@
-export type { MenuItemProps, MenuProps, MenuSubmenuProps } from "./Menu";
-export { ContextMenu, Menu, MenuItem, MenuSeparator, MenuSubmenu } from "./Menu";
+export type { MenuItemCheckboxProps, MenuItemProps, MenuProps, MenuSubmenuProps } from "./Menu";
+export { ContextMenu, Menu, MenuItem, MenuItemCheckbox, MenuSeparator, MenuSubmenu } from "./Menu";

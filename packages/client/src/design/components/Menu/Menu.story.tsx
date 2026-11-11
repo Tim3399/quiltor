@@ -1,8 +1,8 @@
-import { Copy, FolderInput, Pencil, Trash2 } from "lucide-react";
+import { Copy, FolderInput, Grid3X3, Lock, Pencil, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "../../primitives/Button";
 import { Popover } from "../Popover";
-import { Menu, MenuItem, MenuSeparator, MenuSubmenu } from "./Menu";
+import { Menu, MenuItem, MenuItemCheckbox, MenuSeparator, MenuSubmenu } from "./Menu";
 
 export function Default() {
   return (
@@ -83,5 +83,35 @@ export function SubmenuInPopover() {
         </Menu>
       </Popover>
     </>
+  );
+}
+
+/** Settings with a fixed name and a check mark, next to plain actions (T-258). */
+export function CheckableSettings() {
+  const [grid, setGrid] = useState(true);
+  const [bound, setBound] = useState(false);
+  return (
+    <Menu label="Weitere Aktionen" onClose={() => undefined} autoFocus={false}>
+      <MenuItemCheckbox
+        icon={<Grid3X3 />}
+        label="Am Raster ausrichten"
+        checked={grid}
+        onCheckedChange={setGrid}
+      />
+      <MenuItemCheckbox
+        icon={<Lock />}
+        label="An die Karte binden"
+        checked={bound}
+        onCheckedChange={setBound}
+      />
+      <MenuItemCheckbox
+        label="Ohne Karte nicht verfügbar"
+        checked={false}
+        disabled
+        onCheckedChange={() => undefined}
+      />
+      <MenuSeparator />
+      <MenuItem icon={<Copy />} label="Duplizieren" onSelect={() => undefined} />
+    </Menu>
   );
 }

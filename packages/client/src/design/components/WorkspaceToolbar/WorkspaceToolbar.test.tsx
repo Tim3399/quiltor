@@ -1,9 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Button } from "../../primitives/Button";
 import { UndoRedoControls } from "../UndoRedoControls";
 import {
+  COMPACT_TOOLBAR_QUERY,
+  useCompactToolbar,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
   WorkspaceToolbarCreateButton,
@@ -11,7 +13,10 @@ import {
   WorkspaceToolbarTitle,
 } from "./WorkspaceToolbar";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("WorkspaceToolbar", () => {
   it("provides a named toolbar with composable title and groups", () => {
@@ -131,5 +136,24 @@ describe("WorkspaceToolbar", () => {
 
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("calls a row compact by width alone, at the touch breakpoint", () => {
+    const queries: string[] = [];
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => {
+        queries.push(query);
+        return {
+          matches: query === "(max-width: 719px)",
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        };
+      }),
+    );
+    const { result } = renderHook(() => useCompactToolbar());
+    expect(result.current).toBe(true);
+    expect(COMPACT_TOOLBAR_QUERY).toBe("(max-width: 719px)");
+    expect(queries.every((query) => !query.includes("pointer"))).toBe(true);
   });
 });
