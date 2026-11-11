@@ -64,6 +64,29 @@ async function placeCaretAtDocumentOffset(page: Page, editor: Locator, offset: n
       }),
     )
     .toBe(offset);
+  // The arrow keys move the native selection; CodeMirror only takes it over on its next
+  // selectionchange. The preview keeps CodeMirror's position, not the DOM's, so wait until
+  // the editor itself holds the caret. On macOS it lagged one character behind (T-256).
+  await expect
+    .poll(
+      () =>
+        editor.evaluate((root) => {
+          const content = root.matches(".cm-content") ? root : root.querySelector(".cm-content");
+          // cmTile is CodeMirror's own back-reference, the one EditorView.findFromDOM reads.
+          const view = (
+            content as
+              | (Element & {
+                  cmTile?: { root?: { view?: { state: { selection: { main: unknown } } } } };
+                })
+              | null
+          )?.cmTile?.root?.view;
+          if (!view) throw new Error("Expected a CodeMirror view behind the chapter text");
+          const main = view.state.selection.main as { empty: boolean; head: number };
+          return main.empty ? main.head : null;
+        }),
+      { message: "the editor holds the caret where the keys put it" },
+    )
+    .toBe(offset);
 }
 
 test("Print preview preserves editor position and shares physical pages with the PDF", async ({
