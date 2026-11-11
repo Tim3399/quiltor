@@ -156,8 +156,8 @@ export const designAuditProfiles = {
     coverage: {
       default: ["Default"],
       disabled: ["DisabledAndSelected"],
-      selection: ["DisabledAndSelected"],
-      keyboard: ["Default", "DisabledAndSelected", "NestedSubmenu"],
+      selection: ["DisabledAndSelected", "CheckableSettings"],
+      keyboard: ["Default", "DisabledAndSelected", "NestedSubmenu", "CheckableSettings"],
       longContent: ["LongLabels"],
       overlay: ["NestedSubmenu", "SubmenuInPopover"],
       responsive: ["LongLabels", "NestedSubmenu", "SubmenuInPopover"],
@@ -266,6 +266,18 @@ export const designAuditProfiles = {
       responsive: ["Default", "WideLongContent"],
     },
   },
+  DetailPanel: {
+    priority: "P0",
+    coverage: {
+      default: ["Default"],
+      variants: ["WithTabs", "Drawer"],
+      empty: ["Empty"],
+      disabled: ["Drawer"],
+      keyboard: ["WithTabs", "Drawer"],
+      longContent: ["WithTabs"],
+      responsive: ["Default", "Drawer"],
+    },
+  },
   SidePanel: {
     priority: "P0",
     coverage: {
@@ -338,8 +350,9 @@ export const designAuditProfiles = {
     priority: "P1",
     coverage: {
       default: ["Available"],
+      variants: ["WithShortcuts"],
       disabled: ["Disabled"],
-      keyboard: ["Available", "Disabled"],
+      keyboard: ["Available", "Disabled", "WithShortcuts"],
     },
   },
   WorkspaceToolbar: {

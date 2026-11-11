@@ -81,3 +81,29 @@ test("discovers productive files and reports paths while ignoring tests", () => 
   assert.equal(violations.length, 1);
   assert.match(violations[0], /Actions\.tsx: owns aria-haspopup=menu directly/);
 });
+
+test("accepts a checkable setting with a structured label and no icon", () => {
+  assert.deepEqual(
+    analyzeMenuContractSource(`
+      export function More() {
+        return <DropdownMenu renderTrigger={(props) => <Button {...props} />} label="Weitere Aktionen">
+          <MenuItemCheckbox label={t("snapToGrid")} checked={grid} onCheckedChange={setGrid} />
+        </DropdownMenu>;
+      }
+    `),
+    [],
+  );
+});
+
+test("holds a checkable setting to the same label rule as a plain item", () => {
+  assert.deepEqual(
+    analyzeMenuContractSource(`
+      export function More() {
+        return <DropdownMenu renderTrigger={(props) => <Button {...props} />} label="Weitere Aktionen">
+          <MenuItemCheckbox checked={grid} onCheckedChange={setGrid}>Raster</MenuItemCheckbox>
+        </DropdownMenu>;
+      }
+    `),
+    ["renders MenuItem without the structured label prop"],
+  );
+});

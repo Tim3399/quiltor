@@ -31,6 +31,18 @@ export function useMediaMatch(query: string) {
   return matches;
 }
 
+/**
+ * The width below which a toolbar row is compact: every button is an icon at touch size
+ * (ToolbarButton.css), and a row holds at most six of them (styleguide 7.4, T-258). Width only,
+ * on purpose: a tablet with a coarse pointer has room for a full row of touch buttons.
+ */
+export const COMPACT_TOOLBAR_QUERY = "(max-width: 719px)";
+
+/** Whether the toolbar row is compact, so its lowest-priority toggles belong in "…". */
+export function useCompactToolbar() {
+  return useMediaMatch(COMPACT_TOOLBAR_QUERY);
+}
+
 function classes(...values: Array<string | false | undefined>) {
   return values.filter(Boolean).join(" ");
 }

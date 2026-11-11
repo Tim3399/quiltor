@@ -11,6 +11,7 @@ export const cssDesignOwnerClassesByComponent = Object.freeze({
   CollapsibleGroup: Object.freeze(["collapsible-group"]),
   CommandPalette: Object.freeze(["ui-command-palette"]),
   ConfirmDialog: Object.freeze(["ui-confirm-dialog"]),
+  DetailPanel: Object.freeze(["detail-panel"]),
   Dialog: Object.freeze(["ui-dialog", "ui-dialog-backdrop"]),
   Disclosure: Object.freeze(["design-disclosure"]),
   DropdownMenu: Object.freeze(["ui-dropdown-menu"]),

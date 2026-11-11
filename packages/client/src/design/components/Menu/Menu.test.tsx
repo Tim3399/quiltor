@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Menu, MenuItem, MenuSeparator, MenuSubmenu } from "./Menu";
+import { Menu, MenuItem, MenuItemCheckbox, MenuSeparator, MenuSubmenu } from "./Menu";
 
 afterEach(cleanup);
 
@@ -128,5 +128,46 @@ describe("Menu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Kapitel eins" }));
     expect(select).toHaveBeenCalledOnce();
     expect(closeParent).toHaveBeenCalledOnce();
+  });
+
+  it("toggles a checkable setting in place and keeps the menu open", async () => {
+    const close = vi.fn();
+    const change = vi.fn();
+    render(
+      <Menu label="Weitere Aktionen" onClose={close}>
+        <MenuItemCheckbox label="Am Raster ausrichten" checked onCheckedChange={change} />
+        <MenuItem label="Duplizieren" onSelect={() => undefined} />
+      </Menu>,
+    );
+    const setting = screen.getByRole("menuitemcheckbox", { name: "Am Raster ausrichten" });
+    expect(setting).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(setting).toHaveFocus());
+    fireEvent.click(setting);
+    expect(change).toHaveBeenCalledWith(false);
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("moves the roving focus across checkable and plain items alike", async () => {
+    render(
+      <Menu label="Weitere Aktionen" onClose={() => undefined}>
+        <MenuItem label="Anordnen" onSelect={() => undefined} />
+        <MenuItemCheckbox
+          label="Am Raster ausrichten"
+          checked={false}
+          onCheckedChange={() => undefined}
+        />
+        <MenuItemCheckbox
+          label="Gesperrt"
+          checked={false}
+          disabled
+          onCheckedChange={() => undefined}
+        />
+      </Menu>,
+    );
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Anordnen" })).toHaveFocus());
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(screen.getByRole("menuitemcheckbox", { name: "Am Raster ausrichten" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "ArrowDown" });
+    expect(screen.getByRole("menuitem", { name: "Anordnen" })).toHaveFocus();
   });
 });

@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import * as AdaptivePanelStories from "../../components/AdaptivePanel/AdaptivePanel.story";
 import * as AlertStories from "../../components/Alert/Alert.story";
 import * as ChipStories from "../../components/Chip/Chip.story";
+import * as DetailPanelStories from "../../components/DetailPanel/DetailPanel.story";
 import * as DialogStories from "../../components/Dialog/Dialog.story";
 import * as DisclosureStories from "../../components/Disclosure/Disclosure.story";
 import * as EmptyStateStories from "../../components/EmptyState/EmptyState.story";
@@ -87,6 +88,7 @@ export const designStories: readonly DesignStory[] = [
   ...collectStories("Navigation", "SelectableRow", SelectableRowStories),
   ...collectStories("Navigation", "SelectionMenu", SelectionMenuStories),
   ...collectStories("Overlays", "Sheet", SheetStories),
+  ...collectStories("Navigation", "DetailPanel", DetailPanelStories),
   ...collectStories("Navigation", "SidePanel", SidePanelStories),
   ...collectStories("Feedback", "StatusBar", StatusBarStories),
   ...collectStories("Navigation", "Tabs", TabsStories),

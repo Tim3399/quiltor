@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import {
   createContext,
   type HTMLAttributes,
@@ -14,6 +14,10 @@ import {
 import { useCompactLayout } from "../../internal/useCompactLayout";
 import { Popover } from "../Popover";
 import "./Menu.css";
+
+// Checkable items take part in the roving focus like plain ones (WAI-ARIA menu pattern).
+const MENU_ITEM_SELECTOR =
+  '[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled])';
 
 type MenuContextValue = {
   close: () => void;
@@ -46,9 +50,7 @@ export function Menu({
 }: MenuProps) {
   const root = useRef<HTMLDivElement>(null);
   const focusInitialItem = useCallback(() => {
-    const items = [
-      ...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []),
-    ];
+    const items = [...(root.current?.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR) ?? [])];
     items[initialFocus === "last" ? items.length - 1 : 0]?.focus();
   }, [initialFocus]);
   useEffect(() => {
@@ -57,9 +59,7 @@ export function Menu({
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(event);
     if (event.defaultPrevented) return;
-    const items = [
-      ...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []),
-    ];
+    const items = [...(root.current?.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR) ?? [])];
     const index = items.indexOf(document.activeElement as HTMLElement);
     if (event.key === "Escape") {
       event.preventDefault();
@@ -153,6 +153,57 @@ export function MenuItem({
       )}
       <span className="ui-menu__label">{label !== undefined ? label : children}</span>
       {shortcut && <kbd className="ui-menu__shortcut">{shortcut}</kbd>}
+    </button>
+  );
+}
+
+export interface MenuItemCheckboxProps {
+  label: ReactNode;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  icon?: ReactNode;
+  disabled?: boolean;
+  closeOnSelect?: boolean;
+}
+
+/**
+ * A menu entry for an on/off setting (WAI-ARIA menuitemcheckbox). The label names the setting
+ * and never flips between "show" and "hide"; aria-checked carries the state, and a check mark
+ * shows it. Stays open by default, so several settings can be changed in one visit.
+ */
+export function MenuItemCheckbox({
+  label,
+  checked,
+  onCheckedChange,
+  icon,
+  disabled = false,
+  closeOnSelect = false,
+}: MenuItemCheckboxProps) {
+  const context = useContext(MenuContext);
+  return (
+    <button
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={checked}
+      disabled={disabled}
+      tabIndex={-1}
+      data-tone="neutral"
+      className="ui-menu__checkbox"
+      onClick={() => {
+        if (disabled) return;
+        onCheckedChange(!checked);
+        if (closeOnSelect) context?.closeAfterSelect();
+      }}
+    >
+      {icon && (
+        <span className="ui-menu__icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
+      <span className="ui-menu__label">{label}</span>
+      <span className="ui-menu__check" aria-hidden="true">
+        {checked && <Check />}
+      </span>
     </button>
   );
 }

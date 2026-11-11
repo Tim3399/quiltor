@@ -30,6 +30,7 @@
       "collapsible-group",
       "ui-command-palette",
       "ui-confirm-dialog",
+      "detail-panel",
       "ui-dialog",
       "ui-dialog-backdrop",
       "design-disclosure",
