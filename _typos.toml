@@ -108,6 +108,8 @@ extend-ignore-re = [
   "Art / Funktion",
   "vor 0 Sekunden",
   "Ohne Titel",
+  # The sign-in-unavailable page (T-253, src/quiltor/hosts/web/server.py).
+  "Die Anmeldung ist gerade kurz nicht erreichbar, gleich noch einmal versuchen",
   "Beziehung \\{edge_id\\} ist",
   "liegt vor dem",
   "Lokaler Modell-Prozess ist",
