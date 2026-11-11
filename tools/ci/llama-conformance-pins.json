@@ -1,5 +1,5 @@
 {
-  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Nothing here was measured locally (D-94: no download outside CI): every deviation is the expectation from local-ai-contract v1 section 5.1 until a CI run has written the real answers. 'sha256: null' means the model is not pinned yet; only a spike run (workflow input spike=true) may use it, and it prints the digest to pin.",
+  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Measured in run 42884579021 (spike, both releases; raw answers in tests/python/fixtures/llama-conformance/). A deviation the contract (local-ai-contract v1, errors.md 3.3) names carries its N code; one it does not name carries 'open:' and a short description: it is a gap in the contract, listed so the gate can run, never a code nobody defined. Nothing here was measured locally (D-94).",
   "models": [
     {
       "name": "smollm2-135m-instruct",
@@ -9,15 +9,23 @@
       "license": "Apache-2.0 (model card of the repository)",
       "origin": "imatrix quantisation of HuggingFaceTB/SmolLM2-135M-Instruct by bartowski, made with llama.cpp b3991",
       "approximate_bytes": 144811360,
-      "sha256": null
+      "sha256": "5a1395716f7913741cc51d98581b9b1228d80987a9f7d3664106742eb06bba83"
     }
   ],
   "known_deviations": {
     "b12183": {
-      "C22": ["N1", "N2", "N3"],
-      "C20": ["N2"],
-      "C17": ["N4"]
+      "C02": ["open: a request without model is answered (200), not refused"],
+      "C03": ["open: an unknown role is answered (200), not refused"],
+      "C22": [
+        "open: provoked with a request without model, which is answered (200) -- the envelope is never reached"
+      ]
     },
-    "b10218": {}
+    "b10218": {
+      "C02": ["open: a request without model is answered (200), not refused"],
+      "C03": ["open: an unknown role is answered (200), not refused"],
+      "C22": [
+        "open: provoked with a request without model, which is answered (200) -- the envelope is never reached"
+      ]
+    }
   }
 }

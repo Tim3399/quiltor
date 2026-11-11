@@ -29,11 +29,13 @@ import re
 import socket
 import sys
 import tempfile
+import threading
 import time
 import traceback
 import unittest
 import urllib.request
 from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +236,49 @@ def render_summary(
     return "\n".join(lines) + "\n"
 
 
+# --- Replaying a recorded run ------------------------------------------------------------------
+
+
+def replay_server(artifact: Path) -> ThreadingHTTPServer:
+    """A stub that answers the suite with the answers a real run recorded, in their order.
+
+    The suite asks its cases in a fixed order and records one line per case, so the recorded
+    answers for each method and path, served in turn, are what the real server said. A request
+    the run did not record (a follow-up a recorded 404 skipped) is a 404. Nothing is fetched.
+    """
+    queues: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for line in artifact.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            entry = json.loads(line)
+            queues.setdefault((entry["method"], entry["path"]), []).append(entry)
+    lock = threading.Lock()
+
+    class Replay(BaseHTTPRequestHandler):
+        def _answer(self) -> None:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length:
+                self.rfile.read(length)
+            with lock:
+                queue = queues.get((self.command, self.path), [])
+                entry = queue.pop(0) if queue else None
+            status = entry["status"] if entry else 404
+            raw = (entry["raw"] if entry else '{"error":{"message":"not recorded"}}').encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        do_GET = do_POST = _answer
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Replay)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
 # --- Fetching and starting ---------------------------------------------------------------------
 
 
@@ -305,6 +350,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--server-url", help="grade a running server; nothing is fetched or started"
     )
+    parser.add_argument(
+        "--replay",
+        type=Path,
+        help="grade the answers a run recorded (its llama-answers-<release>.jsonl) against the "
+        "release's known deviations; nothing is fetched or started",
+    )
     args = parser.parse_args(argv)
 
     from quiltor.infrastructure.inference.install_manifest import LLAMA_CPP_RELEASE
@@ -333,6 +384,15 @@ def main(argv: list[str] | None = None) -> int:
             with summary.open("a", encoding="utf-8") as handle:
                 handle.write(text)
         return 1 if verdict.verdict == NOT_CONFORMANT else 0
+
+    if args.replay:
+        server = replay_server(args.replay)
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}"
+            return finish(None, None, run_suite(url, key=None, artifact=None))
+        finally:
+            server.shutdown()
+            server.server_close()
 
     if args.server_url:
         return finish(
