@@ -5,8 +5,11 @@ import test from "node:test";
 import {
   buildKeycloakTokens,
   COLOR_ROLES,
+  COMPONENT_ROLES,
   colorThemes,
+  componentRoles,
   geometry,
+  lintThemeCss,
   OUTPUT,
   readSources,
   resolve,
@@ -68,7 +71,8 @@ test("the real design sources export without an unresolved role", () => {
       `--q-${name} light and dark`,
     );
   }
-  assert.doesNotMatch(css, /var\(/);
+  // only the live touch height stays a variable
+  assert.deepEqual([...new Set(css.match(/var\([^)]*\)/g))], ["var(--q-control-regular)"]);
   assert.doesNotMatch(css, /data-theme/);
 });
 
@@ -99,4 +103,53 @@ test("a fixture without the touch override is refused", () => {
     () => buildKeycloakTokens({ colors: COLORS, tokens: ":root { --control-regular: 36px; }" }),
     /touch override/,
   );
+});
+
+test("every component role resolves in both themes", () => {
+  const css = buildKeycloakTokens(readSources());
+  for (const [name] of COMPONENT_ROLES) assert.match(css, new RegExp(`--q-${name}: `), name);
+  assert.match(css, /--q-btn-primary-bg: #17150f;/);
+  assert.match(css, /--q-page-bg: #2b2925;/, "dark page is --paper, as on SignInGate");
+});
+
+test("a component that changes its role changes the export", () => {
+  const sources = readSources();
+  const file = "primitives/Button/Button.css";
+  const changed = sources.components[file].replace(
+    /(\.ui-button--primary\.ui-button--neutral \{\s*border-color: var\(--ink\);\s*background: )var\(--ink\)/,
+    "$1var(--soft)",
+  );
+  assert.notEqual(changed, sources.components[file], "fixture edit applied");
+  const css = buildKeycloakTokens({
+    ...sources,
+    components: { ...sources.components, [file]: changed },
+  });
+  assert.match(css, /--q-btn-primary-bg: #474036;/);
+});
+
+test("a component rule that disappears is refused", () => {
+  const sources = readSources();
+  const themes = colorThemes(sources.colors);
+  const components = {
+    ...sources.components,
+    "primitives/Button/Button.css": ".other { color: red; }",
+  };
+  assert.throws(
+    () => componentRoles(components, themes, geometry(sources.tokens).root),
+    /not found/,
+  );
+});
+
+test("literal check: tokens and listed exceptions pass, invented values fail", () => {
+  const ok = `.a { color: var(--q-ink); border: 1px solid var(--q-line); padding: 0 var(--q-btn-padding-inline);
+    outline: 2px solid var(--q-focus); outline-offset: 2px; width: min(var(--q-sheet-max), 100%);
+    padding-bottom: calc(var(--q-page-padding) + env(safe-area-inset-bottom)); }
+    #kc-totp-secret-qr-code { background: #ffffff; }
+    .x .sr-only { width: 1px; height: 1px; margin: -1px; }`;
+  assert.deepEqual(lintThemeCss(ok), []);
+  const bad = lintThemeCss(
+    ".a { color: #17150f; padding: 24px; border-radius: 13px; display: flex; }",
+  );
+  assert.equal(bad.length, 3);
+  assert.match(bad.join(" | "), /#17150f/);
 });
