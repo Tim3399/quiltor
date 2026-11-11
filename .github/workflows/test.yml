@@ -235,6 +235,24 @@ jobs:
       - name: Install the project for the type check
         run: python -m pip install --quiet -e . "pystray>=0.19" "Pillow>=10" "hatchling==1.31.0"
 
+      # make_brand.py and make_icons.py draw the brand files, and test_make_brand and
+      # test_make_icons compare the checked-in ones with a fresh drawing. Both modules skip
+      # themselves when fontTools, numpy or Pillow is missing, so this step installs them at
+      # the versions toolchains.json pins (brandTools) and the next one fails on any skip:
+      # a test skipped everywhere protects nothing (T-262).
+      - name: Install the pinned brand generator tools
+        run: python -m pip install --quiet "fonttools==4.55.8" "numpy==1.26.4" "Pillow==11.3.0"
+
+      - name: Brand and icon tests, none skipped
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/brand-tests.log"
+          python -m unittest discover -s tests/python -t tests/python -p "test_make_[bi]*.py" -v 2>&1 | tee "$log"
+          if grep -q "skipped" "$log"; then
+            echo "::error::A brand or icon test was skipped; the generator tools are missing."
+            exit 1
+          fi
+
       # The whole local gate, not a list of its parts: every linter that `npm run check`
       # chains (formatting, zizmor, and whatever lint:* joins it later) runs here without
       # this file having to name it. The job has what check needs -- npm ci, Python with
