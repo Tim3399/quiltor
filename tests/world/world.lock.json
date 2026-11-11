@@ -816,6 +816,45 @@
       "x": 1600,
       "y": 540
     },
+    "world.figures.nodes[x-masslos-ebene]": {
+      "accent": "ink",
+      "id": "x-masslos-ebene",
+      "label": "⟦el.x-masslos-ebene.label⟧",
+      "mapX": 1300,
+      "mapY": 600,
+      "name": "⟦el.x-masslos-ebene.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-masslos-ebene.sub⟧",
+      "type": "ort",
+      "x": 1980,
+      "y": 80
+    },
+    "world.figures.nodes[x-masslose-karte]": {
+      "accent": "ink",
+      "id": "x-masslose-karte",
+      "label": "⟦el.x-masslose-karte.label⟧",
+      "mapExpanded": true,
+      "mapImageId": "c6d8eb127af80a922ab3c39bb30dc63e12f7179ab37d492f627f9a80d14154f9",
+      "mapScale": {
+        "unitLabel": "km",
+        "unitsPer100px": 0.15
+      },
+      "mapX": 200,
+      "mapY": 200,
+      "name": "⟦el.x-masslose-karte.name⟧",
+      "parentPlaceId": "x-masslos-ebene",
+      "profile": {
+        "fields": [],
+        "notes": ""
+      },
+      "sub": "⟦el.x-masslose-karte.sub⟧",
+      "type": "ort",
+      "x": 1220,
+      "y": 770
+    },
     "world.figures.nodes[x-nordhafen]": {
       "accent": "ink",
       "id": "x-nordhafen",
@@ -1065,6 +1104,33 @@
       "time": 22,
       "title": "⟦moment.t8.title⟧"
     },
+    "world.history": {
+      "chapterId": "x-chronicle",
+      "otherChapterId": "c-arrival"
+    },
+    "world.history.appended": {
+      "text": "⟦ch.x-chronicle.elsewhere⟧"
+    },
+    "world.history.versions[#0]": {
+      "elsewhere": false,
+      "note": "⟦ch.x-chronicle.note-1⟧",
+      "text": "⟦ch.x-chronicle.body-1⟧"
+    },
+    "world.history.versions[#1]": {
+      "elsewhere": false,
+      "note": "⟦ch.x-chronicle.note-2⟧",
+      "text": "⟦ch.x-chronicle.body-2⟧"
+    },
+    "world.history.versions[#2]": {
+      "elsewhere": true,
+      "note": "⟦ch.x-chronicle.note-3⟧",
+      "text": "⟦ch.x-chronicle.body-2⟧"
+    },
+    "world.history.versions[#3]": {
+      "elsewhere": true,
+      "note": "⟦ch.x-chronicle.note-4⟧",
+      "text": "⟦ch.x-chronicle.body-3⟧"
+    },
     "world.manuscript.activeSymbols[#0]": "⟦symbol.1⟧",
     "world.manuscript.activeSymbols[#1]": "⟦symbol.2⟧",
     "world.manuscript.activeSymbols[#2]": "⟦symbol.3⟧",
@@ -1153,6 +1219,12 @@
       },
       "title": "⟦ch.c5.title⟧"
     },
+    "world.manuscript.chapters[x-chronicle]": {
+      "body": "⟦ch.x-chronicle.body-3⟧",
+      "id": "x-chronicle",
+      "note": "",
+      "title": "⟦ch.x-chronicle.title⟧"
+    },
     "world.manuscript.chapters[x-empty-chapter]": {
       "body": "",
       "id": "x-empty-chapter",
@@ -1234,6 +1306,13 @@
       "kind": "chapter",
       "parentFolderId": "act-two",
       "position": 0
+    },
+    "world.manuscript.structure.items[item-x-chronicle]": {
+      "chapterId": "x-chronicle",
+      "id": "item-x-chronicle",
+      "kind": "chapter",
+      "parentFolderId": "act-two",
+      "position": 5
     },
     "world.manuscript.structure.items[item-x-empty-chapter]": {
       "chapterId": "x-empty-chapter",
@@ -2014,6 +2093,51 @@
       "en": "Prologue: What the Atlas Knew",
       "translatedFrom": "372ee6c3d8791e65"
     },
+    "ch.x-chronicle.body-1": {
+      "de": "Die Chronik beginnt mit dem ersten Schiff im Nebel.",
+      "en": "The chronicle begins with the first ship in the fog.",
+      "translatedFrom": "ad50b7996f6ad855"
+    },
+    "ch.x-chronicle.body-2": {
+      "de": "Die Chronik beginnt mit dem ersten Schiff im Nebel. Der Hafenmeister notiert es als Erster.",
+      "en": "The chronicle begins with the first ship in the fog. The harbour master is the first to note it.",
+      "translatedFrom": "1a345fb9161f499a"
+    },
+    "ch.x-chronicle.body-3": {
+      "de": "Die Chronik beginnt mit dem ersten Schiff im Nebel. Der Hafenmeister notiert es als Erster, und die Gilde streitet bis heute darüber.",
+      "en": "The chronicle begins with the first ship in the fog. The harbour master is the first to note it, and the guild still argues about it.",
+      "translatedFrom": "4e3c0119d902dfc2"
+    },
+    "ch.x-chronicle.elsewhere": {
+      "de": " Ein Satz an anderer Stelle.",
+      "en": " A sentence elsewhere.",
+      "translatedFrom": "06677ececcff284f"
+    },
+    "ch.x-chronicle.note-1": {
+      "de": "Chronik angelegt",
+      "en": "Chronicle created",
+      "translatedFrom": "e42a3bdcbfa1668c"
+    },
+    "ch.x-chronicle.note-2": {
+      "de": "Hafenmeister ergänzt",
+      "en": "Harbour master added",
+      "translatedFrom": "b0e7f6f5c1f5ab7c"
+    },
+    "ch.x-chronicle.note-3": {
+      "de": "Anderes Kapitel angepasst",
+      "en": "Another chapter adjusted",
+      "translatedFrom": "3d29787764a633bd"
+    },
+    "ch.x-chronicle.note-4": {
+      "de": "Streit der Gilde ergänzt",
+      "en": "Guild dispute added",
+      "translatedFrom": "fa7441962fe804d5"
+    },
+    "ch.x-chronicle.title": {
+      "de": "Die Chronik des Hafens",
+      "en": "The Harbour Chronicle",
+      "translatedFrom": "3615986055523460"
+    },
     "ch.x-empty.title": {
       "de": "Leeres Kapitel",
       "en": "Empty Chapter",
@@ -2723,6 +2847,36 @@
       "de": "Ein Name, der auf keine Karte passt.",
       "en": "A name that fits on no map.",
       "translatedFrom": "a876fd9fbd6d72ce"
+    },
+    "el.x-masslos-ebene.label": {
+      "de": "Ort",
+      "en": "Place",
+      "translatedFrom": "30fb259129e56944"
+    },
+    "el.x-masslos-ebene.name": {
+      "de": "Kartenarchiv",
+      "en": "Map Archive",
+      "translatedFrom": "d338f1aa0f2cbd73"
+    },
+    "el.x-masslos-ebene.sub": {
+      "de": "Hier liegt eine Karte ohne eingetragene Größe.",
+      "en": "A map without a recorded size is kept here.",
+      "translatedFrom": "94aa9861b42e1c3b"
+    },
+    "el.x-masslose-karte.label": {
+      "de": "Karte",
+      "en": "Map",
+      "translatedFrom": "36a8c4994c64ec8c"
+    },
+    "el.x-masslose-karte.name": {
+      "de": "Alte Hafenkarte",
+      "en": "Old Harbour Map",
+      "translatedFrom": "42c92e1ecfcd993c"
+    },
+    "el.x-masslose-karte.sub": {
+      "de": "Eine Karte aus einem älteren Dokument.",
+      "en": "A map from an older document.",
+      "translatedFrom": "9fda2d38f741b3cb"
     },
     "el.x-nordhafen.label": {
       "de": "Ort",

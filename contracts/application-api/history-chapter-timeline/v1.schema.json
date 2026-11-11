@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quiltor.app/contracts/application-api/history-chapter-timeline/v1.schema.json",
+  "title": "Quiltor chapter timeline v1",
+  "description": "GET /api/history/chapter-timeline?world=ID&chapterId=ID&limit=1..50&before=HASH (T-86). The versions that changed one chapter, newest first, one page at a time. limit counts the versions read, not the ones listed; skipped counts the read versions in which the chapter stayed the same. next is the hash to pass as before for the following page, null at the start of the history. An unknown before answers 404 history.revision_not_found, a limit outside 1..50 or a missing chapterId 400 history.request_invalid.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ok", "entries", "skipped", "next"],
+  "properties": {
+    "ok": { "const": true },
+    "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "skipped": { "type": "integer", "minimum": 0 },
+    "next": {
+      "oneOf": [{ "type": "string", "pattern": "^[0-9a-f]{64}$" }, { "type": "null" }]
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hash", "shortHash", "date", "subject", "kind", "change"],
+      "properties": {
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "shortHash": { "type": "string", "pattern": "^[0-9a-f]{8}$" },
+        "date": { "type": "string", "minLength": 1 },
+        "subject": { "type": "string" },
+        "kind": { "$ref": "../history/v1.schema.json#/$defs/commit/properties/kind" },
+        "change": {
+          "description": "created: the chapter is in this version but not in the one it names as parent, or the version names none. edited: its text or bold and italic ranges differ from the parent. deleted: it was in the parent and is not here. unknown: this version or its parent cannot be read on this machine, for example a parent a restored version names but this history never had.",
+          "enum": ["created", "edited", "deleted", "unknown"]
+        }
+      }
+    }
+  }
+}

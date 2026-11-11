@@ -52,6 +52,8 @@ export interface TextWorkspaceProps {
   sidebarWidth?: number;
   onSidebarWidth?: (width: number) => void;
   inspectorWidth?: number;
+  /** False in the example world's preview, which keeps no versions (T-214, T-86). */
+  versionsAvailable?: boolean;
   onInspectorWidth?: (width: number) => void;
 }
 

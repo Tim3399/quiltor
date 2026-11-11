@@ -15,7 +15,7 @@ import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
 import { StoryNodeCard, StoryNodeIdentity } from "../StoryNodeCard";
 import { usePlaceMapVisualClip } from "./PlaceMapFrameContext";
-import type { LevelRect } from "./placeLevels";
+import { hasMapSize, type LevelRect } from "./placeLevels";
 import "./PlaceNode.css";
 
 export type PlaceCardData = {
@@ -271,7 +271,7 @@ export function PlaceNode({
         // outside it, and on a touch screen they hang below it, where the tap that selects
         // the card cannot reach them (D-T-219-F2). On a desktop they sit in its corner.
         <div className="place-node__commands">
-          {item.mapImageId ? (
+          {item.mapImageId && hasMapSize(item) ? (
             <IconButton
               className="place-node__enter nodrag nopan"
               size="compact"

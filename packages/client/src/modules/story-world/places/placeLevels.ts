@@ -120,7 +120,14 @@ function clampUnit(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-/** The rectangle an expanded place occupies on its parent level. */
+/**
+ * The rectangle an expanded place occupies on its parent level.
+ *
+ * The 640 by 420 fallback is kept on purpose: it serves a level without a picture, which
+ * has no pixel size a frame could come from, and a scale may still be set on it by
+ * measuring (F6). A map with a picture never reaches it, since `isExpandedMap` asks for
+ * both sides.
+ */
 export function expandedRect(place: FigureNode, host: LevelRect): LevelRect {
   const width = positive(place.mapWidth) ?? DEFAULT_EXPANDED_SIZE.width;
   const height = positive(place.mapHeight) ?? DEFAULT_EXPANDED_SIZE.height;
@@ -139,13 +146,32 @@ export function expandedRect(place: FigureNode, host: LevelRect): LevelRect {
  * A map is positioned directly rather than by an anchor -- it is the ground the
  * anchors are measured against, so it cannot itself be anchored to something.
  */
-export function mapRect(place: FigureNode): LevelRect {
+export function mapRect(place: FigureNode): LevelRect | undefined {
+  const width = positive(place.mapWidth);
+  const height = positive(place.mapHeight);
+  // No size, no rectangle: an invented one would be drawn, measured and scaled as if true.
+  if (width === undefined || height === undefined) return undefined;
   return {
     x: typeof place.mapX === "number" ? place.mapX : place.x,
     y: typeof place.mapY === "number" ? place.mapY : place.y,
-    width: positive(place.mapWidth) ?? DEFAULT_EXPANDED_SIZE.width,
-    height: positive(place.mapHeight) ?? DEFAULT_EXPANDED_SIZE.height,
+    width,
+    height,
   };
+}
+
+/** Whether a map knows how large its frame is; the server fills it in from the picture. */
+export function hasMapSize(place: FigureNode): boolean {
+  return positive(place.mapWidth) !== undefined && positive(place.mapHeight) !== undefined;
+}
+
+/**
+ * Whether this place is drawn as an opened-out map rather than as a card.
+ *
+ * Only with a size: a map whose picture the server does not know arrives without one, and
+ * it stays a card -- not drawn opened out, not resized, not measured on.
+ */
+export function isExpandedMap(place: FigureNode): boolean {
+  return Boolean(place.mapExpanded && place.mapImageId && hasMapSize(place));
 }
 
 /** The laid-out map a point falls on, if it falls on one. */
@@ -157,6 +183,7 @@ export function mapUnder(
   for (let index = maps.length - 1; index >= 0; index -= 1) {
     const rect = mapRect(maps[index]);
     if (
+      rect &&
       point.x >= rect.x &&
       point.x <= rect.x + rect.width &&
       point.y >= rect.y &&
@@ -235,6 +262,33 @@ export function scaleForPair(
 ): MapScale | undefined {
   const host = first.parentPlaceId;
   if (host && host === second.parentPlaceId) {
+    const owner = nodes.find((node) => node.id === host);
+    if (owner?.mapExpanded && owner.mapScale) return owner.mapScale;
+  }
+  return levelScale;
+}
+
+/** One end of a measured stretch: a place, or a free point on the surface. */
+export type MeasureEndpoint = { place: FigureNode } | { point: { x: number; y: number } };
+
+/**
+ * `scaleForPair` for stretches that may end at a free point.
+ *
+ * A place belongs to the map it is pinned on; a free point to the map it falls on.
+ * When both ends belong to the same laid-out map with a scale, that scale reads the
+ * stretch; anything else is read in the level's units.
+ */
+export function scaleForPoints(
+  nodes: readonly FigureNode[],
+  maps: readonly FigureNode[],
+  first: MeasureEndpoint,
+  second: MeasureEndpoint,
+  levelScale?: MapScale,
+): MapScale | undefined {
+  const hostOf = (end: MeasureEndpoint): string | undefined =>
+    "place" in end ? end.place.parentPlaceId : mapUnder(end.point, maps)?.id;
+  const host = hostOf(first);
+  if (host && host === hostOf(second)) {
     const owner = nodes.find((node) => node.id === host);
     if (owner?.mapExpanded && owner.mapScale) return owner.mapScale;
   }
@@ -329,7 +383,7 @@ export function placementForDrop({
   // keeps the lines drawn across it continuous with the lines drawn beside it:
   // both are ruled from the same origin, so a corner off the grid puts the two
   // permanently half a square apart.
-  if (dragged.mapExpanded && dragged.mapImageId) {
+  if (isExpandedMap(dragged)) {
     return { mapX: snapToGrid(x, grid), mapY: snapToGrid(y, grid) };
   }
 
@@ -339,8 +393,9 @@ export function placementForDrop({
     centre,
     maps.filter((map) => map.id !== dragged.id),
   );
-  if (host && !wouldCycle(nodes, dragged.id, host.id)) {
-    const anchor = anchorForPoint(centre, mapRect(host));
+  const hostRect = host ? mapRect(host) : undefined;
+  if (host && hostRect && !wouldCycle(nodes, dragged.id, host.id)) {
+    const anchor = anchorForPoint(centre, hostRect);
     return { parentPlaceId: host.id, mapU: anchor.u, mapV: anchor.v };
   }
   // Off every laid-out map, but the level itself may be a picture -- and then

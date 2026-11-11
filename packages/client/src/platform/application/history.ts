@@ -31,6 +31,32 @@ export interface SnapshotChangesWire {
   profiles: string[];
 }
 
+/** How a version touched one chapter (contracts/application-api/history-chapter-timeline). */
+export type ChapterTimelineChange = "created" | "edited" | "deleted" | "unknown";
+
+export interface ChapterTimelineEntry {
+  hash: string;
+  shortHash: string;
+  date: string;
+  subject: string;
+  kind: SnapshotKindWire;
+  change: ChapterTimelineChange;
+}
+
+/** One page of a chapter's timeline, newest first. `next` continues it, null ends it. */
+export interface ChapterTimelinePage {
+  entries: ChapterTimelineEntry[];
+  /** Versions read for this page in which the chapter stayed the same. */
+  skipped: number;
+  next: string | null;
+}
+
+export interface ChapterTimelineRequest {
+  limit?: number;
+  before?: string;
+  signal?: AbortSignal;
+}
+
 export interface HistoryGateway {
   log(): Promise<{
     ok: boolean;
@@ -56,4 +82,8 @@ export interface HistoryGateway {
     title: string,
   ): Promise<{ ok: boolean; isNew: boolean; text: string }>;
   chapterComparison(ref: string, chapterId: string): Promise<ChapterComparisonResult>;
+  chapterTimeline(
+    chapterId: string,
+    request?: ChapterTimelineRequest,
+  ): Promise<ChapterTimelinePage>;
 }

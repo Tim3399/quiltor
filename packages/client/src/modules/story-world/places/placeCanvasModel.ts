@@ -1,3 +1,4 @@
+import type { Node } from "@xyflow/react";
 import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
@@ -9,6 +10,7 @@ import type { MapBox, PlaceMapFlowNode } from "./PlaceMapNode";
 import {
   anchoredPoint,
   hasLevelContents,
+  isExpandedMap,
   isPlace,
   type LevelRect,
   mapRect,
@@ -160,10 +162,7 @@ export function placePinSize(
  */
 export const DEFAULT_MAP_WIDTH = 2400;
 
-/** Whether this place is drawn as an opened-out map rather than as a card. */
-export function isExpandedMap(place: FigureNode): boolean {
-  return Boolean(place.mapExpanded && place.mapImageId);
-}
+export { isExpandedMap } from "./placeLevels";
 
 /** What a finished resize writes down: the origin goes with the size. */
 export function mapBoxPatch(
@@ -196,7 +195,7 @@ export function createPlaceMapNodes({
 }: {
   places: FigureNode[];
   sourceUrl: (imageId: string) => string;
-  onResize: (place: FigureNode, box: MapBox) => void;
+  onResize: PlaceMapFlowNode["data"]["onResize"];
   onResizeLive: (place: FigureNode, box: MapBox) => void;
   onCropDraft: (place: FigureNode, crop: ImageCrop) => void;
   onCropCommit: (place: FigureNode, crop: ImageCrop) => void;
@@ -232,6 +231,9 @@ export function createPlaceMapNodes({
   return places.filter(isExpandedMap).map((place) => {
     const live = liveSize?.id === place.id ? liveSize : undefined;
     const moved = livePosition?.id === place.id ? livePosition : undefined;
+    // Always present here: `isExpandedMap` lets no map through without both sides.
+    const width = live?.width ?? (place.mapWidth as number);
+    const height = live?.height ?? (place.mapHeight as number);
     return {
       id: place.id,
       type: "placeMap",
@@ -240,8 +242,13 @@ export function createPlaceMapNodes({
         : live
           ? { x: live.x, y: live.y }
           : placePosition(place),
-      width: live?.width ?? place.mapWidth ?? DEFAULT_MAP_WIDTH,
-      height: live?.height ?? place.mapHeight ?? DEFAULT_MAP_WIDTH,
+      width,
+      height,
+      // The sheet is drawn at exactly this size, so it is also what React Flow would measure.
+      // Stated here because every rebuilt node starts unmeasured, and the resizer reads its
+      // start size and aspect ratio from `measured` alone: a corner drag begun before the
+      // next measurement divided 0 by 0 and wrote NaN into the frame (T-79).
+      measured: { width, height },
       ...(place.pinned ? { draggable: false } : {}),
       // Behind the cards that stand on it.
       zIndex: -1,
@@ -289,16 +296,88 @@ export function createMeasurementPoints(
       mapX: card.position.x,
       mapY: card.position.y,
     })),
-    ...maps.map((map) => {
+    ...maps.flatMap((map) => {
       const rect = mapRect(map);
-      return {
-        id: map.id,
-        name: map.name,
-        mapX: rect.x + rect.width / 2,
-        mapY: rect.y + rect.height / 2,
-      };
+      if (!rect) return [];
+      return [
+        {
+          id: map.id,
+          name: map.name,
+          mapX: rect.x + rect.width / 2,
+          mapY: rect.y + rect.height / 2,
+        },
+      ];
     }),
   ];
+}
+
+/** Prefix of the helper nodes that stand for free measuring points. */
+export const MEASURE_POINT_PREFIX = "measure-point:";
+const MEASURE_POINT_SIZE = 12;
+
+/** One end of a measuring line as the author picked it: a place, or a point on the surface. */
+export type MeasureTarget = { kind: "place"; id: string } | { kind: "point"; x: number; y: number };
+
+function sameTarget(a: MeasureTarget, b: MeasureTarget): boolean {
+  if (a.kind === "place") return b.kind === "place" && a.id === b.id;
+  return b.kind === "point" && a.x === b.x && a.y === b.y;
+}
+
+/** The first pick starts a line, a different second one ends it, a third starts over. */
+export function nextMeasureTargets(
+  current: readonly MeasureTarget[],
+  next: MeasureTarget,
+): MeasureTarget[] {
+  return current.length === 1 && !sameTarget(current[0], next) ? [current[0], next] : [next];
+}
+
+/** The free points among the targets, in order: point n is drawn as `measure-point:n`. */
+export function measurePointsOf(targets: readonly MeasureTarget[]): { x: number; y: number }[] {
+  return targets.flatMap((target) =>
+    target.kind === "point" ? [{ x: target.x, y: target.y }] : [],
+  );
+}
+
+/** The ids the measuring line runs between, in the numbering of `measurePointsOf`. */
+export function measureSelectionOf(targets: readonly MeasureTarget[]): string[] {
+  let points = 0;
+  return targets.map((target) =>
+    target.kind === "place" ? target.id : `${MEASURE_POINT_PREFIX}${points++}`,
+  );
+}
+
+/**
+ * What a click on a node means while measuring.
+ *
+ * A laid-out map and the level's own picture are nodes too, so a click on them never
+ * reaches the pane: it has to be told apart here, by type, to become a free point
+ * rather than the map's middle. A point already set answers nothing, so its id never
+ * ends up as a selected place.
+ */
+export function measureClickTarget(nodeType: string, nodeId: string): "point" | "place" | "none" {
+  if (nodeId.startsWith(MEASURE_POINT_PREFIX)) return "none";
+  if (nodeType === "placeMap") return "point";
+  if (nodeType === "placeGround") return "point";
+  return "place";
+}
+
+/** Free measuring points as fixed helpers: drawn and measured to, never picked up. */
+export function createMeasurePointNodes(points: readonly { x: number; y: number }[]): Node[] {
+  return points.map((point, index) => ({
+    id: `${MEASURE_POINT_PREFIX}${index}`,
+    type: "measurePoint",
+    position: { x: point.x, y: point.y },
+    // Centred on the point: the node has to have a size to be drawn at all, and its
+    // middle is where the line is taken from.
+    origin: [0.5, 0.5] as [number, number],
+    width: MEASURE_POINT_SIZE,
+    height: MEASURE_POINT_SIZE,
+    draggable: false,
+    selectable: false,
+    focusable: false,
+    deletable: false,
+    data: {},
+  }));
 }
 
 /**
@@ -336,8 +415,10 @@ export function createPinNodes({
   viewportZoom: number;
   t: Translate;
 }): PlaceFlowNode[] {
-  return maps.flatMap((map) =>
-    createPlaceFlowNodes({
+  return maps.flatMap((map) => {
+    const host = mapRect(map);
+    if (!host) return [];
+    return createPlaceFlowNodes({
       nodes,
       places: nodes.filter((node) => isPlace(node) && node.parentPlaceId === map.id),
       measuring,
@@ -346,13 +427,13 @@ export function createPinNodes({
       onExpandMap,
       onPlaceDisplayChange,
       sourceUrl,
-      host: mapRect(map),
+      host,
       livePosition,
       zoomTier,
       viewportZoom,
       t,
-    }),
-  );
+    });
+  });
 }
 
 /** Where the open level's own picture is laid, when it carries one. */

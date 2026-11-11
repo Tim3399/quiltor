@@ -129,3 +129,41 @@ it("keeps print preview and scene break one click away in the overflow menu", ()
   expect(onPreview).toHaveBeenCalledWith(true);
   expect(onInsertSceneBreak).toHaveBeenCalledOnce();
 });
+
+it("offers the versions only where the world keeps them", () => {
+  const toolbar = (versionsAvailable: boolean) => (
+    <I18nProvider>
+      <ManuscriptToolbar
+        current={{ id: "c1", title: "Prolog", body: "", note: "" }}
+        focus={false}
+        binderOpen={false}
+        inspectorOpen={false}
+        historyOpen={false}
+        versionsAvailable={versionsAvailable}
+        canUndo={false}
+        canRedo={false}
+        pdfState="idle"
+        preview={false}
+        onAddChapter={vi.fn()}
+        onBinderOpen={vi.fn()}
+        onInspectorOpen={vi.fn()}
+        onFocus={vi.fn()}
+        onHistoryOpen={vi.fn()}
+        onExport={vi.fn()}
+        onExportDocx={vi.fn()}
+        onExportEpub={vi.fn()}
+        onPrint={vi.fn()}
+        onPreview={vi.fn()}
+        onInsertSceneBreak={vi.fn()}
+      />
+    </I18nProvider>
+  );
+  const { rerender } = render(toolbar(true));
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  expect(screen.getByRole("menuitem", { name: "Versionen" })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  rerender(toolbar(false));
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  expect(screen.queryByRole("menuitem", { name: "Versionen" })).toBeNull();
+});

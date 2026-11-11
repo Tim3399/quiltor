@@ -787,6 +787,7 @@ export function EditorSurface({
           </div>
           {historyOpen && (
             <ChapterHistoryPanel
+              chapterId={currentChapterId}
               commits={historyCommits}
               selectedRef={historyRef}
               selected={historicalChapter}

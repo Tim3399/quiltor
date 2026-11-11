@@ -92,17 +92,20 @@ export function PlaceMapActions({
         icon={map.pinned ? <Lock /> : <LockOpen />}
         onClick={onToggleLock}
       />
-      <IconButton
-        size="compact"
-        appearance="ghost"
-        label={
-          expanded
-            ? t("placeCollapseMap", { name: map.name })
-            : t("placeExpandMap", { name: map.name })
-        }
-        icon={expanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
-        onClick={expanded ? onCollapse : onExpand}
-      />
+      {/* A map that does not know its size cannot be opened out, so it is not offered. */}
+      {expanded || onExpand ? (
+        <IconButton
+          size="compact"
+          appearance="ghost"
+          label={
+            expanded
+              ? t("placeCollapseMap", { name: map.name })
+              : t("placeExpandMap", { name: map.name })
+          }
+          icon={expanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
+          onClick={expanded ? onCollapse : onExpand}
+        />
+      ) : null}
       <IconButton
         size="compact"
         appearance="ghost"

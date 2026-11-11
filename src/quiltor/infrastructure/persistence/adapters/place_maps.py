@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +17,9 @@ class SQLitePlaceMapRepository:
 
     def content(self, image_id: str, database: Path) -> MapImageContent | None:
         return place_map_images.content(image_id, db_path=database)
+
+    def dimensions(self, ids: Iterable[str], database: Path) -> dict[str, tuple[int, int]]:
+        return place_map_images.dimensions(ids, db_path=database)
 
     def prune_unreferenced(
         self,

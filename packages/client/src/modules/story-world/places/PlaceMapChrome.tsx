@@ -5,6 +5,7 @@ import type { MapScale } from "../model";
 import { PlaceMapActions, type PlaceMapActionsProps } from "./PlaceMapActions";
 import { PlaceMapScaleControl } from "./PlaceMapScaleControl";
 import { formatScale, mapScaleBar, physicalGridDistance } from "./placeMap";
+import { formatPlaceNumber } from "./placeNumber";
 import type {
   MapChromeLayout as PlaceMapChromeLayout,
   MapChromeSize as PlaceMapChromeSize,
@@ -20,6 +21,8 @@ export interface PlaceMapChromeProps extends Omit<PlaceMapActionsProps, "expande
   zoom: number;
   scale: MapScale | undefined;
   onScale: (patch: Partial<MapScale>) => void;
+  /** Starts setting this map's scale by measuring a stretch on it. */
+  onCalibrate?: () => void;
 }
 
 /** Map identity and instruments in screen space; the space between remains the world. */
@@ -32,6 +35,7 @@ export function PlaceMapChrome({
   zoom,
   scale,
   onScale,
+  onCalibrate,
   ...actions
 }: PlaceMapChromeProps) {
   const { t, locale } = useI18n();
@@ -41,14 +45,13 @@ export function PlaceMapChrome({
   const footerWidth = layout.width;
   const bar = mapScaleBar(scale, zoom);
   const gridDistance = physicalGridDistance(scale, GRID_SIZE);
-  const number = new Intl.NumberFormat(locale, { maximumSignificantDigits: 6 });
   const countLabel =
     placeCount === 1 ? t("placeMapOnePlace") : t("placeMapPlaceCount", { n: placeCount });
-  const scaleLabel = formatScale(scale, t) || t("placeMapNoScale");
+  const scaleLabel = formatScale(scale, t, locale) || t("placeMapNoScale");
   const gridLabel = !gridVisible
     ? t("placeMapGridOff")
     : gridDistance !== undefined && scale
-      ? `${number.format(gridDistance)} ${scale.unitLabel}`
+      ? `${formatPlaceNumber(gridDistance, locale, { significant: 6 })} ${scale.unitLabel}`
       : t("placeMapGridUnits", { n: GRID_SIZE });
 
   useLayoutEffect(() => {
@@ -120,6 +123,7 @@ export function PlaceMapChrome({
                 name={actions.map.name}
                 scale={scale}
                 onScale={onScale}
+                onCalibrate={onCalibrate}
                 valueLabel={scaleLabel}
                 anchorPositionKey={`${actions.map.id}:${layout.left}:${layout.footerTop}:${footerWidth}`}
               />
@@ -134,7 +138,9 @@ export function PlaceMapChrome({
           <div className="place-map-chrome__cell place-map-chrome__places">
             <dt className="place-map-chrome__label">{t("placeMapPlaces")}</dt>
             <dd className="place-map-chrome__value">
-              <span className="place-map-chrome__reading">{number.format(placeCount)}</span>
+              <span className="place-map-chrome__reading">
+                {formatPlaceNumber(placeCount, locale, { significant: 6 })}
+              </span>
             </dd>
           </div>
           <div className="place-map-chrome__cell place-map-chrome__level">
@@ -150,12 +156,12 @@ export function PlaceMapChrome({
             style={{ width: bar.width }}
             role="img"
             aria-label={t("placeMapScaleBar", {
-              distance: `${number.format(bar.distance)} ${scale.unitLabel}`,
+              distance: `${formatPlaceNumber(bar.distance, locale, { significant: 6 })} ${scale.unitLabel}`,
             })}
           >
             <span className="place-map-chrome__scale-line" style={{ width: bar.width }} />
             <span className="place-map-chrome__scale-distance">
-              {number.format(bar.distance)} {scale.unitLabel}
+              {formatPlaceNumber(bar.distance, locale, { significant: 6 })} {scale.unitLabel}
             </span>
           </div>
         ) : null}

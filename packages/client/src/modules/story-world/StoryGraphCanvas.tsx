@@ -7,7 +7,7 @@ import {
   ReactFlow,
   type ReactFlowProps,
 } from "@xyflow/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type DOMAttributes, type ReactNode, useEffect, useRef, useState } from "react";
 import { useLatest } from "../../shared/hooks/useLatest";
 import { GraphViewportChrome } from "../graph";
 import type { SemanticZoomTier } from "./figures/relationships";
@@ -39,6 +39,15 @@ export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType ex
   overlay?: ReactNode;
   flowChildren?: ReactNode;
   children?: ReactNode;
+  /** Listeners on the surface itself, for a gesture that belongs to the whole canvas. */
+  surfaceListeners?: Pick<
+    DOMAttributes<HTMLDivElement>,
+    | "onPointerDownCapture"
+    | "onPointerMoveCapture"
+    | "onPointerUpCapture"
+    | "onPointerCancelCapture"
+    | "onClickCapture"
+  >;
 }
 
 /** Shared React Flow scaffold for story-world canvases. */
@@ -56,6 +65,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   overlay,
   flowChildren,
   children,
+  surfaceListeners,
 }: StoryGraphCanvasProps<NodeType, EdgeType>) {
   const [minimapVisible, setMinimapVisible] = useState(true);
   /**
@@ -88,6 +98,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
 
   return (
     <div
+      {...surfaceListeners}
       ref={surface}
       className={`flow-area graph-viewport-surface zoom-${zoomTier} ${hasVisibleMinimap ? "has-minimap" : ""} ${className}`.trim()}
     >
@@ -100,7 +111,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
         minZoom={minZoom}
         maxZoom={2.2}
         deleteKeyCode={null}
-        nodesDraggable={interactive}
+        nodesDraggable={interactive && (flowProps.nodesDraggable ?? true)}
         nodesConnectable={interactive && (flowProps.nodesConnectable ?? true)}
         elementsSelectable={interactive && (flowProps.elementsSelectable ?? true)}
       >
