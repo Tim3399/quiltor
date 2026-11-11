@@ -232,6 +232,22 @@ class RecordedRunTests(unittest.TestCase):
                     r"\| C20 \| fail \| known: N1, N2, N3\. .*envelope deviations: N1, N2, N3",
                 )
 
+    def test_the_recorded_broken_body_is_refused_outside_the_envelope_on_each_pin(self):
+        """C22 as recorded in run 43020642393: b12183 answers 400, b10218 500."""
+        statuses = {"b10218": 500, "b12183": 400}
+        for release, status in statuses.items():
+            with self.subTest(release=release):
+                line = next(
+                    json.loads(raw)
+                    for raw in (FIXTURES / f"llama-answers-{release}.jsonl")
+                    .read_text(encoding="utf-8")
+                    .splitlines()
+                    if json.loads(raw)["case"] == "C22"
+                )
+                self.assertEqual(line["status"], status)
+                _, summary = self.replay(release)
+                self.assertRegex(summary, r"\| C22 \| fail \| known: N1")
+
     def test_a_deviation_dropped_from_the_list_turns_the_run_red(self):
         pins = script.load_pins()
         for release in ("b10218", "b12183"):
