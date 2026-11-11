@@ -6,9 +6,11 @@ import hashlib
 import inspect
 import io
 import json
+import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -247,9 +249,16 @@ class VersionRepoTestCase(unittest.TestCase):
         if shutil.which("git") is None:
             raise unittest.SkipTest("git is not available")
 
+    @staticmethod
+    def _remove_read_only(function, path, _error):
+        os.chmod(path, stat.S_IWRITE)
+        function(path)
+
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, self.repo, True)
+        # git writes its objects read-only; on Windows a plain rmtree then fails and, with
+        # errors ignored, left every one of these repositories in the temp directory.
+        self.addCleanup(shutil.rmtree, self.repo, onexc=self._remove_read_only)
         for name in (
             set_version.VERSION_FILE,
             set_version.PACKAGE_JSON,
