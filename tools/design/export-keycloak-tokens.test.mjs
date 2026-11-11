@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -14,6 +18,8 @@ import {
   readSources,
   resolve,
 } from "./export-keycloak-tokens.mjs";
+
+const SCRIPT = fileURLToPath(new URL("./export-keycloak-tokens.mjs", import.meta.url));
 
 const COLORS = `
 :root,
@@ -176,6 +182,39 @@ test("literal check: background-image is in scope, colours inside a gradient cou
     ),
     [],
   );
+});
+
+test("literal check: a relative url() passes, an absolute or remote one does not", () => {
+  assert.deepEqual(lintThemeCss('.a { background: url("./img/a.svg") var(--q-x); }'), []);
+  assert.equal(lintThemeCss('.a { background: url("/img/a.svg") var(--q-x); }').length, 1);
+  assert.equal(
+    lintThemeCss(".a { background: url(https://example.org/a.svg) var(--q-x); }").length,
+    1,
+  );
+});
+
+test("command line: --lint needs --tokens and checks the roles against them", () => {
+  const dir = mkdtempSync(join(tmpdir(), "keycloak-lint-"));
+  try {
+    const css = join(dir, "theme.css");
+    const tokens = join(dir, "tokens.css");
+    writeFileSync(tokens, ":root { --q-ink: #000000; }");
+    const run = (...args) =>
+      spawnSync(process.execPath, [SCRIPT, "--lint", css, ...args], { encoding: "utf8" });
+
+    writeFileSync(css, ".a { color: var(--q-ink); }");
+    const missing = run();
+    assert.equal(missing.status, 2, missing.stderr);
+    assert.match(missing.stderr, /--lint needs the token files/);
+    assert.equal(run("--tokens", tokens).status, 0);
+
+    writeFileSync(css, ".a { color: var(--q-does-not-exist); }");
+    const unknown = run("--tokens", tokens);
+    assert.equal(unknown.status, 1);
+    assert.match(unknown.stderr, /unknown --q-does-not-exist/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("literal check: a role the token files do not define is reported", () => {
