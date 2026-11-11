@@ -79,25 +79,24 @@ Measured in [run 42884579021](https://github.com/Tim3399/quiltor/actions/runs/42
 `llama_conformance.py --release <release> --replay <file>` grades them again exactly as CI does,
 without fetching or starting anything.
 
-| Case | `b10218` (the product's pin) | `b12183`     | What the server answered                                                               | Contract code |
-| ---- | ---------------------------- | ------------ | -------------------------------------------------------------------------------------- | ------------- |
-| C01  | pass                         | pass         | 200, `finish_reason: stop`                                                             |               |
-| C02  | fail, known                  | fail, known  | 200 and an answer to a request without `model` (400 expected)                          | N22           |
-| C03  | fail, known                  | fail, known  | 200 and an answer to the role `robot` (400 expected)                                   | N23           |
-| C17  | pass                         | pass         | 200, `finish_reason: length` after one token                                           |               |
-| C20  | fail, known                  | fail, known  | 400 `exceed_context_size_error`, integer `code`, no `param`, `n_prompt_tokens`/`n_ctx` | N1, N2, N3    |
-| C22  | not measured                 | not measured | the case now sends a broken JSON body; the run recorded the old request                | open          |
-| C39  | skip                         | skip         | 404, `/x/v1/tokenize` is not offered                                                   |               |
-| C40a | skip                         | skip         | 404, `/x/v1/health` is not offered                                                     |               |
+| Case | `b10218` (the product's pin) | `b12183`    | What the server answered                                                                              | Contract code       |
+| ---- | ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- | ------------------- |
+| C01  | pass                         | pass        | 200, `finish_reason: stop`                                                                            |                     |
+| C02  | fail, known                  | fail, known | 200 and an answer to a request without `model` (400 expected)                                         | N22                 |
+| C03  | fail, known                  | fail, known | 200 and an answer to the role `robot` (400 expected)                                                  | N23                 |
+| C17  | pass                         | pass        | 200, `finish_reason: length` after one token                                                          |                     |
+| C20  | fail, known                  | fail, known | 400 `exceed_context_size_error`, integer `code`, no `param`, `n_prompt_tokens`/`n_ctx`                | N1, N2, N3          |
+| C22  | fail, known                  | fail, known | broken JSON body refused: 400 on `b12183`, 500 `server_error` on `b10218`; integer `code`, no `param` | N1; N24 on `b10218` |
+| C39  | skip                         | skip        | 404, `/x/v1/tokenize` is not offered                                                                  |                     |
+| C40a | skip                         | skip        | 404, `/x/v1/health` is not offered                                                                    |                     |
 
 Both releases grade **conformant with known deviations**. C20 checks the error envelope of
 the context error, and the recorded answers show N1 to N3 on both pins, so the envelope is
 measured without a new run. C02 and C03 carry N22 and N23 (Orchestrator D-174): llama-server
 accepts a request without `model` and an unknown role. Neither reaches Quiltor: `engine.py`
 always sets `model`, the client only sends the roles `system` and `user`, and an answer cut off
-with `finish_reason: length` is refused by `shared/contract.py`. C22 used to send the request
-of C02, so it never received an error; it now sends a body that is no JSON, which every server
-must refuse, and stays `open` until the next run measures it.
+with `finish_reason: length` is refused by `shared/contract.py`. C22 sends a body that is no JSON. Run 43020642393 measured it: both pins refuse it in
+llama's envelope (N1), and `b10218` answers with 500 `server_error` instead of 400 (N24).
 
 A change of `LLAMA_CPP_RELEASE` needs an entry here and in the pins file; a test fails otherwise.
 

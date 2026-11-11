@@ -233,9 +233,9 @@ class RecordedRunTests(unittest.TestCase):
                 )
 
     def test_the_recorded_broken_body_is_refused_outside_the_envelope_on_each_pin(self):
-        """C22 as recorded in run 43020642393: b12183 answers 400, b10218 500."""
-        statuses = {"b10218": 500, "b12183": 400}
-        for release, status in statuses.items():
+        """C22 as recorded in run 43020642393: b12183 answers 400, b10218 500 (N24)."""
+        expected = {"b10218": (500, "N1, N24"), "b12183": (400, "N1")}
+        for release, (status, known) in expected.items():
             with self.subTest(release=release):
                 line = next(
                     json.loads(raw)
@@ -246,7 +246,7 @@ class RecordedRunTests(unittest.TestCase):
                 )
                 self.assertEqual(line["status"], status)
                 _, summary = self.replay(release)
-                self.assertRegex(summary, r"\| C22 \| fail \| known: N1")
+                self.assertRegex(summary, rf"\| C22 \| fail \| known: {known}\. ")
 
     def test_a_deviation_dropped_from_the_list_turns_the_run_red(self):
         pins = script.load_pins()

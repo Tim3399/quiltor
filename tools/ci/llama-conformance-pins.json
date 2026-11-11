@@ -1,5 +1,5 @@
 {
-  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Measured in run 42884579021 (spike, both releases) and, for C22, in run 43020642393 (raw answers of 43020642393 in tests/python/fixtures/llama-conformance/). A deviation carries the N code of the contract (local-ai-contract v1, errors.md 3.3; N22 and N23 proposed in D-174 for C02 and C03). A case whose request changed after the run carries 'open:' until the next run measures it. Nothing here was measured locally (D-94).",
+  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Measured in run 42884579021 (spike, both releases) and, for C22, in run 43020642393 (raw answers of 43020642393 in tests/python/fixtures/llama-conformance/). A deviation carries the N code of the contract (local-ai-contract v1, errors.md 3.3; N22 and N23 for C02 and C03 (D-174), N24 for C22 on b10218). A case whose request changed after the run carries 'open:' until the next run measures it. Nothing here was measured locally (D-94).",
   "models": [
     {
       "name": "smollm2-135m-instruct",
@@ -23,10 +23,7 @@
       "C02": ["N22"],
       "C03": ["N23"],
       "C20": ["N1", "N2", "N3"],
-      "C22": [
-        "N1",
-        "open: a malformed JSON body is answered with 500 server_error instead of 400 -- the contract (errors.md 3.3) has no code for it yet"
-      ]
+      "C22": ["N1", "N24"]
     }
   }
 }
