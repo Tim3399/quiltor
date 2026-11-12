@@ -34,7 +34,13 @@ for (const theme of ["light", "dark"] as const) {
     const momentTitle = world.text("moment.t1.title");
     await page.goto(`/?world=${world.id}`);
     await expect(page.getByLabel("Kapiteltext")).toBeVisible();
-    await page.getByRole("button", { name: "Fokus", exact: true }).click();
+    // Below 360 px the focus toggle is an entry of "Weitere Aktionen" (T-258).
+    const focusToggle = page.getByRole("button", { name: "Fokus", exact: true });
+    if (await focusToggle.isVisible()) await focusToggle.click();
+    else {
+      await page.getByRole("button", { name: "Weitere Aktionen", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Fokus", exact: true }).click();
+    }
     const picker = page.getByRole("button", { name: "Kapitelauswahl öffnen" });
     await expect(picker).toHaveAttribute("aria-expanded", "false");
     await picker.click();

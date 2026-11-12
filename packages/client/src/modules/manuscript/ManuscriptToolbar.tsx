@@ -13,7 +13,6 @@ import {
 import {
   DropdownMenu,
   MenuItem,
-  MenuItemCheckbox,
   MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
@@ -193,12 +192,13 @@ export function ManuscriptToolbar({
           >
             {focusInMenu && !focus && (
               <>
-                <MenuItemCheckbox
+                {/* An action, not a checkbox: a checkbox keeps the menu open, and focus mode
+                    then opened behind the sheet with no way back (T-258 F1). */}
+                <MenuItem
                   icon={<Focus />}
                   label={t("focus")}
-                  checked={focus}
                   disabled={preview}
-                  onCheckedChange={onFocus}
+                  onSelect={() => onFocus(true)}
                 />
                 <MenuSeparator />
               </>

@@ -1,0 +1,14 @@
+/*
+ * Applied only while the figures baselines are taken (visual-baseline.spec.ts), never in
+ * the product.
+ *
+ * The minimap blurs the canvas behind its rounded corners. Chromium on Linux and macOS
+ * does not render that blur the same way twice: the bootstrap's double take
+ * (tools/dev/capture-twice.mjs, run 43281439565) found 34-42 pixels differing by +-1 in one
+ * colour channel, all of them on the minimap's corners and shadow edge, in
+ * dark-figures-regular-linux, light-figures-wide-linux and dark-figures-wide-darwin.
+ * Windows took identical images. Everything else in those pictures was byte-identical.
+ */
+.graph-viewport-surface .react-flow__panel.react-flow__minimap {
+  backdrop-filter: none;
+}
