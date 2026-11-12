@@ -698,58 +698,64 @@ jobs:
             diagnostics: macos-15-4-of-4
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 1 of 9
+            label: windows-2025 / slot 1 of 10
             slot: 1
-            slots: 9
-            diagnostics: windows-2025-1-of-9
+            slots: 10
+            diagnostics: windows-2025-1-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 2 of 9
+            label: windows-2025 / slot 2 of 10
             slot: 2
-            slots: 9
-            diagnostics: windows-2025-2-of-9
+            slots: 10
+            diagnostics: windows-2025-2-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 3 of 9
+            label: windows-2025 / slot 3 of 10
             slot: 3
-            slots: 9
-            diagnostics: windows-2025-3-of-9
+            slots: 10
+            diagnostics: windows-2025-3-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 4 of 9
+            label: windows-2025 / slot 4 of 10
             slot: 4
-            slots: 9
-            diagnostics: windows-2025-4-of-9
+            slots: 10
+            diagnostics: windows-2025-4-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 5 of 9
+            label: windows-2025 / slot 5 of 10
             slot: 5
-            slots: 9
-            diagnostics: windows-2025-5-of-9
+            slots: 10
+            diagnostics: windows-2025-5-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 6 of 9
+            label: windows-2025 / slot 6 of 10
             slot: 6
-            slots: 9
-            diagnostics: windows-2025-6-of-9
+            slots: 10
+            diagnostics: windows-2025-6-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 7 of 9
+            label: windows-2025 / slot 7 of 10
             slot: 7
-            slots: 9
-            diagnostics: windows-2025-7-of-9
+            slots: 10
+            diagnostics: windows-2025-7-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 8 of 9
+            label: windows-2025 / slot 8 of 10
             slot: 8
-            slots: 9
-            diagnostics: windows-2025-8-of-9
+            slots: 10
+            diagnostics: windows-2025-8-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 9 of 9
+            label: windows-2025 / slot 9 of 10
             slot: 9
-            slots: 9
-            diagnostics: windows-2025-9-of-9
+            slots: 10
+            diagnostics: windows-2025-9-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 10 of 10
+            slot: 10
+            slots: 10
+            diagnostics: windows-2025-10-of-10
     env:
       PYTHONPATH: src
     steps:

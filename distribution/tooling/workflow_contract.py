@@ -955,7 +955,7 @@ SLOT_RUN_EVIDENCE = (
     "path: test-results/reports/*.json",
 )
 # (runner, the system name tools/dev/test-shards.mjs takes, slots)
-CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 4), ("windows-2025", "windows", 9))
+CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 4), ("windows-2025", "windows", 10))
 LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
 FULL_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"

@@ -39,6 +39,22 @@ JWKS_TTL_SECONDS = 15 * 60
 JWKS_MIN_REFRESH_SECONDS = 30
 #: After a refresh that failed without ending the session, no new attempt for this long.
 REFRESH_BACKOFF_SECONDS = 60
+#: Pauses between attempts to fetch the discovery document: four attempts in all.
+#: A restarting Keycloak answers 503 for ~18 s; this does not try to bridge that,
+#: because a login request must not hang. It rides out a blip of a few seconds and
+#: otherwise hands the author a page that says "try again" (T-253).
+DISCOVERY_RETRY_DELAYS = (0.5, 1.0, 2.0)
+#: No further attempt starts once this much time has passed since the first one, so
+#: provider timeouts (10 s each) cannot stack into a minute-long login request.
+DISCOVERY_RETRY_BUDGET_SECONDS = 8.0
+
+
+class ProviderUnavailable(ValueError):
+    """The provider could not be reached or answered 5xx -- worth asking again.
+
+    Everything else that goes wrong with a provider response (bad content type,
+    bad JSON, a 4xx) is not transient and stays a plain ValueError.
+    """
 
 
 class TokenEndpointRejected(ValueError):
@@ -102,8 +118,12 @@ class UrllibJsonTransport:
         except urllib.error.HTTPError as exc:
             if data is not None and exc.code in (400, 401):
                 raise TokenEndpointRejected(_rejection_code(exc)) from exc
+            if exc.code >= 500:
+                raise ProviderUnavailable(f"OIDC provider returned HTTP {exc.code}.") from exc
             raise ValueError(f"OIDC provider returned HTTP {exc.code}.") from exc
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except OSError as exc:
+            raise ProviderUnavailable("OIDC provider is unreachable.") from exc
+        except (ValueError, json.JSONDecodeError) as exc:
             raise ValueError("OIDC provider returned an invalid response.") from exc
         if not isinstance(document, dict):
             raise ValueError("OIDC provider returned an invalid response.")
@@ -120,8 +140,10 @@ class StdlibIdentityGateway:
         transport: UrllibJsonTransport | Any | None = None,
         clock: Callable[[], float] = time.time,
         token_factory: Callable[[int], str] = secrets.token_urlsafe,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.configuration = configuration
+        self._sleep = sleep
         self._transport = transport or UrllibJsonTransport()
         self._clock = clock
         self._token_factory = token_factory
@@ -237,7 +259,7 @@ class StdlibIdentityGateway:
             )
         return validated
 
-    def discover(self, issuer: str | None = None) -> dict[str, Any]:
+    def discover(self, issuer: str | None = None, *, retry: bool = True) -> dict[str, Any]:
         selected = (issuer if issuer is not None else self.issuer).rstrip("/")
         if not selected:
             raise ValueError("OIDC issuer is not configured.")
@@ -249,10 +271,9 @@ class StdlibIdentityGateway:
             cached = self._discovery.get(selected)
         if cached is not None and cached[0] > now:
             return dict(cached[1])
-        document = self._validate_discovery(
-            self._transport.request(f"{selected}/.well-known/openid-configuration"),
-            selected,
-        )
+        # Only a success is stored below: a failure raises out of here, so the next
+        # login asks the provider again instead of replaying the outage.
+        document = self._validate_discovery(self._fetch_discovery(selected, retry), selected)
         with self._lock:
             if selected not in self._discovery and len(self._discovery) >= MAX_DISCOVERY_ISSUERS:
                 oldest = min(self._discovery, key=lambda item: self._discovery[item][0])
@@ -262,6 +283,22 @@ class StdlibIdentityGateway:
                 self._jwks_last_refresh.pop(oldest, None)
             self._discovery[selected] = (now + DISCOVERY_TTL_SECONDS, document)
         return dict(document)
+
+    def _fetch_discovery(self, issuer: str, retry: bool = True) -> dict[str, Any]:
+        """Fetch the discovery document, asking again while the provider is briefly away."""
+        url = f"{issuer}/.well-known/openid-configuration"
+        started = time.monotonic()
+        for delay in (*(DISCOVERY_RETRY_DELAYS if retry else ()), None):
+            try:
+                return self._transport.request(url)
+            except ProviderUnavailable:
+                if (
+                    delay is None
+                    or time.monotonic() - started + delay > DISCOVERY_RETRY_BUDGET_SECONDS
+                ):
+                    raise
+                self._sleep(delay)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     def new_pkce_pair(self) -> tuple[str, str]:
         verifier = self._token_factory(64)
@@ -675,7 +712,7 @@ class StdlibIdentityGateway:
         post_logout_redirect_uri: str | None = None,
     ) -> str | None:
         try:
-            document = self.discover()
+            document = self.discover(retry=False)
         except Exception:  # noqa: BLE001 - an unreachable discovery document means no end-session endpoint
             return None
         endpoint = document.get("end_session_endpoint")

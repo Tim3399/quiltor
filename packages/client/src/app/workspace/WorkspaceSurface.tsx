@@ -184,6 +184,7 @@ export function WorkspaceSurface({
         state={figures}
         worldId={worldId}
         onChange={onFiguresChange}
+        manuscript={manuscript}
         targetId={target?.workspace === "figures" ? target.id : undefined}
         targetRequestId={target?.workspace === "figures" ? target.requestId : undefined}
         onUndo={figureHistory.undo}
