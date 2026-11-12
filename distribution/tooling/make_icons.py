@@ -121,10 +121,27 @@ def _rle(channel: bytes) -> bytes:
     return bytes(out)
 
 
-def icns_argb(size: int) -> bytes:
-    """The payload of an ic04/ic05 element: "ARGB", then the A, R, G, B planes, each run-length coded."""
+def premultiplied(rgba: bytes) -> bytes:
+    """RGBA bytes with each colour channel multiplied by its alpha, rounded to nearest."""
 
-    pixels = _brand(size).tobytes()  # RGBA, straight alpha
+    out = bytearray(rgba)
+    for i in range(0, len(out), 4):
+        alpha = out[i + 3]
+        for channel in (0, 1, 2):
+            out[i + channel] = (out[i + channel] * alpha + 127) // 255
+    return bytes(out)
+
+
+def icns_argb(size: int) -> bytes:
+    """
+    The payload of an ic04/ic05 element: "ARGB", then the A, R, G, B planes, each run-length coded.
+
+    Colour is stored premultiplied by alpha: iconutil on macOS reads these two elements that way
+    and divides by alpha again, so straight colour came back clipped to white wherever the picture
+    is partly transparent (16 px icon, macOS CI run 43271710088: 52 of 256 pixels off by up to 50).
+    """
+
+    pixels = premultiplied(_brand(size).tobytes())
     planes = (pixels[3::4], pixels[0::4], pixels[1::4], pixels[2::4])
     return b"ARGB" + b"".join(_rle(plane) for plane in planes)
 

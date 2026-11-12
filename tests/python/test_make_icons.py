@@ -132,8 +132,26 @@ class WebIconTests(unittest.TestCase):
                 planes[3],
                 planes[0],
             )
-            self.assertEqual(bytes(rgba), make_icons._brand(px).tobytes(), kind)
+            # the colour is stored premultiplied by alpha, the way iconutil reads it
+            expected = make_icons.premultiplied(make_icons._brand(px).tobytes())
+            self.assertEqual(bytes(rgba), expected, kind)
             self.assertEqual(payload, make_icons.icns_argb(px), kind)
+
+    def test_the_small_macos_frames_store_colour_premultiplied_by_alpha(self):
+        self.assertEqual(
+            make_icons.premultiplied(bytes([242, 229, 205, 179, 242, 229, 206, 36, 9, 8, 7, 0])),
+            bytes([170, 161, 144, 179, 34, 32, 29, 36, 0, 0, 0, 0]),
+        )
+        self.assertEqual(
+            make_icons.premultiplied(bytes([200, 100, 50, 255])), bytes([200, 100, 50, 255])
+        )
+        # a partly transparent pixel of the real 16 px frame is no longer its straight colour
+        straight = make_icons._brand(16).tobytes()
+        partly = [i for i in range(0, len(straight), 4) if 0 < straight[i + 3] < 255]
+        self.assertTrue(partly, "the 16 px picture has no partly transparent pixel")
+        elements = dict(make_icons.icns_elements((make_icons.OUT_DIR / "icon.icns").read_bytes()))
+        self.assertEqual(elements[b"ic04"], make_icons.icns_argb(16))
+        self.assertNotEqual(make_icons.premultiplied(straight), straight)
 
 
 if __name__ == "__main__":
