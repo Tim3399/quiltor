@@ -628,6 +628,13 @@ jobs:
       - name: Backend suite
         run: python -m unittest discover -s tests/python -t tests/python
 
+      # The parallel runner, in addition to the serial suite above and only on Windows, where
+      # it is used locally: it has to prove itself here before anyone relies on it (T-252).
+      # macOS stays serial, and so does the backend job.
+      - name: Backend suite, parallel runner
+        if: runner.os == 'Windows'
+        run: python tools/dev/backend-tests.py -v
+
       # Formatting and clippy are platform independent and run once, on Linux.
       - name: Portable core
         run: cargo --locked test --workspace --all-targets

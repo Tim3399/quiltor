@@ -488,6 +488,12 @@ Every check that ran for a commit on main still runs for it, in the same or a me
 | Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–9                                                | main                 |
 | Product and design suites on macOS, Windows      | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
 
+`Core on windows-2025` also runs the backend suite a second time through the parallel runner,
+`python tools/dev/backend-tests.py -v`, as the step after the serial one (T-252). The serial
+step stays authoritative, in `backend` and on macOS too; the runner only adds itself on Windows,
+where it is used locally, so that a failure of its own shows up in CI before anyone relies on it.
+Its condition `runner.os == 'Windows'` is one of the `STEP_CONDITIONS` of C-20.
+
 On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
 That is the reduction the brief allows; main still runs them in full.
 
