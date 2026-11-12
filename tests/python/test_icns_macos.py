@@ -140,6 +140,12 @@ class IcnsDecoderTests(unittest.TestCase):
         self.assertEqual(got, (width, height, want))
 
 
+def premultiplied_pixel(p):
+    """An RGBA pixel with its colour multiplied by its alpha, as the ARGB frames store it."""
+
+    return (*(round(c * p[3] / 255) for c in p[:3]), p[3])
+
+
 def deviation_report(got, want, width):
     """
     Where two RGBA pictures differ and how, as text for a failing assertion.
@@ -152,9 +158,6 @@ def deviation_report(got, want, width):
 
     def worst(a, b):
         return max(abs(x - y) for x, y in zip(a, b, strict=True))
-
-    def premultiplied(p):
-        return (*(round(c * p[3] / 255) for c in p[:3]), p[3])
 
     rows = sorted(
         ((worst(a, b), i) for i, (a, b) in enumerate(zip(got, want, strict=True))), reverse=True
@@ -183,7 +186,10 @@ def deviation_report(got, want, width):
     lines.append(
         "  worst diff after premultiplying both: "
         + str(
-            max(worst(premultiplied(a), premultiplied(b)) for a, b in zip(got, want, strict=True))
+            max(
+                worst(premultiplied_pixel(a), premultiplied_pixel(b))
+                for a, b in zip(got, want, strict=True)
+            )
         )
     )
     channels = [max(abs(a[c] - b[c]) for a, b in zip(got, want, strict=True)) for c in range(4)]
@@ -220,15 +226,18 @@ class IconutilReadsIcnsTests(unittest.TestCase):
                 got = decode_png((iconset / name).read_bytes())
                 want = decode_png((BRAND_PNG_DIR / f"quiltor-logo-light-{px}.png").read_bytes())
                 self.assertEqual(got[:2], want[:2], name)
+                # iconutil hands back straight colour, divided by alpha from the 8-bit
+                # premultiplied bytes of the frame; where alpha is low that division cannot give
+                # the original back (alpha 8: up to 15 steps) but the picture is the same. So
+                # the colour is compared as it is stored, premultiplied, within 2.
                 problems = [
                     (a, b)
                     for a, b in zip(got[2], want[2], strict=True)
-                    # iconutil may premultiply: colour is meaningless where nothing shows
-                    if (
-                        a[3] > 1
-                        if b[3] == 0
-                        else max(abs(x - y) for x, y in zip(a, b, strict=True)) > 2
+                    if max(
+                        abs(x - y)
+                        for x, y in zip(premultiplied_pixel(a), premultiplied_pixel(b), strict=True)
                     )
+                    > 2
                 ]
                 self.assertEqual(
                     problems, [], f"{name}\n" + deviation_report(got[2], want[2], got[0])

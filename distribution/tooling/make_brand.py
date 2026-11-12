@@ -481,13 +481,40 @@ def write(root: Path = REPO_ROOT) -> None:
     print(f"Wrote {OUT_DIR} and {CLIENT_MODULE}")
 
 
+def _picture(data: bytes) -> tuple[tuple[int, int], str, bytes] | None:
+    """What a PNG shows: size, mode and every pixel byte; None when it is not a readable PNG."""
+
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
+            return image.size, image.mode, image.tobytes()
+    except OSError:
+        return None
+
+
+def same_file(name: str, actual: bytes, expected: bytes) -> bool:
+    """
+    Whether a checked-in file is what the generator draws.
+
+    A PNG is compared by its decoded pixels, exactly, with no tolerance: the same picture is
+    packed into different bytes by the zlib behind each platform's Pillow wheel (26 of the 33
+    pictures differ between Windows and Linux, none of them in a pixel). Every other file is
+    compared byte for byte.
+    """
+
+    if not name.endswith(".png"):
+        return actual == expected
+    picture = _picture(actual)
+    return picture is not None and picture == _picture(expected)
+
+
 def check(root: Path = REPO_ROOT) -> list[str]:
     problems = []
     for name, data in generated_files().items():
         path = root / name
         if not path.exists():
             problems.append(f"{path} is missing")
-        elif path.read_bytes() != data:
+        elif not same_file(name, path.read_bytes(), data):
             problems.append(f"{path} is out of date")
     return problems
 
