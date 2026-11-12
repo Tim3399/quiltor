@@ -108,6 +108,13 @@ const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
 const CANVAS_TOLERANCE = { maxDiffPixels: 24 } as const;
 
 /*
+ * The figures pictures are taken without the minimap's backdrop blur: Chromium on Linux and
+ * macOS rendered its rounded corners differently between two takes (34-42 px, +-1), which
+ * kept their baselines from ever being checked in. The stylesheet says more.
+ */
+const CALM_MINIMAP = join(dirname(fileURLToPath(import.meta.url)), "support/screenshot-calm.css");
+
+/*
  * Wait until the canvas stands still.
  *
  * React Flow fits the viewport only once it has measured its nodes. Whoever photographs at
@@ -243,6 +250,7 @@ for (const theme of ["light", "dark"] as const) {
     }
     await screenshotExpectation.toHaveScreenshot(`${theme}-figures.png`, {
       animations: "disabled",
+      stylePath: CALM_MINIMAP,
       ...CANVAS_TOLERANCE,
     });
 

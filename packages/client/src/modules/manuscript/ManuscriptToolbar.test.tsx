@@ -209,7 +209,9 @@ it("keeps undo in the row below 360px and moves the focus toggle into the overfl
   fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
   const menu = screen.getByRole("menu", { name: "Weitere Aktionen" });
   expect(within(menu).queryByRole("menuitem", { name: "Rückgängig" })).toBeNull();
-  fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Fokus" }));
+  fireEvent.click(within(menu).getByText("Fokus"));
   expect(onFocus).toHaveBeenCalledWith(true);
+  // Choosing focus closes the menu, or its sheet covers the focus view (T-258 F1).
+  expect(screen.queryByRole("menu", { name: "Weitere Aktionen" })).toBeNull();
   vi.unstubAllGlobals();
 });
