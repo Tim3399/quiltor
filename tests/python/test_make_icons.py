@@ -1,4 +1,4 @@
-"""T-131: the web icons are derived from the app icon, and a check says when they drift."""
+"""T-131, T-248: every icon is the brand's logo, and a check says when one drifts."""
 
 import importlib.util
 import io
@@ -40,11 +40,22 @@ class WebIconTests(unittest.TestCase):
         self.assertIn("apple-touch-icon.png does not match the app icon", problems[0])
         self.assertIn("email-logo.png is missing", problems[1])
 
-    def test_the_opaque_icons_have_no_transparency(self):
-        for name in ("apple-touch-icon.png", "email-logo.png"):
-            image = Image.open(io.BytesIO(make_icons.web_icons()[name]))
-            self.assertEqual(image.mode, "RGB", name)
-            self.assertEqual(image.getpixel((0, 0)), (255, 255, 255), name)
+    def test_the_home_screen_icon_has_no_transparency(self):
+        image = Image.open(io.BytesIO(make_icons.web_icons()["apple-touch-icon.png"]))
+        self.assertEqual(image.mode, "RGB")
+        self.assertEqual(image.getpixel((0, 0)), (255, 255, 255))
+
+    def test_the_mail_logo_is_the_brand_picture_byte_for_byte(self):
+        brand = make_icons.brand_png(192).read_bytes()
+        self.assertEqual(make_icons.web_icons()["email-logo.png"], brand)
+        self.assertEqual((make_icons.WEB_DIR / "email-logo.png").read_bytes(), brand)
+
+    def test_the_desktop_icons_show_the_brand_pictures(self):
+        for name, px in make_icons.ICONSET_SIZES.items():
+            picture = (make_icons.ICONSET_DIR / name).read_bytes()
+            self.assertEqual(picture, make_icons.brand_png(px).read_bytes(), name)
+        tray = (make_icons.OUT_DIR / "tray.png").read_bytes()
+        self.assertEqual(tray, make_icons.brand_png(64).read_bytes())
 
 
 if __name__ == "__main__":
