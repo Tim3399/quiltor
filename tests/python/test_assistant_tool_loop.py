@@ -107,7 +107,7 @@ class AssistantToolLoopTests(unittest.TestCase):
             calls.append((request, prompt_tokens))
             if not replies:
                 raise AssertionError("unexpected model step")
-            return replies.pop(0)
+            return {"step": replies.pop(0)}
 
         result = run_tool_loop(
             payload(),
@@ -125,9 +125,9 @@ class AssistantToolLoopTests(unittest.TestCase):
         result, calls, _read_tools = self._run([final_step()])
 
         schema = calls[0][0]["response_format"]["json_schema"]["schema"]
-        tool_branch = schema["oneOf"][0]
-        call_schemas = tool_branch["properties"]["toolCalls"]["items"]["oneOf"]
-        names = {item["properties"]["name"]["const"] for item in call_schemas}
+        tool_branch = schema["properties"]["step"]["anyOf"][0]
+        call_schemas = tool_branch["properties"]["toolCalls"]["items"]["anyOf"]
+        names = {item["properties"]["name"]["enum"][0] for item in call_schemas}
         self.assertEqual(names, set(EXPECTED_READ_TOOL_NAMES))
         self.assertEqual(
             tool_branch["properties"]["toolCalls"]["maxItems"],
@@ -322,7 +322,7 @@ class AssistantToolLoopTests(unittest.TestCase):
         _result, calls, _read_tools = self._run([final_step()])
 
         schema = calls[0][0]["response_format"]["json_schema"]["schema"]
-        final_schema = schema["oneOf"][1]["properties"]["final"]
+        final_schema = schema["properties"]["step"]["anyOf"][1]["properties"]["final"]
         self.assertEqual(
             final_schema["required"],
             ["message", "citations", "proposals"],

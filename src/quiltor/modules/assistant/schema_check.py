@@ -24,9 +24,8 @@ KEYWORDS = frozenset(
         "required",
         "additionalProperties",
         "enum",
-        "const",
         "pattern",
-        "oneOf",
+        "anyOf",
         "items",
         "minItems",
         "maxItems",
@@ -90,8 +89,8 @@ def _check_schema(schema: Any, where: str, depth: int) -> None:
         _check_schema(child, f"{where}/properties/{name}", depth + 1)
     if "items" in schema:
         _check_schema(schema["items"], f"{where}/items", depth + 1)
-    for index, branch in enumerate(schema.get("oneOf") or []):
-        _check_schema(branch, f"{where}/oneOf/{index}", depth + 1)
+    for index, branch in enumerate(schema.get("anyOf") or []):
+        _check_schema(branch, f"{where}/anyOf/{index}", depth + 1)
 
 
 def _canonical(value: Any) -> str:
@@ -123,18 +122,18 @@ def _check(value: Any, schema: dict[str, Any], path: str, depth: int, out: list[
     if "type" in schema and not _has_type(value, schema["type"]):
         out.append(Violation(path, "type"))
         return
-    if "const" in schema and _canonical(value) != _canonical(schema["const"]):
-        out.append(Violation(path, "const"))
     if "enum" in schema and _canonical(value) not in {_canonical(v) for v in schema["enum"]}:
         out.append(Violation(path, "enum"))
-    if "oneOf" in schema:
-        matches = 0
-        for branch in schema["oneOf"]:
+    if "anyOf" in schema:
+        # At least one branch. The schemas give every branch a distinct required enum
+        # discriminator (schema_lint enforces it), so no value matches two.
+        for branch in schema["anyOf"]:
             trial: list[Violation] = []
             _check(value, branch, path, depth + 1, trial)
-            matches += not trial
-        if matches != 1:
-            out.append(Violation(path, "oneOf"))
+            if not trial:
+                break
+        else:
+            out.append(Violation(path, "anyOf"))
     if isinstance(value, str):
         _check_string(value, schema, path, out)
     elif isinstance(value, list):

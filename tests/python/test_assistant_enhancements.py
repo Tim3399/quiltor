@@ -14,8 +14,8 @@ from tests.python.narrowing import present
 class AssistantEnhancementTests(unittest.TestCase):
     def test_reply_schema_is_a_strict_discriminated_contract_union(self):
         schema = reply_schema(["set_presence"])
-        proposal = schema["properties"]["proposals"]["items"]["oneOf"][0]
-        self.assertEqual(proposal["properties"]["kind"], {"const": "set_presence"})
+        proposal = schema["properties"]["proposals"]["items"]["anyOf"][0]
+        self.assertEqual(proposal["properties"]["kind"], {"enum": ["set_presence"]})
         self.assertFalse(proposal["additionalProperties"])
 
     def test_presence_requires_existing_element_place_and_optional_moment(self):
