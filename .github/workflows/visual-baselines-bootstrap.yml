@@ -113,16 +113,29 @@ jobs:
       - name: Name the apt package cache
         id: apt-cache-key
         if: runner.os == 'Linux'
-        run: echo "key=apt-debs-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "key=apt-debs-v2-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the apt package cache
+        id: apt-cache
         if: runner.os == 'Linux'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/quiltor-apt
           key: ${{ steps.apt-cache-key.outputs.key }}
       - name: Install Chromium (Linux, apt with a time limit, the cache, one mirror switch)
         if: runner.os == 'Linux'
         run: bash tools/dev/playwright-linux.sh
+      # An empty entry would block its key for good (entries are immutable), so the cache is
+      # saved only when the install left packages in the directory.
+      - name: Count the kept apt packages
+        id: apt-kept
+        if: runner.os == 'Linux'
+        run: echo "count=$(find ~/.cache/quiltor-apt -name '*.deb' 2>/dev/null | wc -l)" >> "$GITHUB_OUTPUT"
+      - name: Save the apt package cache
+        if: runner.os == 'Linux' && steps.apt-cache.outputs.cache-hit != 'true' && steps.apt-kept.outputs.count != '0'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/quiltor-apt
+          key: ${{ steps.apt-cache-key.outputs.key }}
       - name: Generate the missing baselines
         shell: bash
         env:

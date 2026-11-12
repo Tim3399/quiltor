@@ -1398,6 +1398,29 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 ):
                     workflow_contract.validate_linux_playwright_install(mutated, script)
 
+    def test_linux_browser_jobs_never_save_an_empty_apt_package_cache(self):
+        # An empty entry blocked its key for good: the first run kept 0 packages (D-257-F1).
+        sources = workflow_contract._workflow_sources()
+        script = (REPO_ROOT / "tools/dev/playwright-linux.sh").read_text(encoding="utf-8")
+        guard = workflow_contract.PLAYWRIGHT_LINUX_SAVE_GUARD
+        for name in workflow_contract.PLAYWRIGHT_LINUX_CACHED_WORKFLOWS:
+            path = TEST_WORKFLOW.parent / name
+            with self.subTest(path=name):
+                self.assertIn(guard, sources[path])
+                self.assertIn("actions/cache/save@", sources[path])
+                self.assertIn("apt-debs-v2-", sources[path])
+                for label, original, replacement in (
+                    ("no guard", guard, "steps.apt-kept.outputs.count != ''"),
+                    ("no save step", "actions/cache/save@", "actions/other/save@"),
+                ):
+                    with self.subTest(mutation=label):
+                        mutated = dict(sources)
+                        mutated[path] = mutated[path].replace(original, replacement)
+                        with self.assertRaisesRegex(
+                            workflow_contract.WorkflowContractError, "only when the install kept"
+                        ):
+                            workflow_contract.validate_linux_playwright_install(mutated, script)
+
     def test_windows_browser_jobs_install_chromium_without_system_dependencies(self):
         sources = workflow_contract._workflow_sources()
         script = (REPO_ROOT / workflow_contract.CHROMIUM_STARTS).read_text("utf-8")
