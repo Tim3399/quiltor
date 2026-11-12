@@ -12,6 +12,8 @@ import { freePort, pythonCommand, ROOT, terminate, waitFor } from "./python-proc
  */
 export interface TestHooksServer {
   url: string;
+  /** The tail of the server's own output, for a failure report. */
+  output: () => string;
   stop: () => Promise<void>;
 }
 
@@ -44,9 +46,10 @@ export async function startTestHooksServer(): Promise<TestHooksServer> {
     await terminate(child);
     rmSync(scratch, { recursive: true, force: true });
   };
+  const output = () => logs.join("").slice(-4000);
   try {
-    await waitFor(`${url}/`, child, () => logs.join("").slice(-4000));
-    return { url, stop };
+    await waitFor(`${url}/`, child, output);
+    return { url, output, stop };
   } catch (error) {
     await stop();
     throw error;

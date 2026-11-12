@@ -31,6 +31,30 @@ const test = base.extend<object, { hooksServer: TestHooksServer }>({
   baseURL: async ({ hooksServer }, use) => use(hooksServer.url),
 });
 
+/** The world the last drawer opened on, so a failure report can ask for its status. */
+let lastWorld = "";
+
+// On a failure the report says what this server told the browser: CI runners differ.
+test.afterEach(async ({ hooksServer, request }, testInfo) => {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  const read = async (path: string) => {
+    try {
+      const response = await request.get(path);
+      return `${response.status()} ${await response.text()}`;
+    } catch (error) {
+      return String(error);
+    }
+  };
+  const report = [
+    `server: ${hooksServer.url}`,
+    `capabilities: ${await read("/api/capabilities")}`,
+    `local assistant status: ${await read(`/api/assistant/status?world=${lastWorld}`)}`,
+    `server output:\n${hooksServer.output()}`,
+  ].join("\n");
+  console.log(`[assistant-client-relay] ${testInfo.title}\n${report}`);
+  await testInfo.attach("test-hooks-server", { body: report, contentType: "text/plain" });
+});
+
 const POLICY = JSON.parse(
   readFileSync(join(ROOT, "src/quiltor/bootstrap/csp-policy.json"), "utf8"),
 ) as { testHooksOrigin: string };
@@ -92,6 +116,7 @@ async function silentProvider(page: Page): Promise<Route[]> {
 }
 
 async function openAssistant(page: Page, worldId: string): Promise<Locator> {
+  lastWorld = worldId;
   await page.goto(`/?world=${worldId}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript" })).toBeVisible();
   await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
