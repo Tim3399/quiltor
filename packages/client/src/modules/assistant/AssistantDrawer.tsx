@@ -9,6 +9,7 @@ import { AssistantComposer } from "./AssistantComposer";
 import { AssistantConversation } from "./AssistantConversation";
 import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
+import { useEngineChoice } from "./engines/useEngineChoice";
 import type { AssistantProposal } from "./model";
 import type { AssistantProposalApplyResult } from "./proposals";
 import { useAssistantAvailability } from "./useAssistantAvailability";
@@ -58,6 +59,11 @@ export function AssistantDrawer({
   const endRef = useRef<HTMLDivElement>(null);
   const chapterPickerRef = useRef<HTMLButtonElement>(null);
   const { status, installState, checkStatus, startInstall } = useAssistantAvailability(open);
+  // One choice for the drawer and its status panel, so a switch of engine re-renders both.
+  const engineChoice = useEngineChoice(status?.premium !== false);
+  // The status describes the server's assistant: it locks the composer only while a job would
+  // run there. A browser engine works without it (T-61 part 6, D-T-61-8a-F2).
+  const serverOffline = engineChoice.engine === "server" && status?.available === false;
   const {
     entries,
     sending,
@@ -159,6 +165,7 @@ export function AssistantDrawer({
       </header>
       <AssistantStatusPanel
         status={status}
+        choice={engineChoice}
         installState={installState}
         installProgressId={installProgressId}
         onRetry={checkStatus}
@@ -172,7 +179,7 @@ export function AssistantDrawer({
             icon={<BookOpenCheck />}
             disabled={
               sending ||
-              status?.available === false ||
+              serverOffline ||
               chapters.length === 0 ||
               (extractionScope === "current" && !currentChapterId)
             }
@@ -245,7 +252,7 @@ export function AssistantDrawer({
         draft={draft}
         onDraftChange={setDraft}
         sending={sending}
-        unavailable={status?.available === false}
+        unavailable={serverOffline}
         onSend={sendDraft}
         onCancel={cancel}
       />
@@ -263,7 +270,7 @@ export function AssistantDrawer({
     </>
   );
 
-  const className = `assistant-drawer ${status && !status.available ? "has-offline" : ""}`;
+  const className = `assistant-drawer ${serverOffline ? "has-offline" : ""}`;
   // The component remains mounted while closed so requests and install polling survive.
   return compact ? (
     <Sheet

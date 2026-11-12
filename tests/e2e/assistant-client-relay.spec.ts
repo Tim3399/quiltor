@@ -117,11 +117,6 @@ async function silentProvider(page: Page): Promise<Route[]> {
 
 async function openAssistant(page: Page, worldId: string): Promise<Locator> {
   lastWorld = worldId;
-  // The status is the local runtime's, which a CI runner may not have; a browser engine does not
-  // depend on it, but the drawer locks the composer while it reports unavailable.
-  await page.route("**/api/assistant/status*", (route) =>
-    route.fulfill({ json: { ok: true, available: true, mode: "local", reason: "", chunks: 0 } }),
-  );
   await page.goto(`/?world=${worldId}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript" })).toBeVisible();
   await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
