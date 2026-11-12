@@ -54,7 +54,7 @@ describe("a job on a browser engine", () => {
       request: {
         ticket: "t1",
         seq: 1,
-        engine: "cloud",
+        engine: { kind: "cloud", grammar: false, provider: "openai" },
         payload: { messages: [] },
         limits: { maxOutputBytes: 262_144, answerBySeconds: 60 },
       },

@@ -7,19 +7,22 @@ import {
   useUserCapabilities,
 } from "../../shared/capabilities";
 import type { AssistantEngineKind } from "./engines/types";
-import { useEngineChoice } from "./engines/useEngineChoice";
+import { type EngineChoice, useEngineChoice } from "./engines/useEngineChoice";
 import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
 
 export function AssistantStatusPanel({
   status,
+  choice: shared,
   installState,
   installProgressId,
   onRetry,
   onInstall,
 }: {
   status: AssistantAvailability | null;
+  /** The drawer's engine choice; without one the panel keeps its own. */
+  choice?: EngineChoice;
   installState: AssistantInstallState | null;
   installProgressId: string;
   onRetry: () => void;
@@ -30,7 +33,8 @@ export function AssistantStatusPanel({
   // The capabilities say whether this account may use the server's assistant; the
   // status field is the fallback for an older server, and missing means allowed.
   const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
-  const choice = useEngineChoice(status?.premium !== false);
+  const own = useEngineChoice(status?.premium !== false);
+  const choice = shared ?? own;
   const onServer = choice.engine === "server";
   const EnginePanel = choice.slot?.Panel;
   const engineLabels: Record<AssistantEngineKind, string> = {

@@ -1,7 +1,7 @@
 import type { ClientEngineSlots } from "./registry";
 import type { AssistantEngineKind } from "./types";
 
-// Not a secret: which engine the user picked. A provider key never goes here (T-61 part 8).
+// Not a secret: which engine the user picked. A provider key never goes here (T-61 part 8a / T-264).
 const ENGINE_PREFERENCE_KEY = "quiltor-assistant-engine";
 
 type Preferences = {

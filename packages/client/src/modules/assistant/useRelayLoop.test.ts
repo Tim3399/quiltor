@@ -14,7 +14,7 @@ function ticket(seq: number, maxOutputBytes = 262_144): RelayRequestV1 {
   return {
     ticket: `t${seq}`,
     seq,
-    engine: "cloud",
+    engine: { kind: "cloud", grammar: false, provider: "openai" },
     payload: { messages: [{ role: "user", content: `Runde ${seq}` }] },
     limits: { maxOutputBytes, answerBySeconds: 60 },
   };

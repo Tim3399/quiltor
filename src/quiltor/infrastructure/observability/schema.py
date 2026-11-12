@@ -171,6 +171,9 @@ EVENTS: dict[str, frozenset[str]] = {
     # could not be recorded: the exception's type only, never its text or path (T-165).
     "backup.label_failed": frozenset({"request_id", "error_type"}),
     # Never email or name: `sub` is the one identifier an operator needs (D-49).
+    # hosts/web/server.py, when /login finds the identity provider away: the exception's
+    # type only (T-253).
+    "identity.login_unavailable": frozenset({"request_id", "error_type"}),
     "identity.login_without_roles": frozenset({"request_id", "sub", "roles_claim_present"}),
     # modules/assistant/jobs.py, when the job queue itself fails under a worker: which
     # worker (server or client) and the exception's type; the worker keeps running (T-61).

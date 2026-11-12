@@ -1,9 +1,8 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { freePort, pythonCommand, ROOT, terminate, waitFor } from "./python-process";
 
 /**
  * A real sync setup for the product suite, with nothing on the wire stubbed (T-164, D-87).
@@ -19,12 +18,8 @@ import { fileURLToPath } from "node:url";
  * The suite's shared server on :8010 stays untouched: it has no token for any endpoint, and
  * a run that changes its environment would change every other spec with it.
  *
- * Python comes from `PLAYWRIGHT_PYTHON` when set; otherwise the pinned 3.12 through the
- * Windows launcher, else `python3` and `python`. In CI that is the interpreter pip installed
- * the application into, which is the one that can import it.
+ * Python, ports and stopping come from support/python-process.ts.
  */
-
-const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 export interface CloudEndpoint {
   /** Where the browser talks to: the second Quiltor instance. */
@@ -32,62 +27,6 @@ export interface CloudEndpoint {
   /** The address a person types into the sync tab: the backup server. */
   endpointUrl: string;
   stop: () => Promise<void>;
-}
-
-function pythonCommand(): [string, string[]] {
-  const candidates: Array<[string, string[]]> = process.env.PLAYWRIGHT_PYTHON
-    ? [[process.env.PLAYWRIGHT_PYTHON, []]]
-    : process.platform === "win32"
-      ? [
-          ["py", ["-3.12"]],
-          ["python", []],
-        ]
-      : [
-          ["python3", []],
-          ["python", []],
-        ];
-  for (const [command, prefix] of candidates) {
-    if (spawnSync(command, [...prefix, "-c", "import sys"]).status === 0) return [command, prefix];
-  }
-  throw new Error("No Python found for the real sync endpoint; set PLAYWRIGHT_PYTHON.");
-}
-
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const probe = createServer();
-    probe.once("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const { port } = probe.address() as { port: number };
-      probe.close(() => resolve(port));
-    });
-  });
-}
-
-async function waitFor(url: string, process_: ChildProcess, output: () => string) {
-  const deadline = Date.now() + 45_000;
-  while (Date.now() < deadline) {
-    if (process_.exitCode !== null) break;
-    try {
-      const response = await fetch(url);
-      if (response.status < 500) return;
-    } catch {
-      // not listening yet
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`${url} did not come up.\n${output()}`);
-}
-
-async function terminate(child: ChildProcess) {
-  if (child.exitCode !== null || child.pid === undefined) return;
-  const exited = new Promise((resolve) => child.once("exit", resolve));
-  // The Windows launcher starts the interpreter as a child, so kill the whole tree there.
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
-  } else {
-    child.kill("SIGTERM");
-  }
-  await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5_000))]);
 }
 
 export async function startCloudEndpoint(): Promise<CloudEndpoint> {
