@@ -23,6 +23,9 @@ const singleViewportSpecs = [
   // Sync against a real endpoint is a flow between processes (browser, a second Quiltor, the
   // backup server); no viewport changes what is sent. Each project would start all three again.
   "**/cloud-sync-real-endpoint.spec.ts",
+  // A browser engine's job runs against a Quiltor of its own with QUILTOR_TEST_HOOKS=1 (T-61
+  // part 8a); the relay and the slot limit are the same at every viewport.
+  "**/assistant-client-relay.spec.ts",
 ];
 
 export default defineConfig({

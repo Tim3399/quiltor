@@ -25,14 +25,15 @@ export type EngineChoice = {
 
 /**
  * The engine choice of the status view. `serverAiFallback` is what the assistant status says
- * when the capabilities do not (an older server). `slots` is for tests; the app uses the
- * registry the engine parts fill.
+ * when the capabilities do not (an older server). `override` is for tests; the app uses the
+ * registry the engine parts fill, as far as the instance's capabilities allow.
  */
 export function useEngineChoice(
   serverAiFallback = true,
-  slots: ClientEngineSlots = clientEngineSlots(),
+  override?: ClientEngineSlots,
 ): EngineChoice {
   const instance = useInstanceCapabilities();
+  const slots = override ?? clientEngineSlots(instance);
   const serverAi = useUserCapabilities().serverAi ?? serverAiFallback;
   const clientAi = instance?.clientAi === true;
   const preferences = quiltorClient.platform.preferences;

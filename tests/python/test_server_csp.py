@@ -148,6 +148,9 @@ class HtmlOnlyTests(unittest.TestCase):
         self.assertIn((ENFORCE, "default-src 'none'; sandbox"), sent)
 
 
+PROVIDER_ORIGINS = ("api.openai.com", "openrouter.ai", "api.anthropic.com")
+
+
 class ConnectSrcTests(unittest.TestCase):
     def test_connect_src_is_exactly_the_file(self):
         policy = policy_file()
@@ -176,6 +179,17 @@ class ConnectSrcTests(unittest.TestCase):
                 "https://cdn.example:8443",
             ],
         )
+
+    def test_no_provider_origin_even_with_test_hooks(self):
+        # 3.26 lets no browser talk to a provider; T-264 brings the origins back (D-185).
+        for environment in ({}, {"QUILTOR_TEST_HOOKS": "1"}):
+            with self.subTest(environment=environment):
+                response = LiveServer(self, environment).get("/")
+                allowed = connect_src(str(response.getheader(REPORT_ONLY)))
+                for origin in PROVIDER_ORIGINS:
+                    self.assertFalse(
+                        any(origin in entry for entry in allowed), f"{origin} in {allowed}"
+                    )
 
     def test_test_hooks_other_than_1_add_nothing(self):
         _, value = content_security_policy("enforce", test_hooks=False) or ("", "")

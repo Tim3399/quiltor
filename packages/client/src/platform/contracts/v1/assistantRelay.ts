@@ -4,10 +4,13 @@
 /** The server's hard limit on an answer body (MAX_ANSWER_BYTES, 256 KiB). */
 const RELAY_MAX_ANSWER_BYTES = 262_144;
 
+type RelayEngineV1 = { kind: string; provider?: string; grammar?: boolean };
+
 export type RelayRequestV1 = {
   ticket: string;
   seq: number;
-  engine: string;
+  /** The job's engine as the server stores it (EngineChoice.public()). */
+  engine: RelayEngineV1;
   payload: Record<string, unknown>;
   limits: { maxOutputBytes: number; answerBySeconds: number };
 };
@@ -41,7 +44,8 @@ export function decodeRelayRequestV1(value: unknown): RelayRequestV1 | null {
     typeof request.ticket !== "string" ||
     typeof request.seq !== "number" ||
     !Number.isInteger(request.seq) ||
-    typeof request.engine !== "string" ||
+    !isRecord(request.engine) ||
+    typeof request.engine.kind !== "string" ||
     !isRecord(request.payload)
   ) {
     return null;
@@ -50,7 +54,11 @@ export function decodeRelayRequestV1(value: unknown): RelayRequestV1 | null {
   return {
     ticket: request.ticket,
     seq: request.seq,
-    engine: request.engine,
+    engine: {
+      kind: request.engine.kind,
+      ...(typeof request.engine.provider === "string" ? { provider: request.engine.provider } : {}),
+      ...(typeof request.engine.grammar === "boolean" ? { grammar: request.engine.grammar } : {}),
+    },
     payload: request.payload,
     limits: {
       // Never more than the server takes, whatever a ticket claims.
