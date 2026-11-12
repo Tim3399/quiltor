@@ -10,7 +10,8 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { PRODUCT_MARK, PRODUCT_NAME } from "../../../config/branding";
+import { BrandMark } from "../../../config/BrandMark";
+import { PRODUCT_NAME } from "../../../config/branding";
 import {
   Alert,
   Button,
@@ -150,7 +151,7 @@ export function WorldGate({
         </div>
         <header>
           <span className="world-mark" aria-hidden="true">
-            {PRODUCT_MARK}
+            <BrandMark />
           </span>
           <div>
             <small>

@@ -36,8 +36,8 @@
   place-items: center;
   border: 1px solid var(--accent-primary);
   border-radius: 50%;
-  color: var(--accent-primary);
-  font: 600 var(--font-size-label-hero) var(--prose);
+  /* The Q in ink, its tail in gold (BrandMark): one gold would lose the tail. */
+  color: var(--ink);
 }
 .world-gate header small {
   color: var(--muted);
@@ -185,7 +185,6 @@
   .world-mark {
     width: 42px;
     height: 42px;
-    font-size: var(--font-size-label-display);
   }
   .world-list-panel {
     padding: var(--space-14);
