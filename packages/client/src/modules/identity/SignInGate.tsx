@@ -1,4 +1,4 @@
-import { PRODUCT_MARK } from "../../config/branding";
+import { BrandMark } from "../../config/BrandMark";
 import { Alert, Button, PageState } from "../../design";
 import type { MessageKey } from "../../i18n";
 import { useI18n } from "../../i18n";
@@ -19,7 +19,7 @@ export function SignInGate({ authError }: { authError: string | null }) {
   return (
     <PageState
       kind={authError ? "error" : "empty"}
-      mark={PRODUCT_MARK}
+      mark={<BrandMark />}
       title={t("signInHeading")}
       actions={
         <Button
