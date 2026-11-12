@@ -33,6 +33,7 @@ from quiltor.application.backups import BackupGatewayError
 from quiltor.delivery.http import routes as api_routes
 from quiltor.infrastructure.backup import adapters as backup_adapters
 from quiltor.infrastructure.backup.snapshots import SnapshotStore
+from quiltor.infrastructure.identity.runtime import ProviderUnavailable
 from quiltor.infrastructure.observability import StdlibStructuredLogger
 from quiltor.infrastructure.observability import schema as log_schema
 from tests.python.test_server_logging import _LiveServer
@@ -287,6 +288,37 @@ class _PrivacyServer(_LiveServer):
             self.assertEqual(line["sub"], sub)
             self.assertIs(line["roles_claim_present"], False)
 
+    def scenario_login_unavailable(self):
+        """/login while the identity provider is away (T-253). The provider's own text
+        and everything the request carried must stay out of the one line this writes."""
+        identity = self.application.identity
+        fake = MagicMock()
+        fake.start_login.side_effect = ProviderUnavailable(
+            f"https://{CANARIES['exception']}.example said no"
+        )
+        with (
+            patch.object(identity, "multi_user", True),
+            patch.object(identity, "auth", fake),
+        ):
+            status, _, body = self.request(
+                "GET",
+                f"/login?ui_locales={CANARIES['query_value']}&{CANARIES['query_key']}=1",
+                headers={
+                    "Accept-Language": CANARIES["prose"],
+                    "Cookie": f"quiltor_login_state={CANARIES['cookie_login']}",
+                },
+            )
+        self.assertEqual(status, 503)
+        self.assertNotIn(CANARIES["exception"], body.decode("utf-8"))
+        lines = [line for line in self.parsed() if line["event"] == "identity.login_unavailable"]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertEqual(line["error_type"], "ProviderUnavailable")
+            self.assertEqual(line["level"], "warning")
+            self.assertLessEqual(
+                set(line) - {"event", "level", "timestamp"}, {"request_id", "error_type"}
+            )
+
     def scenario_worlds(self):
         self.assertEqual(self.request("GET", self.manuscript_path(CANARIES["query_world"]))[0], 400)
         self.assertEqual(self.request("GET", self.manuscript_path(UNRESOLVED_WORLD))[0], 404)
@@ -431,6 +463,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_query_and_headers",
         "scenario_sessions",
         "scenario_login_without_roles",
+        "scenario_login_unavailable",
         "scenario_worlds",
         "scenario_unhandled",
         "scenario_storage",
@@ -499,6 +532,10 @@ class ServerLogPrivacyTests(_PrivacyServer):
                 {"request_id", "error_type"},
                 line["event"],
             )
+        self.assert_clean()
+
+    def test_an_unreachable_login_provider_logs_the_error_type_only(self):
+        self.scenario_login_unavailable()
         self.assert_clean()
 
     def test_a_backup_failure_drops_a_field_it_does_not_list(self):

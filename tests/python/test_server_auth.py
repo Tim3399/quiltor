@@ -15,7 +15,11 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
-from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway, TokenEndpointRejected
+from quiltor.infrastructure.identity.runtime import (
+    ProviderUnavailable,
+    StdlibIdentityGateway,
+    TokenEndpointRejected,
+)
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
@@ -284,6 +288,23 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
                 self.assertEqual(query.get("ui_locales"), ["en"], path)
             else:
                 self.assertNotIn("ui_locales", query, path)
+
+    def test_login_with_an_unreachable_provider_answers_a_friendly_503_page(self):
+        self.discover_patch.stop()
+        with patch.object(self.auth, "discover", side_effect=ProviderUnavailable("down")):
+            german = self._request("GET", "/login")
+            english = self._request("GET", "/login", headers={"Accept-Language": "fr;q=0.9, en-US"})
+            asked = self._request("GET", "/login?ui_locales=en", headers={"Accept-Language": "de"})
+        self.discover_patch.start()
+        status, headers, body, set_cookies = german
+        self.assertEqual(status, 503)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertIn("Die Anmeldung ist gerade kurz nicht erreichbar", body.decode("utf-8"))
+        self.assertEqual(set_cookies, [])
+        self.assertEqual(english[0], 503)
+        self.assertIn("Sign-in is briefly unavailable", english[2].decode("utf-8"))
+        self.assertIn("Sign-in is briefly unavailable", asked[2].decode("utf-8"))
 
     def test_callback_with_mismatched_state_is_rejected_without_creating_a_session(self):
         """Sent back to the app, not a JSON dead end -- SignInGate reads

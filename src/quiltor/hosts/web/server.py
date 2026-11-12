@@ -61,6 +61,7 @@ from quiltor.application import ApplicationError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http import routes as api_routes
+from quiltor.infrastructure.identity.runtime import ProviderUnavailable
 from quiltor.infrastructure.observability import schema as log_schema
 from quiltor.infrastructure.platform.system import force_utf8_streams
 from quiltor.modules.identity import service as identity
@@ -187,6 +188,21 @@ def _origin_of(url: str, *, allow_path: bool) -> str | None:
 # The interface languages the identity provider is configured for (T-175).
 LOGIN_UI_LOCALES = frozenset({"de", "en"})
 LOGIN_STATE_COOKIE = "quiltor_login_state"
+
+# Shown with a 503 when the identity provider cannot be reached for a login (T-253).
+# German first: the product is built for a German-speaking author.
+LOGIN_UNAVAILABLE_PAGES = {
+    "de": (
+        "Anmeldung kurz nicht erreichbar",
+        "Die Anmeldung ist gerade kurz nicht erreichbar, gleich noch einmal versuchen.",
+        "Noch einmal versuchen",
+    ),
+    "en": (
+        "Sign-in briefly unavailable",
+        "Sign-in is briefly unavailable right now, please try again in a moment.",
+        "Try again",
+    ),
+}
 
 REQUEST_ID_HEADER = "X-Request-Id"
 
@@ -613,6 +629,34 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def accepted_login_language(self) -> str:
+        """The first of the login languages that Accept-Language names; German otherwise."""
+        for part in (self.headers.get("Accept-Language") or "").split(","):
+            primary = part.split(";", 1)[0].strip().lower().split("-", 1)[0]
+            if primary in LOGIN_UI_LOCALES:
+                return primary
+        return "de"
+
+    def send_login_unavailable(self, language: str) -> None:
+        """A readable 503 page: the browser is on /login with nothing else to show."""
+        title, message, retry = LOGIN_UNAVAILABLE_PAGES[language]
+        body = (
+            f'<!doctype html><html lang="{language}"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>{title}</title></head>"
+            '<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:20vh auto;'
+            'padding:0 1rem;line-height:1.5">'
+            f'<h1 style="font-size:1.25rem">{title}</h1><p>{message}</p>'
+            f'<p><a href="/login?ui_locales={language}">{retry}</a></p></body></html>'
+        ).encode()
+        self.send_response(503)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Retry-After", "5")
+        self.end_headers()
+        self.wfile.write(body)
+
     def handle_login(self) -> None:
         redirect_uri = f"{self.public_base_url()}/auth/callback"
         # The client names its interface language so the provider's pages -- and
@@ -620,9 +664,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # the realm offers pass; anything else is dropped, never forwarded.
         requested = (parse_qs(urlparse(self.path).query).get("ui_locales") or [""])[0]
         ui_locale = requested.strip().lower()
-        authorize_url, state = self.application.identity.auth.start_login(
-            redirect_uri, ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None
-        )
+        try:
+            authorize_url, state = self.application.identity.auth.start_login(
+                redirect_uri, ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None
+            )
+        except ProviderUnavailable as exc:
+            self.application.observability.logger.event(
+                "warning", "identity.login_unavailable", error_type=type(exc).__name__
+            )
+            return self.send_login_unavailable(
+                ui_locale if ui_locale in LOGIN_UI_LOCALES else self.accepted_login_language()
+            )
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, state, max_age=600))
         return self.send_redirect(authorize_url)
 
