@@ -1,5 +1,7 @@
 import type { Page } from "@playwright/test";
 import { toolbarRowFindings } from "../audit/support/toolbar-row";
+import { WORLD } from "../world/ids.generated";
+import type { WorldPart } from "../world/index.mjs";
 import { mockExampleWorld } from "./support/example-world";
 import {
   closePlaceSheet,
@@ -10,8 +12,6 @@ import {
 } from "./support/expanded-map-fixture";
 import { waitForSettledLayout } from "./support/layout-settled";
 import { expect, test } from "./support/transient-network";
-import { WORLD } from "../world/ids.generated";
-import type { WorldPart } from "../world/index.mjs";
 
 /*
  * Geometry invariants.
@@ -484,7 +484,7 @@ test("Timeline: the toolbar with a custom calendar keeps undo and redo in view w
     for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
       messages.push(`${width}px: ${finding.message}`);
     }
-    for (const name of ["Timeline rückgängig", "Timeline wiederholen"]) {
+    for (const name of ["Rückgängig", "Wiederholen"]) {
       const covered = await page.getByRole("button", { name, exact: true }).evaluate((button) => {
         const box = button.getBoundingClientRect();
         const toolbar = button.closest(".timeline-toolbar")?.getBoundingClientRect();

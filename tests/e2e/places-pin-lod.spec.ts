@@ -1,11 +1,11 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/world-fixture";
 import {
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { expect, test } from "./support/world-fixture";
 
 async function zoomTo(page: Page, tier: "detail" | "compact" | "overview") {
   const surface = page.locator(".places-flow-area");

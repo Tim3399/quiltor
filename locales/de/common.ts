@@ -43,4 +43,6 @@ export const common = {
   errorSyncTargetInvalid:
     "Diese Adresse passt nicht. Gib eine Adresse mit https:// ein, zum Beispiel https://abgleich.example.org.",
   errorUnknown: "Die Aktion konnte nicht abgeschlossen werden.",
+  undo: "Rückgängig",
+  redo: "Wiederholen",
 } as const;

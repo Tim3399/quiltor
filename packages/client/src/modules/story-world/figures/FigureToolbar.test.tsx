@@ -15,7 +15,19 @@ const state: FigureState = {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
+
+function stubCompactToolbar(compact: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: compact && query === "(max-width: 719px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
 
 function renderToolbar(overrides: Partial<FigureToolbarProps> = {}) {
   const props: FigureToolbarProps = {
@@ -108,28 +120,77 @@ describe("FigureToolbar menus", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it("routes every view action through the shared dropdown contract", async () => {
-    const props = renderToolbar();
-    const trigger = screen.getByRole("button", { name: "Ansicht" });
+  it("shows relationships, time and paths as pressed toggles in the row, without a view menu", () => {
+    stubCompactToolbar(false);
+    const props = renderToolbar({ relationshipsVisible: true, timelineOpen: false });
+    expect(screen.queryByRole("button", { name: "Ansicht" })).toBeNull();
+
+    const relationships = screen.getByRole("button", { name: "Beziehungen" });
+    expect(relationships).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(relationships);
+    expect(props.onRelationshipsVisibleChange).toHaveBeenCalledWith(false);
+
+    const time = screen.getByRole("button", { name: "Zeit" });
+    expect(time).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(time);
+    expect(props.onTimelineOpenChange).toHaveBeenCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wege" }));
+    expect(props.onJourneyOverlayOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it("keeps the grid and arranging in the one overflow menu as a setting and an action", async () => {
+    stubCompactToolbar(false);
+    const props = renderToolbar({ snapToGrid: true });
+    const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
     fireEvent.click(trigger);
-    const menu = screen.getByRole("menu", { name: "Ansicht" });
+    const menu = screen.getByRole("menu", { name: "Weitere Aktionen" });
 
     expectStructuredItems(menu);
-    expect(within(menu).getByRole("menuitem", { name: "Anordnen" })).toBeEnabled();
-    expect(within(menu).getByRole("menuitem", { name: "Beziehungen ausblenden" })).toBeEnabled();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "Wege einblenden" }));
-
-    expect(props.onJourneyOverlayOpenChange).toHaveBeenCalledWith(true);
+    const grid = within(menu).getByRole("menuitemcheckbox", { name: "Am Raster ausrichten" });
+    expect(grid).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(grid);
+    expect(props.onSnapToGridChange).toHaveBeenCalledWith(false);
+    expect(within(menu).queryByRole("menuitemcheckbox", { name: "Zeit" })).toBeNull();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Automatisch anordnen" }));
+    expect(props.onAlignAllNodes).toHaveBeenCalledOnce();
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it("uses the shared dropdown focus path for the manage/import menu", async () => {
+  it("moves time and paths into the overflow menu on a compact row, never undo", () => {
+    stubCompactToolbar(true);
+    const props = renderToolbar({ timelineOpen: true });
+    expect(screen.queryByRole("button", { name: "Zeit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Wege" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Beziehungen" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Rückgängig" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    const menu = screen.getByRole("menu", { name: "Weitere Aktionen" });
+    const time = within(menu).getByRole("menuitemcheckbox", { name: "Zeit" });
+    expect(time).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Wege" }));
+    expect(props.onJourneyOverlayOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it("names undo and redo plainly and the area in their group", () => {
+    renderToolbar({ canUndo: true });
+    expect(screen.getAllByRole("group", { name: "Verlauf: Figuren" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Rückgängig" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Rückgängig" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      expect.stringMatching(/^(Control|Meta)\+Z$/),
+    );
+  });
+
+  it("uses the shared dropdown focus path for import from the overflow menu", async () => {
     const inputClick = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
     renderToolbar();
-    const trigger = screen.getByRole("button", { name: "Verwalten" });
+    const trigger = screen.getByRole("button", { name: "Weitere Aktionen" });
 
     fireEvent.keyDown(trigger, { key: "ArrowUp" });
-    const menu = screen.getByRole("menu", { name: "Verwalten" });
+    const menu = screen.getByRole("menu", { name: "Weitere Aktionen" });
     expectStructuredItems(menu);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Import" }));
 

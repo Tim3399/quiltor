@@ -1,8 +1,6 @@
 // Timeline-only wording. “Timeline”, “moment”, “relationship”, “directed” and the moment
 // actions live in shared.ts because the character and place areas use them too.
 export const timeline = {
-  timelineUndo: "Undo timeline change",
-  timelineRedo: "Redo timeline change",
   timelineEmptyTitle: "No timeline yet",
   timelineEmptyHelp: "A moment records what changes in the world from that point on.",
   timelinePrevious: "Previous moment",
@@ -123,4 +121,5 @@ export const timeline = {
   timelineFormatDayMonthYear: "Day – month – year",
   timelineFormatMonthDayYear: "Month – day – year",
   timelineFormatYearMonthDay: "Year – month – day",
+  timelineHistory: "History: timeline",
 } as const;

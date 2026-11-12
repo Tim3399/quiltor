@@ -7,6 +7,7 @@ import {
   selectMapChild,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { setToolbarToggle } from "./support/toolbar-overflow";
 import { expect, test } from "./support/transient-network";
 
 test.beforeEach(async ({ page }) => {
@@ -158,8 +159,7 @@ test("Unscaled maps and hidden grids report truthful footer metadata", async ({ 
   );
   await expect(footer.locator(".place-map-chrome__scale-bar")).toHaveCount(0);
   await expect(footer.getByRole("button", { name: "Maßstab von Weltkarte" })).toBeVisible();
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Raster ausblenden" }).click();
+  await setToolbarToggle(page, "Orte", "Am Raster ausrichten", false);
   await expect(page.locator(".place-plate__grid")).toHaveCount(0);
   await expect(footer).toContainText("Aus");
 });

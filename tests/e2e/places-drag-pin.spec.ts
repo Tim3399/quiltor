@@ -1,5 +1,4 @@
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
 import type { FigureNode } from "../../packages/client/src/modules/story-world/model";
 import {
   expandedMapState,
@@ -7,6 +6,7 @@ import {
   openExpandedMapWorld,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { expect, test } from "./support/transient-network";
 
 const PREVIEW_TOLERANCE = 1.5;
 

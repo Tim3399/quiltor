@@ -104,8 +104,6 @@ export const manuscript = {
   previewRefreshing: "Refreshing print preview …",
   previewError: "The print preview could not be created.",
   creatingPdf: "Creating PDF …",
-  undoManuscript: "Undo manuscript change",
-  redoManuscript: "Redo manuscript change",
   openNavigation: "Open chapter navigation",
   closeNavigation: "Close chapter navigation",
   chapterNote: "Chapter note",
@@ -267,4 +265,5 @@ export const manuscript = {
   updateMentions: "Replace occurrences",
   openEntity: "Open {name}",
   chapterLoading: "Loading chapter …",
+  manuscriptHistory: "History: manuscript",
 } as const;

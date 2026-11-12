@@ -252,6 +252,7 @@ klick = "klick"
 ordner = "ordner"
 
 [type.germantest.extend-words]
+wege = "wege"
 ist = "ist"
 deine = "deine"
 oder = "oder"

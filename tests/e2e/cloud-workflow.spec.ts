@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
-import { encodeStoryWorldV1 } from "../../packages/client/src/platform/contracts/v1/storyWorld";
 import { encodeStoryboardsV1 } from "../../packages/client/src/platform/contracts/v1/storyboards";
+import { encodeStoryWorldV1 } from "../../packages/client/src/platform/contracts/v1/storyWorld";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 test("Unconfigured cloud leaves the actual local writing workflow available", async ({ page }) => {

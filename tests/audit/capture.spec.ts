@@ -670,8 +670,10 @@ async function figuresScenario(s: Session): Promise<void> {
   const base = async () => {
     await start();
     if (s.layout !== "compact") return;
-    await s.tap(s.button("Ansicht"));
-    await s.tap(page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }));
+    // On a compact row the time toggle is a setting in "Weitere Aktionen" (T-258).
+    await s.tap(s.button("Weitere Aktionen"));
+    await s.tap(page.getByRole("menuitemcheckbox", { name: "Zeit", exact: true }));
+    await page.keyboard.press("Escape");
     await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
     await s.tap(page.locator(".figure-workspace .react-flow__controls-fitview"));
     await stillCanvas(page);
@@ -864,7 +866,7 @@ async function placesScenario(s: Session): Promise<void> {
       if (await sheet.isVisible().catch(() => false)) {
         await s.tap(sheet.getByRole("button", { name: /löschen/ }).first());
       } else {
-        await s.tap(s.button("Ortsaktionen"));
+        await s.tap(s.button("Weitere Aktionen"));
         await s.tap(page.getByRole("menuitem", { name: "Ort löschen" }));
       }
     });
@@ -987,7 +989,7 @@ async function storyboardScenario(s: Session): Promise<void> {
   const base = async () => {
     await start();
     if (s.layout !== "wide" && (await appears(library, 500))) {
-      await s.tap(s.button("Elementbibliothek ein-/ausblenden"));
+      await s.tap(s.button("Elementbibliothek"));
       await expect(library).toBeHidden();
       await stillCanvas(page);
     }
@@ -1029,7 +1031,7 @@ async function storyboardScenario(s: Session): Promise<void> {
     await base();
     const library = page.getByRole("complementary", { name: "Elementbibliothek" });
     // Open by default on wide screens, closed on narrow ones.
-    if (!(await appears(library, 500))) await s.tap(s.button("Elementbibliothek ein-/ausblenden"));
+    if (!(await appears(library, 500))) await s.tap(s.button("Elementbibliothek"));
     await expect(library).toBeVisible();
     await s.view("workspace.storyboard/library");
   });

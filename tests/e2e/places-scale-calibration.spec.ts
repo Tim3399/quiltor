@@ -416,7 +416,7 @@ test("(h) One undo takes back both the size and the scale", async ({ page }) => 
   await dragCorner(page, 200, 200);
   await frameChanged(page, world.id, mapId, 1500);
 
-  await page.getByRole("button", { name: "Orte rückgängig", exact: true }).click();
+  await page.getByRole("button", { name: "Rückgängig", exact: true }).click();
   await expect
     .poll(async () => storedFrame(page, world.id, mapId))
     .toEqual({ width: 1500, height: 1000, unitsPer100px: 0.15 });

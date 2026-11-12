@@ -1,6 +1,6 @@
-import type { Page } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
+import type { Page } from "@playwright/test";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
 import { createTestWorld, expect, registerTestWorld, test } from "./support/world-fixture";
 

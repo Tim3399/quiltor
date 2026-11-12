@@ -77,9 +77,9 @@ describe("story-world action menu contracts", () => {
       </I18nProvider>,
     );
 
-    const { menu, trigger } = await openMenu("Ortsaktionen");
-    expect(screen.getByRole("dialog", { name: "Ortsaktionen" })).toHaveClass("ui-sheet");
-    expect(within(menu).getByRole("separator")).toBeVisible();
+    const { menu, trigger } = await openMenu("Weitere Aktionen");
+    expect(screen.getByRole("dialog", { name: "Weitere Aktionen" })).toHaveClass("ui-sheet");
+    expect(within(menu).getAllByRole("separator").at(-1)).toBeVisible();
     const deleteItem = within(menu).getByRole("menuitem", { name: "Ort löschen" });
     expect(deleteItem).toHaveAttribute("data-tone", "danger");
     expect(deleteItem.querySelector(".ui-menu__label")).toHaveTextContent("Ort löschen");

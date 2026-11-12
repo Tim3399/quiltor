@@ -256,12 +256,13 @@ describe("FigureWorkspace relationships", () => {
     expect(screen.getByLabelText("Gespeicherte Beziehungen")).toHaveTextContent("3");
     expect(screen.getAllByTestId("rendered-relationship")).toHaveLength(3);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ansicht" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Beziehungen ausblenden" }));
+    const relationships = screen.getByRole("button", { name: "Beziehungen" });
+    fireEvent.click(relationships);
+    expect(relationships).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryAllByTestId("rendered-relationship")).toHaveLength(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ansicht" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Beziehungen einblenden" }));
+    fireEvent.click(relationships);
+    expect(relationships).toHaveAttribute("aria-pressed", "true");
     expect(screen.getAllByTestId("rendered-relationship")).toHaveLength(3);
   });
 

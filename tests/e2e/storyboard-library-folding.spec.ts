@@ -10,7 +10,7 @@ async function openStoryboardLibrary(page: Page, worldId: string) {
   if (!(await library.isVisible())) {
     await page
       .getByRole("toolbar", { name: "Storyboard-Werkzeuge" })
-      .getByRole("button", { name: "Elementbibliothek ein-/ausblenden" })
+      .getByRole("button", { name: "Elementbibliothek", exact: true })
       .click();
   }
   await expect(library).toBeVisible();

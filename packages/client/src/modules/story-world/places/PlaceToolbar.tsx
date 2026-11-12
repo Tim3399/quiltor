@@ -3,24 +3,20 @@ import {
   Ellipsis,
   Grid3X3,
   Image,
-  ImageOff,
   ImagePlus,
   Lock,
-  LockOpen,
   MapPinPlus,
-  MoreHorizontal,
-  Redo2,
   Ruler,
   Trash2,
-  Undo2,
 } from "lucide-react";
 import {
   DropdownMenu,
   MenuItem,
+  MenuItemCheckbox,
   MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
-  useMediaMatch,
+  useCompactToolbar,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
   WorkspaceToolbarCreateButton,
@@ -28,6 +24,7 @@ import {
   WorkspaceToolbarTitle,
 } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { historyShortcuts } from "../../../shared";
 import type { FigureNode } from "../model";
 
 export function PlaceToolbar({
@@ -71,9 +68,11 @@ export function PlaceToolbar({
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
-  const { t } = useI18n();
-  // Seven touch buttons need about 366 px here; below 381 px undo and redo move into a menu.
-  const historyInMenu = useMediaMatch("(max-width: 380px)");
+  const { t, locale } = useI18n();
+  // A compact row holds at most six touch buttons (styleguide 7.4): map pictures, the toggle
+  // reached for least, moves into "…" there. Undo never does.
+  const compact = useCompactToolbar();
+  const shortcuts = historyShortcuts(locale);
   return (
     <WorkspaceToolbar className="places-toolbar" label={t("places")}>
       <WorkspaceToolbarTitle
@@ -109,109 +108,85 @@ export function PlaceToolbar({
                 onClick={onMeasuringToggle}
               />
             </WorkspaceToolbarGroup>
-            <WorkspaceToolbarGroup label={t("placeViewMenu")}>
-              <DropdownMenu
-                label={t("placeViewMenu")}
-                renderTrigger={({ ref, ...triggerProps }) => (
-                  <ToolbarButton
-                    ref={ref}
-                    {...triggerProps}
-                    label={t("placeViewMenu")}
-                    icon={<Grid3X3 />}
-                  />
-                )}
-              >
-                <MenuItem
-                  icon={<Grid3X3 />}
-                  label={snapToGrid ? t("hideGrid") : t("showGrid")}
-                  onSelect={() => onSnapToGridChange(!snapToGrid)}
+            {!compact && (
+              <WorkspaceToolbarGroup label={t("mapPicturesToggle")}>
+                <ToolbarButton
+                  label={t("mapPicturesToggle")}
+                  icon={<Image />}
+                  collapseAt="medium"
+                  aria-pressed={picturesVisible}
+                  onClick={() => onPicturesVisibleChange(!picturesVisible)}
                 />
-                <MenuItem
-                  icon={picturesVisible ? <ImageOff /> : <Image />}
-                  label={picturesVisible ? t("hideMapPictures") : t("showMapPictures")}
-                  onSelect={() => onPicturesVisibleChange(!picturesVisible)}
-                />
-                <MenuItem
-                  disabled={!hasGround}
-                  icon={boundToGround ? <Lock /> : <LockOpen />}
-                  label={boundToGround ? t("unbindFromMap") : t("bindToMap")}
-                  onSelect={() => onBoundToGroundChange(!boundToGround)}
-                />
-              </DropdownMenu>
-            </WorkspaceToolbarGroup>
+              </WorkspaceToolbarGroup>
+            )}
           </>
         }
         history={
-          !historyInMenu && (
-            <WorkspaceToolbarGroup label={`${t("undoPlaces")} / ${t("redoPlaces")}`}>
-              <UndoRedoControls
-                label={`${t("undoPlaces")} / ${t("redoPlaces")}`}
-                undoLabel={t("undoPlaces")}
-                redoLabel={t("redoPlaces")}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onUndo={() => onUndo?.()}
-                onRedo={() => onRedo?.()}
-              />
-            </WorkspaceToolbarGroup>
-          )
-        }
-        actions={
-          <WorkspaceToolbarGroup label={t("placeActions")}>
-            <DropdownMenu
-              label={t("placeActions")}
-              renderTrigger={({ ref, ...triggerProps }) => (
-                <ToolbarButton
-                  {...triggerProps}
-                  ref={ref}
-                  label={t("placeActions")}
-                  icon={<MoreHorizontal />}
-                  labelMode="hidden"
-                  appearance="ghost"
-                  size="regular"
-                  disabled={!selected}
-                />
-              )}
-            >
-              <MenuItem icon={<Copy />} label={t("duplicatePlace")} onSelect={onDuplicate} />
-              <MenuSeparator />
-              <MenuItem
-                icon={<Trash2 />}
-                label={t("deletePlace")}
-                tone="danger"
-                onSelect={onDelete}
-              />
-            </DropdownMenu>
+          <WorkspaceToolbarGroup label={t("placesHistory")}>
+            <UndoRedoControls
+              label={t("placesHistory")}
+              undoLabel={t("undo")}
+              redoLabel={t("redo")}
+              undoShortcut={shortcuts.undo}
+              redoShortcut={shortcuts.redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={() => onUndo?.()}
+              onRedo={() => onRedo?.()}
+            />
           </WorkspaceToolbarGroup>
         }
         overflow={
-          historyInMenu && (
-            <DropdownMenu
-              label={t("toolbarMoreActions")}
-              renderTrigger={({ ref, ...triggerProps }) => (
-                <ToolbarButton
-                  {...triggerProps}
-                  ref={ref}
-                  label={t("toolbarMoreActions")}
-                  labelMode="hidden"
-                  icon={<Ellipsis />}
-                />
-              )}
-            >
-              <MenuItem
-                icon={<Undo2 />}
-                label={t("undoPlaces")}
-                disabled={!canUndo}
-                onSelect={() => onUndo?.()}
+          <DropdownMenu
+            label={t("toolbarMoreActions")}
+            renderTrigger={({ ref, ...triggerProps }) => (
+              <ToolbarButton
+                {...triggerProps}
+                ref={ref}
+                label={t("toolbarMoreActions")}
+                labelMode="hidden"
+                icon={<Ellipsis />}
               />
-              <MenuItem
-                icon={<Redo2 />}
-                label={t("redoPlaces")}
-                disabled={!canRedo}
-                onSelect={() => onRedo?.()}
+            )}
+          >
+            {compact && (
+              <MenuItemCheckbox
+                icon={<Image />}
+                label={t("mapPicturesToggle")}
+                checked={picturesVisible}
+                onCheckedChange={onPicturesVisibleChange}
               />
-            </DropdownMenu>
-          )
+            )}
+            <MenuItemCheckbox
+              icon={<Grid3X3 />}
+              label={t("snapToGrid")}
+              checked={snapToGrid}
+              onCheckedChange={onSnapToGridChange}
+            />
+            <MenuItemCheckbox
+              icon={<Lock />}
+              label={t("bindToMap")}
+              disabled={!hasGround}
+              checked={boundToGround}
+              onCheckedChange={onBoundToGroundChange}
+            />
+            <MenuSeparator />
+            <MenuItem
+              icon={<Copy />}
+              label={t("duplicatePlace")}
+              disabled={!selected}
+              onSelect={onDuplicate}
+            />
+            {/* Leaves the toolbar for the end of the detail panel in T-258 part 3. */}
+            <MenuSeparator />
+            <MenuItem
+              icon={<Trash2 />}
+              label={t("deletePlace")}
+              tone="danger"
+              disabled={!selected}
+              onSelect={onDelete}
+            />
+          </DropdownMenu>
         }
       />
     </WorkspaceToolbar>

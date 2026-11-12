@@ -452,10 +452,10 @@ export const COVERAGE_MAP: CoverageMapEntry[] = [
   component(
     "PlaceToolbar",
     "modules/story-world/places/PlaceToolbar.tsx",
-    "places.selected/menu.ortsaktionen",
+    "places.selected/menu.weitere-aktionen",
     {
       role: "menu",
-      name: "Ortsaktionen",
+      name: "Weitere Aktionen",
     },
   ),
   component(

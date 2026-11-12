@@ -9,6 +9,7 @@ import {
   WorkspaceToolbarTitle,
 } from "../../../design";
 import type { Translate, UiLocale } from "../../../i18n";
+import { historyShortcuts } from "../../../shared";
 import type { TimeSystem, TimeSystemKind } from "../model";
 import { TimeSystemControls } from "./TimeSystemControls";
 
@@ -87,14 +88,13 @@ export function TimelineToolbar({
           </WorkspaceToolbarGroup>
         }
         history={
-          <WorkspaceToolbarGroup
-            className="timeline-history-group"
-            label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
-          >
+          <WorkspaceToolbarGroup className="timeline-history-group" label={t("timelineHistory")}>
             <UndoRedoControls
-              label={`${t("timelineUndo")} / ${t("timelineRedo")}`}
-              undoLabel={t("timelineUndo")}
-              redoLabel={t("timelineRedo")}
+              label={t("timelineHistory")}
+              undoLabel={t("undo")}
+              redoLabel={t("redo")}
+              undoShortcut={historyShortcuts(locale).undo}
+              redoShortcut={historyShortcuts(locale).redo}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={() => onUndo?.()}

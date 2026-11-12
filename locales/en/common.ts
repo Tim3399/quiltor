@@ -41,4 +41,6 @@ export const common = {
   errorSyncTargetInvalid:
     "This address does not work. Enter an address starting with https://, for example https://sync.example.org.",
   errorUnknown: "The action could not be completed.",
+  undo: "Undo",
+  redo: "Redo",
 } as const;

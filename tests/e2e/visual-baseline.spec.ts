@@ -13,6 +13,7 @@ import {
   selectMapChild,
 } from "./support/expanded-map-fixture";
 import { waitForPlacesCanvasToStandStill } from "./support/places-canvas";
+import { setToolbarToggle } from "./support/toolbar-overflow";
 import { expect, test } from "./support/transient-network";
 
 const manuscript = {
@@ -227,8 +228,7 @@ for (const theme of ["light", "dark"] as const) {
           return Math.abs(workspace.width - canvas.width);
         })
         .toBeLessThanOrEqual(1);
-      await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-      await page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }).click();
+      await setToolbarToggle(page, "Figuren & Welt", "Zeit", false);
       await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
       await fitUntilSettled(page);
     }

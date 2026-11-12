@@ -1,8 +1,8 @@
 import type { Locator, Page, Response } from "@playwright/test";
 import { encodeStoryWorldDocument } from "./support/application-api";
+import { seedExampleWorld } from "./support/example-world";
 import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
-import { seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 function waitForSuccessfulStoryboardWrite(page: Page, payloadMarker: string) {
@@ -34,7 +34,7 @@ async function openStoryboardLibrary(page: Page) {
   if (!(await library.isVisible())) {
     await page
       .getByRole("toolbar", { name: "Storyboard-Werkzeuge" })
-      .getByRole("button", { name: "Elementbibliothek ein-/ausblenden" })
+      .getByRole("button", { name: "Elementbibliothek", exact: true })
       .click();
   }
   await expect(library).toBeVisible();

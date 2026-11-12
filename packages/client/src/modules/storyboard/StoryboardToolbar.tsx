@@ -25,6 +25,7 @@ import {
   WorkspaceToolbarTitle,
 } from "../../design";
 import { useI18n } from "../../i18n";
+import { historyShortcuts } from "../../shared";
 import type { StoryboardBoard } from "./model";
 import "./StoryboardToolbar.css";
 
@@ -77,7 +78,8 @@ export function StoryboardToolbar({
   onRedo,
   onDeleteSelection,
 }: StoryboardToolbarProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const shortcuts = historyShortcuts(locale);
   const [boardTitleDraft, setBoardTitleDraft] = useState(currentBoardTitle);
   const [renamingBoard, setRenamingBoard] = useState(false);
   const boardNameField = useRef<HTMLInputElement>(null);
@@ -178,8 +180,10 @@ export function StoryboardToolbar({
           <WorkspaceToolbarGroup label={t("storyboardHistoryLabel")}>
             <UndoRedoControls
               label={t("storyboardHistoryLabel")}
-              undoLabel={t("storyboardUndo")}
-              redoLabel={t("storyboardRedo")}
+              undoLabel={t("undo")}
+              redoLabel={t("redo")}
+              undoShortcut={shortcuts.undo}
+              redoShortcut={shortcuts.redo}
               canUndo={canUndo}
               canRedo={canRedo}
               onUndo={() => onUndo?.()}

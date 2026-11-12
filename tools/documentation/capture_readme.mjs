@@ -34,9 +34,7 @@ const INTERFACE = {
     chapterText: "Kapiteltext", // manuscript.chapterText
     figures: "Figuren", // shell.figures
     figuresCanvas: "Figuren und Beziehungen", // figures.figuresAndRelationsLabel
-    viewMenu: "Ansicht", // figures.figureViewMenu
-    hideTime: "Zeit ausblenden", // figures.hideTimeline
-    showTime: "Zeit einblenden", // figures.showTimeline
+    timeToggle: "Zeit", // timeline.timeToggle
     timeline: "Timeline", // shared.timeline
     places: "Orte", // shell.places
     placesCanvas: "Orte verwalten", // places.placesLabel
@@ -70,9 +68,7 @@ const INTERFACE = {
     chapterText: "Chapter text",
     figures: "Characters",
     figuresCanvas: "Characters and relationships",
-    viewMenu: "View",
-    hideTime: "Hide timeline",
-    showTime: "Show timeline",
+    timeToggle: "Time",
     timeline: "Timeline",
     places: "Places",
     placesCanvas: "Manage places",
@@ -260,11 +256,9 @@ try {
 
   await page.getByRole("button", { name: ui.figures, exact: true }).click();
   await page.getByLabel(ui.figuresCanvas, { exact: true }).waitFor();
-  const viewMenu = page.getByRole("button", { name: ui.viewMenu, exact: true });
-  await viewMenu.click();
-  const hideTime = page.getByRole("menuitem", { name: ui.hideTime, exact: true });
-  if (await hideTime.isVisible()) await hideTime.click();
-  else await page.keyboard.press("Escape");
+  // The time strip is a pressed toggle in the toolbar row (T-258); the pictures are wide.
+  const timeToggle = page.getByRole("button", { name: ui.timeToggle, exact: true });
+  if ((await timeToggle.getAttribute("aria-pressed")) === "true") await timeToggle.click();
   // A place drawn on its own map is a sheet, not a figure: the board leaves it out
   // (belongsOnFigureBoard in figureCanvasModel.ts).
   await expect(page.locator(".story-node")).toHaveCount(
@@ -273,8 +267,8 @@ try {
   await page.locator(".react-flow__controls-fitview").click();
   await capture("world-graph");
 
-  await viewMenu.click();
-  await page.getByRole("menuitem", { name: ui.showTime, exact: true }).click();
+  await timeToggle.click();
+  await expect(timeToggle).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: momentTitle("t2"), exact: true }).click();
   // Four rows of cards do not fit between the toolbar and the time panel at the detail tier
   // (it would need a zoom of about 0.65; semanticZoomTier keeps details from 0.68). The view

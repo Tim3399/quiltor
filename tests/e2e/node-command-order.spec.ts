@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import type { Locator, Page } from "@playwright/test";
+import { seedExampleWorld } from "./support/example-world";
 import {
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
-import { seedExampleWorld } from "./support/example-world";
 import { expect, test } from "./support/world-fixture";
 
 /*
