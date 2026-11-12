@@ -152,8 +152,13 @@ class AssistantRuntime:
         if isinstance(metadata, dict):
             getattr(self, "_invocation_metrics", []).append(metadata)
         # Every engine is checked against the original schema: the json_object fallback
-        # works on a copy, so the payload here still carries it.
-        schema = ((payload.get("response_format") or {}).get("json_schema") or {}).get("schema")
+        # works on a copy, so the payload here still carries it. The full schema is the
+        # check_schema json_schema_format attached; the wire form lacks lengths and
+        # uniqueness, so it is only the fallback for a format built by hand.
+        response_format = payload.get("response_format") or {}
+        schema = getattr(response_format, "check_schema", None)
+        if schema is None:
+            schema = (response_format.get("json_schema") or {}).get("schema")
         if isinstance(schema, dict):
             violations = check_schema(result, schema)
             if violations:

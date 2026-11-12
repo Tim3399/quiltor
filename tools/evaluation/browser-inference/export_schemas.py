@@ -14,7 +14,13 @@ from pathlib import Path
 from typing import Any
 
 from quiltor.application.story_world.read_tools import read_tool_catalog
-from quiltor.modules.assistant.schemas import KINDS, planner_schema, reply_schema, tool_step_schema
+from quiltor.modules.assistant.schemas import (
+    KINDS,
+    json_schema_format,
+    planner_schema,
+    reply_schema,
+    tool_step_schema,
+)
 
 OUT = Path(__file__).resolve().parent / "schemas"
 
@@ -24,7 +30,7 @@ def schemas() -> dict[str, dict[str, Any]]:
 
     catalog = read_tool_catalog()
     return {
-        # The reply with every proposal kind: oneOf, const, enum, pattern, maxItems, uniqueItems.
+        # The reply with every proposal kind: anyOf, enum, pattern, maxItems.
         "reply_schema": reply_schema(KINDS),
         # The reply without proposals, the "question and answer" cut A-2 suggests first.
         "reply_schema_no_proposals": reply_schema(()),
@@ -35,7 +41,10 @@ def schemas() -> dict[str, dict[str, Any]]:
 
 def main() -> None:
     OUT.mkdir(exist_ok=True)
-    for name, schema in schemas().items():
+    for name, full in schemas().items():
+        # What goes over the wire: lac-schema-v1, without the lengths and uniqueness only
+        # the server-side check enforces.
+        schema = json_schema_format(full, name)["json_schema"]["schema"]
         path = OUT / f"{name}.json"
         # Keep the definition order: the server sends the schema unsorted
         # (infrastructure/inference/shared/contract.py), and XGrammar enforces property order.
