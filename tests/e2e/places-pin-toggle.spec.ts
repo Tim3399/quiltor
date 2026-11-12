@@ -97,9 +97,9 @@ test("A map place toggles between card and pin without moving its anchor", async
     animations: "disabled",
   });
 
-  await page.getByRole("button", { name: "Orte rückgängig", exact: true }).click();
+  await page.getByRole("button", { name: "Rückgängig", exact: true }).click();
   await expect(card).toBeVisible();
-  await page.getByRole("button", { name: "Orte wiederholen", exact: true }).click();
+  await page.getByRole("button", { name: "Wiederholen", exact: true }).click();
   await expect(pin).toBeVisible();
   await pin.locator(".place-node-pin__name").click();
   await expect(page.locator(".places-inspector")).toBeVisible();

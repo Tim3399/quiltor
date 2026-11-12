@@ -615,7 +615,7 @@ describe("deleting places", () => {
 
   const requestDeletion = async (placeId: string) => {
     fireEvent.click(screen.getByTestId(`place-node-${placeId}`));
-    fireEvent.click(screen.getByRole("button", { name: "Ortsaktionen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Ort löschen" }));
   };
 
@@ -1247,7 +1247,7 @@ describe("resizing a map with a scale", () => {
     expect(stored(onChange).mapScale?.unitsPer100px).toBeCloseTo(0.125, 10);
     expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
     expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
   });
 
@@ -1284,7 +1284,7 @@ describe("resizing a map with a scale", () => {
     render(<HistoryPlaces onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Testverzerrung Nordhafen" }));
     expect(screen.getByText("Maßstab neu messen?")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Orte rückgängig" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
     expect(screen.getByTestId("frame")).toHaveTextContent("1500x1000@0.15");
     expect(screen.queryByText("Maßstab neu messen?")).not.toBeInTheDocument();
   });

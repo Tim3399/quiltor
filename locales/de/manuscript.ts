@@ -105,8 +105,6 @@ export const manuscript = {
   previewRefreshing: "Druckansicht wird aktualisiert …",
   previewError: "Druckansicht konnte nicht erstellt werden.",
   creatingPdf: "Erzeuge PDF …",
-  undoManuscript: "Manuskript rückgängig",
-  redoManuscript: "Manuskript wiederholen",
   openNavigation: "Kapitelnavigation öffnen",
   closeNavigation: "Kapitelnavigation schließen",
   chapterNote: "Kapitelnotiz",
@@ -273,4 +271,5 @@ export const manuscript = {
   updateMentions: "Vorkommen ersetzen",
   openEntity: "{name} öffnen",
   chapterLoading: "Kapitel lädt …",
+  manuscriptHistory: "Verlauf: Manuskript",
 } as const;

@@ -61,7 +61,7 @@ export async function waitForPlacesCanvasToStandStill(page: Page) {
 /*
  * The layers whose raster came out stale, each found by a capture that differed while the
  * DOM did not: the canvas viewport (tiles around Tannenhain and the coast), and the
- * toolbar's scroll area, a composited scroller whose overflow button "Ortsaktionen" showed
+ * toolbar's scroll area, a composited scroller whose overflow button "Weitere Aktionen" showed
  * its rounded corners in two rasters -- 1 of 10 real toHaveScreenshot captures per theme,
  * with its rectangle, colours, opacity and outline identical in all 20 runs.
  * The map chrome joined them on linux: header and footer lie over the zoomed canvas, so

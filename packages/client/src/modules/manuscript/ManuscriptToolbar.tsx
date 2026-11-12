@@ -3,8 +3,6 @@ import {
   BookOpen,
   Download,
   Ellipsis,
-  Redo2,
-  Undo2,
   FilePlus2,
   Focus,
   History as HistoryIcon,
@@ -15,6 +13,7 @@ import {
 import {
   DropdownMenu,
   MenuItem,
+  MenuItemCheckbox,
   MenuSeparator,
   ToolbarButton,
   UndoRedoControls,
@@ -27,6 +26,7 @@ import {
 } from "../../design";
 import { useI18n } from "../../i18n";
 import type { ManuscriptDocxPreset } from "../../platform";
+import { historyShortcuts } from "../../shared";
 import type { Chapter } from "./model";
 import "./ManuscriptToolbar.css";
 
@@ -84,9 +84,12 @@ export function ManuscriptToolbar({
   onPreview,
   onInsertSceneBreak,
 }: ManuscriptToolbarProps) {
-  const { t } = useI18n();
-  // Seven touch buttons fit down to 360 px; below that undo and redo move into the menu.
-  const historyInMenu = useMediaMatch("(max-width: 359px)");
+  const { t, locale } = useI18n();
+  // Undo and redo stay in the row at every width, like in every other workspace (styleguide
+  // 7.4). Seven touch buttons fit down to 360 px; below that the focus toggle, the one reached
+  // for least while writing on a phone, moves into "…" instead.
+  const shortcuts = historyShortcuts(locale);
+  const focusInMenu = useMediaMatch("(max-width: 359px)");
 
   return (
     <WorkspaceToolbar className="manuscript-toolbar" label={t("manuscript")}>
@@ -130,14 +133,16 @@ export function ManuscriptToolbar({
                     if (current) onInspectorOpen(!inspectorOpen);
                   }}
                 />
-                <ToolbarButton
-                  label={t("focus")}
-                  icon={<Focus />}
-                  collapseAt="medium"
-                  aria-pressed={focus}
-                  disabled={preview}
-                  onClick={() => onFocus(!focus)}
-                />
+                {!focusInMenu && (
+                  <ToolbarButton
+                    label={t("focus")}
+                    icon={<Focus />}
+                    collapseAt="medium"
+                    aria-pressed={focus}
+                    disabled={preview}
+                    onClick={() => onFocus(!focus)}
+                  />
+                )}
               </WorkspaceToolbarGroup>
             )}
             {focus && (
@@ -154,18 +159,18 @@ export function ManuscriptToolbar({
           </>
         }
         history={
-          !historyInMenu && (
-            <UndoRedoControls
-              className="manuscript-toolbar-group"
-              label={t("manuscript")}
-              undoLabel={t("undoManuscript")}
-              redoLabel={t("redoManuscript")}
-              onUndo={() => onUndo?.()}
-              onRedo={() => onRedo?.()}
-              canUndo={!preview && canUndo}
-              canRedo={!preview && canRedo}
-            />
-          )
+          <UndoRedoControls
+            className="manuscript-toolbar-group"
+            label={t("manuscriptHistory")}
+            undoLabel={t("undo")}
+            redoLabel={t("redo")}
+            undoShortcut={shortcuts.undo}
+            redoShortcut={shortcuts.redo}
+            onUndo={() => onUndo?.()}
+            onRedo={() => onRedo?.()}
+            canUndo={!preview && canUndo}
+            canRedo={!preview && canRedo}
+          />
         }
         overflow={
           // Secondary by frequency: writing happens with chapters, panels, focus and history at
@@ -186,19 +191,14 @@ export function ManuscriptToolbar({
               />
             )}
           >
-            {historyInMenu && (
+            {focusInMenu && !focus && (
               <>
-                <MenuItem
-                  icon={<Undo2 />}
-                  label={t("undoManuscript")}
-                  disabled={preview || !canUndo}
-                  onSelect={() => onUndo?.()}
-                />
-                <MenuItem
-                  icon={<Redo2 />}
-                  label={t("redoManuscript")}
-                  disabled={preview || !canRedo}
-                  onSelect={() => onRedo?.()}
+                <MenuItemCheckbox
+                  icon={<Focus />}
+                  label={t("focus")}
+                  checked={focus}
+                  disabled={preview}
+                  onCheckedChange={onFocus}
                 />
                 <MenuSeparator />
               </>

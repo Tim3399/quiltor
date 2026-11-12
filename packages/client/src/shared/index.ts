@@ -23,7 +23,7 @@ export {
 } from "./profileNormalization";
 export { relativeTime } from "./relativeTime";
 export type { SavePhase } from "./save";
-export { shortcut } from "./shortcut";
+export { historyShortcuts, shortcut } from "./shortcut";
 export type { Theme, ThemePreference } from "./theme";
 export type {
   TextSearchTarget,

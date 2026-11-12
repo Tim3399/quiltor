@@ -1,24 +1,27 @@
 import {
   Clock3,
   Download,
+  Ellipsis,
   Grid3X3,
   LayoutGrid,
   Link2,
   MapPin,
-  MoreHorizontal,
   Plus,
   Upload,
+  Waypoints,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
   ConfirmDialog,
   DropdownMenu,
   MenuItem,
+  MenuItemCheckbox,
   MenuSeparator,
   TextField,
   Toast,
   ToolbarButton,
   UndoRedoControls,
+  useCompactToolbar,
   WorkspaceToolbar,
   WorkspaceToolbarActions,
   WorkspaceToolbarCreateButton,
@@ -27,6 +30,7 @@ import {
 } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { applicationErrorMessage } from "../../../platform";
+import { historyShortcuts } from "../../../shared";
 import type { FigureKind, FigureState } from "../model";
 import { countBoardElements } from "./figureCanvasModel";
 import { parseFigureState, saveFigureProfiles, saveFigureState } from "./figureTransfer";
@@ -74,7 +78,11 @@ export function FigureToolbar({
   onRedo,
   onImport,
 }: FigureToolbarProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  // A compact row holds at most six touch buttons (styleguide 7.4): time and paths, the toggles
+  // reached for least, move into "…" there. Undo never does.
+  const compact = useCompactToolbar();
+  const shortcuts = historyShortcuts(locale);
   const [pendingImport, setPendingImport] = useState<FigureState | null>(null);
   const [importError, setImportError] = useState("");
   const [exportError, setExportError] = useState("");
@@ -141,56 +149,48 @@ export function FigureToolbar({
                   }}
                 />
               </WorkspaceToolbarGroup>
-              <WorkspaceToolbarGroup label={t("figureViewMenu")}>
-                <DropdownMenu
-                  label={t("figureViewMenu")}
-                  renderTrigger={({ ref, ...triggerProps }) => (
-                    <ToolbarButton
-                      ref={ref}
-                      {...triggerProps}
-                      label={t("figureViewMenu")}
-                      icon={<Grid3X3 />}
-                    />
-                  )}
-                >
-                  <MenuItem
-                    icon={<Grid3X3 />}
-                    label={snapToGrid ? t("hideGrid") : t("showGrid")}
-                    onSelect={() => onSnapToGridChange(!snapToGrid)}
-                  />
-                  <MenuItem
-                    disabled={!state.nodes.length}
-                    icon={<LayoutGrid />}
-                    label={t("arrangeGrid")}
-                    onSelect={onAlignAllNodes}
-                  />
-                  <MenuItem
-                    disabled={!state.edges.length}
-                    icon={<Link2 />}
-                    label={relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
-                    onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
-                  />
-                  <MenuSeparator />
-                  <MenuItem
-                    icon={<Clock3 />}
-                    label={timelineOpen ? t("hideTimeline") : t("showTimeline")}
-                    onSelect={() => onTimelineOpenChange(!timelineOpen)}
-                  />
-                  <MenuItem
-                    icon={<MapPin />}
-                    label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
-                    onSelect={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
-                  />
-                </DropdownMenu>
+              <WorkspaceToolbarGroup label={t("relationships")}>
+                <ToolbarButton
+                  label={t("relationships")}
+                  icon={<Waypoints />}
+                  collapseAt="medium"
+                  disabled={!state.edges.length}
+                  aria-pressed={relationshipsVisible}
+                  onClick={() => onRelationshipsVisibleChange(!relationshipsVisible)}
+                />
               </WorkspaceToolbarGroup>
+              {!compact && (
+                <>
+                  <WorkspaceToolbarGroup label={t("timeToggle")}>
+                    <ToolbarButton
+                      label={t("timeToggle")}
+                      icon={<Clock3 />}
+                      collapseAt="medium"
+                      aria-pressed={timelineOpen}
+                      onClick={() => onTimelineOpenChange(!timelineOpen)}
+                    />
+                  </WorkspaceToolbarGroup>
+                  <WorkspaceToolbarGroup label={t("pathsToggle")}>
+                    <ToolbarButton
+                      label={t("pathsToggle")}
+                      icon={<MapPin />}
+                      collapseAt="medium"
+                      aria-pressed={journeyOverlayOpen}
+                      onClick={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
+                    />
+                  </WorkspaceToolbarGroup>
+                </>
+              )}
             </>
           }
           history={
-            <WorkspaceToolbarGroup label={`${t("undoDiagram")} / ${t("redoDiagram")}`}>
+            <WorkspaceToolbarGroup label={t("figureHistory")}>
               <UndoRedoControls
-                label={`${t("undoDiagram")} / ${t("redoDiagram")}`}
-                undoLabel={t("undoDiagram")}
-                redoLabel={t("redoDiagram")}
+                label={t("figureHistory")}
+                undoLabel={t("undo")}
+                redoLabel={t("redo")}
+                undoShortcut={shortcuts.undo}
+                redoShortcut={shortcuts.redo}
                 canUndo={canUndo}
                 canRedo={canRedo}
                 onUndo={() => onUndo?.()}
@@ -198,21 +198,50 @@ export function FigureToolbar({
               />
             </WorkspaceToolbarGroup>
           }
-          actions={
-            <WorkspaceToolbarGroup label={t("figureManageMenu")}>
+          overflow={
+            <WorkspaceToolbarGroup label={t("toolbarMoreActions")}>
               <DropdownMenu
-                label={t("figureManageMenu")}
+                label={t("toolbarMoreActions")}
                 renderTrigger={({ ref, ...triggerProps }) => (
                   <ToolbarButton
                     ref={ref}
                     {...triggerProps}
-                    label={t("figureManageMenu")}
-                    icon={<MoreHorizontal />}
+                    label={t("toolbarMoreActions")}
+                    icon={<Ellipsis />}
                     labelMode="hidden"
-                    size="regular"
                   />
                 )}
               >
+                {compact && (
+                  <>
+                    <MenuItemCheckbox
+                      icon={<Clock3 />}
+                      label={t("timeToggle")}
+                      checked={timelineOpen}
+                      onCheckedChange={onTimelineOpenChange}
+                    />
+                    <MenuItemCheckbox
+                      icon={<MapPin />}
+                      label={t("pathsToggle")}
+                      checked={journeyOverlayOpen}
+                      onCheckedChange={onJourneyOverlayOpenChange}
+                    />
+                    <MenuSeparator />
+                  </>
+                )}
+                <MenuItemCheckbox
+                  icon={<Grid3X3 />}
+                  label={t("snapToGrid")}
+                  checked={snapToGrid}
+                  onCheckedChange={onSnapToGridChange}
+                />
+                <MenuItem
+                  disabled={!state.nodes.length}
+                  icon={<LayoutGrid />}
+                  label={t("arrangeGrid")}
+                  onSelect={onAlignAllNodes}
+                />
+                <MenuSeparator />
                 <MenuItem
                   icon={<Download />}
                   label={t("profiles")}
@@ -230,6 +259,7 @@ export function FigureToolbar({
                   onSelect={() => input.current?.click()}
                 />
               </DropdownMenu>
+              {/* The file picker behind "Import" stays inside the toolbar, out of the layout. */}
               <TextField
                 ref={input}
                 fieldClassName="figure-import-field"

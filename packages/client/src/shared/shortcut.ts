@@ -25,3 +25,18 @@ export function shortcut(
   parts.push(key);
   return parts.join("+");
 }
+
+/** A shortcut as people read it and as aria-keyshortcuts names it ("Control+Z", "Meta+Z"). */
+type KeyShortcut = { label: string; keys: string };
+
+/**
+ * Undo and redo as every workspace binds them: the platform modifier with Z, plus shift to redo
+ * (app/shortcuts/useApplicationShortcuts.ts). One definition, so the five toolbars cannot drift.
+ */
+export function historyShortcuts(locale: UiLocale): { undo: KeyShortcut; redo: KeyShortcut } {
+  const modifier = IS_APPLE_OS ? "Meta" : "Control";
+  return {
+    undo: { label: shortcut("Z", locale), keys: `${modifier}+Z` },
+    redo: { label: shortcut("Z", locale, { shift: true }), keys: `${modifier}+Shift+Z` },
+  };
+}

@@ -1,6 +1,6 @@
-import type { Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { Page } from "@playwright/test";
 import type { FigureNode } from "../../packages/client/src/modules/story-world/model";
 import { encodeStoryWorldDocument } from "./support/application-api";
 import { putVersioned } from "./support/seed";
@@ -81,7 +81,7 @@ async function requestDeletion(page: Page, placeId: string) {
     await expect(inspector).toHaveCount(0);
     return;
   }
-  await page.getByRole("button", { name: "Ortsaktionen" }).click();
+  await page.getByRole("button", { name: "Weitere Aktionen" }).click();
   await page.getByRole("menuitem", { name: "Ort löschen" }).click();
 }
 

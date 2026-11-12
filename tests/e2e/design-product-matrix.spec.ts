@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
 import { mockWorkshop } from "./support/application-api";
+import { expect, test } from "./support/transient-network";
 
 const auditViewports = [
   { name: "desktop", width: 1440, height: 900 },

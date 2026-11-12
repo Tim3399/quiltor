@@ -9,9 +9,9 @@ import {
   fulfillRevisionConflict,
   fulfillStoryWorld,
 } from "./support/application-api";
-import { clickVisibleGraphEdge } from "./support/graph-interaction";
-import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { drawnFigures, exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
+import { clickVisibleGraphEdge } from "./support/graph-interaction";
+import { openToolbarOverflow, setToolbarToggle } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
@@ -55,7 +55,11 @@ async function expectKeyboardMenuContract(page: Page, triggerName: string, menuN
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
   await expect(trigger).toHaveAttribute("aria-controls", menuId ?? "");
   await expect(
-    menu.locator('[role="menuitem"]:not([disabled]):not([aria-disabled="true"])').first(),
+    menu
+      .locator(
+        '[role="menuitem"]:not([disabled]):not([aria-disabled="true"]), [role="menuitemcheckbox"]:not([disabled]):not([aria-disabled="true"])',
+      )
+      .first(),
   ).toBeFocused();
 
   await page.keyboard.press("Escape");
@@ -261,8 +265,7 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
-      await expectKeyboardMenuContract(page, "Ansicht");
-      await expectKeyboardMenuContract(page, "Verwalten");
+      await expectKeyboardMenuContract(page, "Weitere Aktionen");
 
       await page.getByRole("button", { name: "Timeline", exact: true }).click();
       const timeTrigger = page.getByRole("button", {
@@ -2546,13 +2549,11 @@ test("The minimap tells element kinds apart and the grid can be released", async
   await expect(page.locator(".react-flow__background path")).toHaveCount(
     zoomTier === "overview" ? 0 : 1,
   );
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Anordnen", exact: true }).click();
+  await openToolbarOverflow(page, "Figuren & Welt", "Automatisch anordnen");
   await expect
     .poll(() => page.locator(".react-flow__node").first().getAttribute("style"))
     .toContain("translate(96px, 96px)");
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Raster ausblenden", exact: true }).click();
+  await setToolbarToggle(page, "Figuren & Welt", "Am Raster ausrichten", false);
   await expect(page.locator(".react-flow__background")).toHaveCount(0);
 
   const flowArea = page.locator(".figure-workspace .flow-area");
@@ -2595,8 +2596,7 @@ test("The minimap tells element kinds apart and the grid can be released", async
     Math.abs((minimapAfterToggle?.y ?? 0) - (minimapBeforeToggle?.y ?? 0)),
   ).toBeLessThanOrEqual(1);
 
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await setToolbarToggle(page, "Figuren & Welt", "Zeit", true);
   const minimapWithTimeline = await minimap.boundingBox();
   const timeline = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
   const controls = await page.getByLabel("Kartensteuerung").boundingBox();
@@ -2755,8 +2755,7 @@ test("The timeline strip plays back relationship states and times of death", asy
   ).toBeVisible();
   const controlsBeforeTimeline = await page.locator(".react-flow__controls").boundingBox();
   const minimapBeforeTimeline = await page.locator(".react-flow__minimap").boundingBox();
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await setToolbarToggle(page, "Figuren & Welt", "Zeit", true);
   const stripBox = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
   const controlsBox = await page.locator(".react-flow__controls").boundingBox();
   const minimapBox = await page.locator(".react-flow__minimap").boundingBox();

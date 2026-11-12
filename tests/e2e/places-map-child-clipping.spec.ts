@@ -1,10 +1,10 @@
-import { expect, test } from "./support/world-fixture";
 import {
   expandedMapState,
   mockExpandedMapWorld,
   openExpandedMapWorld,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { expect, test } from "./support/world-fixture";
 
 test("Map child pins and cards stop painting outside their host frame", async ({ page }, info) => {
   test.skip(info.project.name !== "compact", "The narrow surface exposes the clipped map edge.");

@@ -1,4 +1,4 @@
-import { request as playwrightRequest, type APIRequestContext, type Page } from "@playwright/test";
+import { type APIRequestContext, type Page, request as playwrightRequest } from "@playwright/test";
 import { test as base, expect } from "./transient-network";
 
 export interface TestWorld {

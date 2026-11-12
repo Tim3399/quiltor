@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { seedExampleWorld, type SeededExampleWorld } from "./support/example-world";
+import { type SeededExampleWorld, seedExampleWorld } from "./support/example-world";
 import { expect, test } from "./support/world-fixture";
 
 // T-177: an element has one note. The chapter details, the figure and place inspectors and

@@ -167,3 +167,49 @@ it("offers the versions only where the world keeps them", () => {
   fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
   expect(screen.queryByRole("menuitem", { name: "Versionen" })).toBeNull();
 });
+
+it("keeps undo in the row below 360px and moves the focus toggle into the overflow menu", () => {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      matches: query === "(max-width: 359px)" || query === "(max-width: 719px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+  const onFocus = vi.fn();
+  render(
+    <I18nProvider>
+      <ManuscriptToolbar
+        focus={false}
+        binderOpen={false}
+        inspectorOpen={false}
+        historyOpen={false}
+        canUndo
+        canRedo={false}
+        pdfState="idle"
+        preview={false}
+        onAddChapter={vi.fn()}
+        onBinderOpen={vi.fn()}
+        onInspectorOpen={vi.fn()}
+        onFocus={onFocus}
+        onHistoryOpen={vi.fn()}
+        onExport={vi.fn()}
+        onExportDocx={vi.fn()}
+        onExportEpub={vi.fn()}
+        onPrint={vi.fn()}
+        onPreview={vi.fn()}
+        onInsertSceneBreak={vi.fn()}
+      />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole("button", { name: "Rückgängig" })).toBeEnabled();
+  expect(screen.getAllByRole("group", { name: "Verlauf: Manuskript" }).length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: "Fokus" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+  const menu = screen.getByRole("menu", { name: "Weitere Aktionen" });
+  expect(within(menu).queryByRole("menuitem", { name: "Rückgängig" })).toBeNull();
+  fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Fokus" }));
+  expect(onFocus).toHaveBeenCalledWith(true);
+  vi.unstubAllGlobals();
+});

@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
+import AxeBuilder from "@axe-core/playwright";
 import { createTestWorld, expect, registerTestWorld, test } from "./support/world-fixture";
 
 const fixture = new URL("../fixtures/manuscript-import/harbor.docx", import.meta.url);

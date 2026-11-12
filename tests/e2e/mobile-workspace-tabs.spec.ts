@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
 import { mockExampleWorld } from "./support/example-world";
+import { expect, test } from "./support/transient-network";
 
 /*
  * On a phone the app bar holds the five workspace tabs and the assistant button side by

@@ -1,9 +1,9 @@
-import { expect, test } from "./support/world-fixture";
 import {
   mockExpandedMapWorld,
   openExpandedMapWorld,
   waitForMapViewport,
 } from "./support/expanded-map-fixture";
+import { expect, test } from "./support/world-fixture";
 
 test("The map shares one compact frame with its header and footer through pan and zoom", async ({
   page,
