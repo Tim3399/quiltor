@@ -44,6 +44,7 @@ class SelfTest(unittest.TestCase):
 
     def test_the_one_rule_left_out_is_named(self):
         self.assertEqual(set(NOT_ENFORCED), {"every property in required"})
+        self.assertIn("T-265", NOT_ENFORCED["every property in required"])
 
 
 class RuleTests(unittest.TestCase):

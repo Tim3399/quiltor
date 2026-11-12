@@ -11,7 +11,7 @@ programming error the suite catches, never a runtime error an author sees.
 Known gap: the contract also wants every property listed in ``required`` (optionality only as
 a union with ``null``). The assistant schemas have optional properties, and turning them into
 required nullable ones changes what the model has to write. That rule is not enforced here
-yet; see ``NOT_ENFORCED``.
+yet (decision D-187); T-265 does that rebuild. See ``NOT_ENFORCED``.
 """
 
 from __future__ import annotations
@@ -37,7 +37,9 @@ ALLOWED = frozenset(
 
 # Rules of lac-schema-v1 this lint deliberately leaves out, with the reason.
 NOT_ENFORCED = {
-    "every property in required": "the assistant schemas have optional properties (T-179 part 3)",
+    "every property in required": (
+        "the assistant schemas have optional properties; required nullable ones follow in T-265"
+    ),
 }
 
 MAX_DEPTH = 10
