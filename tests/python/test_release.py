@@ -3695,7 +3695,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
                 "a multi-line condition",
                 "        if: runner.os == 'Windows'\n",
                 "        if: >-\n          runner.os == 'Windows'\n",
-                6,
+                7,
             ),
         ):
             with self.subTest(name=name):
