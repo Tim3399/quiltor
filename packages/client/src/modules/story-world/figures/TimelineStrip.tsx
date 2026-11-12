@@ -16,6 +16,8 @@ export type TimelineStripProps = {
   onAdd: (title: string, date?: string) => void;
   onPatch: (id: string, patch: Partial<TimelineMoment>) => void;
   onDelete: (moment: TimelineMoment) => void;
+  /** Set when the active moment must not be deleted; shown next to the disabled action. */
+  deleteBlockedReason?: string;
 };
 
 export function TimelineStrip({
@@ -27,6 +29,7 @@ export function TimelineStrip({
   onAdd,
   onPatch,
   onDelete,
+  deleteBlockedReason,
 }: TimelineStripProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
@@ -168,8 +171,10 @@ export function TimelineStrip({
             tone="danger"
             label={t("deleteMoment")}
             icon={<Trash2 />}
+            disabled={!!deleteBlockedReason}
             onClick={() => onDelete(active)}
           />
+          {deleteBlockedReason && <p className="timeline-delete-blocked">{deleteBlockedReason}</p>}
         </div>
       )}
     </section>
