@@ -176,29 +176,40 @@ describe("GraphRelationshipEdge", () => {
     expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
   });
 
-  it("keeps a 44px interactive hit area through graph zoom without enlarging the label card", () => {
-    xyflow.zoom = 0.5;
-    render(
-      <GraphRelationshipEdge
-        {...edgeProps({
-          label: "sucht",
-          data: {
-            labelPlacement: { x: 180, y: 0 },
-            labelSize: { width: 44, height: 24 },
-            onLabelClick: vi.fn(),
-          },
-        })}
-      />,
-    );
+  it("keeps a 44px interactive hit area through graph zoom and only shows the label below the threshold", () => {
+    const props = edgeProps({
+      label: "sucht",
+      data: {
+        labelPlacement: { x: 180, y: 0 },
+        labelSize: { width: 44, height: 24 },
+        onLabelClick: vi.fn(),
+      },
+    });
 
+    // At 0.5 a 44px target (88 canvas units) would reach into a card: the label stays readable,
+    // but has no hit target, no role and no tab stop.
+    xyflow.zoom = 0.5;
+    const { rerender } = render(<GraphRelationshipEdge {...props} />);
+    const shown = document.querySelector<HTMLElement>('[data-edge-label-id="edge"]');
+    expect(shown).not.toBeNull();
+    expect(shown).toHaveTextContent("sucht");
+    expect(shown).toHaveAttribute("aria-hidden", "true");
+    expect(shown).not.toHaveClass("is-interactive");
+    expect(shown?.tagName).toBe("DIV");
+    expect(shown?.querySelector("button, [tabindex], [role]")).toBeNull();
+    expect(screen.queryByRole("button", { name: "sucht" })).toBeNull();
+
+    xyflow.zoom = 0.8;
+    rerender(<GraphRelationshipEdge {...props} />);
     const hitTarget = screen.getByRole("button", { name: "sucht" });
     const labelCard = hitTarget.querySelector<HTMLElement>(".graph-edge-label__card");
     expect(hitTarget).toHaveStyle({
-      width: "88px",
-      height: "88px",
-      minWidth: "88px",
-      minHeight: "88px",
+      width: "55px",
+      height: "55px",
+      minWidth: "55px",
+      minHeight: "55px",
     });
+    expect(55 * xyflow.zoom).toBeGreaterThanOrEqual(44);
     expect(hitTarget).toHaveAttribute("data-label-overflow", "visible");
     expect(labelCard).toHaveStyle({ width: "44px", height: "24px" });
   });

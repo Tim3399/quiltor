@@ -16,6 +16,7 @@ import {
   type GraphPoint,
   type GraphRect,
   type GraphSize,
+  graphEdgeLabelMinZoom,
   placeGraphEdgeLabels,
   sampleGraphSmoothStepPath,
 } from "./edgeLabelPlacement";
@@ -27,6 +28,8 @@ const LABEL_HEIGHT = 24;
 const LABEL_MIN_WIDTH = 44;
 const LABEL_MAX_WIDTH = 220;
 const INTERACTIVE_TARGET_SIZE = 44;
+// Below this zoom a 44px target no longer fits into the room placement keeps free of cards.
+const INTERACTIVE_LABEL_MIN_ZOOM = graphEdgeLabelMinZoom(INTERACTIVE_TARGET_SIZE);
 const JOURNEY_HANDLE_INLINE_RATIO = 0.26;
 
 export type GraphEdgeLabelBadge = "kinship" | "temporal";
@@ -277,6 +280,22 @@ function InteractiveGraphEdgeLabel({
         height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
       }
     : undefined;
+  // Below the threshold the label is shown, not offered: no hit target that could take a card's
+  // clicks, no tab stop. The edge line and the card's relationship list stay the way in.
+  if (safeViewportZoom < INTERACTIVE_LABEL_MIN_ZOOM) {
+    return (
+      <div
+        className={className.replace(" is-interactive", "")}
+        data-edge-label-id={id}
+        data-label-display-only="true"
+        aria-hidden="true"
+        title={labelTitle}
+        style={positionStyle}
+      >
+        {children}
+      </div>
+    );
+  }
   const hitTargetStyle = hitTargetSize
     ? {
         ...positionStyle,
