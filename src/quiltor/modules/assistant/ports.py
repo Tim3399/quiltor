@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
 
@@ -172,7 +172,7 @@ class AssistantWorldAccess(Protocol):
 class AssistantReadToolExecutor(Protocol):
     """Read-only application service injected into the model-controlled tool loop."""
 
-    def catalog(self) -> tuple[dict[str, Any], ...]: ...
+    def catalog(self) -> Sequence[Mapping[str, Any]]: ...
 
     def execute_many(
         self,
@@ -181,7 +181,7 @@ class AssistantReadToolExecutor(Protocol):
         manuscript: dict[str, Any],
         figures: dict[str, Any],
         world_revision: int,
-    ) -> tuple[dict[str, Any], ...]: ...
+    ) -> Sequence[Mapping[str, Any]]: ...
 
 
 @runtime_checkable

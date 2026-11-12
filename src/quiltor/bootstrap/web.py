@@ -6,7 +6,7 @@ import json
 import os
 import re
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -83,7 +83,7 @@ class DocumentRouteServices:
     render_pdf: Callable[[str], bytes]
     issue_render_token: Callable[[str], str]
     # A preview's first saved change makes it a real world with a title of its own.
-    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
+    finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,7 +136,7 @@ class PlaceMapRouteServices:
     place_maps: Any
     observability: ObservabilityServices
     lock: threading.Lock
-    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
+    finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,7 +158,7 @@ class HistoryRouteServices:
     # The one write the history routes have (T-87 B): putting a version back. Only
     # that bound use case, not the whole backups slice, so the routes stay narrow.
     restore_version: Any = None
-    finish_promotion: Callable[[str], dict[str, Any]] = lambda _world_id: {}
+    finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)

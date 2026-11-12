@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useInsertionEffect, useMemo, useRef, useState } from "react";
-import { PRODUCT_MARK } from "../config/branding";
+import { BrandMark } from "../config/BrandMark";
 import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
 import { GettingStartedDialog } from "../modules/getting-started";
@@ -896,7 +896,7 @@ export function App() {
         {session.world && manuscript && figures && storyboards && (
           <Suspense
             fallback={
-              <PageState kind="loading" mark={PRODUCT_MARK}>
+              <PageState kind="loading" mark={<BrandMark />}>
                 <p>{t("openingWorkshop")}</p>
               </PageState>
             }
@@ -969,6 +969,7 @@ export function App() {
                   openChapterTrashToken={openChapterTrashToken}
                   chapterFilter={chapterFilter}
                   onChapterFilter={setChapterFilter}
+                  versionsAvailable={versionsAvailable}
                 />
               </NoteReferenceProvider>
             </AppShell>

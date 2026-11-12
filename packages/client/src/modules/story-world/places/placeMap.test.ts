@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { de } from "../../../../../../locales/de";
+import en from "../../../../../../locales/en";
 import type { MessageKey } from "../../../i18n";
 import {
   allMapDistances,
   formatDistance,
+  formatScale,
   mapDistance,
   mapDistancePair,
   nearestMapDistances,
   mapScaleBar,
+  parseScaleInput,
   physicalGridDistance,
+  rescaledScale,
+  scaleFromMeasurement,
+  zoomRescaledScale,
 } from "./placeMap";
 
 const t = (key: MessageKey) => de[key];
+const tEn = (key: MessageKey) => en[key];
 
 describe("map scale instruments", () => {
   const scale = { unitsPer100px: 25, unitLabel: "km" };
@@ -139,14 +146,134 @@ describe("nearestMapDistances", () => {
 
 describe("formatDistance", () => {
   it("shows an abstract unit label when no scale is set", () => {
-    expect(formatDistance(500, t)).toBe("500 Einheiten (kein Maßstab gesetzt)");
+    expect(formatDistance(500, t, undefined, "de")).toBe("500 Einheiten (kein Maßstab gesetzt)");
   });
 
   it("converts to the configured scale and unit label", () => {
-    expect(formatDistance(500, t, { unitsPer100px: 2, unitLabel: "Meilen" })).toBe("10 Meilen");
+    expect(formatDistance(500, t, { unitsPer100px: 2, unitLabel: "Meilen" }, "de")).toBe(
+      "10 Meilen",
+    );
   });
 
-  it("rounds to two decimal places", () => {
-    expect(formatDistance(333, t, { unitsPer100px: 1, unitLabel: "km" })).toBe("3.33 km");
+  it("rounds to two decimal places, with the decimal mark of the interface language", () => {
+    const scale = { unitsPer100px: 1, unitLabel: "km" };
+    expect(formatDistance(333, t, scale, "de")).toBe("3,33 km");
+    expect(formatDistance(333, tEn, scale, "en")).toBe("3.33 km");
+  });
+});
+
+describe("a scale taken from a measured stretch", () => {
+  it("turns a stretch of known length into units per hundred pixels", () => {
+    const scale = scaleFromMeasurement(150, 100, "km");
+    expect(scale?.unitLabel).toBe("km");
+    // Stored unrounded: the reading is rounded where it is shown, not where it is kept.
+    expect(scale?.unitsPer100px).toBe(200 / 3);
+  });
+
+  it("refuses a stretch too short to measure or a length that is not one", () => {
+    expect(scaleFromMeasurement(0, 100, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(0.5, 100, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(Number.NaN, 100, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(150, 0, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(150, -3, "km")).toBeUndefined();
+    expect(scaleFromMeasurement(150, Number.NaN, "km")).toBeUndefined();
+  });
+});
+
+describe("reading a typed scale", () => {
+  it("accepts only a positive number, so the server's rule cannot be broken", () => {
+    expect(parseScaleInput("0", "de")).toBeUndefined();
+    expect(parseScaleInput("-12", "de")).toBeUndefined();
+    expect(parseScaleInput("", "de")).toBeUndefined();
+    expect(parseScaleInput("  ", "de")).toBeUndefined();
+    expect(parseScaleInput("abc", "de")).toBeUndefined();
+    expect(parseScaleInput("0.0667", "de")).toBe(0.0667);
+    expect(parseScaleInput("50", "de")).toBe(50);
+    expect(parseScaleInput("0,0667", "de")).toBe(0.0667);
+    expect(parseScaleInput("0,0667", "en")).toBe(0.0667);
+    expect(parseScaleInput("0.0667", "en")).toBe(0.0667);
+  });
+});
+
+describe("formatScale", () => {
+  it("rounds the reading to three significant digits", () => {
+    expect(formatScale({ unitsPer100px: 200 / 3, unitLabel: "km" }, t, "de")).toBe(
+      "66,7 km pro 100px",
+    );
+    expect(formatScale({ unitsPer100px: 0.066666, unitLabel: "km" }, t, "de")).toBe(
+      "0,0667 km pro 100px",
+    );
+    expect(formatScale({ unitsPer100px: 0.15, unitLabel: "km" }, t, "de")).toBe(
+      "0,15 km pro 100px",
+    );
+    expect(formatScale({ unitsPer100px: 1500, unitLabel: "m" }, t, "de")).toBe("1500 m pro 100px");
+    expect(formatScale(undefined, t, "de")).toBe("");
+  });
+
+  it("uses the decimal mark of the interface language, and the same digits", () => {
+    expect(formatScale({ unitsPer100px: 0.15, unitLabel: "km" }, tEn, "en")).toBe(
+      "0.15 km per 100px",
+    );
+    expect(formatScale({ unitsPer100px: 200 / 3, unitLabel: "km" }, tEn, "en")).toBe(
+      "66.7 km per 100px",
+    );
+  });
+});
+
+describe("a scale that follows its frame", () => {
+  const harbour = { unitsPer100px: 0.15, unitLabel: "km" };
+  const at = (width: number, height: number) => ({ x: 0, y: 0, width, height });
+
+  it("divides the scale by the factor when the frame keeps its proportions", () => {
+    const result = rescaledScale(harbour, { start: at(1500, 1000), free: false }, at(1800, 1200));
+    expect(result.distorted).toBe(false);
+    expect(result.scale?.unitsPer100px).toBeCloseTo(0.125, 10);
+    expect(result.scale?.unitLabel).toBe("km");
+  });
+
+  it("takes the factor from the drawn start of a second gesture, not from what is stored", () => {
+    // React Flow measures whole pixels: the second gesture starts at 1801 by 1201.
+    const result = rescaledScale(
+      harbour,
+      { start: at(1801, 1201), free: false },
+      at(2001, 1334.37),
+    );
+    expect(result.distorted).toBe(false);
+    expect(result.scale?.unitsPer100px).toBeCloseTo(0.15 / (2001 / 1801), 10);
+  });
+
+  it("starts from the picture's own size for a map the server sized", () => {
+    const result = rescaledScale(harbour, { start: at(1200, 800), free: false }, at(1500, 1000));
+    expect(result.scale?.unitsPer100px).toBeCloseTo(0.15 / 1.25, 10);
+  });
+
+  it("keeps the scale and says so when the frame was distorted", () => {
+    expect(rescaledScale(harbour, { start: at(1500, 1000), free: true }, at(1800, 1180))).toEqual({
+      distorted: true,
+    });
+    expect(rescaledScale(harbour, { start: at(1500, 1000), free: true }, at(1500, 1000))).toEqual({
+      distorted: false,
+    });
+  });
+
+  it("changes nothing without a usable start, a gesture or a scale", () => {
+    expect(rescaledScale(harbour, { start: at(0, 1000), free: false }, at(1800, 1200))).toEqual({
+      distorted: false,
+    });
+    expect(
+      rescaledScale(harbour, { start: at(Number.NaN, 1000), free: false }, at(1800, 1200)),
+    ).toEqual({ distorted: false });
+    expect(rescaledScale(harbour, null, at(1800, 1200))).toEqual({ distorted: false });
+    expect(
+      rescaledScale(undefined, { start: at(1500, 1000), free: false }, at(1800, 1200)),
+    ).toEqual({ distorted: false });
+  });
+
+  it("divides by the picture's zoom step, and leaves an unchanged zoom alone", () => {
+    expect(zoomRescaledScale(harbour, 1, 1.15)?.unitsPer100px).toBeCloseTo(0.15 / 1.15, 10);
+    expect(zoomRescaledScale(harbour, 1.15, 1)?.unitsPer100px).toBeCloseTo(0.15 * 1.15, 10);
+    expect(zoomRescaledScale(harbour, 1.15, 1.15)).toBeUndefined();
+    expect(zoomRescaledScale(harbour, 0, 1.15)).toBeUndefined();
+    expect(zoomRescaledScale(undefined, 1, 1.15)).toBeUndefined();
   });
 });

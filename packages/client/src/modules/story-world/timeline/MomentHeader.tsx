@@ -19,6 +19,22 @@ export type TimelineChapterReference = Readonly<{
   title: string;
 }>;
 
+/** Why a moment cannot be deleted: the chapters whose story time starts or ends on it. */
+export function timelineMomentUsageText(
+  t: Translate,
+  chapterReferences: readonly TimelineChapterReference[],
+): string {
+  return t(
+    chapterReferences.length === 1 ? "timelineMomentUsedByChapter" : "timelineMomentUsedByChapters",
+    {
+      count: chapterReferences.length,
+      chapters: chapterReferences
+        .map((chapter) => `„${chapter.title || t("untitled")}“`)
+        .join(", "),
+    },
+  );
+}
+
 export function MomentHeader({
   moment,
   index,
@@ -77,19 +93,7 @@ export function MomentHeader({
         {chapterReferences.length > 0 && (
           <div className="storyboard-chapter-usage">
             <BookOpen aria-hidden="true" />
-            <p>
-              {t(
-                chapterReferences.length === 1
-                  ? "timelineMomentUsedByChapter"
-                  : "timelineMomentUsedByChapters",
-                {
-                  count: chapterReferences.length,
-                  chapters: chapterReferences
-                    .map((chapter) => `„${chapterTitle(chapter)}“`)
-                    .join(", "),
-                },
-              )}
-            </p>
+            <p>{timelineMomentUsageText(t, chapterReferences)}</p>
             {onOpenChapter && (
               <Button
                 className="storyboard-chapter-action"

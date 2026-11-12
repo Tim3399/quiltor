@@ -78,8 +78,25 @@ test("Expanded header keeps crop, lock, enter and collapse actions on the same m
     .getByRole("button", { name: "Welt", exact: true })
     .click();
   await expect(chrome).toBeVisible();
+  // Arriving frames the places on the sheet; an author collapses once that view has settled.
+  await waitForMapViewport(page);
   await chrome.getByRole("button", { name: "Weltkarte einklappen" }).click();
   await expect(chrome).toHaveCount(0);
+  // The card takes the sheet's corner, outside the framing the sheet had: the level is framed
+  // again, so the card the map folded into is where the author can see it (T-79).
+  await expect
+    .poll(async () => {
+      const pane = await page.locator(".places-flow-area .react-flow__pane").boundingBox();
+      const box = await page.locator('.react-flow__node[data-id="x-weltkarte"]').boundingBox();
+      if (!pane || !box) return "not drawn";
+      const inside =
+        box.x >= pane.x &&
+        box.y >= pane.y &&
+        box.x + box.width <= pane.x + pane.width &&
+        box.y + box.height <= pane.y + pane.height;
+      return inside ? "in view" : `outside the canvas at ${box.x},${box.y}`;
+    })
+    .toBe("in view");
   await closePlaceSheet(page);
   await expect
     .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapExpanded)
@@ -105,7 +122,7 @@ test("Footer scale edits persist through the map state and update map measuremen
   const chrome = page.locator(".place-map-chrome");
   await chrome.getByRole("button", { name: "Maßstab von Weltkarte" }).click();
   const editor = page.getByRole("dialog", { name: "Maßstab von Weltkarte" });
-  await editor.getByRole("spinbutton", { name: "Maßstab", exact: true }).fill("50");
+  await editor.getByRole("textbox", { name: "Maßstab", exact: true }).fill("50");
   await editor.getByRole("textbox", { name: "Einheit" }).fill("km");
   await page.keyboard.press("Escape");
   await expect
@@ -271,6 +288,14 @@ test("Map edges remain resizable and child anchors stay on the world surface", a
   await expect
     .poll(() => fixture.savedState().nodes.find((node) => node.id === "x-weltkarte")?.mapWidth)
     .toBeGreaterThan(1000);
+  // Without Shift the frame keeps its proportions, and the scale follows the frame: the
+  // same ground drawn wider reads fewer kilometres per hundred pixels.
+  const resized = fixture.savedState().nodes.find((node) => node.id === "x-weltkarte");
+  const width = Number(resized?.mapWidth);
+  expect(Number(resized?.mapHeight) / width).toBeCloseTo(680 / 1000, 3);
+  const scale = resized?.mapScale as { unitsPer100px: number } | undefined;
+  expect(scale?.unitsPer100px).toBeCloseTo((25 * 1000) / width, 1);
+  await expect(page.getByText("Maßstab neu messen?")).toHaveCount(0);
   expect(fixture.savedState().nodes.find((node) => node.id === "x-graufurth")).toMatchObject({
     mapU: 0.3,
     mapV: 0.4,
@@ -338,16 +363,22 @@ for (const side of ["left", "right", "top", "bottom"] as const) {
     });
     const was = edges(before);
     const [dx, dy] = OUTWARD[side];
+    // Moving one edge alone changes the proportions, which takes Shift held as the
+    // gesture begins. On the grip it must not start React Flow's selection box (`nokey`).
     await page.mouse.move(grip.x, grip.y);
+    await page.keyboard.down("Shift");
     await page.mouse.down();
     await page.mouse.move(grip.x + dx, grip.y + dy, { steps: 10 });
     await page.mouse.up();
+    await page.keyboard.up("Shift");
     await expect
       .poll(async () => {
         const box = await map.boundingBox();
         return box ? Math.abs(edges(box)[side] - was[side]) : 0;
       })
       .toBeGreaterThan(20);
+    // A distorted map keeps its scale and asks for it to be measured again.
+    await expect(page.getByText("Maßstab neu messen?")).toBeVisible();
     const after = await map.boundingBox();
     if (!after) throw new Error("Resized map has no geometry");
     const now = edges(after);

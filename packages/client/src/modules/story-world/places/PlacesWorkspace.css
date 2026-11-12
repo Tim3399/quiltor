@@ -12,7 +12,14 @@
 
 /* The fixed toast is also a direct grid child. Opt it out of the compact
    canvas row's default block-axis stretch without changing the shared toast. */
+/* Out of the layout grid here too: the shared rule lives with the figures view, whose
+   stylesheet is not loaded until that view opens, and a toast left in the grid takes a
+   column and pushes the inspector across the canvas. */
 .places-workspace .story-world-toast {
+  position: fixed;
+  z-index: var(--z-toast);
+  right: var(--space-18);
+  bottom: var(--space-18);
   align-self: end;
   height: fit-content;
 }

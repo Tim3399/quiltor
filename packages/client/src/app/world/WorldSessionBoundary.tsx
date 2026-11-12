@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PRODUCT_MARK } from "../../config/branding";
+import { BrandMark } from "../../config/BrandMark";
 import { PageState } from "../../design";
 import { useI18n } from "../../i18n";
 import { SignInGate } from "../../modules/identity";
@@ -54,7 +54,7 @@ export function WorldSessionBoundary({
   const { t } = useI18n();
   const viewportMode = useViewportMode();
   const loading = (message: string) => (
-    <PageState kind="loading" mark={PRODUCT_MARK}>
+    <PageState kind="loading" mark={<BrandMark />}>
       <p>{message}</p>
     </PageState>
   );

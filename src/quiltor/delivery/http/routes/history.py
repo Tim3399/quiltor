@@ -68,6 +68,25 @@ def chapter_comparison(handler, request: Request, app) -> None:
         )
 
 
+@get("/api/history/chapter-timeline", world=True)
+def chapter_timeline(handler, request: Request, app) -> None:
+    chapter_id = request.param("chapterId")
+    if not chapter_id.strip() or len(chapter_id) > 200:
+        return handler.send_exception(HistoryRequestInvalid(params={"field": "chapterId"}))
+    limit = request.param("limit", "20")
+    if not (limit.isdigit() and 1 <= int(limit) <= 50):
+        return handler.send_exception(HistoryRequestInvalid(params={"field": "limit"}))
+    before = request.param("before", "")
+    if len(before) > 200:
+        return handler.send_exception(HistoryRequestInvalid(params={"field": "before"}))
+    with app.lock:
+        handler.send_json(
+            app.history.chapter_timeline(
+                request.world.backup, chapter_id, limit=int(limit), before=before
+            )
+        )
+
+
 @save("/api/history/restore", world=True)
 def restore(handler, request: Request, app) -> None:
     """Put a version from the local history back (T-87 B). Local, so not device_sync:

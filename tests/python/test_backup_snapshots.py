@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import Mock, patch
@@ -24,11 +25,14 @@ from quiltor.application.backups import (
     BackupSnapshotNotFound,
 )
 from quiltor.application.backups.ports import SnapshotKind
+from quiltor.application.history import HistoryRevisionNotFound
 from quiltor.infrastructure.backup import SnapshotStore
 from quiltor.infrastructure.backup.snapshots import SNAPSHOT_KINDS, BackupContext
 
 
-class SnapshotStoreTest(unittest.TestCase):
+class SnapshotStoreCase(unittest.TestCase):
+    """A store in a temporary directory, and the helpers that fill a world."""
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         # As in production: SQLitePaths.from_data_directory calls .resolve() before the
@@ -90,6 +94,8 @@ class SnapshotStoreTest(unittest.TestCase):
                 (chapter_id, 0, "Kapitel", body, json.dumps({"marks": marks})),
             )
 
+
+class SnapshotStoreTest(SnapshotStoreCase):
     # ------------------------------------------------------------ basic flow
 
     def test_status_reports_the_configured_endpoint(self):
@@ -987,3 +993,231 @@ class SnapshotStoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChapterTimelineTest(SnapshotStoreCase):
+    """GET /api/history/chapter-timeline's store half (T-86 part 2)."""
+
+    CHAPTER = "chapter-x"
+
+    def _row(
+        self, ctx: BackupContext, body: str, title: str = "Kapitel", position: int = 1
+    ) -> None:
+        self._write_chapter_row(ctx, self.CHAPTER, title, body, position)
+
+    def _other(self, ctx: BackupContext, body: str) -> None:
+        self._write_chapter_row(ctx, "chapter-other", "Andere", body, 9)
+
+    def _commit(self, ctx: BackupContext, message: str) -> str:
+        self.store.commit(ctx, message, push=False)
+        return self.store.entries(ctx)[-1]["id"]
+
+    def _timeline(self, ctx: BackupContext, **options: Any) -> dict[str, Any]:
+        return self.store.chapter_timeline(ctx, self.CHAPTER, **options)
+
+    def _changes(self, timeline: dict[str, Any]) -> list[tuple[str, str]]:
+        return [(entry["subject"], entry["change"]) for entry in timeline["entries"]]
+
+    # (1)
+    def test_the_first_version_with_the_chapter_counts_as_created(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Erster Text.")
+        self._commit(ctx, "Anfang")
+
+        timeline = self._timeline(ctx)
+
+        self.assertEqual(self._changes(timeline), [("Anfang", "created")])
+        self.assertEqual(timeline["skipped"], 0)
+        self.assertIsNone(timeline["next"])
+        self.assertEqual(
+            set(timeline["entries"][0]),
+            {"hash", "shortHash", "date", "subject", "kind", "change"},
+        )
+
+    # (2)
+    def test_a_version_that_left_the_chapter_alone_is_skipped_and_counted(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Text.")
+        self._commit(ctx, "Anfang")
+        self._other(ctx, "Etwas anderes.")
+        self._commit(ctx, "Nur das andere")
+
+        timeline = self._timeline(ctx)
+
+        self.assertEqual(self._changes(timeline), [("Anfang", "created")])
+        self.assertEqual(timeline["skipped"], 1)
+
+    def test_a_changed_chapter_under_unchanged_mirrors_is_edited(self):
+        """Mirrors are derived and may be stale; only the database decides."""
+        ctx = self._world("world-a")
+        self._row(ctx, "Alt.")
+        self._write(ctx, "# Kapitel\n\nAlt.\n")
+        self._commit(ctx, "Alt")
+        self._row(ctx, "Neu.")  # the mirror write failed: still the old text
+        self._commit(ctx, "Neu")
+
+        self.assertEqual(
+            self._changes(self._timeline(ctx)), [("Neu", "edited"), ("Alt", "created")]
+        )
+
+    def test_a_version_with_the_same_database_does_not_open_the_parent(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Text.")
+        self._write(ctx, "# Kapitel\n\nText.\n")
+        self._commit(ctx, "Anfang")
+        # Only a mirror changes; the database is byte for byte the same.
+        (ctx.profiles / "01 - Mara.md").write_text("# Mara\n", encoding="utf-8")
+        self._commit(ctx, "Anderes")
+
+        with patch.object(self.store, "_chapter_record", wraps=self.store._chapter_record) as read:
+            timeline = self._timeline(ctx)
+
+        self.assertEqual(self._changes(timeline), [("Anfang", "created")])
+        self.assertEqual(timeline["skipped"], 1)
+        # Only the newest version is opened: its parent has the same database, and the
+        # first version then reads from the cache.
+        self.assertEqual(read.call_count, 1)
+
+    # (3)
+    def test_a_renamed_and_moved_chapter_stays_one_line(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Text.", title="Alt", position=1)
+        self._write(ctx, "# Alt\n\nText.\n", "01 - Alt.md")
+        self._commit(ctx, "Anfang")
+        self._row(ctx, "Text.", title="Neu", position=3)
+        (ctx.manuscripts / "01 - Alt.md").unlink()
+        self._write(ctx, "# Neu\n\nText.\n", "03 - Neu.md")
+        self._commit(ctx, "Umbenannt")
+        self._row(ctx, "Text, länger.", title="Neu", position=3)
+        self._write(ctx, "# Neu\n\nText, länger.\n", "03 - Neu.md")
+        self._commit(ctx, "Länger")
+
+        timeline = self._timeline(ctx)
+
+        self.assertEqual(self._changes(timeline), [("Länger", "edited"), ("Anfang", "created")])
+        self.assertEqual(timeline["skipped"], 1, "renaming and moving alone is no edit")
+
+    # (4)
+    def test_a_removed_chapter_is_deleted(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Text.")
+        self._commit(ctx, "Anfang")
+        with closing(sqlite3.connect(ctx.database)) as database, database:
+            database.execute("DELETE FROM chapters WHERE id=?", (self.CHAPTER,))
+        self._other(ctx, "Damit sich etwas ändert.")
+        self._commit(ctx, "Gestrichen")
+
+        self.assertEqual(
+            self._changes(self._timeline(ctx)), [("Gestrichen", "deleted"), ("Anfang", "created")]
+        )
+
+    # (5)
+    def test_pages_go_back_through_before_and_next(self):
+        ctx = self._world("world-a")
+        for number in range(5):
+            self._row(ctx, f"Fassung {number}.")
+            self._commit(ctx, f"F{number}")
+
+        seen: list[str] = []
+        before = ""
+        pages = 0
+        while True:
+            page = self._timeline(ctx, limit=2, before=before)
+            seen += [entry["subject"] for entry in page["entries"]]
+            pages += 1
+            if page["next"] is None:
+                break
+            # A next that does not move would page forever; fail instead of hanging.
+            self.assertLess(pages, 5, "the pages do not move back through the history")
+            before = page["next"]
+
+        self.assertEqual(seen, ["F4", "F3", "F2", "F1", "F0"])
+        self.assertEqual(pages, 3)
+
+    def test_an_unknown_before_is_not_found(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Text.")
+        self._commit(ctx, "Anfang")
+        with self.assertRaises(HistoryRevisionNotFound):
+            self._timeline(ctx, before="0" * 64)
+
+    # (7)
+    def test_a_page_opens_at_most_limit_plus_one_databases_and_none_the_second_time(self):
+        ctx = self._world("world-a")
+        for number in range(6):
+            self._row(ctx, f"Fassung {number}.")
+            self._commit(ctx, f"F{number}")
+
+        with (
+            patch.object(self.store, "_chapter_record", wraps=self.store._chapter_record) as read,
+            patch.object(self.store, "entries", wraps=self.store.entries) as entries,
+        ):
+            first = self._timeline(ctx, limit=3)
+            opened_first = read.call_count
+            entries_first = entries.call_count
+            second = self._timeline(ctx, limit=3)
+
+        self.assertEqual(len(first["entries"]), 3)
+        self.assertLessEqual(opened_first, 3 + 1)
+        self.assertEqual(read.call_count, opened_first, "the second page reopened databases")
+        self.assertEqual(second, first)
+        self.assertEqual(entries_first, 1, "the index is read once per request")
+
+    # (8)
+    def test_the_injected_clock_dates_the_versions(self):
+        moments = iter([datetime(2026, 11, 1, 21, 40), datetime(2026, 11, 7, 18, 16)])
+        store = SnapshotStore(self.root / "history-clock", now=lambda: next(moments))
+        database = self.root / "clock.sqlite3"
+        manuscripts = self.root / "manuscripts" / "clock"
+        profiles = self.root / "profiles" / "clock"
+        manuscripts.mkdir(parents=True)
+        profiles.mkdir(parents=True)
+        sqlite3.connect(database).close()
+        ctx = store.context("clock", "", database, manuscripts, profiles)
+        self._write_chapter_row(ctx, self.CHAPTER, "Kapitel", "Eins.", 1)
+        store.commit(ctx, "Eins", push=False)
+        self._write_chapter_row(ctx, self.CHAPTER, "Kapitel", "Zwei.", 1)
+        store.commit(ctx, "Zwei", push=False)
+
+        dates = [entry["date"] for entry in store.chapter_timeline(ctx, self.CHAPTER)["entries"]]
+
+        self.assertEqual(dates, ["2026-11-07T18:16:00", "2026-11-01T21:40:00"])
+
+    # (9)
+    def test_a_parent_missing_on_this_machine_is_unknown(self):
+        ctx = self._world("world-a")
+        self._row(ctx, "Alt.")
+        self._commit(ctx, "Alt")
+        self._row(ctx, "Neu.")
+        self._commit(ctx, "Neu")
+        newest = self.store.entries(ctx)[-1]
+        (ctx.root / "index.jsonl").write_text(
+            json.dumps(newest, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+
+        self.assertEqual(self._changes(self._timeline(ctx)), [("Neu", "unknown")])
+
+    # (10)
+    def test_a_version_without_a_chapter_table_is_unknown(self):
+        ctx = self._world("world-a")
+        self._write(ctx, "# Kapitel\n\nNur der Spiegel.\n")
+        self._commit(ctx, "Ohne Tabelle")
+
+        self.assertEqual(self._changes(self._timeline(ctx)), [("Ohne Tabelle", "unknown")])
+
+    # (11)
+    def test_a_change_of_formatting_alone_is_an_edit(self):
+        ctx = self._world("world-a")
+        body = "Ein Satz mit Gewicht."
+        self._write_marked_chapter_row(
+            ctx, self.CHAPTER, body, [{"from": 4, "to": 8, "kind": "italic"}]
+        )
+        self._commit(ctx, "Kursiv")
+        self._write_marked_chapter_row(
+            ctx, self.CHAPTER, body, [{"from": 4, "to": 8, "kind": "bold"}]
+        )
+        self._commit(ctx, "Fett")
+
+        self.assertEqual(
+            self._changes(self._timeline(ctx)), [("Fett", "edited"), ("Kursiv", "created")]
+        )

@@ -19,3 +19,7 @@
 .place-map-scale-control__unit {
   grid-column: 1 / -1;
 }
+
+.place-map-scale-control__calibrate {
+  grid-column: 1 / -1;
+}

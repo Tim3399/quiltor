@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { hasMapSize } from "./placeLevels";
 import {
   Button,
   IconButton,
@@ -170,7 +171,8 @@ export function PlaceInspector({
               </Button>
             )}
             {/* In the card's order: the display toggle above, then open out, then the level. */}
-            {isMap && onExpandMap ? (
+            {/* Only a map with a size opens out, the same rule as on the card (T-79). */}
+            {isMap && selected && hasMapSize(selected) && onExpandMap ? (
               <Button
                 className="places-display-action"
                 appearance="secondary"

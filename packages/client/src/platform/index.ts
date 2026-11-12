@@ -16,6 +16,8 @@ export type {
   ManuscriptImportSource,
   ManuscriptImportWarningCode,
   ProjectTransferPreview,
+  ChapterTimelineEntry,
+  ChapterTimelinePage,
   SnapshotChangesWire,
   SnapshotChapterRecord,
   SnapshotKindWire,

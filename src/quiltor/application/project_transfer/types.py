@@ -1,9 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
+
+
+class ProjectTransferCounts(TypedDict):
+    chapters: int
+    bookChapters: int
+    setAsideChapters: int
+    trashedChapters: int
+    figures: int
+    storyboards: int
+    images: int
+
+
+class ProjectTransferIncludes(TypedDict):
+    trash: bool
+    history: bool
+
+
+class PublicProjectTransferPreview(TypedDict):
+    title: str
+    counts: ProjectTransferCounts
+    includes: ProjectTransferIncludes
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,7 +38,7 @@ class ProjectTransferPreview:
     storyboards: int
     images: int
 
-    def public(self) -> dict[str, Any]:
+    def public(self) -> PublicProjectTransferPreview:
         return {
             "title": self.title,
             "counts": {
@@ -33,4 +54,10 @@ class ProjectTransferPreview:
         }
 
 
-__all__ = ["MAX_ARCHIVE_BYTES", "ProjectTransferPreview"]
+__all__ = [
+    "MAX_ARCHIVE_BYTES",
+    "ProjectTransferCounts",
+    "ProjectTransferIncludes",
+    "ProjectTransferPreview",
+    "PublicProjectTransferPreview",
+]

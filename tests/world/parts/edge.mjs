@@ -114,6 +114,28 @@ export function describeEdge(api, world) {
       { parentPlaceId: "x-inselkarte", mapU: 0.5, mapV: 0.5 },
       "",
     ),
+    // A map with its picture but no frame size, the way older or foreign documents arrive
+    // (T-79). The server fills the size in from the picture when the world is loaded; the
+    // stored document keeps it absent until the next ordinary save. It stands on a level of
+    // its own, so no other spec's framing or expanded-map state ever sees it. The level's own
+    // card stands inside the area the world level and the figures board already span: placed
+    // beyond it, it would widen the first framing and push other specs' places off a phone.
+    node("x-masslos-ebene", "ort", 1980, 80, { mapX: 1300, mapY: 600 }, ""),
+    node(
+      "x-masslose-karte",
+      "ort",
+      1220,
+      770,
+      {
+        parentPlaceId: "x-masslos-ebene",
+        mapX: 200,
+        mapY: 200,
+        mapImageId: figures.nodes.find((item) => item.id === "nordhafen").mapImageId,
+        mapExpanded: true,
+        mapScale: { unitsPer100px: 0.15, unitLabel: "km" },
+      },
+      "",
+    ),
   );
 
   // A chapter without text, appended to the second act.
@@ -133,6 +155,35 @@ export function describeEdge(api, world) {
     parentFolderId: "act-two",
     position: actTwo.length,
   });
+
+  // A chapter that went through three texts (T-86). The part holds the last one; the e2e helper
+  // seedExampleWorldWithHistory puts the earlier ones in as versions, so the chapter's history
+  // has entries that create it and change it.
+  manuscript.chapters.push({
+    id: "x-chronicle",
+    title: t("ch.x-chronicle.title"),
+    body: t("ch.x-chronicle.body-3"),
+    note: "",
+  });
+  manuscript.structure.items.push({
+    id: "item-x-chronicle",
+    kind: "chapter",
+    chapterId: "x-chronicle",
+    parentFolderId: "act-two",
+    position: actTwo.length + 1,
+  });
+  // The versions of that chapter, newest last: the text of x-chronicle at each, whether the
+  // other chapter `otherChapterId` carries the extra sentence, and the note of the version.
+  world.history = {
+    chapterId: "x-chronicle",
+    otherChapterId: "c-arrival",
+    appended: { text: t("ch.x-chronicle.elsewhere") },
+    versions: [1, 2, 2, 3].map((stage, index) => ({
+      text: t(`ch.x-chronicle.body-${stage}`),
+      elsewhere: index >= 2,
+      note: t(`ch.x-chronicle.note-${index + 1}`),
+    })),
+  };
 
   // A chapter in the bin whose folder no longer exists.
   manuscript.trash.push({
@@ -221,8 +272,13 @@ export const PURPOSE = {
   "x-inselkarte":
     "second opened-out map, 600 x 500, overlapping the first; the map specs add it on demand",
   "x-inselhafen": "the one place on the second map",
+  "x-masslos-ebene": "level of its own for the map without a size (T-79)",
+  "x-masslose-karte":
+    "opened-out map with a picture but no frame size; the server fills it in (T-79)",
   "x-empty-chapter": "chapter without text and without a note",
   "x-trash-orphan": "chapter in the bin whose folder no longer exists",
+  "x-chronicle":
+    "chapter with three texts; seedExampleWorldWithHistory saves them as versions, the first creates it (T-86)",
   "x-board": "board holding every card of the check part",
   "x-ref-deleted": "reference card to an element that does not exist (T-177)",
   "x-ref-storm-again":

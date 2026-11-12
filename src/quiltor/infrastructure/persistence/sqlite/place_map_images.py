@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -69,6 +70,24 @@ def content(image_id: str, db_path: Path | None = None) -> MapImageContent | Non
     return MapImageContent(id=image_id, mime=row[0], data=bytes(row[1]))
 
 
+def dimensions(ids: Iterable[str], db_path: Path | None = None) -> dict[str, tuple[int, int]]:
+    """The pixel size of every stored image among `ids`, in one query."""
+
+    wanted = sorted(set(ids))
+    if not wanted:
+        return {}
+    placeholders = ",".join("?" * len(wanted))
+    database = connect(db_path)
+    try:
+        rows = database.execute(
+            f"SELECT id,width,height FROM place_map_images WHERE id IN ({placeholders})",  # noqa: S608 - only "?" placeholders are joined in
+            wanted,
+        ).fetchall()
+    finally:
+        database.close()
+    return {row[0]: (row[1], row[2]) for row in rows}
+
+
 def catalog(db_path: Path | None = None) -> list[MapImage]:
     """Every stored image, without its bytes."""
 
@@ -111,4 +130,4 @@ def prune_unreferenced(
     return len(doomed)
 
 
-__all__ = ["catalog", "content", "digest", "prune_unreferenced", "store"]
+__all__ = ["catalog", "content", "digest", "dimensions", "prune_unreferenced", "store"]

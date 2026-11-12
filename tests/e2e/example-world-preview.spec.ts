@@ -72,6 +72,19 @@ test.describe("example world preview", () => {
     expect(await listedIds(page)).not.toContain(id);
   });
 
+  // T-86: the preview keeps no versions, so the manuscript menu does not offer them.
+  test("the preview offers no versions in the manuscript menu", async ({ page }) => {
+    await page.goto("/");
+    await openExampleFromHelp(page);
+    await expect(page.getByRole("textbox", { name: "Kapiteltext" })).toBeVisible();
+    await page
+      .getByRole("toolbar", { name: "Manuskript", exact: true })
+      .getByRole("button", { name: "Weitere Aktionen", exact: true })
+      .click();
+    await expect(page.getByRole("menuitem", { name: "Druckansicht", exact: true })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Versionen", exact: true })).toHaveCount(0);
+  });
+
   test("opened again by its link, it is still a preview with its bar", async ({ page }) => {
     await page.goto("/");
     const id = await openExampleFromHelp(page);

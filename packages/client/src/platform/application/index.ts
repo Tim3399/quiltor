@@ -57,6 +57,10 @@ export type {
 export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
 export type {
   ChapterComparisonResult,
+  ChapterTimelineChange,
+  ChapterTimelineEntry,
+  ChapterTimelinePage,
+  ChapterTimelineRequest,
   HistoryGateway,
   SnapshotChangesWire,
   SnapshotChapterRecord,

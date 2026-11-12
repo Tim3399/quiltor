@@ -8,6 +8,17 @@ async function openWorld(page: Page) {
   return world;
 }
 
+/** Waits until the server holds the figure's favourite flag, so a reload starts from it. */
+async function storedImportant(page: Page, worldId: string, figureId: string, important: boolean) {
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(`/api/state?world=${worldId}`);
+      const nodes = (await response.json()).payload.nodes as { id: string; important?: boolean }[];
+      return Boolean(nodes.find((node) => node.id === figureId)?.important);
+    })
+    .toBe(important);
+}
+
 async function visualState(page: Page, accessibleName: string) {
   return page.getByRole("button", { name: accessibleName }).evaluate((button) => {
     const style = getComputedStyle(button);
@@ -52,6 +63,13 @@ test("priority and timeline controls keep visible states and usable targets", as
       await Promise.all(button.getAnimations().map((animation) => animation.finished));
     });
     expect(await visualState(page, "Favorit entfernen")).not.toEqual(inactive);
+    // Each theme starts from a figure that is not a favourite. Whether the autosave of the
+    // first pass landed before its reload is timing, so the pass undoes its change and waits
+    // until the server holds that, instead of relying on the save being lost.
+    await storedImportant(page, world.id, world.ids.figures.iven, true);
+    await active.click();
+    await expect(priority).toHaveAttribute("aria-pressed", "false");
+    await storedImportant(page, world.id, world.ids.figures.iven, false);
 
     await page.getByRole("button", { name: "Timeline", exact: true }).click();
     const addEnd = page.getByRole("button", { name: "Ende hinzufügen" });

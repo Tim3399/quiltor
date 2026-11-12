@@ -24,6 +24,7 @@ describe("place measurement graph", () => {
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
 
     expect(edges.map((edge) => edge.id)).toEqual(["distance:a:b", "distance:a:c", "distance:b:c"]);
@@ -59,6 +60,7 @@ describe("place measurement graph", () => {
       selection: ["a", "e"],
       scaleFor: () => undefined,
       t,
+      locale: "de",
     });
     const target = edges.find((edge) => edge.id === "distance:a:e");
 
@@ -79,12 +81,14 @@ describe("place measurement graph", () => {
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
     const afterPresentationChange = createPlaceMeasurementEdges({
       points: points.map((point) => ({ ...point })),
       selection: [],
       scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
       t,
+      locale: "de",
     });
 
     expect(afterPresentationChange.map((edge) => edge.label)).toEqual(
@@ -110,10 +114,50 @@ describe("a distance in the units of what it crossed", () => {
           ? { unitsPer100px: 1, unitLabel: "km" }
           : { unitsPer100px: 25, unitLabel: "m" },
       t,
+      locale: "de",
     });
 
     const labels = new Map(edges.map((edge) => [edge.id, edge.label]));
     expect(labels.get("distance:a:b")).toBe("25 m");
     expect(labels.get("distance:a:c")).toBe("1 km");
+  });
+});
+
+describe("a distance to a free point", () => {
+  const withPoint: PlaceMeasurementPoint[] = [
+    ...points,
+    { id: "measure-point:0", name: "Punkt", mapX: 300, mapY: 400, free: true },
+  ];
+
+  it("draws only the targeted line to a free point, never nearest-neighbour lines", () => {
+    const untargeted = createPlaceMeasurementEdges({
+      points: withPoint,
+      selection: [],
+      scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
+      t,
+      locale: "de",
+    });
+    expect(untargeted.map((edge) => edge.id)).toEqual([
+      "distance:a:b",
+      "distance:a:c",
+      "distance:b:c",
+    ]);
+  });
+
+  it("measures from a place to a free point", () => {
+    const edges = createPlaceMeasurementEdges({
+      points: withPoint,
+      selection: ["a", "measure-point:0"],
+      scaleFor: () => ({ unitsPer100px: 1, unitLabel: "km" }),
+      t,
+      locale: "de",
+    });
+    const targeted = edges.find((edge) => edge.className === "distance-edge is-targeted");
+    expect(targeted).toMatchObject({
+      source: "a",
+      target: "measure-point:0",
+      label: "5 km",
+      ariaLabel: "A – Punkt: 5 km",
+    });
   });
 });
