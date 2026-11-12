@@ -773,6 +773,7 @@ PLAYWRIGHT_LINUX_EVIDENCE = (
 )
 PLAYWRIGHT_LINUX_CACHE_PATH = "path: ~/.cache/quiltor-apt"
 PLAYWRIGHT_LINUX_CACHED_WORKFLOWS = ("test.yml", "visual-baselines-bootstrap.yml")
+PLAYWRIGHT_LINUX_SAVE_GUARD = "steps.apt-kept.outputs.count != '0'"
 
 
 def _linux_steps(job: str) -> list[str] | None:
@@ -806,6 +807,18 @@ def validate_linux_playwright_install(sources: dict[Path, str], script: str | No
                     f"{path.name}:{name} installs Chromium without restoring the apt package "
                     "cache: a Ubuntu mirror that does not answer would turn the job red"
                 )
+            if path.name in PLAYWRIGHT_LINUX_CACHED_WORKFLOWS and f"bash {PLAYWRIGHT_LINUX}" in job:
+                # An empty entry blocks its key for good (D-257-F1), so the save is conditional.
+                saves = [
+                    step
+                    for step in re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+                    if "actions/cache/save@" in step
+                ]
+                if not saves or any(PLAYWRIGHT_LINUX_SAVE_GUARD not in step for step in saves):
+                    raise WorkflowContractError(
+                        f"{path.name}:{name} must save the apt package cache only when the "
+                        f"install kept packages ({PLAYWRIGHT_LINUX_SAVE_GUARD})"
+                    )
             steps = _linux_steps(job)
             if steps is None:
                 continue
@@ -1508,14 +1521,16 @@ def validate_test_caches(sources: dict[Path, str]) -> None:
     """
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
-    if re.search(r"uses:\s+actions/cache/[a-z]+@", workflow):
-        raise WorkflowContractError("test.yml may not use actions/cache; it caches npm only")
     # The one exception (D-176): the .deb files of Playwright's system packages, for an Ubuntu
-    # mirror that does not answer. See "Caches" in docs/quality/ci.md.
+    # mirror that does not answer. See "Caches" in docs/quality/ci.md. It uses restore and save
+    # as separate steps, never the combined action, which saves whatever the directory holds.
     for step in re.split(r"^      - ", workflow, flags=re.MULTILINE)[1:]:
-        if re.search(r"uses:\s+actions/cache@", step) and (PLAYWRIGHT_LINUX_CACHE_PATH not in step):
+        if not re.search(r"uses:\s+actions/cache(?:/[a-z]+)?@", step):
+            continue
+        if re.search(r"uses:\s+actions/cache@", step) or PLAYWRIGHT_LINUX_CACHE_PATH not in step:
             raise WorkflowContractError(
-                "test.yml may not use actions/cache; it caches npm and the apt packages only"
+                "test.yml may not use actions/cache; it caches npm and the apt packages only, "
+                "with actions/cache/restore and actions/cache/save"
             )
     caches = set(re.findall(r"^\s+cache:\s*([^\s#]+)", workflow, re.MULTILINE))
     if caches - {"npm"}:
@@ -1882,6 +1897,9 @@ UPLOAD_CONDITIONS = ("failure()", "always()", "${{ !cancelled() }}")
 # The one step a manual input switches on: it blocks the Ubuntu archives to test the apt cache.
 MIRROR_BLOCK_STEP = "name: Block the Ubuntu archives"
 MIRROR_BLOCK_CONDITION = "inputs.block_ubuntu_mirror"
+APT_CACHE_SAVE_CONDITION = (
+    "steps.apt-cache.outputs.cache-hit != 'true' && steps.apt-kept.outputs.count != '0'"
+)
 
 
 def validate_required_step_conditions(sources: dict[Path, str]) -> None:
@@ -1904,6 +1922,9 @@ def validate_required_step_conditions(sources: dict[Path, str]) -> None:
                     continue
                 # The test of the apt cache (D-176) blocks the Ubuntu archives; it runs no test.
                 if condition == MIRROR_BLOCK_CONDITION and MIRROR_BLOCK_STEP in step:
+                    continue
+                # Saving the apt cache is no test either; the condition keeps an empty one out.
+                if condition == APT_CACHE_SAVE_CONDITION and "actions/cache/save@" in step:
                     continue
                 if condition in UPLOAD_CONDITIONS and re.search(
                     r"^        uses: actions/upload-artifact@", step, re.MULTILINE

@@ -176,8 +176,14 @@ workflow). It does not save time; it is there for the day the Ubuntu mirror does
 archive.ubuntu.com was unreachable for more than 3.5 h on 2026-11-11 and every Linux slot was red
 (D-176, T-257). `tools/dev/playwright-linux.sh` keeps the `.deb` files of a successful
 `playwright install-deps` in `~/.cache/quiltor-apt`; the workflows restore and save that directory
-with `actions/cache` under `apt-debs-<runner image version>-playwright-<version>`. The key has no
-fallback, so packages of another image are never restored. When apt fails in the first attempt and
+with `actions/cache/restore` and `actions/cache/save` under
+`apt-debs-v2-<runner image version>-playwright-<version>`. The key has no fallback, so packages of
+another image are never restored. The script finds the packages of a run by name against the list
+from before the install, not by modification time: apt gives a downloaded file the Last-Modified
+time of the mirror, so `find -newer` kept nothing and the first run saved an empty entry. Entries
+are immutable, so that entry blocked its key for good and the key got the `v2`. A step counts the
+kept `.deb` files and the save step runs only when there is at least one; an empty cache is never
+saved (`workflow_contract.py` holds both). When apt fails in the first attempt and
 the directory holds packages, the script installs them with `dpkg` without a network: the same
 files as before, so the same fonts and the same rendering. Without a cache it switches the mirror
 as before. To test it, start test.yml by hand with `block_ubuntu_mirror`: that blocks the Ubuntu

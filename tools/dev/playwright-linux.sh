@@ -36,7 +36,8 @@ CACHE_DIR="${QUILTOR_APT_CACHE:-$HOME/.cache/quiltor-apt}"
 printf '%s\n' \
   'Acquire::http::Timeout "30";' \
   'Acquire::https::Timeout "30";' \
-  'Acquire::Retries "3";'   'APT::Keep-Downloaded-Packages "true";' |
+  'Acquire::Retries "3";' \
+  'APT::Keep-Downloaded-Packages "true";' |
   sudo tee /etc/apt/apt.conf.d/99quiltor-timeouts >/dev/null
 
 has_cache() {
@@ -51,13 +52,33 @@ install_from_cache() {
   sudo dpkg --skip-same-version --install "$CACHE_DIR"/*.deb
 }
 
-# Keeps the packages this run downloaded, but only when there is no cache yet.
+# The names of the packages in apt's archive, one per line, sorted.
+archive_names() {
+  [ -d "$ARCHIVES" ] || return 0
+  sudo find "$ARCHIVES" -maxdepth 1 -name '*.deb' -printf '%f\n' | sort
+}
+
+# Keeps the packages this run downloaded, but only when there is no cache yet. They are found
+# by name against the list from before the install, not by modification time: apt gives a
+# downloaded file the Last-Modified time of the mirror, which is older than this run, so
+# `find -newer` found none of the 21 MB (run 43099579638: "Kept 0 packages"). A run that keeps
+# nothing says so and shows what apt's archive looks like; the workflow saves no cache then.
 save_to_cache() {
   has_cache && return 0
   mkdir -p "$CACHE_DIR"
-  sudo find "$ARCHIVES" -maxdepth 1 -name '*.deb' -newer "$MARKER"     -exec cp --target-directory="$CACHE_DIR" {} +
+  local name
+  while IFS= read -r name; do
+    sudo cp --target-directory="$CACHE_DIR" "$ARCHIVES/$name"
+  done < <(archive_names | comm -13 "$BEFORE" -)
   sudo chown -R "$(id -u):$(id -g)" "$CACHE_DIR"
-  echo "Kept $(find "$CACHE_DIR" -name '*.deb' | wc -l) packages in $CACHE_DIR for the next run"
+  local kept
+  kept="$(find "$CACHE_DIR" -name '*.deb' | wc -l)"
+  echo "Kept $kept packages in $CACHE_DIR for the next run"
+  if [ "$kept" -eq 0 ]; then
+    echo "::warning::no downloaded package was found in $ARCHIVES; the apt cache stays empty"
+    sudo ls -la --time-style=full-iso "$ARCHIVES" | head -20
+    apt-config dump | grep -iE 'Keep-Downloaded|Clean' || echo "(no clean or keep rule in apt's configuration)"
+  fi
 }
 
 # Runs as root so that timeout can stop apt-get itself, not only the npx that started it.
@@ -65,7 +86,8 @@ install_deps() {
   sudo env "PATH=$PATH" timeout --kill-after=15 "$1" npx playwright install-deps chromium
 }
 
-MARKER="$(mktemp)"
+BEFORE="$(mktemp)"
+archive_names > "$BEFORE"
 
 if ! install_deps "$FIRST_LIMIT"; then
   if has_cache; then

@@ -366,9 +366,10 @@ jobs:
       # list; there is no fallback key, so a cache of another image is never installed.
       - name: Name the apt package cache
         id: apt-cache-key
-        run: echo "key=apt-debs-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "key=apt-debs-v2-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the apt package cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/quiltor-apt
           key: ${{ steps.apt-cache-key.outputs.key }}
@@ -385,6 +386,17 @@ jobs:
           HOSTS
       - name: Install Chromium
         run: bash tools/dev/playwright-linux.sh
+      # An empty entry would block its key for good (entries are immutable), so the cache is
+      # saved only when the install left packages in the directory.
+      - name: Count the kept apt packages
+        id: apt-kept
+        run: echo "count=$(find ~/.cache/quiltor-apt -name '*.deb' 2>/dev/null | wc -l)" >> "$GITHUB_OUTPUT"
+      - name: Save the apt package cache
+        if: steps.apt-cache.outputs.cache-hit != 'true' && steps.apt-kept.outputs.count != '0'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/quiltor-apt
+          key: ${{ steps.apt-cache-key.outputs.key }}
       - name: Install the application
         run: python -m pip install --quiet -e .
       - name: Start the application
@@ -486,9 +498,10 @@ jobs:
       # list; there is no fallback key, so a cache of another image is never installed.
       - name: Name the apt package cache
         id: apt-cache-key
-        run: echo "key=apt-debs-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "key=apt-debs-v2-${ImageVersion:-unknown}-playwright-$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - name: Restore the apt package cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: apt-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/quiltor-apt
           key: ${{ steps.apt-cache-key.outputs.key }}
@@ -505,6 +518,17 @@ jobs:
           HOSTS
       - name: Install Chromium
         run: bash tools/dev/playwright-linux.sh
+      # An empty entry would block its key for good (entries are immutable), so the cache is
+      # saved only when the install left packages in the directory.
+      - name: Count the kept apt packages
+        id: apt-kept
+        run: echo "count=$(find ~/.cache/quiltor-apt -name '*.deb' 2>/dev/null | wc -l)" >> "$GITHUB_OUTPUT"
+      - name: Save the apt package cache
+        if: steps.apt-cache.outputs.cache-hit != 'true' && steps.apt-kept.outputs.count != '0'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/quiltor-apt
+          key: ${{ steps.apt-cache-key.outputs.key }}
       - name: Install the application
         run: python -m pip install --quiet -e .
       - name: Run the OIDC browser suite
