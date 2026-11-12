@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button, ConfirmDialog, IconButton, ListboxSelect, Sheet, SidePanel } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
+import { useUserCapabilities } from "../../shared/capabilities";
 import { type Chapter, isChapterInBook } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantComposer } from "./AssistantComposer";
@@ -61,9 +62,13 @@ export function AssistantDrawer({
   const { status, installState, checkStatus, startInstall } = useAssistantAvailability(open);
   // One choice for the drawer and its status panel, so a switch of engine re-renders both.
   const engineChoice = useEngineChoice(status?.premium !== false);
-  // The status describes the server's assistant: it locks the composer only while a job would
-  // run there. A browser engine works without it (T-61 part 6, D-T-61-8a-F2).
-  const serverOffline = engineChoice.engine === "server" && status?.available === false;
+  // The server's assistant locks the composer only while a job would run there: without a
+  // runtime, or without the premium role, which the server enforces with a 403 (D-40). The
+  // effective engine falls back to the server when nothing is offered, so that case locks too.
+  // A browser engine works without either (T-61 part 6, D-T-61-8a-F2).
+  const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
+  const serverOffline =
+    engineChoice.engine === "server" && (status?.available === false || !serverAi);
   const {
     entries,
     sending,
