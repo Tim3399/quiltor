@@ -8,7 +8,6 @@ the pictures it writes back are compared with the brand's 16 and 32 px PNGs.
 import shutil
 import struct
 import subprocess
-import sys
 import tempfile
 import unittest
 import zlib
@@ -141,9 +140,69 @@ class IcnsDecoderTests(unittest.TestCase):
         self.assertEqual(got, (width, height, want))
 
 
-@unittest.skipUnless(
-    sys.platform == "darwin" and shutil.which("iconutil"), "needs macOS and iconutil"
-)
+def deviation_report(got, want, width):
+    """
+    Where two RGBA pictures differ and how, as text for a failing assertion.
+
+    The CI log is the only place this runs on macOS, so it says what a reader needs to tell
+    a wrong channel order or run-length decoding (big, everywhere) from a colour conversion
+    or premultiplication (small, mostly where alpha is low): the worst pixels, the worst
+    deviation per alpha band, and the same comparison with colour premultiplied by alpha.
+    """
+
+    def worst(a, b):
+        return max(abs(x - y) for x, y in zip(a, b, strict=True))
+
+    def premultiplied(p):
+        return (*(round(c * p[3] / 255) for c in p[:3]), p[3])
+
+    rows = sorted(
+        ((worst(a, b), i) for i, (a, b) in enumerate(zip(got, want, strict=True))), reverse=True
+    )
+    lines = [f"{sum(1 for d, _ in rows if d > 2)} of {len(rows)} pixels differ by more than 2"]
+    for deviation, i in rows[:5]:
+        lines.append(
+            f"  x={i % width} y={i // width}: got {got[i]} want {want[i]} (max channel diff {deviation})"
+        )
+    bands: dict[str, int] = {}
+    for a, b in zip(got, want, strict=True):
+        band = (
+            "alpha 0"
+            if b[3] == 0
+            else "alpha 1-127"
+            if b[3] < 128
+            else "alpha 128-254"
+            if b[3] < 255
+            else "alpha 255"
+        )
+        bands[band] = max(bands.get(band, 0), worst(a, b))
+    lines.append(
+        "  worst channel diff per want-alpha band: "
+        + ", ".join(f"{k}: {v}" for k, v in sorted(bands.items()))
+    )
+    lines.append(
+        "  worst diff after premultiplying both: "
+        + str(
+            max(worst(premultiplied(a), premultiplied(b)) for a, b in zip(got, want, strict=True))
+        )
+    )
+    channels = [max(abs(a[c] - b[c]) for a, b in zip(got, want, strict=True)) for c in range(4)]
+    lines.append(f"  worst diff per channel R,G,B,A: {channels}")
+    return "\n".join(lines)
+
+
+class DeviationReportTests(unittest.TestCase):
+    def test_the_report_names_the_worst_pixel_and_the_channels_that_differ(self):
+        want = [(10, 20, 30, 255), (200, 100, 50, 40), (0, 0, 0, 0), (9, 9, 9, 255)]
+        got = [(10, 20, 30, 255), (216, 100, 50, 40), (0, 0, 0, 0), (9, 9, 9, 255)]
+        report = deviation_report(got, want, 2)
+        self.assertIn("1 of 4 pixels differ by more than 2", report)
+        self.assertIn("x=1 y=0: got (216, 100, 50, 40) want (200, 100, 50, 40)", report)
+        self.assertIn("alpha 1-127: 16", report)
+        self.assertIn("R,G,B,A: [16, 0, 0, 0]", report)
+
+
+@unittest.skipUnless(shutil.which("iconutil"), "needs iconutil, which only macOS has")
 class IconutilReadsIcnsTests(unittest.TestCase):
     def test_iconutil_reads_the_small_frames_as_the_brand_pictures(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -161,14 +220,19 @@ class IconutilReadsIcnsTests(unittest.TestCase):
                 got = decode_png((iconset / name).read_bytes())
                 want = decode_png((BRAND_PNG_DIR / f"quiltor-logo-light-{px}.png").read_bytes())
                 self.assertEqual(got[:2], want[:2], name)
-                for a, b in zip(got[2], want[2], strict=True):
+                problems = [
+                    (a, b)
+                    for a, b in zip(got[2], want[2], strict=True)
                     # iconutil may premultiply: colour is meaningless where nothing shows
-                    if b[3] == 0:
-                        self.assertLessEqual(a[3], 1, name)
-                    else:
-                        self.assertLessEqual(
-                            max(abs(x - y) for x, y in zip(a, b, strict=True)), 2, name
-                        )
+                    if (
+                        a[3] > 1
+                        if b[3] == 0
+                        else max(abs(x - y) for x, y in zip(a, b, strict=True)) > 2
+                    )
+                ]
+                self.assertEqual(
+                    problems, [], f"{name}\n" + deviation_report(got[2], want[2], got[0])
+                )
 
 
 if __name__ == "__main__":
