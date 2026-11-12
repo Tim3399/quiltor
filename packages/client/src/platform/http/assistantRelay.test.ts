@@ -16,7 +16,9 @@ function json(body: unknown, status = 200): Response {
 const REQUEST = {
   ticket: "t1",
   seq: 3,
-  engine: "cloud",
+  // The shape the server sends (EngineChoice.public()); a string here hid that 3.26 dropped
+  // every ticket until the T-61 part 8a e2e ran a real one.
+  engine: { kind: "cloud", grammar: false, provider: "openai" },
   payload: { messages: [] },
   limits: { maxOutputBytes: 262_144, answerBySeconds: 45 },
 };
@@ -35,6 +37,16 @@ describe("assistant relay API", () => {
     const next = await application.assistant.relayNext("job 1");
     expect(next).toEqual({ kind: "request", request: REQUEST });
     expect(fetchMock.mock.calls[0][0]).toBe(`/api/assistant/relay/next?job=job%201&world=${WORLD}`);
+  });
+
+  it("takes no ticket whose engine is not the server's object", async () => {
+    for (const engine of ["cloud", null, { provider: "openai" }]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(json({ ok: true, request: { ...REQUEST, engine } })),
+      );
+      await expect(application.assistant.relayNext("job 1")).resolves.toEqual({ kind: "idle" });
+    }
   });
 
   it("reads 204 as no ticket yet and a 4xx as the end", async () => {

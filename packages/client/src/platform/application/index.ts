@@ -38,7 +38,10 @@ export interface ApplicationGateway {
 export type {
   AssistantBatchRequest,
   AssistantGateway,
+  AssistantProviderGateway,
   AssistantRelayGateway,
+  ProviderAnswer,
+  ProviderProfileId,
   RelayAnswered,
   RelayNext,
 } from "./assistant";

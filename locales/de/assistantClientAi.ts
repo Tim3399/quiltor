@@ -1,4 +1,4 @@
-// Die Wahl der KI-Engine im Assistenten (T-61). Teil 8 und 7 ergänzen hier ihre Texte.
+// Die Wahl der KI-Engine im Assistenten (T-61). Teil 7 und T-264 ergänzen hier ihre Texte (Teil 8a braucht keine).
 export const assistantClientAi = {
   assistantEngineLabel: "KI-Engine",
   assistantEngineServer: "Server-KI",

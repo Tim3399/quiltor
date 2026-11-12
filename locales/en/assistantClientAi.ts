@@ -1,4 +1,4 @@
-// Choosing the assistant's AI engine (T-61). Parts 8 and 7 add their texts here.
+// Choosing the assistant's AI engine (T-61). Part 7 and T-264 add their texts here (part 8a needs none).
 export const assistantClientAi = {
   assistantEngineLabel: "AI engine",
   assistantEngineServer: "Server AI",

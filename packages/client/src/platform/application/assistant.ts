@@ -33,7 +33,27 @@ export interface AssistantRelayGateway {
   relayAnswer(answer: RelayAnswerV1, signal?: AbortSignal): Promise<RelayAnswered>;
 }
 
-export interface AssistantGateway extends AssistantRelayGateway {
+/**
+ * The providers a browser engine may call (T-61 part 8a). A closed list of profile ids, never
+ * a URL: the transport alone knows where each one is, so nothing can make it call elsewhere.
+ * T-264 adds the real profiles.
+ */
+export type ProviderProfileId = "test";
+
+/** A provider's answer as it came, or `network` when no answer arrived (refused, CORS). */
+export type ProviderAnswer =
+  | { kind: "answer"; status: number; body: unknown }
+  | { kind: "network" };
+
+export interface AssistantProviderGateway {
+  /** POST `body` (JSON) to the profile's endpoint. Rejects only on abort. */
+  callProvider(
+    profile: ProviderProfileId,
+    call: { key: string; body: string; signal: AbortSignal },
+  ): Promise<ProviderAnswer>;
+}
+
+export interface AssistantGateway extends AssistantRelayGateway, AssistantProviderGateway {
   status(): Promise<{
     ok: boolean;
     available: boolean;

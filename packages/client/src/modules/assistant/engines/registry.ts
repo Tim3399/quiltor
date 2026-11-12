@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { TEST_PROFILE_SLOT } from "./cloud/testProfile";
 import type { AssistantEngineWire, ClientEngineExecutor, ClientEngineKind } from "./types";
 
 /**
@@ -14,10 +15,13 @@ export type ClientEngineSlot = {
 
 export type ClientEngineSlots = Partial<Record<ClientEngineKind, ClientEngineSlot>>;
 
-// Filled one engine at a time: the cloud executor in T-61 part 8, WebLLM in part 7. An engine
-// without a slot is not offered, so this part changes nothing a user sees.
-const SLOTS: ClientEngineSlots = {};
+// Filled one engine at a time: the cloud executor's test profile in T-61 part 8a, WebLLM in
+// part 7, the real cloud profiles in T-264. An engine without a slot is not offered, so a user
+// sees no cloud option before T-264. Constants, so a render gets the same object each time.
+const NO_SLOTS: ClientEngineSlots = {};
+const TEST_HOOK_SLOTS: ClientEngineSlots = { cloud: TEST_PROFILE_SLOT };
 
-export function clientEngineSlots(): ClientEngineSlots {
-  return SLOTS;
+/** The browser engines this server lets the client offer (capabilities `instance`). */
+export function clientEngineSlots(instance: { testHooks?: boolean } | null): ClientEngineSlots {
+  return instance?.testHooks === true ? TEST_HOOK_SLOTS : NO_SLOTS;
 }

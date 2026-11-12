@@ -29,6 +29,7 @@ export type {
   WritingInstalledSource,
 } from "./application";
 export type { AssistantRelayGateway, RelayAnswered, RelayNext } from "./application";
+export type { AssistantProviderGateway, ProviderAnswer, ProviderProfileId } from "./application";
 export type { RelayAnswerV1, RelayRequestV1 } from "./contracts/v1/assistantRelay";
 export {
   ApplicationGatewayError,
