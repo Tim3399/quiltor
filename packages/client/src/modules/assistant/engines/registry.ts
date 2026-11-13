@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { TEST_PROFILE_SLOT } from "./cloud/testProfile";
+import { WEBLLM_SLOT } from "./webllm/webllmSlot";
 import type { AssistantEngineWire, ClientEngineExecutor, ClientEngineKind } from "./types";
 
 /**
@@ -20,8 +21,14 @@ export type ClientEngineSlots = Partial<Record<ClientEngineKind, ClientEngineSlo
 // sees no cloud option before T-264. Constants, so a render gets the same object each time.
 const NO_SLOTS: ClientEngineSlots = {};
 const TEST_HOOK_SLOTS: ClientEngineSlots = { cloud: TEST_PROFILE_SLOT };
+const WEBLLM_SLOTS: ClientEngineSlots = { webllm: WEBLLM_SLOT };
+const ALL_SLOTS: ClientEngineSlots = { webllm: WEBLLM_SLOT, cloud: TEST_PROFILE_SLOT };
 
 /** The browser engines this server lets the client offer (capabilities `instance`). */
-export function clientEngineSlots(instance: { testHooks?: boolean } | null): ClientEngineSlots {
-  return instance?.testHooks === true ? TEST_HOOK_SLOTS : NO_SLOTS;
+export function clientEngineSlots(
+  instance: { testHooks?: boolean; clientAi?: boolean } | null,
+): ClientEngineSlots {
+  const webllm = instance?.clientAi === true;
+  if (instance?.testHooks === true) return webllm ? ALL_SLOTS : TEST_HOOK_SLOTS;
+  return webllm ? WEBLLM_SLOTS : NO_SLOTS;
 }

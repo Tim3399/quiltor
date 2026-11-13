@@ -151,7 +151,18 @@ class HtmlOnlyTests(unittest.TestCase):
 PROVIDER_ORIGINS = ("api.openai.com", "openrouter.ai", "api.anthropic.com")
 
 
+# The hosts WebLLM 0.2.86 contacted while loading a catalog model (T-61 part 7, measured).
+WEBLLM_HOSTS = [
+    "https://huggingface.co",
+    "https://us.aws.cdn.hf.co",
+    "https://raw.githubusercontent.com",
+]
+
+
 class ConnectSrcTests(unittest.TestCase):
+    def test_webllm_hosts_are_the_measured_ones(self):
+        self.assertEqual(policy_file()["webllmHosts"], WEBLLM_HOSTS)
+
     def test_connect_src_is_exactly_the_file(self):
         policy = policy_file()
         response = LiveServer(self, {}).get("/")
