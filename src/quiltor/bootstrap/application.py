@@ -466,6 +466,7 @@ def build_assistant_services(
     observability: ObservabilityServices,
     capabilities: FeatureAvailability,
     inference: InferenceEngine | None = None,
+    server_job_gate: Callable[[str], bool] | None = None,
 ) -> AssistantServices:
     progress = SQLiteAssistantProgressStore(data / "assistant-progress.sqlite3")
     read_tools = StoryWorldReadTools()
@@ -501,6 +502,7 @@ def build_assistant_services(
         client_slots=assistant_client_job_slots(
             os.environ.get("QUILTOR_ASSISTANT_CLIENT_JOBS", "")
         ),
+        server_job_gate=server_job_gate,
     )
     return AssistantServices(runtime, jobs, tickets)
 

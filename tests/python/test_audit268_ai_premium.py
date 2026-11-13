@@ -106,16 +106,14 @@ class QueuedJobAfterPremiumWithdrawnTests(_LiveAuthServerTestCase):
             world_access=_EveryWorldExists(),
             structured_logger=SilentLogger(),
             metrics=TestMetrics(),
+            server_job_gate=lambda sub: self.application.identity.auth.premium_confirmed(
+                sub, "premium"
+            ),
         )
         self.addCleanup(self.runner.close)
 
-    # S268-100: the role is only checked when the job is submitted
-    # (routes/assistant.py:136-139). AssistantJobRunner._execute
-    # (modules/assistant/jobs.py:395-420) checks only that the world exists. A job
-    # queued while the account was premium is computed on the server after the role
-    # was withdrawn. The fix decides how the worker learns about the role; this test
-    # withdraws it through the identity and only asks that nothing is computed.
-    @unittest.expectedFailure
+    # S268-100: the role used to be checked only when the job was submitted. The worker
+    # now asks the identity port (premium_confirmed) before it computes a server job.
     def test_queued_server_job_is_not_computed_after_the_role_is_withdrawn(self):
         job, created = self.runner.submit(
             owner_sub="user-premium",
@@ -126,13 +124,108 @@ class QueuedJobAfterPremiumWithdrawnTests(_LiveAuthServerTestCase):
         )
         self.assertTrue(created)
         identity = self.application.identity
-        with patch.object(type(identity), "is_premium", return_value=False):
+        with patch.object(type(identity.auth), "premium_confirmed", return_value=False):
             self.runner.start()
             finished = self.runner.wait(
                 job["id"], "user-premium", "a" * 32, timeout=JOB_WAIT_SECONDS
             )
         self.assertIsNotNone(finished)
         self.assertEqual(self.assistant.calls, [])
+        self.assertEqual(finished["status"], "failed")
+        self.assertEqual(finished["errorType"], "premium_required")
+
+    def test_queued_server_job_is_computed_while_premium_is_confirmed(self):
+        job, _ = self.runner.submit(
+            owner_sub="user-premium",
+            world_id="a" * 32,
+            idempotency_key="audit-268-confirmed",
+            intent=intent("queued"),
+            execution=execution("queued"),
+        )
+        with patch.object(
+            type(self.application.identity.auth), "premium_confirmed", return_value=True
+        ):
+            self.runner.start()
+            finished = self.runner.wait(
+                job["id"], "user-premium", "a" * 32, timeout=JOB_WAIT_SECONDS
+            )
+        self.assertEqual(finished["status"], "completed")
+        self.assertEqual(len(self.assistant.calls), 1)
+
+    def test_the_configured_role_decides_not_the_default(self):
+        from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
+
+        gateway = self.application.identity.auth
+        self.assertIsInstance(gateway, StdlibIdentityGateway)
+        runner = AssistantJobRunner(
+            self.assistant,
+            store_factory=lambda: AssistantJobStore(self.data / "gold.sqlite3"),
+            interaction_logger=FakeInteractionLogger(),
+            world_access=_EveryWorldExists(),
+            structured_logger=SilentLogger(),
+            metrics=TestMetrics(),
+            server_job_gate=lambda sub: gateway.premium_confirmed(sub, "gold"),
+        )
+        self.addCleanup(runner.close)
+        for sub, roles, expected in (
+            ("user-gold", ("gold",), "completed"),
+            ("user-plain", ("premium",), "failed"),
+        ):
+            self._login(sub, roles=roles)
+            job, _ = runner.submit(
+                owner_sub=sub,
+                world_id="a" * 32,
+                idempotency_key="audit-268-" + sub,
+                intent=intent(sub),
+                execution=execution(sub),
+            )
+            finished = runner.wait(job["id"], sub, "a" * 32, timeout=JOB_WAIT_SECONDS)
+            self.assertEqual(finished["status"], expected, sub)
+
+    def test_runner_without_a_gate_computes_as_before(self):
+        runner = AssistantJobRunner(
+            self.assistant,
+            store_factory=lambda: AssistantJobStore(self.data / "local.sqlite3"),
+            interaction_logger=FakeInteractionLogger(),
+            world_access=_EveryWorldExists(),
+            structured_logger=SilentLogger(),
+            metrics=TestMetrics(),
+        )
+        self.addCleanup(runner.close)
+        job, _ = runner.submit(
+            owner_sub="local",
+            world_id="a" * 32,
+            idempotency_key="audit-268-local",
+            intent=intent("local"),
+            execution=execution("local"),
+        )
+        finished = runner.wait(job["id"], "local", "a" * 32, timeout=JOB_WAIT_SECONDS)
+        self.assertEqual(finished["status"], "completed")
+
+    def test_client_job_is_not_gated(self):
+        gate_calls = []
+        runner = AssistantJobRunner(
+            self.assistant,
+            store_factory=lambda: AssistantJobStore(self.data / "client.sqlite3"),
+            interaction_logger=FakeInteractionLogger(),
+            world_access=_EveryWorldExists(),
+            structured_logger=SilentLogger(),
+            metrics=TestMetrics(),
+            client_runtime_factory=lambda job, request: self.assistant,
+            server_job_gate=lambda sub: gate_calls.append(sub) or False,
+        )
+        self.addCleanup(runner.close)
+        job, _ = runner.submit(
+            owner_sub="user-premium",
+            world_id="a" * 32,
+            idempotency_key="audit-268-client",
+            intent=intent("client"),
+            execution=execution("client"),
+            engine_kind="webllm",
+        )
+        finished = runner.wait(job["id"], "user-premium", "a" * 32, timeout=JOB_WAIT_SECONDS)
+        self.assertEqual(finished["status"], "completed")
+        self.assertEqual(gate_calls, [])
 
 
 class _EveryWorldExists:

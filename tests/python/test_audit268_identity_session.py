@@ -195,38 +195,38 @@ class PremiumConfirmedTests(HostedHarness):
 
     def test_a_fresh_premium_session_is_confirmed(self) -> None:
         self.login("alice", roles=("premium",))
-        self.assertTrue(self.gateway.premium_confirmed("alice"))
+        self.assertTrue(self.gateway.premium_confirmed("alice", "premium"))
 
     def test_a_fresh_session_without_premium_is_not_confirmed(self) -> None:
         self.login("alice", roles=("other",))
-        self.assertFalse(self.gateway.premium_confirmed("alice"))
+        self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
 
     def test_a_stale_confirmation_is_not_enough(self) -> None:
         self.provider.grant_omits_refresh_token = True
         self.login("alice", roles=("premium",))
         self.clock.advance(ROLE_FRESH_SECONDS - 1)
-        self.assertTrue(self.gateway.premium_confirmed("alice"))
+        self.assertTrue(self.gateway.premium_confirmed("alice", "premium"))
         self.clock.advance(2)
-        self.assertFalse(self.gateway.premium_confirmed("alice"))
+        self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
 
     def test_a_refresh_confirms_again(self) -> None:
         session = self.login("alice", roles=("premium",))
         for _ in range(4):
             self.clock.advance(300)
             self.json_request("GET", "/api/whoami", cookies={SESSION_COOKIE: session})
-            self.assertTrue(self.gateway.premium_confirmed("alice"))
+            self.assertTrue(self.gateway.premium_confirmed("alice", "premium"))
 
     def test_no_session_logout_and_unknown_account_are_not_confirmed(self) -> None:
-        self.assertFalse(self.gateway.premium_confirmed("nobody"))
+        self.assertFalse(self.gateway.premium_confirmed("nobody", "premium"))
         session = self.login("alice", roles=("premium",))
-        self.assertFalse(self.gateway.premium_confirmed("bob"))
+        self.assertFalse(self.gateway.premium_confirmed("bob", "premium"))
         self.json_request("POST", "/logout", {}, cookies={SESSION_COOKIE: session})
-        self.assertFalse(self.gateway.premium_confirmed("alice"))
+        self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
 
     def test_an_expired_session_is_not_confirmed(self) -> None:
         self.login("alice", roles=("premium",))
         self.clock.advance(24 * 3600 + 1)
-        self.assertFalse(self.gateway.premium_confirmed("alice"))
+        self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
 
 
 class RenderTokenTests(HostedHarness):

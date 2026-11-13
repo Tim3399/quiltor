@@ -107,8 +107,8 @@ class IdentityGateway(Protocol):
 
     def destroy_session(self, session_id: str | None) -> None: ...
 
-    def premium_confirmed(self, sub: str) -> bool:
-        """True only while a session of `sub` holds `premium`, confirmed by the provider
+    def premium_confirmed(self, sub: str, role: str) -> bool:
+        """True only while a session of `sub` holds `role`, confirmed by the provider
         within the last ROLE_FRESH_SECONDS. No session, logout, expiry or restart: False."""
         ...
 

@@ -35,6 +35,15 @@ MAX_CLIENT_JOB_SLOTS = 64
 #: state with the server runtime; its close() releases whatever waits for the browser.
 ClientRuntimeFactory = Callable[[dict[str, Any], dict[str, Any]], Any]
 
+#: Decides, by account, whether a queued server-engine job may still be computed (T-268,
+#: S268-100). None means the deployment has no hosted accounts: nothing to ask.
+ServerJobGate = Callable[[str], bool]
+
+
+class PremiumRequiredError(Exception):
+    """The account no longer holds a confirmed premium role, so the job is not computed."""
+
+
 #: Seconds a worker pauses after the queue itself failed (a locked database, say).
 CLAIM_RETRY_SECONDS = 1.0
 
@@ -133,6 +142,8 @@ def _stale_context_result(
 
 
 def classify_assistant_error(exc: Exception) -> str:
+    if isinstance(exc, PremiumRequiredError):
+        return "premium_required"
     if isinstance(exc, InferenceTimeoutError):
         return "timeout"
     if isinstance(exc, InferenceUnavailableError):
@@ -161,6 +172,8 @@ def classify_assistant_error(exc: Exception) -> str:
 
 
 def assistant_error_status(exc: Exception) -> int:
+    if isinstance(exc, PremiumRequiredError):
+        return 403
     if isinstance(exc, InferenceTimeoutError):
         return 504
     if isinstance(exc, InferenceUnavailableError):
@@ -187,6 +200,7 @@ class AssistantJobRunner:
         metrics: Metrics,
         client_runtime_factory: ClientRuntimeFactory | None = None,
         client_slots: int = DEFAULT_CLIENT_JOB_SLOTS,
+        server_job_gate: ServerJobGate | None = None,
     ) -> None:
         if not 1 <= client_slots <= MAX_CLIENT_JOB_SLOTS:
             raise ValueError(f"client_slots must be from 1 to {MAX_CLIENT_JOB_SLOTS}.")
@@ -197,6 +211,7 @@ class AssistantJobRunner:
         self.structured_logger = structured_logger
         self.metrics = metrics
         self.client_runtime_factory = client_runtime_factory
+        self._server_job_gate = server_job_gate
         self._client_slots = threading.BoundedSemaphore(client_slots)
         self._store: AssistantJobStore | None = None
         self._store_lock = threading.Lock()
@@ -315,7 +330,7 @@ class AssistantJobRunner:
                 self._wake.wait(timeout=0.5)
                 self._wake.clear()
                 continue
-            self._execute_guarded(job, self.assistant)
+            self._execute_guarded(job, self.assistant, gated=True)
             self._wake.set()
 
     def _run_clients(self) -> None:
@@ -369,8 +384,12 @@ class AssistantJobRunner:
         with suppress(Exception):
             runtime.close()
 
-    def _execute_guarded(self, job: dict[str, Any], assistant: Any) -> None:
+    def _execute_guarded(self, job: dict[str, Any], assistant: Any, *, gated: bool = False) -> None:
         try:
+            gate = self._server_job_gate
+            if gated and gate is not None and not gate(str(job.get("_ownerSub") or "")):
+                # The role was only checked at submit; it may be gone since (S268-100).
+                raise PremiumRequiredError("The account no longer holds a confirmed premium role.")
             self._execute(job, assistant)
         except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
             self._fail(job, exc)
