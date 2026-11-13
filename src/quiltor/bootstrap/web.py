@@ -143,12 +143,16 @@ class PlaceMapRouteServices:
 class ProjectTransferRouteServices:
     project_transfer: Any
     lock: threading.Lock
+    worlds: Any = None  # the world limit of a hosted account (S268-9)
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class ManuscriptImportRouteServices:
     manuscript_import: Any
     lock: threading.Lock
+    worlds: Any = None  # the world limit of a hosted account (S268-9)
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,9 +475,19 @@ class WebApplication:
                 self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/project-transfer"):
-            return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
+            return ProjectTransferRouteServices(
+                self.application.project_transfer,
+                self.lock,
+                self.application.worlds,
+                self.syncable,
+            )
         if path.startswith("/api/manuscript-import"):
-            return ManuscriptImportRouteServices(self.application.manuscript_import, self.lock)
+            return ManuscriptImportRouteServices(
+                self.application.manuscript_import,
+                self.lock,
+                self.application.worlds,
+                self.syncable,
+            )
         if path.startswith("/api/manuscript-export"):
             return ManuscriptExportRouteServices(self.application.manuscript_export, self.lock)
         if path.startswith("/api/history"):

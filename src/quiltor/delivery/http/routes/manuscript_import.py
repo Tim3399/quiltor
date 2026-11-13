@@ -10,6 +10,7 @@ from quiltor.application.manuscript_import import (
     ManuscriptLimitExceeded,
 )
 from quiltor.delivery.http.routes import Request, save
+from quiltor.delivery.http.world_quota import refuse_over_quota
 
 
 @save("/api/manuscript-import/preview")
@@ -39,6 +40,8 @@ def import_manuscript(handler, request: Request, app) -> None:
     )
     content = _content(payload)
     with app.lock:
+        if refuse_over_quota(handler, app, request.session.sub):
+            return
         world = app.manuscript_import.publish(
             payload["fileName"],
             content,
@@ -79,6 +82,8 @@ def import_manuscript_v2(handler, request: Request, app) -> None:
     )
     content = _content(payload)
     with app.lock:
+        if refuse_over_quota(handler, app, request.session.sub):
+            return
         world = app.manuscript_import.publish_v2(
             payload["fileName"],
             content,

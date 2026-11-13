@@ -7,6 +7,7 @@ the check is stubbed behind the limit.
 
 from __future__ import annotations
 
+import base64
 import http.client
 import socket
 import threading
@@ -199,3 +200,77 @@ class BodyTimeoutTests(HostedHarness):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorldQuotaOnEveryWayTests(HostedHarness):
+    """S268-9: every way that makes a world asks the same limit, not only /api/worlds/create."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.alice = self.login("alice")
+        self.bob = self.login("bob")
+        env = patch.dict("os.environ", {"QUILTOR_MAX_WORLDS_PER_ACCOUNT": "1"})
+        env.start()
+        self.addCleanup(env.stop)
+        self.create_world(self.alice)  # alice is now at her limit
+
+    def _worlds(self, session: str) -> list[str]:
+        _, document, _, _ = self.json_request(
+            "GET", "/api/worlds", cookies={SESSION_COOKIE: session}
+        )
+        return [world["id"] for world in document["worlds"]]
+
+    def _assert_refused(self, status: int, document) -> None:
+        self.assertEqual(status, 403)
+        self.assertEqual(document["error"]["code"], "world.quota")
+
+    def _manuscript_import(self, path: str, session: str):
+        return self.json_request(
+            "POST",
+            path,
+            {
+                "fileName": "x.docx",
+                "dataBase64": base64.b64encode(b"x").decode("ascii"),
+                "sourceSha256": "0" * 64,
+                "title": "T",
+                "chapters": [],
+                "acknowledgedWarnings": [],
+                "requestId": "r" * 16,
+            },
+            cookies={SESSION_COOKIE: session},
+        )
+
+    def _project_import(self, session: str):
+        return self.json_request(
+            "POST",
+            "/api/project-transfer/import",
+            raw=b"not an archive",
+            headers={"Content-Type": "application/zip"},
+            cookies={SESSION_COOKIE: session},
+        )
+
+    def test_the_example_world_is_refused_over_the_limit(self) -> None:
+        status, document, _, _ = self.json_request(
+            "POST", "/api/worlds/open-example", {"lang": "de"}, cookies={SESSION_COOKIE: self.alice}
+        )
+        self._assert_refused(status, document)
+        status, _, _, _ = self.json_request(
+            "POST", "/api/worlds/open-example", {"lang": "de"}, cookies={SESSION_COOKIE: self.bob}
+        )
+        self.assertEqual(status, 200)
+
+    def test_the_manuscript_import_is_refused_over_the_limit(self) -> None:
+        for path in ("/api/manuscript-import/import", "/api/manuscript-import/v2/import"):
+            with self.subTest(path=path):
+                status, document, _, _ = self._manuscript_import(path, self.alice)
+                self._assert_refused(status, document)
+                # Not the limit: bob gets past it and fails on the invalid file instead.
+                status, document, _, _ = self._manuscript_import(path, self.bob)
+                self.assertNotEqual(document["error"]["code"], "world.quota")
+
+    def test_the_project_import_is_refused_over_the_limit(self) -> None:
+        status, document, _, _ = self._project_import(self.alice)
+        self._assert_refused(status, document)
+        status, document, _, _ = self._project_import(self.bob)
+        self.assertNotEqual(document["error"]["code"], "world.quota")
+        self.assertEqual(len(self._worlds(self.alice)), 1)
