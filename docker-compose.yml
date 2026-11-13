@@ -32,12 +32,27 @@ services:
         QUILTOR_VERSION: ${QUILTOR_VERSION:-dev}
     image: quiltor:${QUILTOR_VERSION:-dev}
     restart: unless-stopped
+    security_opt:
+      # The PDF export renders other people's books in Chromium, with Chromium's own
+      # sandbox (S269-103). Docker's default seccomp profile refuses the user
+      # namespace that sandbox needs; this is that profile plus the two clone/unshare
+      # rules for it, nothing else.
+      - seccomp=./distribution/containers/seccomp-chromium.json
     environment:
       QUILTOR_OIDC_ISSUER: ${QUILTOR_OIDC_ISSUER:?Set QUILTOR_OIDC_ISSUER in .env — see .env.example}
       QUILTOR_OIDC_CLIENT_ID: ${QUILTOR_OIDC_CLIENT_ID:?Set QUILTOR_OIDC_CLIENT_ID in .env}
       QUILTOR_OIDC_CLIENT_SECRET: ${QUILTOR_OIDC_CLIENT_SECRET:?Set QUILTOR_OIDC_CLIENT_SECRET in .env}
       QUILTOR_PUBLIC_URL: ${QUILTOR_PUBLIC_URL:?Set QUILTOR_PUBLIC_URL in .env, e.g. https://quiltor.example.com}
       QUILTOR_COOKIE_SECURE: ${QUILTOR_COOKIE_SECURE:-auto}
+      # Content Security Policy for every page (D-198): enforced here. If the browser
+      # blocks something Quiltor needs, `report-only` logs the violation instead of
+      # blocking it -- a way out while you report the problem, not a setting to keep.
+      QUILTOR_CSP: ${QUILTOR_CSP:-enforce}
+      # Extra connect-src origins, space-separated, exact https:// origins only (no
+      # path, no wildcard). The in-browser assistant loads its model from Hugging Face,
+      # whose download hosts change from time to time (D-197): when model loading
+      # stops with a CSP error, add the blocked origin from the browser console here.
+      QUILTOR_CSP_CONNECT_EXTRA: ${QUILTOR_CSP_CONNECT_EXTRA:-}
       # Optional LanguageTool server (see .env.example); empty = no grammar server.
       QUILTOR_LANGUAGETOOL_URL: ${QUILTOR_LANGUAGETOOL_URL:-}
       QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN: ${QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN:-}
