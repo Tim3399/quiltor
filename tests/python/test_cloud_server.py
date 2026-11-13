@@ -129,7 +129,7 @@ class CloudServerTest(unittest.TestCase):
                 "accountId": hashlib.sha256(ACCOUNT.encode()).hexdigest(),
                 "access": "read-write",
                 "usedBytes": 0,
-                "limitBytes": None,
+                "limitBytes": 1024**3,  # the default quota (S268-202)
                 "deleteAfter": None,
             },
         )

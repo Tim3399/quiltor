@@ -71,7 +71,13 @@ class FakeIssuer:
 
     def issue(self, token: str, *, sub: str, scopes: str = "quiltor.backup") -> str:
         """Register a token the issuer will call active. Returns it, for brevity."""
-        self.tokens[token] = {"active": True, "sub": sub, "scope": scopes}
+        self.tokens[token] = {
+            "active": True,
+            "sub": sub,
+            "scope": scopes,
+            "azp": "quiltor-desktop",
+            "typ": "Bearer",
+        }
         return token
 
     def revoke(self, token: str) -> None:
