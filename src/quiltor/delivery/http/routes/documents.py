@@ -16,6 +16,7 @@ from quiltor.application import (
 )
 from quiltor.application.documents import DocumentKind
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_growth_over_quota
 
 
 @get("/api/state", world=True)
@@ -65,6 +66,11 @@ def write_storyboards(handler, request: Request, app) -> None:
 def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
     from datetime import datetime
 
+    # A save adds bytes (the mirrors, the document itself); over the byte limit of a hosted
+    # account it is refused before the body is read (F-268-18).
+    with app.lock:
+        if refuse_growth_over_quota(handler, request.session.sub):
+            return
     try:
         wire = decode_document_v1(kind, handler._read_json_body())
     except (InvalidDocumentWireV1, TypeError, ValueError) as error:

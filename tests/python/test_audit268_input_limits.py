@@ -43,6 +43,9 @@ class GrammarLimitTests(HostedHarness):
 
     def test_a_second_concurrent_check_of_one_account_is_refused_with_retry_after(self) -> None:
         alice = self.login("alice")
+        # A second session of the same account: within one session the newer check takes the
+        # older one's place instead (F-268-20, test_audit268_r2_c.py).
+        alice_elsewhere = self.login("alice")
         bob = self.login("bob")
         entered = threading.Event()
         release = threading.Event()
@@ -60,7 +63,7 @@ class GrammarLimitTests(HostedHarness):
             first = threading.Thread(target=lambda: results.append(self._check(alice)[0]))
             first.start()
             self.assertTrue(entered.wait(5))
-            status, document, headers, _ = self._check(alice)
+            status, document, headers, _ = self._check(alice_elsewhere)
             self.assertEqual(status, 429)
             self.assertEqual(document["error"]["code"], "writing_assistance.rate_limited")
             self.assertTrue(headers["retry-after"].isdigit())
