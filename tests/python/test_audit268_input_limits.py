@@ -206,12 +206,15 @@ class WorldQuotaOnEveryWayTests(HostedHarness):
     """S268-9: every way that makes a world asks the same limit, not only /api/worlds/create."""
 
     def setUp(self) -> None:
-        super().setUp()
-        self.alice = self.login("alice")
-        self.bob = self.login("bob")
+        # Started before the harness and stopped after it: patch.dict restores the snapshot it
+        # took, so stopping this one after the harness's own would put the harness's hosted
+        # environment back into os.environ for every later test.
         env = patch.dict("os.environ", {"QUILTOR_MAX_WORLDS_PER_ACCOUNT": "1"})
         env.start()
         self.addCleanup(env.stop)
+        super().setUp()
+        self.alice = self.login("alice")
+        self.bob = self.login("bob")
         self.create_world(self.alice)  # alice is now at her limit
 
     def _worlds(self, session: str) -> list[str]:
