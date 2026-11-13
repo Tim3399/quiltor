@@ -151,10 +151,12 @@ class HtmlOnlyTests(unittest.TestCase):
 PROVIDER_ORIGINS = ("api.openai.com", "openrouter.ai", "api.anthropic.com")
 
 
-# The hosts WebLLM 0.2.86 contacted while loading a catalog model (T-61 part 7, measured).
+# The hosts WebLLM loads a catalog model from (D-197: the Hugging Face CDN is regional).
 WEBLLM_HOSTS = [
     "https://huggingface.co",
-    "https://us.aws.cdn.hf.co",
+    "https://*.cdn.hf.co",
+    "https://cdn-lfs-us-1.hf.co",
+    "https://cdn-lfs-eu-1.hf.co",
     "https://raw.githubusercontent.com",
 ]
 
@@ -206,9 +208,15 @@ class ConnectSrcTests(unittest.TestCase):
         _, value = content_security_policy("enforce", test_hooks=False) or ("", "")
         self.assertNotIn(policy_file()["testHooksOrigin"], value)
 
-    def test_the_policy_has_no_wildcard(self):
+    def test_the_only_wildcard_is_the_hugging_face_cdn_in_connect_src(self):
         _, value = content_security_policy("enforce", test_hooks=True) or ("", "")
-        self.assertNotIn("*", value)
+        starred = [
+            (item.split(" ")[0], source)
+            for item in value.split("; ")
+            for source in item.split(" ")[1:]
+            if "*" in source
+        ]
+        self.assertEqual(starred, [("connect-src", "https://*.cdn.hf.co")])
         self.assertNotIn("'unsafe-inline'", connect_src(value))
         script = next(item for item in value.split("; ") if item.startswith("script-src "))
         self.assertEqual(script, "script-src 'self' 'wasm-unsafe-eval'")
