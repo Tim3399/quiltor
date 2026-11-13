@@ -229,6 +229,37 @@ class PremiumConfirmedTests(HostedHarness):
         self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
 
 
+class LongLivedAccessTokenTests(HostedHarness):
+    """F-268-17: an access token that outlives ROLE_FRESH_SECONDS must not cost the role."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.provider.access_lifespan = 3600
+
+    def test_the_role_is_confirmed_again_before_the_bound_runs_out(self) -> None:
+        session = self.login("alice", roles=("premium",))
+        for step in (500, 200, 2800):  # t = 500, 700, 3500
+            self.clock.advance(step)
+            self.json_request("GET", "/api/whoami", cookies={SESSION_COOKIE: session})
+            self.assertTrue(self.gateway.premium_confirmed("alice", "premium"), step)
+
+    def test_the_job_runner_refreshes_without_any_request(self) -> None:
+        self.login("alice", roles=("premium",))
+        self.clock.advance(700)
+        self.assertTrue(self.gateway.premium_confirmed("alice", "premium"))
+        self.clock.advance(2800)
+        self.assertTrue(self.gateway.premium_confirmed("alice", "premium"))
+
+    def test_a_broken_provider_still_empties_the_roles_after_the_bound(self) -> None:
+        session = self.login("alice", roles=("premium",))
+        self.provider.refresh_mode = "5xx"
+        self.clock.advance(ROLE_FRESH_SECONDS + 100)
+        self.json_request("GET", "/api/whoami", cookies={SESSION_COOKIE: session})
+        self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
+        self.clock.advance(2800)
+        self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
+
+
 class RenderTokenTests(HostedHarness):
     """1.9."""
 

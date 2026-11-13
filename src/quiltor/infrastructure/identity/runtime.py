@@ -618,9 +618,18 @@ class StdlibIdentityGateway:
     def premium_confirmed(self, sub: str, role: str) -> bool:
         """Whether a session of `sub` holds `role`, confirmed recently enough.
 
-        Reads only; it never asks the provider. No session, a logged-out or expired
-        session and a restart all answer False.
+        A session whose confirmation has gone stale is refreshed first (a no-op for
+        every other one). The job runner asks from its own thread, long after the
+        author's last request, so waiting for "the next request" would reject a job
+        of a healthy premium account because nobody happened to be calling. No
+        session, a logged-out or expired session and a restart answer False; so
+        does an unreachable provider once the bound has passed.
         """
+        with self._lock:
+            self._purge_sessions()
+            candidates = [key for key, held in self._sessions.items() if held.sub == sub]
+        for key in candidates:
+            self.refresh_session(key)
         with self._lock:
             self._purge_sessions()
             return any(
@@ -679,17 +688,31 @@ class StdlibIdentityGateway:
             return self._view(updated)
 
     def _refresh_due(self, session: SessionData, leeway: float) -> bool:
-        """Whether the access token has run out and no backoff is pending.
+        """Whether the provider is to be asked again and no backoff is pending.
 
+        Two reasons: the access token has run out, or the roles were last confirmed
+        ROLE_FRESH_SECONDS ago (less the leeway). The second matters when the provider
+        hands out tokens that outlive the bound: without it a premium account would
+        lose its role although the provider is healthy (F-268-17).
         Decided by the expiry alone, never by whether an access token is present:
         a failed refresh keeps its tokens and only sets `refresh_retry_at`.
         """
         now = self._clock()
+        if not (session.refresh_token and session.access_expires_at):
+            return False
+        if now < session.refresh_retry_at:
+            return False
+        if now >= session.access_expires_at - leeway:
+            return True
+        # `session` may be a `_view`, whose roles are already emptied once stale:
+        # ask the stored session whether there is anything to keep fresh.
+        stored = self._sessions.get(session.session_id)
+        confirmed = self._roles_confirmed.get(session.session_id)
         return (
-            bool(session.refresh_token)
-            and bool(session.access_expires_at)
-            and now >= session.access_expires_at - leeway
-            and now >= session.refresh_retry_at
+            stored is not None
+            and bool(stored.roles)
+            and confirmed is not None
+            and now - confirmed >= ROLE_FRESH_SECONDS - leeway
         )
 
     def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None:
