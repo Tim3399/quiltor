@@ -569,6 +569,10 @@ def build_web_application(
         observability=observability,
         capabilities=capabilities,
         inference=inference,
+        # Hosted accounts only; a single local owner has no role to lose (S268-100).
+        server_job_gate=(
+            selected_identity.auth.premium_confirmed if selected_identity.multi_user else None
+        ),
     )
     backup_authorizer = build_backup_authorizer(application.backups)
     version_file = resources.version_file()
