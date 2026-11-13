@@ -19,10 +19,15 @@ import tempfile
 import threading
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 from typing import Any
 
-from quiltor.application.backup_manifest import build_manifest_files, manifest_identifier
+from quiltor.application.backup_manifest import (
+    BackupContractError,
+    build_manifest_files,
+    manifest_identifier,
+)
 from tests.python.test_audit268_backupserver_support import (
     PUBLIC_URL,
     BackupServerCase,
@@ -329,6 +334,80 @@ class StreamedUploadTest(BackupServerCase):
         finally:
             module.os.walk = original
         self.assertEqual(usage, 4)
+
+    def test_a_staging_file_denied_during_the_usage_walk_is_not_charged(self) -> None:
+        # Windows answers PermissionError for a file that is being renamed or deleted.
+        world = self.root / "account-a" / "w"
+        world.mkdir(parents=True)
+        (world / "kept").write_bytes(b"1234")
+        (world / ".quiltor-upload-busy").write_bytes(b"xx")
+        module = self.server_module
+        real_stat = Path.stat
+        real_is_symlink = Path.is_symlink
+
+        def denied_stat(path, *args, **kwargs):
+            if path.name.startswith(".quiltor-upload-"):
+                raise PermissionError(13, "Access is denied")
+            return real_stat(path, *args, **kwargs)
+
+        def denied_is_symlink(path):
+            if path.name.startswith(".quiltor-upload-"):
+                raise PermissionError(13, "Access is denied")
+            return real_is_symlink(path)
+
+        with (
+            unittest.mock.patch.object(Path, "stat", denied_stat),
+            unittest.mock.patch.object(Path, "is_symlink", denied_is_symlink),
+        ):
+            self.assertEqual(module._account_usage("account-a"), 4)
+
+    def test_a_denied_stored_file_is_still_an_integrity_error(self) -> None:
+        world = self.root / "account-a" / "w"
+        world.mkdir(parents=True)
+        (world / "kept").write_bytes(b"1234")
+        real_stat = Path.stat
+
+        def denied_stat(path, *args, **kwargs):
+            if path.name == "kept":
+                raise PermissionError(13, "Access is denied")
+            return real_stat(path, *args, **kwargs)
+
+        with unittest.mock.patch.object(Path, "stat", denied_stat):
+            with self.assertRaises(BackupContractError):
+                self.server_module._account_usage("account-a")
+
+    def test_resolution_with_the_windows_extended_prefix_stays_inside_the_root(self) -> None:
+        # Concurrent uploads made Path.resolve answer `\\?\C:\...` for the account folder, which
+        # no longer sat under ROOT and turned a 507 into a 400 (Windows CI, run 43473691046).
+        module = self.server_module
+        real_resolve = Path.resolve
+
+        def extended(path, *args, **kwargs):
+            resolved = real_resolve(path, *args, **kwargs)
+            if os.name != "nt" or path == module.ROOT:
+                return resolved
+            return Path("\\\\?\\" + str(resolved))
+
+        with unittest.mock.patch.object(Path, "resolve", extended):
+            self.assertEqual(
+                module._safe_storage_path("account-a", "w"), self.root / "account-a" / "w"
+            )
+
+    def test_extended_prefix_is_stripped_in_both_forms(self) -> None:
+        module = self.server_module
+
+        class Fake:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+            def resolve(self, strict: bool = False) -> Path:
+                return Path(self.text)
+
+        if os.name == "nt":
+            self.assertEqual(str(module._resolved(Fake("\\\\?\\C:\\a\\b"))), "C:\\a\\b")
+            self.assertEqual(
+                str(module._resolved(Fake("\\\\?\\UNC\\host\\share\\a"))), "\\\\host\\share\\a"
+            )
 
     def test_s268_203_failed_uploads_leave_no_temporary_file(self) -> None:
         status, _, _ = self.request("PUT", f"/v1/worlds/w/blobs/{DIGEST}", b"not the preimage")
