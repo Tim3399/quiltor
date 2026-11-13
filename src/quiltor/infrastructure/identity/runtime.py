@@ -27,7 +27,6 @@ from quiltor.modules.identity.auth import (
     pkce_challenge,
     verify_id_token,
 )
-from quiltor.modules.identity.service import DEFAULT_PREMIUM_ROLE
 
 MAX_OIDC_RESPONSE_BYTES = 1024 * 1024
 MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
@@ -614,8 +613,8 @@ class StdlibIdentityGateway:
             return session
         return replace(session, roles=())
 
-    def premium_confirmed(self, sub: str) -> bool:
-        """Whether a session of `sub` holds the premium role, confirmed recently enough.
+    def premium_confirmed(self, sub: str, role: str) -> bool:
+        """Whether a session of `sub` holds `role`, confirmed recently enough.
 
         Reads only; it never asks the provider. No session, a logged-out or expired
         session and a restart all answer False.
@@ -623,7 +622,7 @@ class StdlibIdentityGateway:
         with self._lock:
             self._purge_sessions()
             return any(
-                DEFAULT_PREMIUM_ROLE in self._view(held).roles
+                role in self._view(held).roles
                 for held in self._sessions.values()
                 if held.sub == sub
             )

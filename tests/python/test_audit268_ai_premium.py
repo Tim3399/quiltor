@@ -106,7 +106,9 @@ class QueuedJobAfterPremiumWithdrawnTests(_LiveAuthServerTestCase):
             world_access=_EveryWorldExists(),
             structured_logger=SilentLogger(),
             metrics=TestMetrics(),
-            server_job_gate=lambda sub: self.application.identity.auth.premium_confirmed(sub),
+            server_job_gate=lambda sub: self.application.identity.auth.premium_confirmed(
+                sub, "premium"
+            ),
         )
         self.addCleanup(self.runner.close)
 
@@ -149,6 +151,36 @@ class QueuedJobAfterPremiumWithdrawnTests(_LiveAuthServerTestCase):
             )
         self.assertEqual(finished["status"], "completed")
         self.assertEqual(len(self.assistant.calls), 1)
+
+    def test_the_configured_role_decides_not_the_default(self):
+        from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
+
+        gateway = self.application.identity.auth
+        self.assertIsInstance(gateway, StdlibIdentityGateway)
+        runner = AssistantJobRunner(
+            self.assistant,
+            store_factory=lambda: AssistantJobStore(self.data / "gold.sqlite3"),
+            interaction_logger=FakeInteractionLogger(),
+            world_access=_EveryWorldExists(),
+            structured_logger=SilentLogger(),
+            metrics=TestMetrics(),
+            server_job_gate=lambda sub: gateway.premium_confirmed(sub, "gold"),
+        )
+        self.addCleanup(runner.close)
+        for sub, roles, expected in (
+            ("user-gold", ("gold",), "completed"),
+            ("user-plain", ("premium",), "failed"),
+        ):
+            self._login(sub, roles=roles)
+            job, _ = runner.submit(
+                owner_sub=sub,
+                world_id="a" * 32,
+                idempotency_key="audit-268-" + sub,
+                intent=intent(sub),
+                execution=execution(sub),
+            )
+            finished = runner.wait(job["id"], sub, "a" * 32, timeout=JOB_WAIT_SECONDS)
+            self.assertEqual(finished["status"], expected, sub)
 
     def test_runner_without_a_gate_computes_as_before(self):
         runner = AssistantJobRunner(
