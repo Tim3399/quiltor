@@ -8,31 +8,27 @@ import { replyReferences, resolveAssistantMessage } from "./formatting";
 import type { AssistantClaimStatus, AssistantProposal, AssistantReply } from "./model";
 import { type AssistantProposalApplyResult, scopeAssistantProposals } from "./proposals";
 import { useBatchProgress } from "./useBatchProgress";
-
-function readEntries(storageKey: string): AssistantEntry[] {
-  try {
-    const stored = quiltorClient.platform.preferences.get(storageKey);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
+import { readAssistantHistory, writeAssistantHistory } from "./historyStore";
 
 export function useAssistantConversation({
   worldId,
+  accountSub,
   forcedChapterIds,
   onApply,
   onBeforeSend,
   t,
 }: {
   worldId: string;
+  /** The signed-in account on a shared server; binds the stored history to it (S269-6). */
+  accountSub?: string;
   forcedChapterIds: string[];
   onApply: (proposals: AssistantProposal[]) => AssistantProposalApplyResult;
   onBeforeSend: () => Promise<void>;
   t: Translate;
 }) {
-  const storageKey = `quiltor-assistant:${worldId}`;
-  const [entries, setEntries] = useState<AssistantEntry[]>(() => readEntries(storageKey));
+  const [entries, setEntries] = useState<AssistantEntry[]>(() =>
+    readAssistantHistory(accountSub, worldId),
+  );
   const entriesRef = useRef(entries);
   const [sending, setSending] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -48,10 +44,10 @@ export function useAssistantConversation({
     (update: (current: AssistantEntry[]) => AssistantEntry[]) => {
       const next = update(entriesRef.current);
       entriesRef.current = next;
-      quiltorClient.platform.preferences.set(storageKey, JSON.stringify(next.slice(-40)));
+      writeAssistantHistory(accountSub, worldId, next);
       setEntries(next);
     },
-    [storageKey],
+    [accountSub, worldId],
   );
 
   useEffect(() => {
