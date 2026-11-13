@@ -361,8 +361,10 @@ class StdlibIdentityGateway:
             self._purge_pending()
             # Refuse rather than evict: the flooder is turned away and the logins
             # already in progress stay (S268-2).
+            # No known client address (empty): only the global cap below applies.
             if (
-                sum(1 for entry in self._pending.values() if entry.get("client") == client)
+                client
+                and sum(1 for entry in self._pending.values() if entry.get("client") == client)
                 >= MAX_PENDING_LOGINS_PER_CLIENT
             ):
                 raise LoginCapacityReached("Too many open logins from this client.")

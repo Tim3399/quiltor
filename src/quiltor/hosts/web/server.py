@@ -45,6 +45,7 @@ that ignore json_schema. See the README for all of them.
 import hmac
 import http.cookies
 import http.server
+import ipaddress
 import json
 import os
 import socket
@@ -703,6 +704,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def login_client_address(self) -> str:
+        """The address a login start is counted under, or "" when it cannot be told (S268-2).
+
+        Behind a trusted proxy that is the last X-Forwarded-For entry (the one the proxy
+        appended). Without QUILTOR_TRUSTED_PROXIES the server cannot know whether a proxy
+        stands in front, so nothing is trusted and no per-client limit applies. This is the
+        only place X-Forwarded-For is read."""
+        trusted = self.application.trusted_proxies
+        if not trusted:
+            return ""
+        try:
+            peer = str(ipaddress.ip_address(str(self.client_address[0]).split("%", 1)[0]))
+        except ValueError:
+            return ""
+        if peer not in trusted:
+            return peer
+        forwarded = ",".join(self.headers.get_all("X-Forwarded-For") or [])
+        try:
+            return str(ipaddress.ip_address(forwarded.rsplit(",", 1)[-1].strip()))
+        except ValueError:
+            return ""
+
     def handle_login(self) -> None:
         redirect_uri = f"{self.public_base_url()}/auth/callback"
         # The client names its interface language so the provider's pages -- and
@@ -714,7 +737,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             authorize_url, state = self.application.identity.auth.start_login(
                 redirect_uri,
                 ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None,
-                client=str(self.client_address[0]),
+                client=self.login_client_address(),
             )
         except ProviderUnavailable as exc:
             self.application.observability.logger.event(

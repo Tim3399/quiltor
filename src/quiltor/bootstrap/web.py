@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -227,6 +228,22 @@ def assistant_max_open_jobs(configured: str) -> int:
     return int(configured)
 
 
+def trusted_proxies(configured: str) -> frozenset[str]:
+    """QUILTOR_TRUSTED_PROXIES: comma-separated IP addresses (no networks, no names) of the
+    reverse proxies in front of this server. Unset or empty = none. Entries are normalised."""
+    if not configured.strip():
+        return frozenset()
+    found: set[str] = set()
+    for entry in configured.split(","):
+        try:
+            found.add(str(ipaddress.ip_address(entry.strip())))
+        except ValueError:
+            raise RuntimeError(
+                "QUILTOR_TRUSTED_PROXIES must be a comma-separated list of IP addresses."
+            ) from None
+    return frozenset(found)
+
+
 CSP_POLICY_FILE = Path(__file__).with_name("csp-policy.json")
 CSP_MODES = ("report-only", "enforce", "off")
 DEFAULT_CSP_MODE = "report-only"
@@ -346,6 +363,8 @@ class WebApplication:
     assistant_max_open_jobs: int = DEFAULT_ASSISTANT_MAX_OPEN_JOBS
     # Whether a job may name a client engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
     assistant_client_ai: bool = True
+    # Reverse proxies whose X-Forwarded-For is believed (QUILTOR_TRUSTED_PROXIES, S268-2).
+    trusted_proxies: frozenset[str] = frozenset()
     # Header for every text/html answer (QUILTOR_CSP, T-61); None sends none.
     content_security_policy: tuple[str, str] | None = None
     # QUILTOR_TEST_HOOKS=1, read from the environment only, never from a request (T-61).
@@ -623,6 +642,7 @@ def build_web_application(
             os.environ.get("QUILTOR_ASSISTANT_MAX_OPEN_JOBS", "")
         ),
         assistant_client_ai=assistant_client_ai(os.environ.get("QUILTOR_ASSISTANT_CLIENT_AI", "")),
+        trusted_proxies=trusted_proxies(os.environ.get("QUILTOR_TRUSTED_PROXIES", "")),
         content_security_policy=content_security_policy(
             csp_mode(os.environ.get("QUILTOR_CSP", "")),
             connect_extra=csp_connect_extra(os.environ.get("QUILTOR_CSP_CONNECT_EXTRA", "")),
