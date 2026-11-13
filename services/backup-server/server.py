@@ -349,6 +349,11 @@ def _account_usage(account: str) -> int:
             path = directory_path / name
             try:
                 total += path.stat().st_size
+            except FileNotFoundError:
+                # Another upload renamed or removed its staging file after the walk listed
+                # it. A file that is gone takes no space; the check under the account lock
+                # counts again.
+                continue
             except OSError as exc:
                 raise BackupContractError(
                     "backup_content_integrity", "Backup content failed integrity verification."

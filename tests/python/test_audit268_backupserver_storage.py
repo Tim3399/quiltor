@@ -307,6 +307,29 @@ class StreamedUploadTest(BackupServerCase):
         self.assertEqual(self._staged(), [])
         self.assertEqual([p.name for p in self.stored_files()], [digest])
 
+    def test_a_file_that_vanishes_during_the_usage_walk_is_not_charged(self) -> None:
+        # A concurrent upload renames its staging file while another request walks the
+        # account. On Windows CI (run 43465440525) that walk turned a 507 into a 400.
+        world = self.root / "account-a" / "w"
+        world.mkdir(parents=True)
+        (world / "kept").write_bytes(b"1234")
+        real_walk = os.walk
+
+        def walk_listing_a_ghost(top, *args, **kwargs):
+            for directory, names, files in real_walk(top, *args, **kwargs):
+                if Path(directory) == world:
+                    files = [*files, ".quiltor-upload-gone"]
+                yield directory, names, files
+
+        module = self.server_module
+        original = module.os.walk
+        module.os.walk = walk_listing_a_ghost
+        try:
+            usage = module._account_usage("account-a")
+        finally:
+            module.os.walk = original
+        self.assertEqual(usage, 4)
+
     def test_s268_203_failed_uploads_leave_no_temporary_file(self) -> None:
         status, _, _ = self.request("PUT", f"/v1/worlds/w/blobs/{DIGEST}", b"not the preimage")
         self.assertEqual(status, 400)
