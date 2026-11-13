@@ -47,7 +47,3 @@ export function effectiveEngine(
   if (stored && available.includes(stored)) return stored;
   return available[0] ?? "server";
 }
-
-export function browserHasWebGpu(): boolean {
-  return typeof navigator !== "undefined" && "gpu" in navigator;
-}

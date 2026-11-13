@@ -26,3 +26,14 @@ describe("client engine registration (T-61 part 8a)", () => {
     expect(engines).toEqual(["server", "cloud"]);
   });
 });
+
+describe("in-browser engine registration (T-61 part 7)", () => {
+  it("registers the webllm slot only with instance.clientAi", () => {
+    expect(clientEngineSlots({ clientAi: true }).webllm?.wire()).toEqual({
+      kind: "webllm",
+      grammar: true,
+    });
+    expect(clientEngineSlots({ clientAi: false }).webllm).toBeUndefined();
+    expect(clientEngineSlots({ clientAi: true, testHooks: true }).cloud).toBeDefined();
+  });
+});

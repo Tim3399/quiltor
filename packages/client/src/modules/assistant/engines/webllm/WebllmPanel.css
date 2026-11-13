@@ -1,0 +1,15 @@
+/* The in-browser engine's panel in the assistant status view (T-61 part 7). */
+.webllm-panel {
+  margin: var(--space-10) var(--space-12) 0;
+}
+.webllm-panel p {
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-metadata);
+  line-height: 1.4;
+}
+.webllm-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-7);
+  margin-top: var(--space-7);
+}

@@ -20,6 +20,12 @@ vi.mock("./engines/registry", () => ({
   }),
 }));
 
+// The adapter probe itself is tested in engines/webllm; here a navigator.gpu stands for a
+// hardware adapter, read anew per render rather than once per page.
+vi.mock("./engines/webllm/webgpu", () => ({
+  browserWebGpu: async () => "gpu" in navigator,
+}));
+
 afterEach(() => vi.restoreAllMocks());
 
 const UNAVAILABLE = {
@@ -72,11 +78,11 @@ describe("engine choice in the assistant status (T-61)", () => {
     expect(choice).not.toHaveTextContent("Im Browser");
   });
 
-  it("offers the browser engine when WebGPU is there", () => {
+  it("offers the browser engine when WebGPU is there", async () => {
     vi.stubGlobal("navigator", { ...navigator, gpu: {} });
     try {
       renderPanel({ clientAi: true });
-      expect(screen.getByRole("radiogroup", { name: "KI-Engine" })).toHaveTextContent("Im Browser");
+      expect(await screen.findByRole("radio", { name: "Im Browser" })).toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();
     }
