@@ -109,7 +109,8 @@ class IdentityGateway(Protocol):
 
     def premium_confirmed(self, sub: str, role: str) -> bool:
         """True only while a session of `sub` holds `role`, confirmed by the provider
-        within the last ROLE_FRESH_SECONDS. No session, logout, expiry or restart: False."""
+        within the last ROLE_FRESH_SECONDS. A stale confirmation is refreshed first, so a
+        healthy provider never costs a premium account its role. No session, logout, expiry or restart: False."""
         ...
 
     def owner_session(self, sub: str) -> tuple[str, SessionData]: ...
