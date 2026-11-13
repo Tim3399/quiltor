@@ -1,14 +1,15 @@
 /**
- * T-269 check 5.6 (implementer/T-269-audit-client.md): work text in browser storage after
- * signing out. S269-6 was the assistant history outliving the sign-out; it is closed here.
- * How the history is bound to the account: modules/assistant/historyStore.test.ts.
+ * T-269 phase 2, package C, check 5.6 (implementer/T-269-audit-client.md): work text in
+ * browser storage after signing out.
+ *
+ * Audit only. The `it.fails` records gap S269-6 and turns red once the gap is closed, so the
+ * phase-4 fix drops the marker in the same change.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { writeAssistantHistory } from "../../modules/assistant";
-import { forgetAccountOnDevice, removeAllDrafts, writeDraft } from "../workspace/draftStore";
+import { quiltorClient } from "../../platform";
+import { removeAllDrafts, writeDraft } from "../workspace/draftStore";
 
 const ADA = { sub: "ada", worldId: "world-a" };
-const QUESTION = [{ question: "Wer verrät Mara im dritten Kapitel?" }] as never[];
 
 beforeEach(() => localStorage.clear());
 
@@ -21,11 +22,14 @@ describe("T-269 5.6 browser storage", () => {
     );
   });
 
-  it("signing out also removes the assistant history of the user's worlds", () => {
+  // S269-6: the assistant history is keyed by world only and outlives the sign-out.
+  it.fails("signing out also removes the assistant history of the user's worlds", () => {
     writeDraft(ADA, "manuscript", { chapters: [] }, 1);
-    writeAssistantHistory("ada", "world-a", QUESTION);
-    writeAssistantHistory("ada", "world-b", QUESTION);
-    forgetAccountOnDevice("ada");
-    expect(localStorage.length).toBe(0);
+    quiltorClient.platform.preferences.set(
+      "quiltor-assistant:world-a",
+      JSON.stringify([{ question: "Wer verrät Mara im dritten Kapitel?" }]),
+    );
+    removeAllDrafts("ada");
+    expect(quiltorClient.platform.preferences.get("quiltor-assistant:world-a")).toBeNull();
   });
 });

@@ -226,6 +226,8 @@ describe("HTTP application errors", () => {
     ["project_transfer.limit_exceeded", "Die Projektdatei überschreitet"],
     ["project_transfer.invalid_asset", "Die Projektdatei enthält eine ungültige"],
     ["project_transfer.publication_failed", "Das neue Projekt konnte nicht veröffentlicht"],
+    ["world.quota", "Du hast die Höchstzahl an Welten oder den Speicherplatz"],
+    ["server.busy", "Der Server ist gerade ausgelastet. Versuche es gleich erneut."],
   ])("gives %s a concrete recovery message", async (code, messageStart) => {
     vi.stubGlobal(
       "fetch",

@@ -61,6 +61,8 @@ export function writingAssistanceErrorMessage(
       return t("grammarStartFailed");
     case "writing_assistance.grammar_unavailable":
       return t("grammarServerUnavailable");
+    case "writing_assistance.rate_limited":
+      return t("writingRateLimited");
     case "writing_assistance.external_opt_in_required":
       return t("grammarExternalOptInRequired");
     default:

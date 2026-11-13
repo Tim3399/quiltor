@@ -33,7 +33,6 @@ export function OverlayHost({
   assistantEverOpened,
   onCloseAssistant,
   worldId,
-  accountSub,
   manuscript,
   currentChapterId,
   figures,
@@ -61,8 +60,6 @@ export function OverlayHost({
   assistantEverOpened: boolean;
   onCloseAssistant: () => void;
   worldId: string;
-  /** The signed-in account on a shared server; binds the assistant history to it (S269-6). */
-  accountSub?: string;
   manuscript: Manuscript;
   currentChapterId: string;
   figures: FigureState;
@@ -91,7 +88,6 @@ export function OverlayHost({
       {assistantEverOpened && (
         <AssistantDrawer
           worldId={worldId}
-          accountSub={accountSub}
           figures={figures}
           chapters={orderedChapters(manuscript)}
           chapterStatuses={

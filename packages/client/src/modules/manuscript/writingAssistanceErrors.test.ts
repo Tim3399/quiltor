@@ -21,6 +21,8 @@ describe("writingAssistanceErrorMessage", () => {
     ["writing_assistance.external_opt_in_required", "grammar", de.grammarExternalOptInRequired],
     ["writing_assistance.not_installed", "grammar", de.grammarUnavailable],
     ["writing_assistance.not_installed", "lookup", de.writingDataMissing],
+    ["writing_assistance.rate_limited", "lookup", de.writingRateLimited],
+    ["writing_assistance.rate_limited", "grammar", de.writingRateLimited],
   ] as const)("maps %s in %s to its own sentence", (code, context, expected) => {
     expect(writingAssistanceErrorMessage(failure(code, { required: 21 }), context, t)).toBe(
       expected,

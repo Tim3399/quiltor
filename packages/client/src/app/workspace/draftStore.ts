@@ -1,4 +1,3 @@
-import { removeAllAssistantHistory } from "../../modules/assistant";
 import { quiltorClient } from "../../platform";
 
 export type DocumentFamily = "manuscript" | "figures" | "storyboards";
@@ -138,15 +137,6 @@ export function removeAllDrafts(sub: string | undefined): void {
     }
   }
   writeIndex(sub, []);
-}
-
-/**
- * Signing out leaves nothing of this account's work text on the device: its drafts and
- * its assistant history (T-269 S269-6), in every world.
- */
-export function forgetAccountOnDevice(sub: string | undefined): void {
-  removeAllDrafts(sub);
-  removeAllAssistantHistory(sub);
 }
 
 type Named = { id?: unknown; [key: string]: unknown };

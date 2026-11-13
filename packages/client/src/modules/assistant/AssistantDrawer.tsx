@@ -19,7 +19,6 @@ import "./AssistantDrawer.css";
 
 export function AssistantDrawer({
   worldId,
-  accountSub,
   figures,
   chapters,
   chapterStatuses,
@@ -31,8 +30,6 @@ export function AssistantDrawer({
   onClose,
 }: {
   worldId: string;
-  /** The signed-in account on a shared server; binds the assistant history to it (S269-6). */
-  accountSub?: string;
   figures: FigureState;
   chapters: Chapter[];
   chapterStatuses?: ReadonlyMap<string, "set_aside" | "deleted">;
@@ -85,7 +82,6 @@ export function AssistantDrawer({
     clear,
   } = useAssistantConversation({
     worldId,
-    accountSub,
     forcedChapterIds,
     onApply,
     onBeforeSend,

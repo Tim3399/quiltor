@@ -121,6 +121,9 @@ function localizedStructuredErrorMessage(
   // A preview of the example world is not synced or backed up until it is the author's.
   if (code === "world.preview") return messages.errorWorldPreview;
   if (code === "world.example_failed") return messages.errorExampleWorldFailed;
+  // A hosted server bounds the worlds of one account, by count and by size (S268-9).
+  if (code === "world.quota") return messages.errorWorldQuota;
+  if (code === "server.busy") return messages.errorServerBusy;
   // A hosted server refuses operator-only routes such as installing the assistant (T-184).
   if (code === "install.forbidden_hosted") return messages.errorInstallForbiddenHosted;
   if (code === "sync.target_invalid") return messages.errorSyncTargetInvalid;
