@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import ClassVar
 from unittest import mock
 
-from quiltor.infrastructure.inference import installer, transfer
+from quiltor.infrastructure.inference import install_manifest, installer, transfer
 from quiltor.infrastructure.inference.install_manifest import ArtifactManifest
 from quiltor.infrastructure.writing_assistance import languagetool
 
@@ -67,7 +67,7 @@ class PythonLockHashes(unittest.TestCase):
                 unhashed = [block.split()[0] for block in blocks if "--hash=sha256:" not in block]
                 self.assertEqual(unhashed, [], "requirements without a hash")
 
-    @unittest.expectedFailure  # S269-100
+    # S269-100
     def test_mlx_lock_binds_each_requirement_to_a_hash(self) -> None:
         blocks = _requirement_blocks(MLX_LOCK.read_text(encoding="utf-8"))
         self.assertTrue(blocks)
@@ -90,7 +90,7 @@ class MlxRuntimeInstall(unittest.TestCase):
                 installer.install_mlx_runtime(paths=paths)
         return [list(call.args[0]) for call in run.call_args_list if "pip" in call.args[0]]
 
-    @unittest.expectedFailure  # S269-100
+    # S269-100
     def test_every_pip_install_requires_hashes(self) -> None:
         calls = self._pip_calls()
         self.assertTrue(calls)
@@ -112,13 +112,19 @@ class ModelRevisionPin(unittest.TestCase):
     def _requested_urls(self) -> list[str]:
         urls: list[str] = []
 
+        pin = install_manifest.PINNED_MODELS[installer.DEFAULT_MODEL_REPO]
+
         def read_json(url: str, **_: object) -> object:
             urls.append(url)
-            return {"sha": "0" * 40}
+            return {"sha": pin.revision}
 
         def read_json_page(url: str, **_: object) -> tuple[object, str]:
             urls.append(url)
-            return [{"type": "file", "path": "model.gguf", "size": 1, "lfs": {"oid": "a" * 64}}], ""
+            entries = [
+                {"type": "file", "path": path, "size": 1, "lfs": {"oid": digest.split(":")[1]}}
+                for path, digest in pin.files.items()
+            ]
+            return entries, ""
 
         with (
             mock.patch.object(installer, "read_json", side_effect=read_json),
@@ -128,14 +134,51 @@ class ModelRevisionPin(unittest.TestCase):
             installer._model_artifacts(installer.DEFAULT_MODEL_REPO)
         return urls
 
-    @unittest.expectedFailure  # S269-101
+    # S269-101
     def test_default_model_is_resolved_at_a_commit_pinned_in_the_repository(self) -> None:
         revision_url = self._requested_urls()[0]
         self.assertRegex(revision_url, r"/revision/[0-9a-f]{40}$")
 
     def test_file_urls_use_the_resolved_commit_not_the_branch(self) -> None:
         urls = self._requested_urls()
-        self.assertRegex(urls[1], r"/tree/0{40}\?")
+        pin = install_manifest.PINNED_MODELS[installer.DEFAULT_MODEL_REPO].revision
+        self.assertIn(f"/tree/{pin}?", urls[1])
+
+    def test_a_listing_that_differs_from_the_pinned_digest_is_refused(self) -> None:
+        pin = install_manifest.PINNED_MODELS[installer.DEFAULT_MODEL_REPO]
+        tree = [
+            {"type": "file", "path": path, "size": 1, "lfs": {"oid": "b" * 64}}
+            for path in pin.files
+        ]
+        with (
+            mock.patch.object(installer, "read_json", return_value={"sha": pin.revision}),
+            mock.patch.object(installer, "read_json_page", return_value=(tree, "")),
+            mock.patch("builtins.print"),
+            self.assertRaisesRegex(ValueError, "pinned digest"),
+        ):
+            installer._model_artifacts(installer.DEFAULT_MODEL_REPO)
+
+
+class LlamaCppDigestPin(unittest.TestCase):
+    """6.5a: the runtime archive is checked against a digest kept in the repository."""
+
+    # S269-105
+    def test_release_digest_is_compared_with_the_repository_pin(self) -> None:
+        name = f"llama-{install_manifest.LLAMA_CPP_RELEASE}-bin-win-cpu-x64.zip"
+        release = {
+            "tag_name": install_manifest.LLAMA_CPP_RELEASE,
+            "assets": [
+                {
+                    "name": name,
+                    "digest": "sha256:" + "c" * 64,
+                    "size": 1,
+                    "browser_download_url": "https://github.com/ggml-org/llama.cpp/releases/download/"
+                    f"{install_manifest.LLAMA_CPP_RELEASE}/{name}",
+                }
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "pinned asset digest"):
+            install_manifest.github_runtime_artifact(release, re.compile(r"win-cpu-x64\.zip$"))
 
 
 class VerifiedBeforePublish(unittest.TestCase):
