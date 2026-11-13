@@ -262,7 +262,6 @@ class WorldIsolationTests(TwoAccountsTests):
         unknown = self.as_bob("GET", f"/api/manuscript?world={'b' * 32}")[0]
         self.assertEqual((foreign, unknown), (403, 404))
 
-    @unittest.expectedFailure
     def test_an_account_cannot_create_worlds_without_limit(self) -> None:
         """S268-9: there is no cap on the number of worlds per account (each one is a SQLite
         file plus mirror folders), and none on their total size."""

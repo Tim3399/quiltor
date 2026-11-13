@@ -69,6 +69,19 @@ from quiltor.modules.identity.service import SESSION_COOKIE
 
 MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
 REQUEST_HEADER_TIMEOUT_SECONDS = 15.0
+# While a body is read, no single recv may wait longer than this, and the whole body must
+# be in within BODY_READ_DEADLINE_SECONDS: the first stops a client that sends the headers
+# and then nothing, the second one that trickles a byte now and then (S268-102).
+BODY_RECV_TIMEOUT_SECONDS = 30.0
+BODY_READ_DEADLINE_SECONDS = 180.0
+# At most this many handler threads at once; a further connection is answered 503 with
+# Retry-After on the accepting thread. Overridable for an operator who sized the host.
+MAX_HANDLER_THREADS = int(os.environ.get("QUILTOR_MAX_HANDLER_THREADS", "128") or "128")
+# The relay long polls hold a thread for up to 25 s each; they get their own smaller pool
+# out of the total, so they cannot use up the threads everything else needs.
+RELAY_POLL_PATH = "/api/assistant/relay/next"
+MAX_RELAY_POLL_THREADS = 16
+SERVER_BUSY_RETRY_AFTER_SECONDS = 5
 
 # How much of a refused request's body is read and thrown away before the answer.
 #
@@ -90,6 +103,7 @@ RequestBodyRejectionReason = Literal[
     "content_type",
     "utf8",
     "json",
+    "timeout",
 ]
 
 
@@ -104,6 +118,7 @@ class RequestBodyRejected(ValueError):
             "content_type": "invalid Content-Type",
             "utf8": "invalid UTF-8",
             "json": "invalid JSON",
+            "timeout": "request body timed out",
         }[reason]
         super().__init__(message)
         self.reason = reason
@@ -300,9 +315,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not parsed:
             return False
 
-        # The timeout only bounds an idle socket and request headers. Once framing is
-        # known, uploads and route handlers retain their previous unbounded behavior.
-        self.connection.settimeout(None)
+        # Never unbounded: a client that sends headers promising a body and then nothing
+        # would hold this thread forever (S268-102). read_request_body adds a deadline for
+        # the body as a whole on top of this per-recv limit.
+        self.connection.settimeout(BODY_RECV_TIMEOUT_SECONDS)
 
         connection_tokens = {
             token.strip().lower()
@@ -515,7 +531,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         """Read the request body. Every route that reads it goes through here, so
         the dispatcher knows afterwards whether a refusal left it unread."""
         self._request_body_read = True
-        return self.rfile.read(length)
+        deadline = time.monotonic() + BODY_READ_DEADLINE_SECONDS
+        chunks: list[bytes] = []
+        remaining = length
+        try:
+            while remaining > 0:
+                # The socket's own timeout (set in parse_request) bounds each recv; this
+                # check between reads bounds the sum.
+                if time.monotonic() > deadline:
+                    raise TimeoutError("body deadline")
+                chunk = self.rfile.read1(min(remaining, 1024 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+        except TimeoutError as error:
+            self.close_connection = True
+            raise RequestBodyRejected("timeout") from error
+        return b"".join(chunks)
 
     def _discard_unread_body(self) -> None:
         """Read and drop a small body that no route has read, so the close does not
@@ -1062,7 +1095,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if request.world is None:
                 self._discard_unread_body()
                 return
-        registration.handler(self, request, self.application.route_services(path))
+        if path == RELAY_POLL_PATH:
+            # Checked after the guards, so only a signed-in caller can occupy a slot.
+            slots = self.server.relay_poll_slots
+            if not slots.acquire(blocking=False):
+                self._discard_unread_body()
+                return self.send_json(
+                    http_errors.for_status(503, code="server.busy", retryable=True).payload(),
+                    503,
+                    headers={"Retry-After": SERVER_BUSY_RETRY_AFTER_SECONDS},
+                )
+            try:
+                registration.handler(self, request, self.application.route_services(path))
+            finally:
+                slots.release()
+        else:
+            registration.handler(self, request, self.application.route_services(path))
         if not self._request_body_read:
             # A route may refuse without reading the body (POST /api/backup/login in
             # multi-user mode answers 409 straight away). The connection closes after
@@ -1105,7 +1153,35 @@ class Server(socketserver.ThreadingTCPServer):
 
     def __init__(self, server_address, handler_class, application: WebApplication):
         self.application = application
+        self._thread_slots = threading.BoundedSemaphore(MAX_HANDLER_THREADS)
+        self.relay_poll_slots = threading.BoundedSemaphore(MAX_RELAY_POLL_THREADS)
         super().__init__(server_address, handler_class)
+
+    def process_request(self, request, client_address) -> None:
+        # A full house gets its 503 on the accepting thread instead of one more handler.
+        if not self._thread_slots.acquire(blocking=False):
+            try:
+                request.settimeout(1)
+                request.sendall(
+                    b"HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n"
+                    b"Retry-After: " + str(SERVER_BUSY_RETRY_AFTER_SECONDS).encode() + b"\r\n"
+                    b"Connection: close\r\n\r\n"
+                )
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._thread_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._thread_slots.release()
 
     def handle_error(self, request, client_address) -> None:
         """Do not report a browser that walked away as a server error.
