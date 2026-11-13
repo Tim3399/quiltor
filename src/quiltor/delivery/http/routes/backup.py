@@ -134,7 +134,7 @@ def snapshot(handler, request: Request, app) -> None:
     try:
         with app.lock:
             # The blobs of a version are the bulk of what an account stores (F-268-18).
-            if refuse_growth_over_quota(handler, request.session.sub):
+            if refuse_growth_over_quota(handler, request):
                 return
             result = app.backups.commit(world.backup, message, push, authorization)
     except ApplicationError as exc:

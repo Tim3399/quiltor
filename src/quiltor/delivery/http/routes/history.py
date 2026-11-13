@@ -102,7 +102,7 @@ def restore(handler, request: Request, app) -> None:
     world = request.world
     try:
         with app.lock:
-            if refuse_growth_over_quota(handler, request.session.sub):
+            if refuse_growth_over_quota(handler, request):
                 return
             result = app.restore_version(
                 world.backup,

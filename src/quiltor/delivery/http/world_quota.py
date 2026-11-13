@@ -121,14 +121,22 @@ def refuse_over_quota(handler, app, owner: str) -> bool:
     return True
 
 
-def refuse_growth_over_quota(handler, owner: str) -> bool:
-    """Answer 403 `world.quota` and return True when `owner` may not add bytes to a world.
+def refuse_growth_over_quota(handler, request) -> bool:
+    """Answer 403 `world.quota` and return True when the caller may not add bytes to a world.
 
     For the write routes whose services do not carry the world store (documents, history,
-    maps, versions): they reach the same facts through the handler's application. Call
-    under `app.lock`, before anything is written.
+    maps, versions): they reach the same facts through the handler's application. Whether the
+    server is hosted is asked first and the session only after that: a local server has no
+    session and is never limited. A request without a session is not limited either.
+    Call under `app.lock`, before anything is written.
     """
-    web = handler.application
+    web = getattr(handler, "application", None)
+    if web is None or web.syncable:  # no server behind the handler, or not hosted
+        return False
+    session = getattr(request, "session", None)
+    owner = getattr(session, "sub", None)
+    if not owner:
+        return False
     view = SimpleNamespace(syncable=web.syncable, worlds=web.application.worlds)
     if not over_bytes(view, owner):
         return False

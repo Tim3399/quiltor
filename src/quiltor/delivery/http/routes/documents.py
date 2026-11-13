@@ -69,7 +69,7 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
     # A save adds bytes (the mirrors, the document itself); over the byte limit of a hosted
     # account it is refused before the body is read (F-268-18).
     with app.lock:
-        if refuse_growth_over_quota(handler, request.session.sub):
+        if refuse_growth_over_quota(handler, request):
             return
     try:
         wire = decode_document_v1(kind, handler._read_json_body())

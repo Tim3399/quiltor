@@ -408,6 +408,37 @@ class LocalServerIsNotLimitedTests(_LiveServer):
             )
         self.assertEqual(status, 200, raw)
 
+    def test_a_local_server_saves_a_document_over_a_limit_of_one(self) -> None:
+        status, _, raw = self.request("GET", f"/api/manuscript?world={self.world_id}")
+        self.assertEqual(status, 200, raw)
+        with patch.dict("os.environ", {"QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT": "1"}):
+            status, _, raw = self.request("POST", f"/api/manuscript?world={self.world_id}", raw)
+        self.assertEqual(status, 200, raw)
+
+
+class GrowthLimitWithoutSessionTests(unittest.TestCase):
+    """A request that carries no session is never limited and never crashes the route."""
+
+    def test_no_session_means_no_limit(self) -> None:
+        sent: list[object] = []
+        web = SimpleNamespace(
+            syncable=False,
+            application=SimpleNamespace(worlds=None),  # worlds must stay untouched
+        )
+        handler = SimpleNamespace(application=web, send_json=lambda *a: sent.append(a))
+        with patch.dict("os.environ", {"QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT": "1"}):
+            for request in (SimpleNamespace(), SimpleNamespace(session=None)):
+                self.assertFalse(world_quota.refuse_growth_over_quota(handler, request))
+        self.assertEqual(sent, [])
+
+    def test_a_handler_without_a_server_is_not_limited(self) -> None:
+        self.assertFalse(world_quota.refuse_growth_over_quota(SimpleNamespace(), SimpleNamespace()))
+
+    def test_a_local_server_is_asked_before_the_session(self) -> None:
+        web = SimpleNamespace(syncable=True, application=SimpleNamespace(worlds=None))
+        handler = SimpleNamespace(application=web)
+        self.assertFalse(world_quota.refuse_growth_over_quota(handler, SimpleNamespace()))
+
 
 class QueuedJobAfterRoleWithdrawnThroughTheWiringTests(unittest.TestCase):
     """F-268-22 D2: `build_web_application` hands the gate to the job runner for a hosted

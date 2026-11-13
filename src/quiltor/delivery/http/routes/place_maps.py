@@ -29,7 +29,7 @@ def _reject_upload(handler, app, error_code: str, error: Exception | None = None
 @save("/api/place-maps", world=True)
 def upload_place_map(handler, request: Request, app) -> None:
     with app.lock:
-        if refuse_growth_over_quota(handler, request.session.sub):
+        if refuse_growth_over_quota(handler, request):
             return
     payload = handler._read_json_body()
     if not isinstance(payload, dict):
