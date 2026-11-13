@@ -216,11 +216,37 @@ class SizeAndQuotaTest(BackupServerCase):
     # S268-202: an account without a policy entry has limitBytes null, i.e. no quota at
     # all. The operator cannot list future accounts (opaque subs), so every holder of the
     # scope can store without limit: 512 MiB per blob, any number of blobs and worlds.
-    @unittest.expectedFailure
     def test_s268_202_account_without_policy_entry_has_a_quota(self) -> None:
         status, _, body = self.request("GET", ACCOUNT_PATH)
         self.assertEqual(status, 200)
         self.assertIsNotNone(json.loads(body)["limitBytes"])
+
+    def test_s268_202_policy_entry_without_limit_takes_the_default_and_null_is_unlimited(
+        self,
+    ) -> None:
+        policy = Path(self.temporary.name) / "policy.json"
+        policy.write_text(
+            json.dumps(
+                {"accounts": {"account-a": {}, "account-b": {"limitBytes": None}}},
+            ),
+            encoding="utf-8",
+        )
+        self.server_module.POLICY_FILE = str(policy)
+        self.server_module.load_policy_configuration()
+        policies = self.server_module.POLICIES
+        self.assertEqual(
+            policies["account-a"]["limitBytes"], self.server_module.DEFAULT_LIMIT_BYTES
+        )
+        self.assertIsNone(policies["account-b"]["limitBytes"])
+
+    def test_s268_202_default_quota_is_enforced_and_overridable(self) -> None:
+        self.server_module.DEFAULT_LIMIT_BYTES = 10
+        self.assertEqual(self._blob(b"12345678"), 201)
+        self.assertEqual(self._blob(b"abcdefgh"), 507)
+        self.server_module.POLICIES = {
+            "account-a": {"access": "read-write", "limitBytes": None, "deleteAfter": None}
+        }
+        self.assertEqual(self._blob(b"abcdefgh"), 201, "a policy entry sets the limit itself")
 
     def test_s268_202_evidence_many_blobs_are_accepted_without_any_policy(self) -> None:
         # Not a gap test: records that nothing stops a policy-less account (see above).
@@ -230,7 +256,6 @@ class SizeAndQuotaTest(BackupServerCase):
     # S268-203: the quota is judged only after the whole body has been read into memory.
     # A declared 1000 bytes against a 100-byte limit is answered only once the client has
     # sent (or abandoned) them, so a refused upload still costs up to 512 MiB of RAM.
-    @unittest.expectedFailure
     def test_s268_203_declared_size_beyond_quota_is_refused_without_reading_the_body(self) -> None:
         self.server_module.POLICIES = {
             "account-a": {"access": "read-write", "limitBytes": 100, "deleteAfter": None}
@@ -244,6 +269,57 @@ class SizeAndQuotaTest(BackupServerCase):
             )
             answer = sock.recv(200)  # times out while the server waits for the body
         self.assertTrue(answer.startswith(b"HTTP/1.0 507") or answer.startswith(b"HTTP/1.0 413"))
+
+
+class StreamedUploadTest(BackupServerCase):
+    """S268-203: a blob is staged on disk in chunks and renamed, not held in memory."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.issuer.grant("token-a")
+
+    def _staged(self) -> list[Path]:
+        return [p for p in self.stored_files() if p.name.startswith(".quiltor-upload-")]
+
+    def test_s268_203_half_sent_blob_is_on_disk_in_a_temporary_file_and_not_yet_stored(
+        self,
+    ) -> None:
+        payload = b"x" * 300_000
+        digest = hashlib.sha256(payload).hexdigest()
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
+            sock.sendall(
+                (
+                    f"PUT /v1/worlds/w/blobs/{digest} HTTP/1.0\r\n"
+                    f"Authorization: Bearer token-a\r\nContent-Length: {len(payload)}\r\n\r\n"
+                ).encode()
+                + payload[:150_000]
+            )
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline and not any(p.stat().st_size for p in self._staged()):
+                time.sleep(0.05)
+            staged = self._staged()
+            self.assertEqual(len(staged), 1, "the received part is already staged on disk")
+            self.assertGreater(staged[0].stat().st_size, 0, "chunks are written as they arrive")
+            self.assertEqual([p for p in self.stored_files() if p.name == digest], [])
+            sock.sendall(payload[150_000:])
+            answer = sock.recv(100)
+        self.assertTrue(answer.startswith(b"HTTP/1.0 201"), answer)
+        self.assertEqual(self._staged(), [])
+        self.assertEqual([p.name for p in self.stored_files()], [digest])
+
+    def test_s268_203_failed_uploads_leave_no_temporary_file(self) -> None:
+        status, _, _ = self.request("PUT", f"/v1/worlds/w/blobs/{DIGEST}", b"not the preimage")
+        self.assertEqual(status, 400)
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
+            sock.sendall(
+                (
+                    f"PUT /v1/worlds/w/blobs/{DIGEST} HTTP/1.0\r\n"
+                    "Authorization: Bearer token-a\r\nContent-Length: 100\r\n\r\nshort"
+                ).encode()
+            )
+            sock.shutdown(socket.SHUT_WR)
+            self.assertTrue(sock.recv(100).startswith(b"HTTP/1.0 400"))
+        self.assertEqual(self.stored_files(), [])
 
 
 class SocketTimeoutTest(BackupServerCase):
@@ -281,7 +357,6 @@ class SocketTimeoutTest(BackupServerCase):
     # S268-201: neither Handler.timeout nor the Server sets a socket timeout (server.py
     # :880-883, :689). A client that connects and says nothing, or sends headers and half
     # a body, holds its thread for as long as it likes, without any token for the first.
-    @unittest.expectedFailure
     def test_s268_201_client_sockets_get_a_finite_timeout(self) -> None:
         httpd, seen, started = self._spy_server()
         with socket.create_connection(("127.0.0.1", httpd.server_address[1]), timeout=2):
@@ -289,6 +364,26 @@ class SocketTimeoutTest(BackupServerCase):
             timeout = seen["timeout"]
         self.assertIsNotNone(timeout)
         self.assertLessEqual(float(timeout), 300.0)
+
+    def test_s268_201_full_thread_cap_answers_503_instead_of_a_new_thread(self) -> None:
+        self.server_module.MAX_HANDLER_THREADS = 2
+        httpd, _, _ = self._spy_server()
+        port = httpd.server_address[1]
+        held = [socket.create_connection(("127.0.0.1", port), timeout=2) for _ in range(2)]
+        self.addCleanup(lambda: [s.close() for s in held])
+        time.sleep(0.3)  # let both handler threads start and park on the silent sockets
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as third:
+            answer = third.recv(100)
+        self.assertTrue(answer.startswith(b"HTTP/1.0 503"), answer)
+        held[0].close()
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with socket.create_connection(("127.0.0.1", port), timeout=2) as again:
+                again.sendall(b"GET /nowhere HTTP/1.0\r\n\r\n")
+                if not again.recv(100).startswith(b"HTTP/1.0 503"):
+                    return
+            time.sleep(0.1)
+        self.fail("a freed slot was never handed out again")
 
     def test_s268_201_evidence_silent_connections_each_hold_a_thread(self) -> None:
         # Not a gap test: records the missing cap. Thirty anonymous, silent connections

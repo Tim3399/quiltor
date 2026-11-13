@@ -68,7 +68,13 @@ class ScriptedIssuer:
         return f"http://127.0.0.1:{self._httpd.server_address[1]}"
 
     def grant(self, token: str, *, sub: str = "account-a", **claims: Any) -> str:
-        document: dict[str, Any] = {"active": True, "sub": sub, "scope": SCOPE}
+        document: dict[str, Any] = {
+            "active": True,
+            "sub": sub,
+            "scope": SCOPE,
+            "azp": "quiltor-desktop",
+            "typ": "Bearer",
+        }
         document.update(claims)
         self.tokens[token] = document
         return token

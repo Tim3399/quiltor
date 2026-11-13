@@ -120,16 +120,27 @@ class AudienceAndAuthorizedPartyTest(BackupServerCase):
     # S268-200: a token minted for another client and another audience opens the
     # account as soon as it carries the scope string. introspect() (server.py:478-489)
     # looks at active, iss and exp only; _account (:561-566) at the scope only.
-    @unittest.expectedFailure
     def test_s268_200_token_for_a_foreign_audience_and_client_is_refused(self) -> None:
         self.issuer.grant(
             "token-a", azp="some-third-party-app", aud=["account", "some-third-party-app"]
         )
         status, _, _ = self.request("GET", ACCOUNT_PATH)
-        self.assertIn(status, {401, 403})
+        self.assertEqual(status, 401)
+
+    def test_s268_200_token_without_azp_is_refused(self) -> None:
+        self.issuer.grant("token-a")
+        del self.issuer.tokens["token-a"]["azp"]
+        status, _, _ = self.request("GET", ACCOUNT_PATH)
+        self.assertEqual(status, 401)
+
+    def test_s268_200_allowed_clients_are_configurable(self) -> None:
+        self.server_module.ALLOWED_CLIENTS = frozenset({"quiltor", "quiltor-desktop"})
+        self.issuer.grant("token-a", azp="quiltor")
+        self.issuer.grant("token-b", azp="some-third-party-app")
+        self.assertEqual(self.request("GET", ACCOUNT_PATH)[0], 200)
+        self.assertEqual(self.request("GET", ACCOUNT_PATH, token="token-b")[0], 401)
 
     # S268-200 (write side): the same foreign token may also store backups.
-    @unittest.expectedFailure
     def test_s268_200_foreign_client_token_cannot_write_either(self) -> None:
         self.issuer.grant("token-a", azp="some-third-party-app", aud="account")
         import hashlib
@@ -142,14 +153,13 @@ class AudienceAndAuthorizedPartyTest(BackupServerCase):
 
     # S268-200 (token type): introspection of a refresh or ID token is also active:true.
     # Nothing looks at `typ` or `token_type`, so such a token works as a bearer.
-    @unittest.expectedFailure
     def test_s268_200_refresh_or_id_token_type_is_refused(self) -> None:
         for token_type in ("Refresh", "ID"):
             with self.subTest(typ=token_type):
                 self.server_module._tokens.clear()
                 self.issuer.grant("token-a", typ=token_type, azp="quiltor-desktop")
                 status, _, _ = self.request("GET", ACCOUNT_PATH)
-                self.assertIn(status, {401, 403})
+                self.assertEqual(status, 401)
 
 
 class SecretHandlingTest(BackupServerCase):
