@@ -11,6 +11,7 @@ export type {
   AssistantSource,
 } from "./model";
 export { applyAssistantProposalsWithResult } from "./proposals";
+export { removeAllAssistantHistory, writeAssistantHistory } from "./historyStore";
 export type { AssistantEngineWire } from "./engines/types";
 
 export const loadAssistantDrawer = () =>
