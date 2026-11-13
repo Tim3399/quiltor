@@ -13,10 +13,12 @@
     "form-action": ["'self'"],
     "object-src": ["'none'"]
   },
-  "webllmHosts$comment": "Measured in T-61 part 7 (report-only, WebLLM 0.2.86, 2026-11-13): model files from huggingface.co, which redirects the shards to its xet CDN us.aws.cdn.hf.co; model libraries (.wasm) from raw.githubusercontent.com.",
+  "webllmHosts$comment": "The Hugging Face CDN hosts are regional and change (D-197); *.cdn.hf.co is the only exception to the wildcard ban and the xethub hosts are left out on purpose; model libraries (.wasm) come from raw.githubusercontent.com.",
   "webllmHosts": [
     "https://huggingface.co",
-    "https://us.aws.cdn.hf.co",
+    "https://*.cdn.hf.co",
+    "https://cdn-lfs-us-1.hf.co",
+    "https://cdn-lfs-eu-1.hf.co",
     "https://raw.githubusercontent.com"
   ],
   "testHooksOrigin$comment": "In connect-src only with QUILTOR_TEST_HOOKS=1: Chromium blocks a fetch outside connect-src before page.route sees it.",
