@@ -52,6 +52,7 @@ from quiltor.infrastructure.inference.archive import extract_archive, locate_exp
 from quiltor.infrastructure.inference.install_manifest import (
     LLAMA_CPP_RELEASE,
     MAX_HUGGINGFACE_TREE_PAGES,
+    PINNED_MODELS,
     ArtifactManifest,
     github_release_api_url,
     github_runtime_artifact,
@@ -60,6 +61,7 @@ from quiltor.infrastructure.inference.install_manifest import (
     huggingface_repository_revision,
     huggingface_tree_api_url,
     huggingface_tree_next_cursor,
+    pinned_model_artifacts,
     safe_relative_path,
 )
 from quiltor.infrastructure.inference.model_store import ModelsDirError, model_store
@@ -241,9 +243,17 @@ def latest_release_asset(pattern: re.Pattern[str], binary_name: str) -> Artifact
 
 
 def _model_artifacts(repository: str, revision: str = "main") -> dict[str, ArtifactManifest]:
+    # A default repository is read at the commit fixed in install_manifest.py, and its
+    # files are checked against the digests recorded there, not against the listing
+    # alone. A repository the user names (--model-repo) follows its branch instead.
+    pin = PINNED_MODELS.get(repository)
+    if pin is not None:
+        revision = pin.revision
     print(f"Resolving model repository {repository} on Hugging Face ...", flush=True)
     metadata = read_json(huggingface_model_api_url(repository, revision))
     commit = huggingface_repository_revision(metadata)
+    if pin is not None and commit != pin.revision:
+        raise ValueError(f"Model repository {repository} did not resolve to its pinned commit.")
     # Hugging Face serves the file tree one bounded page at a time and points at
     # the next one through a Link header; a repository whose listing is cut short
     # would silently install an incomplete model, so walk it to the end.
@@ -257,7 +267,10 @@ def _model_artifacts(repository: str, revision: str = "main") -> dict[str, Artif
         entries.extend(page)
         cursor = huggingface_tree_next_cursor(link, repository, commit)
         if cursor is None:
-            return huggingface_artifacts(repository, entries, revision=commit)
+            artifacts = huggingface_artifacts(repository, entries, revision=commit)
+            if pin is not None:
+                return pinned_model_artifacts(repository, artifacts)
+            return artifacts
         if cursor in seen:
             raise ValueError("Model repository listing repeated a pagination cursor.")
         seen.add(cursor)
@@ -425,15 +438,18 @@ def install_mlx_runtime(
     print(f"Creating MLX virtual environment at {selected.mlx_venv} ...")
     subprocess.run([sys.executable, "-m", "venv", str(selected.mlx_venv)], check=True)
     print("Installing MLX runtime packages (mlx, mlx-lm, llguidance) ...")
-    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    # --only-binary=:all: turns "no Xcode command line tools" into an
-    # immediate, legible pip error instead of a 40-minute failed source build.
+    # One install from the lock, pip itself included: --require-hashes binds every
+    # package to the hashes in the repository, so a replaced upload on PyPI fails
+    # instead of running on the user's Mac. --only-binary=:all: turns "no Xcode
+    # command line tools" into an immediate, legible pip error instead of a
+    # 40-minute failed source build.
     subprocess.run(
         [
             str(venv_python),
             "-m",
             "pip",
             "install",
+            "--require-hashes",
             "--only-binary=:all:",
             "-r",
             str(resources.sidecar_asset(MLX_REQUIREMENTS_ASSET)),
