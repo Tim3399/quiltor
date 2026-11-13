@@ -1,15 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { quiltorClient } from "../../../platform";
 import { useInstanceCapabilities, useUserCapabilities } from "../../../shared/capabilities";
-import {
-  availableEngines,
-  browserHasWebGpu,
-  effectiveEngine,
-  readEngineChoice,
-  writeEngineChoice,
-} from "./choice";
+import { availableEngines, effectiveEngine, readEngineChoice, writeEngineChoice } from "./choice";
 import { type ClientEngineSlot, type ClientEngineSlots, clientEngineSlots } from "./registry";
 import type { AssistantEngineKind } from "./types";
+import { browserWebGpu } from "./webllm/webgpu";
 
 export type EngineChoice = {
   /** The engines this user can pick, in display order. */
@@ -38,9 +33,18 @@ export function useEngineChoice(
   const clientAi = instance?.clientAi === true;
   const preferences = quiltorClient.platform.preferences;
   const [stored, setStored] = useState(() => readEngineChoice(preferences));
+  // A hardware adapter, asked once per page: "gpu" in navigator also holds for a software one.
+  const [webgpu, setWebgpu] = useState(false);
+  useEffect(() => {
+    let current = true;
+    void browserWebGpu().then((value) => current && setWebgpu(value));
+    return () => {
+      current = false;
+    };
+  }, []);
   const available = useMemo(
-    () => availableEngines({ serverAi, clientAi, webgpu: browserHasWebGpu(), slots }),
-    [serverAi, clientAi, slots],
+    () => availableEngines({ serverAi, clientAi, webgpu, slots }),
+    [serverAi, clientAi, webgpu, slots],
   );
   const engine = effectiveEngine(stored, available);
   const choose = useCallback(
