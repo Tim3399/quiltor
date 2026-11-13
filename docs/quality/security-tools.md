@@ -58,10 +58,16 @@ Audited revision `8d9b0d22` (`agent-team-einrichtung`) and `7fcf7993` (`int/T-61
 - **Result:** only `DS-0026` (LOW, no `HEALTHCHECK`) on `Dockerfile` and
   `services/backup-server/Dockerfile`. An operations question; the compose stack has its own
   health checks.
-- **Not run:** `--scanners vuln` needs `trivy-db` (an OCI download from
-  `mirror.gcr.io/aquasec/trivy-db`, fallback `ghcr.io/aquasecurity/trivy-db`); `trivy image`
-  on the deployed images needs their layers. Neither was released for download. The
-  system packages of the 3.26 image can only be scanned once the release build exists.
+- **Vulnerability database:** `trivy image --download-db-only --cache-dir <tools>/trivy-0.76.2/cache`
+  fetched `mirror.gcr.io/aquasec/trivy-db:2` (133.8 MiB, 27 s; updated 2026-11-13 12:56 UTC).
+- **Vulnerability scan:** `trivy fs --cache-dir <tools>/trivy-0.76.2/cache --scanners vuln
+--skip-db-update --offline-scan --format json <export>` on both exports, under 1 s each:
+  `package-lock.json`, `distribution/web/self-hosted/package-lock.json` and `Cargo.lock`, 0
+  vulnerabilities. trivy does not recognise the Python locks, whose names end in `.lock`;
+  pip-audit covers them.
+- **Not run:** `trivy image` on the deployed images needs their layers and was not released
+  for download. The system packages of the 3.26 image can only be scanned once the release
+  build exists.
 - **Proposal:** reporting for `config`; `image --scanners vuln` on the release image would be
   worth a blocking gate in `release.yml` once the database download is accepted.
 
@@ -78,6 +84,34 @@ Audited revision `8d9b0d22` (`agent-team-einrichtung`) and `7fcf7993` (`int/T-61
   `--trusted-root <file>`.
 - **Proposal:** not needed beyond verifying downloaded tools.
 
+### osv-scanner 2.7.0
+
+- **Source:** `github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_windows_amd64.exe`,
+  `osv-scanner_SHA256SUMS`
+- **SHA-256:** `9964ed64ec9a387391eb4cc006ad5c531154821aef29b793e02c448de4686438`, matches the
+  checksum file. `distribution/toolchains.json` pins only the Linux binary; that line of the
+  same checksum file equals the pin, which ties the file to the pinned release (S269-112).
+- **Command:** `npm run lint:osv` with the directory on `PATH` (the binary copied to
+  `osv-scanner.exe`), plus `osv-scanner scan source --config osv-scanner.toml -L
+distribution/web/self-hosted/package-lock.json`, and the same lock list on the `7fcf7993`
+  export. `osv-scanner.toml` ignores nothing.
+- **Runtime:** 9 s, under 1 s, 5 s. Queries osv.dev online.
+- **Result:** "No issues found" for all eight locks on both revisions.
+- **Proposal:** already blocking in CI; pin the Windows and macOS hashes too.
+
+### pip-audit 2.10.1
+
+- **Source:** PyPI, in its own venv `C:/Users/timra/tools/pip-audit/venv` (Python 3.12.10).
+- **SHA-256:** `pip download --only-binary=:all:` into an empty directory; each of the 29
+  wheels compared with the digest from PyPI's JSON API (all matched), then
+  `pip install --no-index --require-hashes -r <tools>/pip-audit/requirements.txt`.
+- **Command:** `pip-audit --disable-pip --no-deps --progress-spinner off -r <lock>` for the
+  four locks of `distribution/dependency-locks.json` and the MLX lock, on both revisions. No
+  resolver run, nothing installed from the locks.
+- **Runtime:** 1-3 s per lock.
+- **Result:** "No known vulnerabilities found" everywhere.
+- **Proposal:** reporting; osv-scanner already covers the same locks in CI.
+
 ### Tools already present
 
 | Tool       | Version    | Command                                                                                                                                                                            | Runtime  | Result                                                         |
@@ -89,7 +123,5 @@ Audited revision `8d9b0d22` (`agent-team-einrichtung`) and `7fcf7993` (`int/T-61
 
 ### Not run
 
-- `npm run lint:osv` and `osv-scanner -L distribution/web/self-hosted/package-lock.json`:
-  osv-scanner 2.7.0 is not installed locally (CI runs it).
-- pip-audit: needs a download from PyPI.
+- `trivy image` on the deployed images: image pull not released.
 - hadolint, cargo-deny, shellcheck: not installed locally (CI runs them).
