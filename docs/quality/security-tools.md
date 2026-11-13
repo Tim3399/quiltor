@@ -125,3 +125,19 @@ distribution/web/self-hosted/package-lock.json`, and the same lock list on the `
 
 - `trivy image` on the deployed images: image pull not released.
 - hadolint, cargo-deny, shellcheck: not installed locally (CI runs them).
+
+## Infra (T-270)
+
+A one-off audit of `b825-server-infrastructure` (origin/main 70acc36) on 2026-11-13. Nothing is pinned in the project and nothing runs in CI.
+
+| Tool         | Version                        | Source and verification                                                                                                                                                                                                                               | Run                                                                                                             | Time      |
+| ------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------- |
+| gitleaks     | 8.30.1                         | official release `gitleaks_8.30.1_windows_x64.zip`, SHA-256 against `gitleaks_8.30.1_checksums.txt`                                                                                                                                                   | `gitleaks git --redact --no-banner --log-opts=--all --report-format json` on the infra repo and its theme clone | 2 s / 1 s |
+| cosign       | 3.1.4                          | official release `cosign-windows-amd64.exe`, SHA-256 against `cosign_checksums.txt`                                                                                                                                                                   | `verify-blob` of the trivy checksums                                                                            | <1 s      |
+| trivy        | 0.76.2                         | official release `trivy_0.76.2_windows-64bit.zip`, SHA-256, checksums file verified with cosign against `trivy_0.76.2_checksums.txt.sigstore.json` (identity `^https://github.com/aquasecurity/trivy/`, issuer `token.actions.githubusercontent.com`) | `trivy config` on an export of `stacks/` without the vault file                                                 | 3 s       |
+| ansible-lint | 26.11.0 (ansible-core 2.16.20) | PyPI into a dedicated venv in WSL (Ubuntu, Python 3.10.12)                                                                                                                                                                                            | `--offline`, default rules and a run restricted to the security rules                                           | 103 s     |
+
+- Location: `F:/ai/Tools/<tool>-<version>/`, outside every project.
+- The gitleaks run was preceded by a self-test on a synthetic repository with an invented token. The rule fired, and a grep for the value in report and console returned 0.
+- trivy downloaded its checks bundle (`ghcr.io/aquasecurity/trivy-checks`, digest `sha256:b591e919…`, 2.7 MB) into `--cache-dir`. No vulnerability database was needed for `config`; the cache folder already held one from an earlier run, 1.7 GB in total.
+- Reports stayed in the session scratchpad and were not copied. Findings are recorded by commit, path, line and rule only, never by value.
