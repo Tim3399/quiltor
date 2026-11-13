@@ -6,7 +6,9 @@ const url = process.env.QUILTOR_RENDER_URL;
 const [target] = process.argv.slice(2);
 if (!url || !target) throw new Error("The render URL and target path are required.");
 
-const browser = await chromium.launch({ headless: true });
+// The page is another user's book. Playwright adds --no-sandbox unless this is
+// exactly true; the container grants what the sandbox needs (see docker-compose.yml).
+const browser = await chromium.launch({ headless: true, chromiumSandbox: true });
 try {
   const page = await browser.newPage();
   await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 });

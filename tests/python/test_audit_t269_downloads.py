@@ -264,7 +264,7 @@ class ScannedLocks(unittest.TestCase):
 class PdfShellSandbox(unittest.TestCase):
     """6.13: the hosted PDF shell renders other people's text in Chromium."""
 
-    @unittest.expectedFailure  # S269-103
+    # S269-103
     def test_chromium_is_launched_with_its_sandbox(self) -> None:
         # Playwright adds --no-sandbox unless chromiumSandbox is exactly true.
         launch = re.search(r"chromium\.launch\((\{[^)]*\})\)", PDF_SIDECAR.read_text("utf-8"))
