@@ -178,8 +178,18 @@ def _positive_number_from_environment(name: str, default: float) -> float:
 HEADER_DEADLINE_SECONDS = _positive_number_from_environment(
     "QUILTOR_BACKUP_HEADER_DEADLINE_SECONDS", 20.0
 )
-BODY_DEADLINE_SECONDS = _positive_number_from_environment(
-    "QUILTOR_BACKUP_BODY_DEADLINE_SECONDS", 1800.0
+# The body deadline scales with the announced Content-Length, so a tiny upload cannot hold
+# a handler slot for as long as a huge one is allowed to: BODY_BASE_DEADLINE_SECONDS plus
+# length / BODY_MIN_RATE_BYTES_PER_SECOND. 30 s covers the round trips and a slow start;
+# 64 KiB/s is a line no backup should be slower than. That is 30 s for 1 KiB and about
+# 2.3 h for a 512 MiB blob. Manifests and the sync head have small limits, so they get
+# little more than the base. (A fixed 30 minutes let 16 accounts of 4 uploads fill all 64
+# slots with 1 KiB blobs.)
+BODY_BASE_DEADLINE_SECONDS = _positive_number_from_environment(
+    "QUILTOR_BACKUP_BODY_BASE_DEADLINE_SECONDS", 30.0
+)
+BODY_MIN_RATE_BYTES_PER_SECOND = _positive_number_from_environment(
+    "QUILTOR_BACKUP_BODY_MIN_RATE_BYTES_PER_SECOND", 64 * 1024
 )
 # One account may stage this many blob uploads at once. Each holds an (initially empty)
 # staging file of up to MAX_BLOB_BYTES that the quota pre-check cannot see yet, so without
@@ -836,8 +846,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return parts[3]
 
     def do_PUT(self) -> None:
-        # The headers are in; from here the body has its own, longer deadline.
-        self._reader.deadline = time.monotonic() + BODY_DEADLINE_SECONDS
+        # The headers are in; from here the body has its own deadline. The base holds until
+        # the announced length is known (below), so a slow token check cannot expire it.
+        self._reader.deadline = time.monotonic() + BODY_BASE_DEADLINE_SECONDS
         account = self._account()
         if account is None:
             return  # _account already wrote the 401 or 403
@@ -864,6 +875,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             maximum = MAX_MANIFEST_BYTES
         if length < 0 or length > maximum:
             return self._reply(413, {"error": "Payload too large."})
+        self._reader.deadline = time.monotonic() + (
+            BODY_BASE_DEADLINE_SECONDS + length / BODY_MIN_RATE_BYTES_PER_SECOND
+        )
 
         # Refuse an upload that cannot fit before reading a single byte of it.
         try:

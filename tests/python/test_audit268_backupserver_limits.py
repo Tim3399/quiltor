@@ -52,7 +52,7 @@ class TotalDeadlineTest(BackupServerCase):
         # Every recv may wait 0.5 s, the sum 1.2 s; the client pauses 0.2 s, well inside.
         self.server_module.CLIENT_SOCKET_TIMEOUT = 0.5
         self.server_module.HEADER_DEADLINE_SECONDS = 1.2
-        self.server_module.BODY_DEADLINE_SECONDS = 1.2
+        self.server_module.BODY_BASE_DEADLINE_SECONDS = 1.2
 
     def _assert_served_again(self) -> None:
         self.assertEqual(self.request("GET", "/v1/account")[0], 200)
@@ -66,7 +66,9 @@ class TotalDeadlineTest(BackupServerCase):
         self.assertLess(ended, 2.5)
         self._assert_served_again()
 
-    def test_f268_15_a_body_trickle_ends_after_the_body_deadline(self) -> None:
+    def test_f268_15_a_small_blob_trickle_ends_after_the_base_deadline_not_a_large_one(
+        self,
+    ) -> None:
         payload = b"x" * 100
         digest = hashlib.sha256(payload).hexdigest()
         with socket.create_connection(("127.0.0.1", self.port)) as sock:
@@ -80,6 +82,14 @@ class TotalDeadlineTest(BackupServerCase):
             time.sleep(0.05)
         self.assertEqual(self.stored_files(), [], "the abandoned staging file is removed")
         self._assert_served_again()
+
+    def test_f268_15_the_body_deadline_grows_with_the_announced_length(self) -> None:
+        self.server_module.BODY_MIN_RATE_BYTES_PER_SECOND = 1  # 100 bytes: 1.2 s + 100 s
+        payload = b"x" * 100
+        digest = hashlib.sha256(payload).hexdigest()
+        with socket.create_connection(("127.0.0.1", self.port)) as sock:
+            sock.sendall(put_head(digest, len(payload)))
+            self.assertIsNone(trickle(sock, pause=0.2, limit=2.5), "cut off at the base alone")
 
     def test_f268_15_a_prompt_upload_is_not_cut_off_by_the_deadlines(self) -> None:
         payload = b"x" * 100
