@@ -109,7 +109,6 @@ class BodyReadingTests(_LiveAuthServerTestCase):
     # without limit for a body that never comes. Each such request holds one
     # thread (ThreadingTCPServer, daemon_threads, :1082-1094). The test records
     # the timeout in effect while the body is read.
-    @unittest.expectedFailure
     def test_body_is_read_with_a_socket_timeout(self):
         session = self._login("user-slow")
         world = self._world(session)
