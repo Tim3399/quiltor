@@ -50,7 +50,7 @@ import {
   type DraftOwner,
   draftChanges,
   readDraft,
-  removeAllDrafts,
+  forgetAccountOnDevice,
   removeDraft,
   type StoredDraft,
   writeDraft,
@@ -821,8 +821,9 @@ export function App() {
       return;
     }
     if (!releaseDocuments({ clear: false })) return;
-    // Drafts belong to the person signed in on this device; signing out leaves none behind.
-    removeAllDrafts(shell.account?.sub);
+    // Drafts and assistant history belong to the person signed in on this device;
+    // signing out leaves none behind.
+    forgetAccountOnDevice(shell.account?.sub);
     shell.logout();
   }, [flushAll, releaseDocuments, shell.account?.sub, shell.logout]);
 
@@ -1037,6 +1038,7 @@ export function App() {
               onCloseOverlay={overlays.close}
               assistantOpen={overlays.assistantOpen}
               assistantEverOpened={overlays.assistantEverOpened}
+              accountSub={shell.account?.sub}
               onCloseAssistant={overlays.closeAssistant}
               worldId={session.world.id}
               manuscript={manuscript}
