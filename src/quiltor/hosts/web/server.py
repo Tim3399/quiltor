@@ -678,7 +678,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ui_locale = requested.strip().lower()
         try:
             authorize_url, state = self.application.identity.auth.start_login(
-                redirect_uri, ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None
+                redirect_uri,
+                ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None,
+                client=str(self.client_address[0]),
             )
         except ProviderUnavailable as exc:
             self.application.observability.logger.event(
@@ -727,11 +729,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 error_type=type(exc).__name__,
             )
             return self.send_redirect("/?authError=exchange")
-        session_id = self.application.identity.auth.create_session(
-            str(claims.get("sub", "")),
-            str(claims.get("email", "")),
-            str(claims.get("name") or claims.get("preferred_username") or ""),
-        )
+        try:
+            session_id = self.application.identity.auth.create_session(
+                str(claims.get("sub", "")),
+                str(claims.get("email", "")),
+                str(claims.get("name") or claims.get("preferred_username") or ""),
+            )
+        except RuntimeError:
+            # The session store is full of other accounts' sessions: ask the author to
+            # try again shortly rather than answer 500 (S268-3).
+            self.application.observability.logger.event(
+                "warning", "identity.login_unavailable", error_type="RuntimeError"
+            )
+            return self.send_login_unavailable(self.accepted_login_language())
         # Keep the provider's own tokens on the session. In this deployment the
         # backup endpoint is guarded by the very issuer this login just went
         # through, so the access token that came back is already the one that

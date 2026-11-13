@@ -13,6 +13,7 @@ import unittest
 import urllib.parse
 from typing import Any
 
+from quiltor.infrastructure.identity.runtime import MAX_SESSIONS_PER_SUB
 from tests.python.test_audit268_identity_support import (
     CLIENT_ID,
     ISSUER,
@@ -377,28 +378,20 @@ class CookieAndLogoutTests(HostedHarness):
 class LoginCapacityTests(HostedHarness):
     """1.14 pending logins, 1.15 session capacity."""
 
-    def test_anonymous_login_starts_evict_the_oldest_pending_login(self) -> None:
-        """S268-2: 257 anonymous `GET /login` bring another browser's login down."""
-        self.provider.add_account("alice")
-        location, state, cookie = self.begin_login()
-        code = self.provider.authorize(location, "alice")
-        for _ in range(256):
-            self.begin_login()
-        _, headers, _, _ = self.request(
-            "GET", f"/auth/callback?code={code}&state={state}", cookies={STATE_COOKIE: cookie}
-        )
-        # Documents the present behaviour: the victim's login is gone.
-        self.assertEqual(headers["location"], "/?authError=expired")
+    def test_an_anonymous_flood_of_login_starts_is_refused_with_a_retry_page(self) -> None:
+        """S268-2: a client address that holds its share of open logins gets 503, not more."""
+        statuses = [self.request("GET", "/login")[0] for _ in range(80)]
+        self.assertEqual(statuses.count(302), 64)
+        self.assertEqual(set(statuses) - {302}, {503})
 
-    @unittest.expectedFailure
     def test_an_anonymous_flood_of_login_starts_does_not_break_a_login_in_progress(self) -> None:
-        """S268-2: this has to turn green once logins of other browsers are not evicted
-        (a per-address cap, or pending entries that expire the flooder first)."""
+        """S268-2: logins of other browsers are not evicted by a flood (a per-address cap
+        that refuses the flooder instead of displacing what is pending)."""
         self.provider.add_account("alice")
         location, state, cookie = self.begin_login()
         code = self.provider.authorize(location, "alice")
         for _ in range(300):
-            self.begin_login()
+            self.request("GET", "/login")
         _, headers, _, _ = self.request(
             "GET", f"/auth/callback?code={code}&state={state}", cookies={STATE_COOKIE: cookie}
         )
@@ -413,7 +406,7 @@ class LoginCapacityTests(HostedHarness):
 
     def test_pending_logins_never_exceed_the_cap_and_expire(self) -> None:
         for _ in range(300):
-            self.begin_login()
+            self.request("GET", "/login")
         self.assertLessEqual(len(self.gateway._pending), 256)
         self.clock.advance(601)
         self.begin_login()
@@ -423,8 +416,8 @@ class LoginCapacityTests(HostedHarness):
         for index in range(count):
             self.gateway.create_session(f"filler-{index}", "", "")
 
-    def test_a_full_session_store_turns_the_callback_into_a_500_without_interna(self) -> None:
-        """S268-3: one account that logs in 4096 times locks everybody else out."""
+    def test_a_full_session_store_turns_the_callback_into_a_503_without_interna(self) -> None:
+        """S268-3: sessions of 4096 other accounts fill the store; a login is asked to retry."""
         self._fill_sessions(4096)
         self.provider.add_account("bob")
         location, state, cookie = self.begin_login()
@@ -432,12 +425,11 @@ class LoginCapacityTests(HostedHarness):
         status, _headers, body, set_cookies = self.request(
             "GET", f"/auth/callback?code={code}&state={state}", cookies={STATE_COOKIE: cookie}
         )
-        self.assertEqual(status, 500)
+        self.assertEqual(status, 503)
         self.assertNotIn(b"capacity", body.lower())
         self.assertNotIn(b"Traceback", body)
         self.assertFalse([c for c in set_cookies if c.startswith(SESSION_COOKIE + "=")])
 
-    @unittest.expectedFailure
     def test_one_account_cannot_fill_the_session_store_for_everybody(self) -> None:
         """S268-3: sessions of one `sub` are capped, or the oldest session of the same
         `sub` is replaced, so the global capacity cannot be taken by one account."""
@@ -453,6 +445,16 @@ class LoginCapacityTests(HostedHarness):
             "GET", f"/auth/callback?code={code}&state={state}", cookies={STATE_COOKIE: cookie}
         )
         self.assertEqual(headers["location"], "/")
+
+    def test_the_oldest_session_of_the_same_account_is_the_one_that_goes(self) -> None:
+        """S268-3: at the per-account cap the account's own oldest session is replaced."""
+        other = self.gateway.create_session("someone-else", "", "")
+        first = self.gateway.create_session("greedy", "", "")
+        self.clock.advance(1)
+        ids = [self.gateway.create_session("greedy", "", "") for _ in range(MAX_SESSIONS_PER_SUB)]
+        self.assertIsNone(self.gateway.get_session(first))
+        self.assertTrue(all(self.gateway.get_session(key) for key in ids))
+        self.assertIsNotNone(self.gateway.get_session(other))
 
     def test_sessions_of_expired_logins_make_room_again(self) -> None:
         self._fill_sessions(4096)

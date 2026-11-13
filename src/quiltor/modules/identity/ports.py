@@ -48,6 +48,7 @@ class IdentityGateway(Protocol):
         issuer: str | None = None,
         client_id: str | None = None,
         ui_locales: str | None = None,
+        client: str = "",
     ) -> tuple[str, str]: ...
 
     def consume_pending_login(self, state: str) -> dict[str, Any] | None: ...
@@ -105,6 +106,11 @@ class IdentityGateway(Protocol):
     def session_access_token(self, session_id: str, *, leeway: float = 30) -> str: ...
 
     def destroy_session(self, session_id: str | None) -> None: ...
+
+    def premium_confirmed(self, sub: str) -> bool:
+        """True only while a session of `sub` holds `premium`, confirmed by the provider
+        within the last ROLE_FRESH_SECONDS. No session, logout, expiry or restart: False."""
+        ...
 
     def owner_session(self, sub: str) -> tuple[str, SessionData]: ...
 

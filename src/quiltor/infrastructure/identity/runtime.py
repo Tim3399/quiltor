@@ -27,13 +27,29 @@ from quiltor.modules.identity.auth import (
     pkce_challenge,
     verify_id_token,
 )
+from quiltor.modules.identity.service import DEFAULT_PREMIUM_ROLE
 
 MAX_OIDC_RESPONSE_BYTES = 1024 * 1024
 MAX_TOKEN_RESPONSE_BYTES = 64 * 1024
 MAX_DISCOVERY_ISSUERS = 16
 MAX_JWKS_KEYS = 32
 MAX_PENDING_LOGINS = 256
+#: Open logins one client address may hold. A flood from one address is refused
+#: instead of displacing the logins other browsers have in progress (S268-2); a
+#: real login is over in seconds, so 64 in flight behind one address is generous.
+MAX_PENDING_LOGINS_PER_CLIENT = 64
 MAX_SESSIONS = 4096
+#: Sessions one account may hold at once. Every login makes a new session (no
+#: fixation), so without a bound one account could fill MAX_SESSIONS and lock
+#: everybody else out (S268-3). Ten covers a person's browsers and devices plus
+#: PDF render sessions; beyond that the account's own oldest session makes room.
+MAX_SESSIONS_PER_SUB = 10
+#: How long roles read from the provider are trusted without a new confirmation
+#: (a refresh that returned a verified ID token, or the login itself). Twice the
+#: realm's 300 s access-token lifetime, so one missed refresh does not cost the
+#: roles, and short enough that a withdrawn role or a blocked account stops
+#: counting soon after the provider can no longer be asked (S268-4, S268-5).
+ROLE_FRESH_SECONDS = 600
 DISCOVERY_TTL_SECONDS = 60 * 60
 JWKS_TTL_SECONDS = 15 * 60
 JWKS_MIN_REFRESH_SECONDS = 30
@@ -54,6 +70,14 @@ class ProviderUnavailable(ValueError):
 
     Everything else that goes wrong with a provider response (bad content type,
     bad JSON, a 4xx) is not transient and stays a plain ValueError.
+    """
+
+
+class LoginCapacityReached(ProviderUnavailable):
+    """This client address already holds as many open logins as it may.
+
+    A ProviderUnavailable, so the login route answers it with the same "try again
+    in a moment" page instead of a 500.
     """
 
 
@@ -156,6 +180,8 @@ class StdlibIdentityGateway:
         self._owner_sessions: dict[str, str] = {}
         self._pending: dict[str, dict[str, Any]] = {}
         self._refresh_locks: dict[str, threading.Lock] = {}
+        #: session id -> gateway-clock time its roles were last confirmed by the provider
+        self._roles_confirmed: dict[str, float] = {}
         if self.issuer:
             self._validate_issuer(self.issuer)
 
@@ -193,6 +219,7 @@ class StdlibIdentityGateway:
             self._owner_sessions.clear()
             self._pending.clear()
             self._refresh_locks.clear()
+            self._roles_confirmed.clear()
 
     @staticmethod
     def _origin(url: str) -> str:
@@ -324,6 +351,7 @@ class StdlibIdentityGateway:
         issuer: str | None = None,
         client_id: str | None = None,
         ui_locales: str | None = None,
+        client: str = "",
     ) -> tuple[str, str]:
         document = self.discover(issuer)
         selected_client = client_id if client_id is not None else self.client_id
@@ -332,10 +360,18 @@ class StdlibIdentityGateway:
         nonce = self._token_factory(24)
         with self._lock:
             self._purge_pending()
+            # Refuse rather than evict: the flooder is turned away and the logins
+            # already in progress stay (S268-2).
+            if (
+                sum(1 for entry in self._pending.values() if entry.get("client") == client)
+                >= MAX_PENDING_LOGINS_PER_CLIENT
+            ):
+                raise LoginCapacityReached("Too many open logins from this client.")
             if len(self._pending) >= MAX_PENDING_LOGINS:
                 oldest = min(self._pending, key=lambda key: self._pending[key]["created_at"])
                 self._pending.pop(oldest, None)
             self._pending[state] = {
+                "client": client,
                 "verifier": verifier,
                 "redirect_uri": redirect_uri,
                 "nonce": nonce,
@@ -526,6 +562,7 @@ class StdlibIdentityGateway:
         for key in stale:
             self._sessions.pop(key, None)
             self._refresh_locks.pop(key, None)
+            self._roles_confirmed.pop(key, None)
         for owner, key in list(self._owner_sessions.items()):
             if key not in self._sessions:
                 self._owner_sessions.pop(owner, None)
@@ -540,6 +577,11 @@ class StdlibIdentityGateway:
             raise ValueError("Invalid session lifetime.")
         with self._lock:
             self._purge_sessions()
+            same_account = [key for key, held in self._sessions.items() if held.sub == sub]
+            if len(same_account) >= MAX_SESSIONS_PER_SUB:
+                # The account's own oldest session makes room, never somebody else's.
+                oldest = min(same_account, key=lambda key: self._sessions[key].created_at)
+                self._drop_session(oldest)
             if len(self._sessions) >= MAX_SESSIONS:
                 raise RuntimeError("Identity session capacity has been reached.")
             self._sessions[session_id] = SessionData(
@@ -551,6 +593,40 @@ class StdlibIdentityGateway:
                 session_id=session_id,
             )
         return session_id
+
+    def _drop_session(self, session_id: str) -> None:
+        self._sessions.pop(session_id, None)
+        self._refresh_locks.pop(session_id, None)
+        self._roles_confirmed.pop(session_id, None)
+        for owner, key in list(self._owner_sessions.items()):
+            if key == session_id:
+                self._owner_sessions.pop(owner, None)
+
+    def _view(self, session: SessionData) -> SessionData:
+        """The session as callers see it: roles nobody confirmed lately count as empty.
+
+        The stored session keeps its roles, so the next confirmation restores them.
+        """
+        if not session.roles:
+            return session
+        confirmed = self._roles_confirmed.get(session.session_id)
+        if confirmed is not None and self._clock() - confirmed <= ROLE_FRESH_SECONDS:
+            return session
+        return replace(session, roles=())
+
+    def premium_confirmed(self, sub: str) -> bool:
+        """Whether a session of `sub` holds the premium role, confirmed recently enough.
+
+        Reads only; it never asks the provider. No session, a logged-out or expired
+        session and a restart all answer False.
+        """
+        with self._lock:
+            self._purge_sessions()
+            return any(
+                DEFAULT_PREMIUM_ROLE in self._view(held).roles
+                for held in self._sessions.values()
+                if held.sub == sub
+            )
 
     @staticmethod
     def _token_text(tokens: dict[str, Any], name: str) -> str:
@@ -597,7 +673,9 @@ class StdlibIdentityGateway:
                 refresh_retry_at=0.0,
             )
             self._sessions[session_id] = updated
-            return updated
+            if verified_claims is not None:
+                self._roles_confirmed[session_id] = self._clock()
+            return self._view(updated)
 
     def _refresh_due(self, session: SessionData, leeway: float) -> bool:
         """Whether the access token has run out and no backoff is pending.
@@ -664,7 +742,7 @@ class StdlibIdentityGateway:
                 return None
             latest = replace(latest, refresh_retry_at=self._clock() + REFRESH_BACKOFF_SECONDS)
             self._sessions[session_id] = latest
-            return latest
+            return self._view(latest)
 
     def session_access_token(self, session_id: str, *, leeway: float = 30) -> str:
         """A usable access token for backups, refreshed if needed; "" if there is none.
@@ -683,17 +761,14 @@ class StdlibIdentityGateway:
             return None
         with self._lock:
             self._purge_sessions()
-            return self._sessions.get(session_id)
+            held = self._sessions.get(session_id)
+            return self._view(held) if held is not None else None
 
     def destroy_session(self, session_id: str | None) -> None:
         if not session_id:
             return
         with self._lock:
-            self._sessions.pop(session_id, None)
-            self._refresh_locks.pop(session_id, None)
-            for owner, key in list(self._owner_sessions.items()):
-                if key == session_id:
-                    self._owner_sessions.pop(owner, None)
+            self._drop_session(session_id)
 
     def owner_session(self, sub: str) -> tuple[str, SessionData]:
         with self._lock:
