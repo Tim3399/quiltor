@@ -7,6 +7,9 @@ import { resolveDesignPort } from "./tools/dev/design-port.mjs";
 export default defineConfig({
   root: fileURLToPath(new URL("./apps/design-gallery", import.meta.url)),
   plugins: [react()],
+  // WebLLM is reached only through a dynamic import (T-61 part 7). Without this, Vite finds it
+  // mid-run, re-optimises and invalidates every lazy module a page is importing at that moment.
+  optimizeDeps: { include: ["@mlc-ai/web-llm"] },
   server: {
     host: "127.0.0.1",
     port: resolveDesignPort(),
