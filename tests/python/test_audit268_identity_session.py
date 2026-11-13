@@ -11,6 +11,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
+from quiltor.infrastructure.identity.runtime import ROLE_FRESH_SECONDS
 from tests.python.test_audit268_identity_support import SESSION_COOKIE, HostedHarness
 
 
@@ -79,26 +80,26 @@ class RoleAndAccountFollowTheProviderTests(HostedHarness):
 
     # ----- 2.4e branch 2: no refresh token or no expiry: nothing is ever asked again
 
-    def test_branch2_a_session_without_refresh_token_keeps_its_roles_for_a_day(self) -> None:
-        """S268-4: `_refresh_due` is False without refresh_token or access_expires_at, so a
-        withdrawn role or a disabled account is never noticed until the 24 h session ends."""
+    def test_branch2_a_session_without_refresh_token_keeps_the_session_but_not_the_roles(
+        self,
+    ) -> None:
+        """S268-4: `_refresh_due` is False without refresh_token or access_expires_at, so the
+        provider is never asked; the session lasts, the roles stop counting after the bound."""
         self.provider.grant_omits_refresh_token = True
         session = self.login("alice", roles=("premium",))
         self.provider.accounts["alice"]["roles"] = []
         self.provider.accounts["alice"]["disabled"] = True
         self.clock.advance(23 * 3600)
-        # Documents the present behaviour: still logged in, still premium.
         self.assertEqual(self.whoami(session), 200)
-        self.assertTrue(self.serverai(session))
+        self.assertFalse(self.serverai(session))
 
     def test_branch2_a_session_without_token_lifetime_is_never_refreshed(self) -> None:
         self.provider.grant_omits_expires_in = True
         session = self.login("alice", roles=("premium",))
         self.provider.accounts["alice"]["roles"] = []
         self.clock.advance(23 * 3600)
-        self.assertTrue(self.serverai(session))
+        self.assertFalse(self.serverai(session))
 
-    @unittest.expectedFailure
     def test_branch2_a_withdrawn_role_is_noticed_even_without_a_refresh_token(self) -> None:
         """S268-4: a session that cannot be refreshed must not keep roles for 24 h, e.g.
         its entitlement expires with a short horizon, or the login is refused outright."""
@@ -110,18 +111,16 @@ class RoleAndAccountFollowTheProviderTests(HostedHarness):
 
     # ----- 2.4e branch 3: refresh answer without id_token
 
-    def test_branch3_a_refresh_without_id_token_keeps_the_old_roles(self) -> None:
+    def test_branch3_a_refresh_without_id_token_keeps_the_session(self) -> None:
         """S268-4: the roles are only re-read from a verified id_token; an answer without one
-        renews the access token and leaves the old roles in place, again and again."""
+        renews the access token and the session stays."""
         session = self.login("alice", roles=("premium",))
         self.provider.accounts["alice"]["roles"] = []
         self.provider.refresh_omits_id_token = True
         for _ in range(5):
             self.clock.advance(300)
             self.assertEqual(self.whoami(session), 200)
-        self.assertTrue(self.serverai(session))
 
-    @unittest.expectedFailure
     def test_branch3_a_refresh_without_id_token_does_not_confirm_the_roles(self) -> None:
         """S268-4: an answer that carries no id_token must not extend the trust in old roles."""
         session = self.login("alice", roles=("premium",))
@@ -134,9 +133,9 @@ class RoleAndAccountFollowTheProviderTests(HostedHarness):
 
     # ----- 2.4e branch 4: the provider fails
 
-    def test_branch4_a_failing_provider_keeps_session_and_roles_without_a_bound(self) -> None:
+    def test_branch4_a_failing_provider_keeps_the_session_but_not_the_roles(self) -> None:
         """S268-5: 5xx, timeout, invalid_client and every other non-invalid_grant answer
-        keep the session and its roles; there is no upper bound on how stale they get."""
+        keep the session; the roles stop counting once the bound has passed."""
         session = self.login("alice", roles=("premium",))
         self.provider.accounts["alice"]["roles"] = []
         for mode in ("5xx", "unreachable", "invalid_client"):
@@ -144,7 +143,7 @@ class RoleAndAccountFollowTheProviderTests(HostedHarness):
                 self.provider.refresh_mode = mode
                 self.clock.advance(3600)
                 self.assertEqual(self.whoami(session), 200)
-                self.assertTrue(self.serverai(session))
+                self.assertFalse(self.serverai(session))
 
     def test_branch4_the_backoff_limits_requests_to_the_provider(self) -> None:
         session = self.login("alice", roles=("premium",))
@@ -158,7 +157,6 @@ class RoleAndAccountFollowTheProviderTests(HostedHarness):
         self.whoami(session)
         self.assertEqual(len(self.provider.requests) - before, 2)
 
-    @unittest.expectedFailure
     def test_branch4_stale_roles_do_not_outlive_a_bound(self) -> None:
         """S268-5: after the provider has been unreachable for longer than a stated bound
         (hours at most) the session stops counting as premium."""
@@ -190,6 +188,45 @@ class RoleAndAccountFollowTheProviderTests(HostedHarness):
         self.json_request("POST", "/logout", {}, cookies={SESSION_COOKIE: session})
         self.assertIsNone(self.gateway.get_session(session))
         self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).cancel.called)
+
+
+class PremiumConfirmedTests(HostedHarness):
+    """S268-100: the port method the job runner asks, never the session's stale roles."""
+
+    def test_a_fresh_premium_session_is_confirmed(self) -> None:
+        self.login("alice", roles=("premium",))
+        self.assertTrue(self.gateway.premium_confirmed("alice"))
+
+    def test_a_fresh_session_without_premium_is_not_confirmed(self) -> None:
+        self.login("alice", roles=("other",))
+        self.assertFalse(self.gateway.premium_confirmed("alice"))
+
+    def test_a_stale_confirmation_is_not_enough(self) -> None:
+        self.provider.grant_omits_refresh_token = True
+        self.login("alice", roles=("premium",))
+        self.clock.advance(ROLE_FRESH_SECONDS - 1)
+        self.assertTrue(self.gateway.premium_confirmed("alice"))
+        self.clock.advance(2)
+        self.assertFalse(self.gateway.premium_confirmed("alice"))
+
+    def test_a_refresh_confirms_again(self) -> None:
+        session = self.login("alice", roles=("premium",))
+        for _ in range(4):
+            self.clock.advance(300)
+            self.json_request("GET", "/api/whoami", cookies={SESSION_COOKIE: session})
+            self.assertTrue(self.gateway.premium_confirmed("alice"))
+
+    def test_no_session_logout_and_unknown_account_are_not_confirmed(self) -> None:
+        self.assertFalse(self.gateway.premium_confirmed("nobody"))
+        session = self.login("alice", roles=("premium",))
+        self.assertFalse(self.gateway.premium_confirmed("bob"))
+        self.json_request("POST", "/logout", {}, cookies={SESSION_COOKIE: session})
+        self.assertFalse(self.gateway.premium_confirmed("alice"))
+
+    def test_an_expired_session_is_not_confirmed(self) -> None:
+        self.login("alice", roles=("premium",))
+        self.clock.advance(24 * 3600 + 1)
+        self.assertFalse(self.gateway.premium_confirmed("alice"))
 
 
 class RenderTokenTests(HostedHarness):
