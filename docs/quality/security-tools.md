@@ -10,7 +10,7 @@ Rules that applied to every run (decisions D-192, D-195):
 - Official release binaries only, no Docker image and no GitHub Action variant.
 - SHA-256 checked against the checksum file of the same release before first use; trivy also
   through Sigstore, because trivy 0.69.4 to 0.69.6 were compromised releases.
-- Stored under `C:/Users/timra/tools/<tool>-<version>/`, outside every repository.
+- Stored under `F:/ai/Tools/<tool>-<version>/`, outside every repository.
 - Read-only runs. Reports that may contain secret values stay in a scratch directory;
   findings are recorded by location and rule only, never by value.
 - Anything that downloads more (vulnerability databases, image layers, pip packages) needs
@@ -101,7 +101,7 @@ distribution/web/self-hosted/package-lock.json`, and the same lock list on the `
 
 ### pip-audit 2.10.1
 
-- **Source:** PyPI, in its own venv `C:/Users/timra/tools/pip-audit/venv` (Python 3.12.10).
+- **Source:** PyPI, in its own venv `F:/ai/Tools/pip-audit/venv` (Python 3.12.10).
 - **SHA-256:** `pip download --only-binary=:all:` into an empty directory; each of the 29
   wheels compared with the digest from PyPI's JSON API (all matched), then
   `pip install --no-index --require-hashes -r <tools>/pip-audit/requirements.txt`.
