@@ -8,11 +8,15 @@ the decorator is the thing that has to go.
 
 from __future__ import annotations
 
+import os
 import time
 import unittest
 import urllib.parse
 from typing import Any
+from unittest.mock import patch
 
+from quiltor.bootstrap import build_identity, build_web_application
+from quiltor.bootstrap.web import trusted_proxies
 from quiltor.infrastructure.identity.runtime import MAX_SESSIONS_PER_SUB
 from tests.python.test_audit268_identity_support import (
     CLIENT_ID,
@@ -21,6 +25,7 @@ from tests.python.test_audit268_identity_support import (
     SESSION_COOKIE,
     STATE_COOKIE,
     HostedHarness,
+    make_directories,
 )
 
 
@@ -378,20 +383,79 @@ class CookieAndLogoutTests(HostedHarness):
 class LoginCapacityTests(HostedHarness):
     """1.14 pending logins, 1.15 session capacity."""
 
-    def test_an_anonymous_flood_of_login_starts_is_refused_with_a_retry_page(self) -> None:
-        """S268-2: a client address that holds its share of open logins gets 503, not more."""
+    def _behind_proxy(self) -> None:
+        """The test client connects from 127.0.0.1, which stands in for the proxy."""
+        self.application.trusted_proxies = frozenset({"127.0.0.1"})
+
+    def _start_from(self, client: str) -> int:
+        return self.request("GET", "/login", headers={"X-Forwarded-For": client})[0]
+
+    def test_without_trusted_proxies_there_is_no_per_client_limit(self) -> None:
+        """S268-2: the server cannot tell clients apart, so only the global cap applies."""
         statuses = [self.request("GET", "/login")[0] for _ in range(80)]
+        self.assertEqual(set(statuses), {302})
+
+    def test_without_trusted_proxies_a_forwarded_header_is_not_believed(self) -> None:
+        statuses = [self._start_from(f"203.0.113.{index}") for index in range(80)]
+        self.assertEqual(set(statuses), {302})
+
+    def test_behind_a_trusted_proxy_each_forwarded_client_is_counted_on_its_own(self) -> None:
+        self._behind_proxy()
+        flooder = [self._start_from("203.0.113.1") for _ in range(80)]
+        self.assertEqual(flooder.count(302), 64)
+        self.assertEqual(set(flooder) - {302}, {503})
+        self.assertEqual(self._start_from("203.0.113.2"), 302)
+
+    def test_the_last_forwarded_entry_counts_not_one_the_client_wrote(self) -> None:
+        self._behind_proxy()
+        statuses = [self._start_from(f"198.51.100.{index}, 203.0.113.1") for index in range(80)]
         self.assertEqual(statuses.count(302), 64)
         self.assertEqual(set(statuses) - {302}, {503})
 
+    def test_a_trusted_proxy_without_a_usable_forwarded_entry_gives_no_limit(self) -> None:
+        self._behind_proxy()
+        statuses = [self.request("GET", "/login")[0] for _ in range(80)]
+        self.assertEqual(set(statuses), {302})
+        statuses = [self._start_from("not-an-address") for _ in range(80)]
+        self.assertEqual(set(statuses), {302})
+
+    def test_a_forged_forwarded_header_from_another_address_is_ignored(self) -> None:
+        """The connection is not from a trusted proxy: it counts under its own address."""
+        self.application.trusted_proxies = frozenset({"10.9.8.7"})
+        statuses = [self._start_from(f"203.0.113.{index}") for index in range(80)]
+        self.assertEqual(statuses.count(302), 64)
+        self.assertEqual(set(statuses) - {302}, {503})
+
+    def test_an_invalid_trusted_proxies_setting_stops_the_start(self) -> None:
+        for text in ("proxy.example", "10.0.0.0/8", "10.0.0.1,", "10.0.0.1 10.0.0.2", "999.1.1.1"):
+            with self.subTest(text=text):
+                with self.assertRaisesRegex(RuntimeError, "QUILTOR_TRUSTED_PROXIES"):
+                    trusted_proxies(text)
+        self.assertEqual(trusted_proxies(""), frozenset())
+        self.assertEqual(trusted_proxies("10.0.0.1, ::1"), frozenset({"10.0.0.1", "::1"}))
+        with patch.dict(os.environ, {"QUILTOR_TRUSTED_PROXIES": "nope"}):
+            with self.assertRaisesRegex(RuntimeError, "QUILTOR_TRUSTED_PROXIES"):
+                build_web_application(
+                    identity=build_identity(True, gateway=self.gateway),
+                    ensure_assistant_installed=False,
+                    app_directories=make_directories(self.root / "second"),
+                )
+
     def test_an_anonymous_flood_of_login_starts_does_not_break_a_login_in_progress(self) -> None:
-        """S268-2: logins of other browsers are not evicted by a flood (a per-address cap
-        that refuses the flooder instead of displacing what is pending)."""
+        """S268-2: behind a proxy, a flood from one client does not evict the logins of
+        others (a per-address cap that refuses the flooder instead of displacing them)."""
+        self._behind_proxy()
         self.provider.add_account("alice")
-        location, state, cookie = self.begin_login()
+        _, headers, _, cookies = self.request(
+            "GET", "/login", headers={"X-Forwarded-For": "203.0.113.2"}
+        )
+        location = headers["location"]
+        state = _query(location)["state"]
+        cookie = next(c for c in cookies if c.startswith(STATE_COOKIE + ""))
+        cookie = cookie.split(";", 1)[0].split("=", 1)[1]
         code = self.provider.authorize(location, "alice")
         for _ in range(300):
-            self.request("GET", "/login")
+            self._start_from("203.0.113.1")
         _, headers, _, _ = self.request(
             "GET", f"/auth/callback?code={code}&state={state}", cookies={STATE_COOKIE: cookie}
         )
