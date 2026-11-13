@@ -163,6 +163,7 @@ _lock = threading.Lock()
 _discovery: dict[str, dict] = {}
 _tokens: dict[str, tuple[float, dict]] = {}
 _account_locks: dict[str, threading.RLock] = {}
+STAGING_PREFIX = ".quiltor-upload-"
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -299,12 +300,30 @@ def _account_lock(account: str) -> threading.RLock:
         return _account_locks.setdefault(account, threading.RLock())
 
 
+def _resolved(path: Path) -> Path:
+    r"""`path.resolve()` without the Windows extended-length prefix.
+
+    While a sibling upload renames or removes a file in the same directory, Windows can
+    make the resolution of a path come back as `\\?\C:\...`. The same location then no
+    longer sits under `ROOT`, and a harmless concurrent upload was refused as an unsafe
+    destination (400 instead of 507, Windows CI runs 43465440525 and 43473691046).
+    """
+
+    resolved = path.resolve(strict=False)
+    text = str(resolved)
+    if text.startswith("\\\\?\\UNC\\"):
+        return Path("\\\\" + text[8:])
+    if text.startswith("\\\\?\\"):
+        return Path(text[4:])
+    return resolved
+
+
 def _safe_storage_path(*parts: str) -> Path:
     """Resolve a store path without accepting symlink/reparse escapes."""
 
     target = ROOT.joinpath(*parts)
     try:
-        target.resolve(strict=False).relative_to(ROOT.resolve(strict=False))
+        _resolved(target).relative_to(_resolved(ROOT))
     except (OSError, ValueError) as exc:
         raise BackupContractError(
             "unsafe_backup_destination", "Backup destination failed safety checks."
@@ -341,7 +360,15 @@ def _account_usage(account: str) -> int:
             )
         for name in (*names, *files):
             path = directory_path / name
-            if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
+            try:
+                linked = path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
+            except OSError as exc:
+                if name.startswith(STAGING_PREFIX):
+                    continue  # a sibling upload's staging file mid-rename (Windows)
+                raise BackupContractError(
+                    "unsafe_backup_destination", "Backup destination failed safety checks."
+                ) from exc
+            if linked:
                 raise BackupContractError(
                     "unsafe_backup_destination", "Backup destination failed safety checks."
                 )
@@ -354,6 +381,14 @@ def _account_usage(account: str) -> int:
                 # it. A file that is gone takes no space; the check under the account lock
                 # counts again.
                 continue
+            except PermissionError as exc:
+                # Windows reports a file that is being renamed or deleted ("delete pending")
+                # as access denied. For a sibling's staging file that is the same as gone.
+                if name.startswith(STAGING_PREFIX):
+                    continue
+                raise BackupContractError(
+                    "backup_content_integrity", "Backup content failed integrity verification."
+                ) from exc
             except OSError as exc:
                 raise BackupContractError(
                     "backup_content_integrity", "Backup content failed integrity verification."
@@ -844,9 +879,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 _safe_storage_path(*target.relative_to(ROOT).parts)
-                descriptor, staged_name = tempfile.mkstemp(
-                    prefix=".quiltor-upload-", dir=target.parent
-                )
+                descriptor, staged_name = tempfile.mkstemp(prefix=STAGING_PREFIX, dir=target.parent)
             except (BackupContractError, OSError):
                 return self._reply(400, {"error": "Backup payload failed validation."})
             staged = Path(staged_name)
