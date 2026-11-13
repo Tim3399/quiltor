@@ -47,6 +47,7 @@ import http.cookies
 import http.server
 import json
 import os
+import socket
 import socketserver
 import sqlite3
 import sys
@@ -1097,7 +1098,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return
         if path == RELAY_POLL_PATH:
             # Checked after the guards, so only a signed-in caller can occupy a slot.
-            slots = self.server.relay_poll_slots
+            slots = cast(Server, self.server).relay_poll_slots
             if not slots.acquire(blocking=False):
                 self._discard_unread_body()
                 return self.send_json(
@@ -1160,7 +1161,10 @@ class Server(socketserver.ThreadingTCPServer):
     def process_request(self, request, client_address) -> None:
         # A full house gets its 503 on the accepting thread instead of one more handler.
         if not self._thread_slots.acquire(blocking=False):
+            # A TCP server's request is a socket; the base type also allows a UDP tuple.
             try:
+                if not isinstance(request, socket.socket):
+                    raise OSError
                 request.settimeout(1)
                 request.sendall(
                     b"HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n"

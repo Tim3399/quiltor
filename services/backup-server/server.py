@@ -50,6 +50,7 @@ import http.server
 import json
 import os
 import re
+import socket
 import socketserver
 import ssl
 import stat
@@ -1048,7 +1049,10 @@ class Server(socketserver.ThreadingTCPServer):
     def process_request(self, request, client_address) -> None:
         # A full house gets a 503 on the accept thread instead of one more handler.
         if not self._thread_slots.acquire(blocking=False):
+            # A TCP server's request is a socket; the base type also allows a UDP tuple.
             try:
+                if not isinstance(request, socket.socket):
+                    raise OSError
                 request.settimeout(1)
                 request.sendall(
                     b"HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n"
