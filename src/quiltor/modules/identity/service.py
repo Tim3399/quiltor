@@ -24,8 +24,12 @@ domain and host boundary tests enforce both directions.
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import secrets
+import threading
 import time
+from collections.abc import Callable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from quiltor.modules.identity import auth
@@ -47,6 +51,13 @@ REDIRECT_ATTR = "identity_redirect"
 #: The provider role that unlocks the assistant under OIDC
 #: (overridable with QUILTOR_PREMIUM_ROLE).
 DEFAULT_PREMIUM_ROLE = "premium"
+
+#: How long a one-time open code is accepted (F-269-11). It only has to cover the moment
+#: between launching the browser or window and that page's first request.
+OPEN_CODE_TTL = 120.0
+
+#: At most this many unredeemed open codes are held; the oldest makes room.
+MAX_OPEN_CODES = 8
 
 
 class Identity:
@@ -160,8 +171,9 @@ class LocalIdentity(Identity):
     tried in order after the base class's cookie/render-token check:
 
       1. `Authorization: Bearer <token>` -- for scripts and the MCP server.
-      2. `?token=<token>` -- for opening a URL in a browser that has no cookie
-         yet. Answered with a redirect that drops the parameter again.
+      2. `?code=<code>` -- a one-time open code (issue_open_code), what the desktop
+         window and `quiltor run` open; or `?token=<token>` typed by hand. Both are
+         answered with a redirect that drops the parameter again.
       3. The server is bound to loopback -- the ordinary desktop case.
     """
 
@@ -198,6 +210,52 @@ class LocalIdentity(Identity):
         # to all of them, so only whoever started the process -- and was handed the token
         # in the URL it opened -- is the owner. See require_token().
         self.trust_loopback = True
+        self._clock: Callable[[], float] = time.monotonic
+        self._lock = threading.Lock()
+        # One-time open codes (F-269-11): digest -> expiry on self._clock.
+        self._open_codes: dict[bytes, float] = {}
+        # Digests of every owner cookie this process handed out (F-269-10). Such a
+        # cookie stays good for as long as the process lives, idle or not.
+        self._owner_cookies: set[bytes] = set()
+
+    def issue_open_code(self) -> str:
+        """A short-lived, single-use code that opens the app as the owner (F-269-11).
+
+        This is what the desktop window and `quiltor run` put into the URL they open,
+        instead of the process token: a launched browser's command line is readable by
+        every account on the machine, and a code that is spent on the first request
+        and dead after OPEN_CODE_TTL anyway is worth nothing there.
+        """
+        code = secrets.token_urlsafe(32)
+        now = self._clock()
+        with self._lock:
+            self._purge_open_codes(now)
+            if len(self._open_codes) >= MAX_OPEN_CODES:
+                oldest = min(self._open_codes, key=self._open_codes.__getitem__)
+                del self._open_codes[oldest]
+            self._open_codes[_digest(code)] = now + OPEN_CODE_TTL
+        return code
+
+    def _redeem_open_code(self, code: str) -> bool:
+        supplied = _digest(code)
+        now = self._clock()
+        with self._lock:
+            self._purge_open_codes(now)
+            match = None
+            # Every held digest is compared, in constant time each, so neither a
+            # hit nor its position shows in the timing.
+            for held in list(self._open_codes):
+                if hmac.compare_digest(held, supplied):
+                    match = held
+            if match is None:
+                return False
+            del self._open_codes[match]
+            return True
+
+    def _purge_open_codes(self, now: float) -> None:
+        for held, expires in list(self._open_codes.items()):
+            if now >= expires:
+                del self._open_codes[held]
 
     def require_token(self) -> None:
         """Stop treating a loopback connection as the owner (S269-4)."""
@@ -207,6 +265,9 @@ class LocalIdentity(Identity):
         session = super().resolve(handler)
         if session is not None:
             return self._renewed(handler, session)
+        revived = self._revived(handler)
+        if revived is not None:
+            return revived
 
         header = (handler.headers.get("Authorization") or "").strip()
         if header.lower().startswith("bearer "):
@@ -215,6 +276,14 @@ class LocalIdentity(Identity):
             return None
 
         query = query_of(handler)
+        code = (query.get("code") or [""])[0]
+        if code:
+            if not self._redeem_open_code(code):
+                return None
+            session = self._master_session(handler)
+            setattr(handler, REDIRECT_ATTR, path_without(handler, "code"))
+            return session
+
         supplied = (query.get("token") or [""])[0]
         if supplied:
             if not hmac.compare_digest(supplied, self.token):
@@ -253,8 +322,41 @@ class LocalIdentity(Identity):
         ):
             return session
         session_id = self.auth.create_session(self.master_sub, "", "")
-        queue_session_cookie(handler, session_id, max_age=self.auth.session_ttl)
+        self._queue_owner_cookie(handler, session_id)
         return self.auth.get_session(session_id) or session
+
+    def _revived(self, handler) -> auth.SessionData | None:
+        """The owner's session again, after the store let it lapse (F-269-10).
+
+        A desktop window left alone overnight sends no request for longer than the
+        session lives, so the store drops it -- and with it the only proof the window
+        has, taking unsaved changes down with the next save. A cookie this process
+        handed to its owner therefore stays good while the process lives: it was only
+        ever given to whoever held the token or an open code, and a restart ends it.
+        Render sessions and every other subject never get here.
+        """
+        if self.trust_loopback:
+            return None
+        cookie = handler.get_cookie(SESSION_COOKIE)
+        if not cookie:
+            return None
+        with self._lock:
+            known = _digest(cookie) in self._owner_cookies
+        if not known:
+            return None
+        session_id, session = self.auth.owner_session(self.master_sub)
+        self._queue_owner_cookie(handler, session_id)
+        return session
+
+    def _queue_owner_cookie(self, handler, session_id: str) -> None:
+        if self.trust_loopback:
+            queue_session_cookie(handler, session_id, max_age=self.auth.session_ttl)
+            return
+        with self._lock:
+            self._owner_cookies.add(_digest(session_id))
+        # A browser-session cookie: no Max-Age the browser could run out on its own while
+        # the window stays open. It ends with the browser, the session with the process.
+        queue_session_cookie(handler, session_id, max_age=None)
 
     def _master_session(self, handler) -> auth.SessionData | None:
         """The local user's session, queueing its cookie so the rest of this page
@@ -268,8 +370,12 @@ class LocalIdentity(Identity):
         accurate model.
         """
         session_id, session = self.auth.owner_session(self.master_sub)
-        queue_session_cookie(handler, session_id, max_age=self.auth.session_ttl)
+        self._queue_owner_cookie(handler, session_id)
         return session
+
+
+def _digest(value: str) -> bytes:
+    return hashlib.sha256(value.encode("utf-8")).digest()
 
 
 # ------------------------------------------------------- Handler plumbing
@@ -294,7 +400,7 @@ def path_without(handler, name: str) -> str:
     return urlunsplit(("", "", parts.path or "/", urlencode(remaining), parts.fragment))
 
 
-def queue_session_cookie(handler, session_id: str, *, max_age: int) -> None:
+def queue_session_cookie(handler, session_id: str, *, max_age: int | None) -> None:
     """Queue the session cookie on the response the handler is about to send."""
     handler._pending_cookies.append(
         handler.cookie_header(SESSION_COOKIE, session_id, max_age=max_age)

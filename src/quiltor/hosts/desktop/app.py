@@ -85,9 +85,14 @@ def _bundle_base() -> Path:
 
 
 def owner_url(port: int, identity) -> str:
-    """The address the window opens: loopback, carrying the process token (S269-4)."""
-    token = getattr(identity, "token", "")
-    query = f"?token={urllib.parse.quote(token, safe='')}" if token else ""
+    """The address the window opens: loopback, carrying a one-time open code (F-269-11).
+
+    Not the process token: that stays in the process. The code is spent on the
+    window's first request and dead after a short TTL either way.
+    """
+    issue = getattr(identity, "issue_open_code", None)
+    code = str(issue()) if callable(issue) else ""
+    query = f"?code={urllib.parse.quote(code, safe='')}" if code else ""
     return f"http://127.0.0.1:{port}/{query}"
 
 
@@ -161,8 +166,8 @@ def main() -> None:
 
     # The page hands its exports to this instead of downloading them itself.
     native_bridge = NativeBridge(web_application.capabilities)
-    # The process token, once, in the first URL (S269-4): the server answers with its
-    # cookie and a redirect to the same path without the token. Nothing else on this
+    # A one-time open code in the first URL (S269-4, F-269-11): the server answers with
+    # its cookie and a redirect to the same path without the code. Nothing else on this
     # machine knows it, so the loopback port alone no longer opens the worlds.
     window = webview.create_window(
         APP_NAME,

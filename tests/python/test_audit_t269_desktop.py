@@ -227,6 +227,83 @@ class LocalProcessTests(_LocalServer):
         status, _, _ = self._get("/api/worlds", {"Authorization": f"Bearer {self.token}"})
         self.assertEqual(status, 200)
 
+    def _open_with_code(self) -> str:
+        identity = cast(LocalIdentity, self.application.identity)
+        status, headers, _ = self._get(f"/?code={identity.issue_open_code()}")
+        self.assertEqual(status, 302)
+        self.assertEqual(headers.get("Location"), "/")
+        return self._cookie_from(headers)
+
+    def test_f269_11_the_own_window_trades_an_open_code_for_a_session(self):
+        cookie = self._open_with_code()
+        status, _, _ = self._get("/api/worlds", {"Cookie": cookie})
+        self.assertEqual(status, 200)
+
+    def test_f269_11_an_open_code_works_once(self):
+        identity = cast(LocalIdentity, self.application.identity)
+        code = identity.issue_open_code()
+        status, _, _ = self._get(f"/?code={code}")
+        self.assertEqual(status, 302)
+        status, headers, _ = self._get(f"/?code={code}")
+        self.assertIn(status, (401, 403))
+        self.assertNotIn("Set-Cookie", headers)
+
+    def test_f269_11_an_open_code_past_its_ttl_is_refused(self):
+        from quiltor.modules.identity import service
+
+        identity = cast(LocalIdentity, self.application.identity)
+        started = time.monotonic()
+        identity._clock = lambda: started
+        code = identity.issue_open_code()
+        identity._clock = lambda: started + service.OPEN_CODE_TTL + 1
+        status, headers, _ = self._get(f"/?code={code}")
+        self.assertIn(status, (401, 403))
+        self.assertNotIn("Set-Cookie", headers)
+
+    def test_f269_11_a_wrong_code_is_refused(self):
+        cast(LocalIdentity, self.application.identity).issue_open_code()
+        status, headers, _ = self._get("/?code=falsch")
+        self.assertIn(status, (401, 403))
+        self.assertNotIn("Set-Cookie", headers)
+
+    def test_f269_11_the_process_token_is_not_an_open_code(self):
+        status, headers, _ = self._get(f"/?code={self.token}")
+        self.assertIn(status, (401, 403))
+        self.assertNotIn("Set-Cookie", headers)
+
+    def test_f269_10_the_owner_cookie_carries_no_max_age(self):
+        identity = cast(LocalIdentity, self.application.identity)
+        _, headers, _ = self._get(f"/?code={identity.issue_open_code()}")
+        self.assertNotIn("max-age", headers.get("Set-Cookie", "").lower())
+
+    def test_f269_10_the_owner_session_survives_a_night_without_requests(self):
+        """Opened, used for twelve hours, then fourteen hours idle: the next save works."""
+        gateway = self.application.identity.auth
+        started = time.time()
+        offset = [0.0]
+        with patch.object(gateway, "_clock", lambda: started + offset[0]):
+            cookie = self._open_with_code()
+            offset[0] = 12 * 3600
+            status, headers, _ = self._get("/api/worlds", {"Cookie": cookie})
+            self.assertEqual(status, 200)
+            offset[0] = 26 * 3600
+            status, headers, _ = self._get("/api/worlds", {"Cookie": cookie})
+            self.assertEqual(status, 200)
+            renewed = self._cookie_from(headers)
+            status, _, _ = self._get("/api/worlds", {"Cookie": renewed})
+            self.assertEqual(status, 200)
+
+    def test_f269_10_a_foreign_cookie_is_not_revived(self):
+        gateway = self.application.identity.auth
+        started = time.time()
+        offset = [0.0]
+        with patch.object(gateway, "_clock", lambda: started + offset[0]):
+            stranger = gateway.create_session("someone-else", "", "")
+            offset[0] = 26 * 3600
+            status, headers, _ = self._get("/api/worlds", {"Cookie": f"quiltor_session={stranger}"})
+            self.assertIn(status, (401, 403))
+            self.assertNotIn("Set-Cookie", headers)
+
 
 class OwnerRoleTests(unittest.TestCase):
     """S269-4: which process gives up loopback trust is decided by its role."""
@@ -259,8 +336,13 @@ class OwnerRoleTests(unittest.TestCase):
     def test_the_source_checkout_server_keeps_loopback_trust(self):
         self.assertTrue(self._identity_for("server").trust_loopback)
 
-    def test_quiltor_run_opens_the_browser_with_the_token_and_never_prints_it(self):
-        identity = SimpleNamespace(multi_user=False, trust_loopback=False, token="geheim/1")
+    def test_quiltor_run_opens_the_browser_with_a_code_and_never_with_the_token(self):
+        identity = SimpleNamespace(
+            multi_user=False,
+            trust_loopback=False,
+            token="geheim/1",
+            issue_open_code=lambda: "einmal/1",
+        )
         app = MagicMock(identity=identity)
         opened: list[str] = []
 
@@ -281,8 +363,39 @@ class OwnerRoleTests(unittest.TestCase):
             redirect_stdout(printed),
         ):
             server.run(port=8000, no_open=False, application=app)
-        self.assertEqual(opened, ["http://localhost:8000/?token=geheim%2F1"])
+        self.assertEqual(opened, ["http://localhost:8000/?code=einmal%2F1"])
         self.assertNotIn("geheim", printed.getvalue())
+
+    def test_f269_11_the_token_reaches_no_launched_process(self):
+        """Whatever `webbrowser` starts (xdg-open, a browser) gets a code, never the token."""
+        identity = LocalIdentity(
+            cast(Any, SimpleNamespace(local_owner_id="owner")), MagicMock(), MagicMock(), "T0KEN"
+        )
+        identity.require_token()
+        app = MagicMock(identity=identity)
+        launched: list[Any] = []
+
+        class Timer:
+            def __init__(self, _delay, callback):
+                self.callback = callback
+
+            def start(self):
+                self.callback()
+
+        httpd = MagicMock()
+        httpd.__enter__.return_value.serve_forever.side_effect = KeyboardInterrupt
+        # Recorded, never really launched: every argument a launcher would receive
+        # is what reaches webbrowser.open.
+        with (
+            patch.object(server, "Server", return_value=httpd),
+            patch.object(server.threading, "Timer", Timer),
+            patch.object(server.webbrowser, "open", launched.append),
+            redirect_stdout(io.StringIO()),
+        ):
+            server.run(port=8000, no_open=False, application=app)
+        self.assertEqual(len(launched), 1)
+        self.assertNotIn("T0KEN", launched[0])
+        self.assertIn("?code=", launched[0])
 
 
 class OwnerSessionRenewalTests(unittest.TestCase):
@@ -417,10 +530,10 @@ class BackupCallbackTests(backup_routes.BackupRouteTestCase):
 class DesktopBindingTests(unittest.TestCase):
     """6.1"""
 
-    def test_the_window_loads_the_loopback_address_with_the_process_token(self):
-        identity = SimpleNamespace(token="a/b+c")
+    def test_the_window_loads_the_loopback_address_with_an_open_code(self):
+        identity = SimpleNamespace(token="geheim", issue_open_code=lambda: "a/b+c")
         self.assertEqual(
-            desktop_app.owner_url(8843, identity), "http://127.0.0.1:8843/?token=a%2Fb%2Bc"
+            desktop_app.owner_url(8843, identity), "http://127.0.0.1:8843/?code=a%2Fb%2Bc"
         )
         source = Path(desktop_app.__file__).read_text(encoding="utf-8")
         self.assertIn("owner_url(port, web_application.identity)", source)
