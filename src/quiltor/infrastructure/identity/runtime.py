@@ -54,6 +54,13 @@ JWKS_TTL_SECONDS = 15 * 60
 JWKS_MIN_REFRESH_SECONDS = 30
 #: After a refresh that failed without ending the session, no new attempt for this long.
 REFRESH_BACKOFF_SECONDS = 60
+#: After any refresh attempt, no new one for this long on account of the role
+#: freshness alone. A provider may leave the ID token out of a refresh answer
+#: (OIDC Core 12.2); that refresh succeeds but confirms no roles, so without a
+#: pause every request would ask the token endpoint again (F-268-23). Equal to
+#: the failure backoff: one token call per session per minute is cheap for the
+#: provider and still leaves several attempts inside ROLE_FRESH_SECONDS.
+ROLE_REFRESH_PAUSE_SECONDS = REFRESH_BACKOFF_SECONDS
 #: Pauses between attempts to fetch the discovery document: four attempts in all.
 #: A restarting Keycloak answers 503 for ~18 s; this does not try to bridge that,
 #: because a login request must not hang. It rides out a blip of a few seconds and
@@ -181,6 +188,8 @@ class StdlibIdentityGateway:
         self._refresh_locks: dict[str, threading.Lock] = {}
         #: session id -> gateway-clock time its roles were last confirmed by the provider
         self._roles_confirmed: dict[str, float] = {}
+        #: session id -> gateway-clock time of the last refresh attempt made for role freshness
+        self._refresh_attempted: dict[str, float] = {}
         if self.issuer:
             self._validate_issuer(self.issuer)
 
@@ -219,6 +228,7 @@ class StdlibIdentityGateway:
             self._pending.clear()
             self._refresh_locks.clear()
             self._roles_confirmed.clear()
+            self._refresh_attempted.clear()
 
     @staticmethod
     def _origin(url: str) -> str:
@@ -564,6 +574,7 @@ class StdlibIdentityGateway:
             self._sessions.pop(key, None)
             self._refresh_locks.pop(key, None)
             self._roles_confirmed.pop(key, None)
+            self._refresh_attempted.pop(key, None)
         for owner, key in list(self._owner_sessions.items()):
             if key not in self._sessions:
                 self._owner_sessions.pop(owner, None)
@@ -599,6 +610,7 @@ class StdlibIdentityGateway:
         self._sessions.pop(session_id, None)
         self._refresh_locks.pop(session_id, None)
         self._roles_confirmed.pop(session_id, None)
+        self._refresh_attempted.pop(session_id, None)
         for owner, key in list(self._owner_sessions.items()):
             if key == session_id:
                 self._owner_sessions.pop(owner, None)
@@ -708,11 +720,14 @@ class StdlibIdentityGateway:
         # ask the stored session whether there is anything to keep fresh.
         stored = self._sessions.get(session.session_id)
         confirmed = self._roles_confirmed.get(session.session_id)
+        attempted = self._refresh_attempted.get(session.session_id, float("-inf"))
         return (
             stored is not None
             and bool(stored.roles)
             and confirmed is not None
             and now - confirmed >= ROLE_FRESH_SECONDS - leeway
+            # A refresh without an ID token confirms nothing: do not repeat it at once.
+            and now - attempted >= ROLE_REFRESH_PAUSE_SECONDS
         )
 
     def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None:
@@ -733,6 +748,8 @@ class StdlibIdentityGateway:
             current = self.get_session(session_id)
             if current is None or not self._refresh_due(current, leeway):
                 return current
+            with self._lock:
+                self._refresh_attempted[session_id] = self._clock()
             try:
                 tokens = self.refresh_tokens(current.refresh_token)
                 id_token = tokens.get("id_token")
