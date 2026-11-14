@@ -52,7 +52,15 @@ Access is recognised in this order:
 
 1. `Authorization: Bearer <token>` — scripts and MCP
 2. `?token=<token>` — one-time browser entry; the redirect strips the parameter
-3. loopback connection — ordinary case for desktop, CLI, and `python3 apps/web/server.py`
+3. loopback connection — only for `python3 apps/web/server.py` from a source checkout
+
+From 3.26 the desktop app and `quiltor run` prove the owner with the token (S269-4). The
+desktop window and the browser `quiltor run` opens get it once in the address at startup,
+trade it for a session cookie, and the redirect strips it again. The reason: on a machine with
+several user accounts, every account reaches the loopback port. Merely reaching the port no
+longer shows any worlds; that is left to the development server of a source checkout. With
+`quiltor run --no-open`, open the address yourself with `?token=` and the token from
+`--print-token`. While the window is in use, Quiltor renews the session by itself.
 
 The automatically generated token:
 
@@ -126,6 +134,17 @@ Settings:
 - Redirect URI: `http://127.0.0.1/*`
 
 The changing loopback port is intentional. Native applications are expected to support dynamic loopback ports under RFC 8252, so the Keycloak client must not be restricted to one fixed port.
+
+**Callback without a session (from 3.26, D-203).** The backup login runs in the system browser
+and returns through `http://127.0.0.1:<port>/backup/callback`. The earlier rule was that none of
+the sign-in routes is anonymous, and the desktop lost nothing by it because every loopback
+request counted as the owner. Since S269-4 that is no longer true, and the system browser holds
+no cookie of the desktop window. The callback is therefore reachable without a session. It is
+bound to the `state` of the login this Quiltor began itself: compared in constant time, valid
+once and for ten minutes at most. PKCE still binds the code to the verifier only this process
+knows. The callback creates no session. Every failure -- no `state`, a wrong, used or expired
+one, a refusal by the provider -- shows the same page without a reason; the reason is in the
+server log.
 
 ### `quiltor.backup` scope
 

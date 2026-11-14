@@ -9,13 +9,18 @@ whoever fixes it in phase 4 drops the marker in the same change.
 
 import base64
 import http.client
+import io
+import json
 import os
 import socket
 import tempfile
 import threading
+import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import LOOPBACK_HOSTS, build_identity, build_web_application
@@ -25,6 +30,8 @@ from quiltor.hosts.desktop import app as desktop_app
 from quiltor.hosts.desktop.bridge import BRIDGE_VERSION, FILE_SAVE, NativeBridge
 from quiltor.hosts.web import server
 from quiltor.infrastructure.platform.ports import AppDirectories
+from quiltor.modules.identity.service import LocalIdentity
+from tests.python import test_backup_routes as backup_routes
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
 
@@ -181,21 +188,242 @@ class HostGuardTests(_LocalServer):
 
 
 class LocalProcessTests(_LocalServer):
-    """6.3: another process on this machine."""
+    """6.3, S269-4: the desktop window and `quiltor run` prove the owner with the token."""
 
-    @unittest.expectedFailure
+    def setUp(self):
+        super().setUp()
+        identity = cast(LocalIdentity, self.application.identity)
+        identity.require_token()
+        self.token = identity.token
+
+    def _cookie_from(self, headers: dict[str, str]) -> str:
+        cookie = headers.get("Set-Cookie", "")
+        self.assertIn("quiltor_session=", cookie)
+        return cookie.split(";", 1)[0]
+
     def test_s269_4_a_request_without_origin_or_token_gets_no_session(self):
-        """S269-4: whoever reaches the loopback port is the owner, other OS users too."""
-        status, _, _ = self._get("/api/worlds")
+        """Another OS account reaches the same port; it no longer gets the owner's worlds."""
+        for path in ("/api/worlds", "/"):
+            with self.subTest(path=path):
+                status, headers, _ = self._get(path)
+                self.assertIn(status, (401, 403))
+                self.assertNotIn("Set-Cookie", headers)
+
+    def test_a_wrong_token_gets_no_session(self):
+        status, headers, _ = self._get("/?token=falsch")
         self.assertIn(status, (401, 403))
+        self.assertNotIn("Set-Cookie", headers)
+
+    def test_the_own_window_trades_its_token_for_a_session(self):
+        """The window opens owner_url(): one redirect sets the cookie, then it works."""
+        status, headers, _ = self._get(f"/?token={self.token}")
+        self.assertEqual(status, 302)
+        self.assertEqual(headers.get("Location"), "/")
+        cookie = self._cookie_from(headers)
+        status, _, _ = self._get("/api/worlds", {"Cookie": cookie})
+        self.assertEqual(status, 200)
+
+    def test_scripts_with_the_bearer_token_still_work(self):
+        status, _, _ = self._get("/api/worlds", {"Authorization": f"Bearer {self.token}"})
+        self.assertEqual(status, 200)
+
+
+class OwnerRoleTests(unittest.TestCase):
+    """S269-4: which process gives up loopback trust is decided by its role."""
+
+    def _identity_for(self, role: str | None):
+        environment = {"QUILTOR_RUNTIME_HOST": role} if role else {}
+        with (
+            tempfile.TemporaryDirectory() as temp,
+            patch.dict(os.environ, environment),
+            patch(
+                "quiltor.bootstrap.web.build_assistant_services",
+                return_value=AssistantServices(MagicMock(), MagicMock()),
+            ),
+        ):
+            if not role:
+                os.environ.pop("QUILTOR_RUNTIME_HOST", None)
+            application = build_web_application(
+                identity=build_identity(False),
+                ensure_assistant_installed=False,
+                app_directories=_directories(Path(temp)),
+            )
+            application.close()
+            return cast(LocalIdentity, application.identity)
+
+    def test_the_desktop_and_quiltor_run_require_the_token(self):
+        for role in ("desktop", "cli"):
+            with self.subTest(role=role):
+                self.assertFalse(self._identity_for(role).trust_loopback)
+
+    def test_the_source_checkout_server_keeps_loopback_trust(self):
+        self.assertTrue(self._identity_for("server").trust_loopback)
+
+    def test_quiltor_run_opens_the_browser_with_the_token_and_never_prints_it(self):
+        identity = SimpleNamespace(multi_user=False, trust_loopback=False, token="geheim/1")
+        app = MagicMock(identity=identity)
+        opened: list[str] = []
+
+        class Timer:
+            def __init__(self, _delay, callback):
+                self.callback = callback
+
+            def start(self):
+                self.callback()
+
+        printed = io.StringIO()
+        httpd = MagicMock()
+        httpd.__enter__.return_value.serve_forever.side_effect = KeyboardInterrupt
+        with (
+            patch.object(server, "Server", return_value=httpd),
+            patch.object(server.threading, "Timer", Timer),
+            patch.object(server.webbrowser, "open", opened.append),
+            redirect_stdout(printed),
+        ):
+            server.run(port=8000, no_open=False, application=app)
+        self.assertEqual(opened, ["http://localhost:8000/?token=geheim%2F1"])
+        self.assertNotIn("geheim", printed.getvalue())
+
+
+class OwnerSessionRenewalTests(unittest.TestCase):
+    """Without loopback trust the cookie is the window's only proof, and it must not lapse."""
+
+    def setUp(self):
+        from quiltor.modules.identity.auth import SessionData
+
+        self.SessionData = SessionData
+        self.auth = MagicMock(session_ttl=86_400)
+        self.auth.create_session.return_value = "neu"
+        self.auth.get_session.side_effect = lambda value: (
+            self.session if value == "alt" else self.fresh if value == "neu" else None
+        )
+        self.fresh = SessionData("owner", "", "", time.time(), time.time() + 86_400)
+        owner_store = SimpleNamespace(local_owner_id="owner")
+        self.identity = LocalIdentity(cast(Any, owner_store), self.auth, MagicMock(), "token")
+        self.identity.require_token()
+        self.handler = SimpleNamespace(
+            get_cookie=lambda _name: "alt",
+            _pending_cookies=[],
+            cookie_header=lambda name, value, max_age: ("Set-Cookie", f"{name}={value}"),
+            headers={},
+            path="/api/worlds",
+        )
+
+    def _resolve(self, created_ago: float, left: float, sub: str = "owner"):
+        now = time.time()
+        self.session = self.SessionData(sub, "", "", now - created_ago, now + left)
+        return self.identity.resolve(self.handler)
+
+    def test_a_session_in_its_second_half_is_renewed(self):
+        self.assertIs(self._resolve(80_000, 6_400), self.fresh)
+        self.assertEqual(self.handler._pending_cookies, [("Set-Cookie", "quiltor_session=neu")])
+
+    def test_a_session_in_its_first_half_is_kept(self):
+        self._resolve(1_000, 85_400)
+        self.auth.create_session.assert_not_called()
+
+    def test_a_render_session_stays_short(self):
+        self._resolve(10, 50)
+        self.auth.create_session.assert_not_called()
+
+    def test_another_subject_is_never_renewed(self):
+        self._resolve(80_000, 6_400, sub="someone-else")
+        self.auth.create_session.assert_not_called()
+
+
+class BackupCallbackTests(backup_routes.BackupRouteTestCase):
+    """D-203: the callback is anonymous and bound only to the state of a login this
+    process began -- the desktop login returns in the system browser, without a cookie."""
+
+    NEUTRAL = "Bitte starte die Anmeldung in Quiltor noch einmal."
+
+    def identity(self):
+        identity = cast(LocalIdentity, build_identity(False))
+        identity.require_token()
+        return identity
+
+    def _owner(self) -> dict[str, str]:
+        status, headers, _ = self.request(
+            "GET", f"/api/version?token={cast(LocalIdentity, self.app.identity).token}"
+        )
+        self.assertEqual(status, 302)
+        name, value = headers["Set-Cookie"].split(";", 1)[0].split("=", 1)
+        return {name: value}
+
+    def _start(self) -> str:
+        status, _, raw = self.request("POST", "/api/backup/login", body={}, cookies=self._owner())
+        self.assertEqual(status, 200, raw[:300])
+        return json.loads(raw)["authorizeUrl"]
+
+    def _begin(self) -> tuple[str, str]:
+        return self.issuer.authorize(self._start())
+
+    def _callback(self, query: str):
+        return self.request("GET", f"/backup/callback{query}")
+
+    def _signed_in(self) -> bool:
+        status, _, raw = self.request("GET", "/api/backup/login", cookies=self._owner())
+        self.assertEqual(status, 200)
+        return json.loads(raw)["signedIn"]
+
+    def test_the_system_browser_completes_the_login_without_a_session(self):
+        code, state = self._begin()
+        status, headers, raw = self._callback(f"?code={code}&state={state}")
+        self.assertEqual(status, 200)
+        self.assertIn("Anmeldung abgeschlossen", raw.decode("utf-8"))
+        self.assertNotIn("Set-Cookie", headers, "the callback creates no session")
+        self.assertTrue(self._signed_in())
+
+    def test_every_refusal_is_the_same_neutral_page(self):
+        code, _state = self._begin()
+        answers = {
+            "no state": self._callback(f"?code={code}"),
+            "wrong state": self._callback(f"?code={code}&state=erfunden"),
+            "provider error": self._callback("?error=access_denied&state=x"),
+        }
+        bodies = set()
+        for reason, (status, headers, raw) in answers.items():
+            with self.subTest(reason=reason):
+                self.assertEqual(status, 400)
+                self.assertIn(self.NEUTRAL, raw.decode("utf-8"))
+                self.assertNotIn("Set-Cookie", headers)
+                bodies.add(raw)
+        self.assertEqual(len(bodies), 1, "the page must not tell the reasons apart")
+        self.assertFalse(self._signed_in())
+
+    def test_a_state_works_once(self):
+        """A second code for the same state -- a fresh one, so the provider would take it --
+        is refused: the state was used up by the first callback."""
+        authorize_url = self._start()
+        code, state = self.issuer.authorize(authorize_url)
+        second_code, same_state = self.issuer.authorize(authorize_url)
+        self.assertEqual(state, same_state)
+        self.assertEqual(self._callback(f"?code={code}&state={state}")[0], 200)
+        status, _, raw = self._callback(f"?code={second_code}&state={state}")
+        self.assertEqual(status, 400)
+        self.assertIn(self.NEUTRAL, raw.decode("utf-8"))
+
+    def test_a_state_past_its_ttl_is_refused(self):
+        login = backup_routes.backup_login
+        code, state = self._begin()
+        started = time.time()
+        login._clock = lambda: started + login.PENDING_TTL + 1
+        status, _, raw = self._callback(f"?code={code}&state={state}")
+        self.assertEqual(status, 400)
+        self.assertIn(self.NEUTRAL, raw.decode("utf-8"))
+        self.assertFalse(self._signed_in())
 
 
 class DesktopBindingTests(unittest.TestCase):
     """6.1"""
 
-    def test_the_window_loads_the_loopback_address(self):
+    def test_the_window_loads_the_loopback_address_with_the_process_token(self):
+        identity = SimpleNamespace(token="a/b+c")
+        self.assertEqual(
+            desktop_app.owner_url(8843, identity), "http://127.0.0.1:8843/?token=a%2Fb%2Bc"
+        )
         source = Path(desktop_app.__file__).read_text(encoding="utf-8")
-        self.assertIn('f"http://127.0.0.1:{port}/"', source)
+        self.assertIn("owner_url(port, web_application.identity)", source)
 
     def test_the_port_probe_binds_loopback(self):
         bound: list[tuple[str, int]] = []

@@ -57,7 +57,7 @@ import time
 import traceback
 import webbrowser
 from typing import Any, Literal, cast
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from quiltor.application import ApplicationError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
@@ -1268,6 +1268,9 @@ def run(
         print(f"  Identity    Keycloak ({app.identity.auth.issuer})")
     else:
         print("  Identity    local (one user)")
+        if no_open and not getattr(app.identity, "trust_loopback", True):
+            # Nothing was opened, and the port alone no longer signs anyone in (S269-4).
+            print("  Sign-in     open the address with ?token=<token> (see --print-token)")
     if print_token:
         # Only ever on request (--print-token), and only for this process: the
         # token dies with it, so a copied line is not a lasting credential.
@@ -1282,7 +1285,13 @@ def run(
     print()
 
     if not no_open:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        # Opened, never printed, with the process token (S269-4): the browser trades it
+        # for the owner's cookie on the first request. A secret on a terminal is a secret
+        # in a scrollback buffer; --print-token is there for whoever needs it.
+        opened = url
+        if not getattr(app.identity, "trust_loopback", True):
+            opened = f"{url}?token={quote(getattr(app.identity, 'token', ''), safe='')}"
+        threading.Timer(0.6, lambda: webbrowser.open(opened)).start()
 
     try:
         # Defaults to loopback-only, matching the local single-user tool's security

@@ -37,7 +37,7 @@ from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.infrastructure.platform.runtime_target import ProcessRole, current_target
 from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngine
 from quiltor.modules.identity.auth import SessionData
-from quiltor.modules.identity.service import Identity
+from quiltor.modules.identity.service import Identity, LocalIdentity
 from quiltor.modules.writing_assistance import WritingAssistanceService
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -592,6 +592,14 @@ def build_web_application(
         capabilities, observability, persistence_paths=persistence_paths
     )
     selected_identity = identity or build_identity()
+    # S269-4: the desktop window and `quiltor run` open the app with the process token in the
+    # URL, so the loopback port alone no longer names the owner -- another OS account on the
+    # same machine reaches that port too. The source-checkout server keeps loopback trust.
+    if isinstance(selected_identity, LocalIdentity) and current_target().process_role in (
+        ProcessRole.DESKTOP,
+        ProcessRole.CLI,
+    ):
+        selected_identity.require_token()
     public_url = _validated_public_url(selected_identity)
     lock = threading.Lock()
     runtime_home = (
