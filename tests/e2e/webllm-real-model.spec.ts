@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { type BrowserContext, chromium } from "@playwright/test";
 import { ROOT } from "./support/python-process";
 import { startTestHooksServer, type TestHooksServer } from "./support/test-hooks-server";
 import { test as base, createTestWorld, expect } from "./support/world-fixture";
@@ -11,10 +12,15 @@ import { test as base, createTestWorld, expect } from "./support/world-fixture";
 // own with QUILTOR_CSP=enforce and without test hooks, so connect-src is the policy that ships;
 // the cspGuard of the base fixture fails the test on any violation.
 //
+// QUILTOR_WEBLLM_PROFILE=<dir> keeps the browser profile, and with it WebLLM's model cache, in
+// that directory instead of a temporary one: the 2.5 GB land on a disk of one's choosing.
 // QUILTOR_WEBLLM_HEADED=1 runs Chromium headed, for a machine where headless gets no adapter.
 
 const ENABLED = process.env.QUILTOR_WEBLLM_E2E === "1";
 const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
+const PROFILE = process.env.QUILTOR_WEBLLM_PROFILE;
+const HEADLESS = process.env.QUILTOR_WEBLLM_HEADED !== "1";
+const ARGS = ["--enable-unsafe-webgpu", "--enable-features=Vulkan"];
 
 const POLICY = JSON.parse(
   readFileSync(join(ROOT, "src/quiltor/bootstrap/csp-policy.json"), "utf8"),
@@ -30,7 +36,10 @@ function allowedHost(origin: string): boolean {
   });
 }
 
-const test = base.extend<object, { webllmServer: TestHooksServer }>({
+const test = base.extend<
+  object,
+  { webllmServer: TestHooksServer; profileContext: BrowserContext | null }
+>({
   webllmServer: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
     async ({}, use) => {
@@ -44,6 +53,27 @@ const test = base.extend<object, { webllmServer: TestHooksServer }>({
     { scope: "worker", timeout: 120_000 },
   ],
   baseURL: async ({ webllmServer }, use) => use(webllmServer.url),
+  // Worker-scoped, so the world cleanup that runs on page.request after page.close() still
+  // finds the context open; a test-scoped persistent context is gone by then.
+  profileContext: [
+    async ({ webllmServer }, use) => {
+      if (!PROFILE) return use(null);
+      mkdirSync(PROFILE, { recursive: true });
+      const persistent = await chromium.launchPersistentContext(PROFILE, {
+        headless: HEADLESS,
+        args: ARGS,
+        baseURL: webllmServer.url,
+        viewport: { width: 1440, height: 900 },
+      });
+      try {
+        await use(persistent);
+      } finally {
+        await persistent.close();
+      }
+    },
+    { scope: "worker", timeout: 120_000 },
+  ],
+  context: async ({ context, profileContext }, use) => use(profileContext ?? context),
 });
 
 // At file level, so a skipped run starts no server either.
@@ -53,8 +83,20 @@ test.skip(
 );
 
 test.use({
-  headless: process.env.QUILTOR_WEBLLM_HEADED !== "1",
-  launchOptions: { args: ["--enable-unsafe-webgpu", "--enable-features=Vulkan"] },
+  headless: HEADLESS,
+  launchOptions: { args: ARGS },
+});
+
+/** What the run measured, reported even when an assertion fails half-way. */
+let lastLog: Record<string, unknown> | null = null;
+
+// biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
+test.afterEach(async ({}, testInfo) => {
+  if (!lastLog) return;
+  const report = JSON.stringify(lastLog, null, 2);
+  console.log(`[webllm-real-model]\n${report}`);
+  await testInfo.attach("webllm-real-model", { body: report, contentType: "application/json" });
+  lastLog = null;
 });
 
 test("The in-browser engine answers with the real model under an enforced CSP", async ({
@@ -65,7 +107,8 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
   test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
   test.setTimeout(60 * 60_000);
 
-  const log: Record<string, unknown> = { model: MODEL_ID };
+  const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };
+  lastLog = log;
   const consoleCsp: string[] = [];
   const origins = new Set<string>();
   page.on("console", (message) => {
@@ -101,22 +144,39 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
   const drawer = page.getByRole("complementary", { name: "Lokaler Assistent" });
   const browserEngine = drawer.getByRole("radio", { name: "Im Browser" });
   // Without a hardware adapter the product offers no "Im Browser" (the T-54 software-adapter
-  // ban). The spec does not get around it: that is the gap, named in the skip reason.
-  await expect(drawer.getByRole("radio", { name: "Server-KI" })).toBeVisible();
-  if ((await browserEngine.count()) === 0) {
-    test.skip(
-      true,
-      `No hardware WebGPU adapter, so no "Im Browser": ${JSON.stringify(log.adapter)}`,
-    );
-  }
+  // ban), and with a single engine the drawer shows no choice at all. The spec does not get
+  // around the ban: that is the gap, named in the skip reason.
+  const adapter = log.adapter as {
+    architecture?: string;
+    vendor?: string;
+    isFallbackAdapter?: boolean;
+    adapter?: null;
+  };
+  test.skip(
+    (!adapter.vendor && !adapter.architecture) || adapter.isFallbackAdapter === true,
+    `No hardware WebGPU adapter in this Chromium (try QUILTOR_WEBLLM_HEADED=1): ${JSON.stringify(adapter)}`,
+  );
+  await expect(browserEngine).toBeVisible();
   await browserEngine.check();
+  await expect(browserEngine).toBeChecked();
+  await expect(drawer.getByText("KI im Browser", { exact: true })).toBeVisible();
 
+  // The panel first asks the cache ("Prüfe …"); only then does it offer the download.
   const started = Date.now();
   const download = drawer.getByRole("button", { name: "Modell herunterladen" });
-  if (await download.isVisible().catch(() => false)) await download.click();
-  await expect(
-    drawer.getByText("Das Modell ist geladen und rechnet auf diesem Gerät."),
-  ).toBeVisible({ timeout: 45 * 60_000 });
+  const cached = drawer.getByText(
+    "Das Modell liegt auf diesem Gerät und wird beim ersten Auftrag geladen.",
+  );
+  await expect(download.or(cached)).toBeVisible({ timeout: 60_000 });
+  log.cachedBefore = await cached.isVisible();
+  // A model left in the profile (QUILTOR_WEBLLM_PROFILE) is loaded by the first job instead.
+  if (!log.cachedBefore) await download.click();
+  await expect(browserEngine).toBeChecked();
+  if (!log.cachedBefore) {
+    await expect(
+      drawer.getByText("Das Modell ist geladen und rechnet auf diesem Gerät."),
+    ).toBeVisible({ timeout: 45 * 60_000 });
+  }
   log.loadSeconds = Math.round((Date.now() - started) / 1000);
 
   const created = page.waitForResponse(
@@ -158,23 +218,51 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
   await expect(drawer.getByRole("button", { name: "Modell herunterladen" })).toBeVisible({
     timeout: 60_000,
   });
-  // The empty webllm/{config,wasm,model} buckets stay; what counts is that they hold nothing.
-  log.cachedAfterRemove = await page.evaluate(async () =>
-    Promise.all(
-      (await caches.keys())
-        .filter((key) => key.startsWith("webllm"))
-        .map(async (key) => (await (await caches.open(key)).keys()).length),
-    ),
-  );
-  expect((log.cachedAfterRemove as number[]).every((count) => count === 0)).toBe(true);
+  // The empty webllm/{config,wasm,model} buckets stay; what counts is what they still hold.
+  // The panel offers the download again before the deletion has quite finished, so poll.
+  const cacheEntries = () =>
+    page.evaluate(async () =>
+      Promise.all(
+        (await caches.keys())
+          .filter((key) => key.startsWith("webllm"))
+          .map(async (key) => ({
+            cache: key,
+            urls: (await (await caches.open(key)).keys()).map((entry) => entry.url),
+          })),
+      ),
+    );
+  let left: { cache: string; urls: string[] }[] = [];
+  await expect
+    .poll(
+      async () => {
+        left = (await cacheEntries()).filter((entry) => entry.urls.length > 0);
+        return left.length;
+      },
+      { timeout: 60_000, intervals: [1_000] },
+    )
+    .toBe(0)
+    .catch(() => {
+      // Asserted after the CSP checks, so a leftover does not hide what they found.
+    });
+  log.cachedAfterRemove = left;
+  log.storageAfterRemove = await page.evaluate(async () => {
+    const estimate = await navigator.storage.estimate();
+    return `${Math.round((estimate.usage ?? 0) / 1e6)} MB`;
+  });
 
   const own = new URL(page.url()).origin;
   const foreign = [...origins].filter((origin) => origin !== own).sort();
   log.hosts = foreign.map((origin) => ({ origin, allowed: allowedHost(origin) }));
   log.consoleCsp = consoleCsp;
-  const report = JSON.stringify(log, null, 2);
-  console.log(`[webllm-real-model]\n${report}`);
-  await testInfo.attach("webllm-real-model", { body: report, contentType: "application/json" });
   expect(consoleCsp).toEqual([]);
   expect(foreign.filter((origin) => !allowedHost(origin))).toEqual([]);
+  // WebLLM 0.2.86's deleteModelAllInfoInCache leaves the model's tensor-cache.json behind
+  // (measured: one entry, storage 0 MB). That index is a few kilobytes; the shards are gone.
+  // Anything else left over fails, and so does storage that did not drop.
+  const leftovers = left.flatMap((entry) => entry.urls);
+  expect(
+    leftovers.filter((url) => !url.endsWith("/tensor-cache.json")),
+    "model cache after 'Modell entfernen'",
+  ).toEqual([]);
+  expect(log.storageAfterRemove).toBe("0 MB");
 });
