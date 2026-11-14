@@ -57,7 +57,7 @@ import time
 import traceback
 import webbrowser
 from typing import Any, Literal, cast
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from quiltor.application import ApplicationError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
@@ -589,8 +589,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # Every HTML answer carries the policy, whichever path wrote it: the client,
             # the backup callback page, an error page. Not static assets or JSON (T-61).
             policy = getattr(self.application, "content_security_policy", None)
-            if policy is not None and is_html(getattr(self, "_content_type", "")):
+            html = is_html(getattr(self, "_content_type", ""))
+            if policy is not None and html:
                 self.send_header(*policy)
+            # Never in a frame of another site, whatever the CSP mode (S269-2, D-198): a
+            # report-only frame-ancestors blocks nothing, and a page on any site could
+            # otherwise frame the local server and steer the author's clicks.
+            if html:
+                self.send_header("X-Frame-Options", "DENY")
             # Any Set-Cookie headers queued by the auth routes ride along on whatever
             # response actually gets sent (send_json/send_pdf/redirect/static fallback).
             for key, value in getattr(self, "_pending_cookies", None) or []:
@@ -1262,6 +1268,9 @@ def run(
         print(f"  Identity    Keycloak ({app.identity.auth.issuer})")
     else:
         print("  Identity    local (one user)")
+        if no_open and not getattr(app.identity, "trust_loopback", True):
+            # Nothing was opened, and the port alone no longer signs anyone in (S269-4).
+            print("  Sign-in     open the address with ?token=<token> (see --print-token)")
     if print_token:
         # Only ever on request (--print-token), and only for this process: the
         # token dies with it, so a copied line is not a lasting credential.
@@ -1276,7 +1285,13 @@ def run(
     print()
 
     if not no_open:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        # Opened, never printed, with the process token (S269-4): the browser trades it
+        # for the owner's cookie on the first request. A secret on a terminal is a secret
+        # in a scrollback buffer; --print-token is there for whoever needs it.
+        opened = url
+        if not getattr(app.identity, "trust_loopback", True):
+            opened = f"{url}?token={quote(getattr(app.identity, 'token', ''), safe='')}"
+        threading.Timer(0.6, lambda: webbrowser.open(opened)).start()
 
     try:
         # Defaults to loopback-only, matching the local single-user tool's security

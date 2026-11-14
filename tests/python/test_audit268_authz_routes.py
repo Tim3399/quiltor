@@ -81,7 +81,11 @@ class RouteTableTests(unittest.TestCase):
         anonymous = {
             p for t in (api_routes.GET, api_routes.SAVE) for p, r in t.items() if r.anonymous
         }
-        self.assertEqual(anonymous, {"/api/version", "/login", "/auth/callback", "/logout"})
+        # /backup/callback since D-203 (S269-4): bound to the login's own state instead.
+        self.assertEqual(
+            anonymous,
+            {"/api/version", "/login", "/auth/callback", "/logout", "/backup/callback"},
+        )
 
     def test_installing_and_device_sync_are_flagged_where_they_happen(self) -> None:
         operator = {

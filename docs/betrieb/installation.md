@@ -236,6 +236,56 @@ Umgebungsvariablen:
 | `QUILTOR_PREMIUM_ROLE`            | Rolle für den KI-Assistenten; Standard `premium`            |
 | `QUILTOR_ASSISTANT_MAX_OPEN_JOBS` | Offene Assistenten-Aufträge je Konto (1–100); Standard `3`  |
 
+### Reverse Proxy und Grenzen je Konto (ab 3.26)
+
+| Variable                              | Zweck                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `QUILTOR_TRUSTED_PROXIES`             | IP-Adressen der Reverse Proxies vor Quiltor, durch Kommas getrennt; Standard: keiner     |
+| `QUILTOR_MAX_WORLDS_PER_ACCOUNT`      | Welten je Konto, der Papierkorb zählt mit; Standard `50`                                 |
+| `QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT` | Speicher aller Welten eines Kontos in Byte; Standard 2 GiB                               |
+| `QUILTOR_GRAMMAR_MAX_CONCURRENT`      | Gleichzeitige Grammatikprüfungen je Konto; Standard `2`                                  |
+| `QUILTOR_GRAMMAR_MAX_PER_MINUTE`      | Grammatikprüfungen je Konto und Minute; Standard `30`                                    |
+| `QUILTOR_MAX_HANDLER_THREADS`         | Anfrage-Threads des Web-Servers; Standard `128`                                          |
+| `QUILTOR_ASSISTANT_CLIENT_JOBS`       | Gleichzeitige Assistenten-Aufträge mit Browser-KI; Standard `8`, höchstens `16` sinnvoll |
+
+- **`QUILTOR_TRUSTED_PROXIES` gehört zu jedem Betrieb hinter einem Proxy.** Nur diesen
+  Adressen glaubt Quiltor das `X-Forwarded-For`. Ohne sie zählt jede Anfrage als Anfrage des
+  Proxys, und die Grenze für Anmeldeversuche je Client-Adresse greift nicht. Netze und Namen
+  sind nicht erlaubt. Das mitgelieferte Caddy hat im Docker-Netz eine wechselnde Adresse; gib
+  dem Container eine feste oder trag die Adresse deines Proxys ein.
+- **`QUILTOR_ASSISTANT_CLIENT_JOBS` über 16:** Der Server hat 16 Plätze für das Relay der
+  Browser-KI. Mehr gleichzeitige Aufträge bekommen am Relay `503`, fragen erneut und drehen
+  sich im Kreis.
+
+Die Grenzen je Konto gelten nur für eine gehostete Instanz. Gezählt werden für jede Welt des
+Kontos, auch im Papierkorb, die Welt-Datenbank, ihre automatischen Sicherungen, die
+Spiegel-Ordner und die gespeicherten Versionen (`data/history`). Ist ein Konto an der Grenze,
+lehnt Quiltor Anlegen, Importieren, Speichern, „Version sichern“, Kartenbilder und
+Wiederherstellen mit `403 world.quota` ab. Ungespeicherter Text bleibt als Entwurf auf dem
+Gerät. Lesen und Löschen bleiben erlaubt: Wer eine Welt löscht, alte Versionen entfernt oder
+den Papierkorb leert, ist sofort wieder unter der Grenze.
+
+### Content Security Policy (ab 3.26)
+
+Jede Seite trägt eine Content Security Policy und `X-Frame-Options: DENY`. Den Modus wählt
+`QUILTOR_CSP`:
+
+| Betriebsart                                 | Standard      | Ausweg                                                 |
+| ------------------------------------------- | ------------- | ------------------------------------------------------ |
+| Gehostet (mit Keycloak)                     | `enforce`     | `QUILTOR_CSP=report-only`, `QUILTOR_CSP_CONNECT_EXTRA` |
+| Web ohne Keycloak (lokal, selbst betrieben) | `enforce`     | `QUILTOR_CSP=report-only`, `QUILTOR_CSP_CONNECT_EXTRA` |
+| Desktop-App                                 | `report-only` | –                                                      |
+
+- `enforce` blockiert, was die Policy nicht erlaubt. `report-only` meldet es nur in der
+  Browser-Konsole. Das ist ein Ausweg, solange du ein Problem meldest, keine Einstellung auf
+  Dauer. `off` schickt keine Policy.
+- `QUILTOR_CSP_CONNECT_EXTRA` erweitert `connect-src` um weitere Adressen, durch Leerzeichen
+  getrennt, nur genaue `https://`-Origins ohne Pfad und ohne Platzhalter.
+- **Hugging Face wechselt seine Download-Hosts gelegentlich.** Lädt der Assistent im Browser
+  sein Modell nicht mehr und die Konsole zeigt einen CSP-Fehler, trag die blockierte Adresse
+  aus der Konsole in `QUILTOR_CSP_CONNECT_EXTRA` ein.
+- Unabhängig vom Modus lässt sich Quiltor nicht in eine fremde Seite einbetten.
+
 Start:
 
 ```bash

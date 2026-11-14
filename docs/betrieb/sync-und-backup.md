@@ -56,7 +56,16 @@ Zugriff wird in dieser Reihenfolge erkannt:
 
 1. `Authorization: Bearer <token>` – für Skripte und MCP
 2. `?token=<token>` – einmaliger Browser-Einstieg; die Weiterleitung entfernt den Parameter wieder
-3. Loopback-Verbindung – Standardfall für Desktop-App, CLI und `python3 apps/web/server.py`
+3. Loopback-Verbindung – nur noch für `python3 apps/web/server.py` aus dem Quell-Checkout
+
+Seit 3.26 weisen sich die Desktop-App und `quiltor run` mit dem Token aus (S269-4). Das
+Desktop-Fenster und der Browser, den `quiltor run` öffnet, bekommen es beim Start einmal in der
+Adresse, tauschen es gegen ein Sitzungs-Cookie, und die Weiterleitung entfernt es wieder. Der
+Grund: Auf einem Rechner mit mehreren Benutzerkonten erreicht jedes Konto den Loopback-Port. Wer
+den Port nur erreicht, sieht keine Welten mehr; das gilt nur noch für den Entwicklungsserver aus
+dem Quell-Checkout. Mit `quiltor run --no-open` öffnest du die Adresse selbst, mit `?token=` und
+dem Token aus `--print-token`. Solange das Fenster benutzt wird, verlängert Quiltor die Sitzung
+von selbst.
 
 Das automatisch generierte Token:
 
@@ -131,6 +140,17 @@ Einstellungen:
 
 Der wechselnde Loopback-Port ist beabsichtigt. Native Anwendungen sollen nach RFC 8252 dynamische Loopback-Ports verwenden können; deshalb darf der Keycloak-Client nicht auf einen einzigen festen Port eingeschränkt werden.
 
+**Rückruf ohne Sitzung (ab 3.26, D-203).** Der Backup-Login läuft im System-Browser und kehrt über
+`http://127.0.0.1:<port>/backup/callback` zurück. Früher galt: Keine der Anmelde-Routen ist
+anonym, und der Desktop verlor nichts dabei, weil jede Loopback-Anfrage als Besitzer galt. Das
+stimmt seit S269-4 nicht mehr, und der System-Browser hat kein Cookie des Desktop-Fensters.
+Deshalb ist der Rückruf jetzt ohne Sitzung erreichbar. Gebunden ist er an den `state` der
+Anmeldung, die dieses Quiltor selbst begonnen hat: in konstanter Zeit verglichen, nur einmal
+gültig und höchstens zehn Minuten lang. PKCE bindet den Code weiter an den Prüfwert, den nur
+dieser Prozess kennt. Der Rückruf legt keine Sitzung an. Jeder Fehler – ohne `state`, falscher,
+verbrauchter oder abgelaufener `state`, Ablehnung beim Anbieter – zeigt dieselbe Seite ohne
+Grund; der Grund steht im Server-Log.
+
 ### Scope `quiltor.backup`
 
 Der bereitgestellte Backup-Endpunkt verlangt standardmäßig den Scope:
@@ -145,13 +165,26 @@ Optional kann zusätzlich eine Realm-Rolle verwendet werden, um den Scope nur au
 
 ### Backup-Server-Variablen
 
-| Variable                            | Zweck                                       |
-| ----------------------------------- | ------------------------------------------- |
-| `QUILTOR_BACKUP_OIDC_ISSUER`        | Realm-Issuer                                |
-| `QUILTOR_BACKUP_OIDC_CLIENT_ID`     | Client-ID des Backup-Servers                |
-| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET` | Client-Secret für Introspection             |
-| `QUILTOR_BACKUP_PUBLIC_URL`         | Öffentliche URL des Backup-Endpunkts        |
-| `QUILTOR_BACKUP_OIDC_SCOPE`         | Benötigter Scope; Standard `quiltor.backup` |
+| Variable                                        | Zweck                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `QUILTOR_BACKUP_OIDC_ISSUER`                    | Realm-Issuer                                                                               |
+| `QUILTOR_BACKUP_OIDC_CLIENT_ID`                 | Client-ID des Backup-Servers                                                               |
+| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET`             | Client-Secret für Introspection                                                            |
+| `QUILTOR_BACKUP_PUBLIC_URL`                     | Öffentliche URL des Backup-Endpunkts                                                       |
+| `QUILTOR_BACKUP_OIDC_SCOPE`                     | Benötigter Scope; Standard `quiltor.backup`                                                |
+| `QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS`           | Clients, deren Token schreiben dürfen, durch Kommas getrennt; Standard `quiltor-desktop`   |
+| `QUILTOR_BACKUP_DEFAULT_LIMIT_BYTES`            | Speicher je Konto, wenn das Realm keinen vorgibt, in Byte oder `unlimited`; Standard 1 GiB |
+| `QUILTOR_BACKUP_HEADER_DEADLINE_SECONDS`        | Frist für den Anfragekopf; Standard `20`                                                   |
+| `QUILTOR_BACKUP_BODY_BASE_DEADLINE_SECONDS`     | Grundfrist für den Anfragekörper; Standard `30`                                            |
+| `QUILTOR_BACKUP_BODY_MIN_RATE_BYTES_PER_SECOND` | Mindestrate, mit der die Frist mit der Länge wächst; Standard `65536` (64 KiB/s)           |
+| `QUILTOR_BACKUP_MAX_CONCURRENT_UPLOADS`         | Gleichzeitige Uploads je Konto; Standard `4`                                               |
+
+**Das Paar `QUILTOR_BACKUP_CLIENT_ID` und `QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS`.** Ab 3.26
+nimmt der Backup-Server nur Token der Clients aus `QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS` an.
+Wer Quiltor mit `QUILTOR_BACKUP_CLIENT_ID` auf einen eigenen Client stellt, muss denselben
+Namen dort eintragen, sonst endet jede Sicherung mit `401`. `docker-compose.yml` leitet die
+Liste ohne eigene Angabe aus `QUILTOR_BACKUP_CLIENT_ID` ab. Eine leere Liste lässt niemanden
+herein.
 
 Fehlen notwendige Authentifizierungswerte, startet der Backup-Endpunkt bewusst nicht.
 
