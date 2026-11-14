@@ -7,11 +7,15 @@ from __future__ import annotations
 import os
 import re
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
-from quiltor.infrastructure.identity.runtime import ROLE_FRESH_SECONDS
+from quiltor.infrastructure.identity.runtime import (
+    ROLE_FRESH_SECONDS,
+    ROLE_REFRESH_PAUSE_SECONDS,
+)
 from tests.python.test_audit268_identity_support import SESSION_COOKIE, HostedHarness
 
 
@@ -258,6 +262,56 @@ class LongLivedAccessTokenTests(HostedHarness):
         self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
         self.clock.advance(2800)
         self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
+
+
+class RefreshWithoutIdTokenTests(HostedHarness):
+    """F-268-23: a refresh that confirms no roles must not make every request refresh again."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.provider.access_lifespan = 3600
+        self.provider.refresh_omits_id_token = True
+
+    def token_calls(self) -> int:
+        return sum(1 for entry in self.provider.requests if "refresh_token" in repr(entry))
+
+    def test_twenty_sequential_requests_make_one_token_call_per_window(self) -> None:
+        session_id = self.login("alice", roles=("premium",))
+        self.clock.advance(700)
+        before = self.token_calls()
+        for _ in range(20):
+            self.gateway.refresh_session(session_id)
+        self.assertEqual(self.token_calls() - before, 1)
+        self.clock.advance(ROLE_REFRESH_PAUSE_SECONDS + 1)
+        for _ in range(20):
+            self.gateway.refresh_session(session_id)
+        self.assertEqual(self.token_calls() - before, 2)
+
+    def test_twenty_concurrent_requests_make_one_token_call(self) -> None:
+        session_id = self.login("alice", roles=("premium",))
+        self.clock.advance(700)
+        before = self.token_calls()
+        with ThreadPoolExecutor(max_workers=20) as pool:
+            list(pool.map(lambda _: self.gateway.refresh_session(session_id), range(20)))
+        self.assertEqual(self.token_calls() - before, 1)
+
+    def test_worker_checks_do_not_repeat_the_refresh_either(self) -> None:
+        self.login("alice", roles=("premium",))
+        self.clock.advance(700)
+        before = self.token_calls()
+        for _ in range(5):
+            self.assertFalse(self.gateway.premium_confirmed("alice", "premium"))
+        self.assertEqual(self.token_calls() - before, 1)
+
+    def test_a_provider_that_sends_the_id_token_still_confirms_the_roles(self) -> None:
+        self.provider.refresh_omits_id_token = False
+        session_id = self.login("alice", roles=("premium",))
+        self.clock.advance(700)
+        before = self.token_calls()
+        for _ in range(20):
+            self.gateway.refresh_session(session_id)
+        self.assertEqual(self.token_calls() - before, 1)
+        self.assertTrue(self.gateway.premium_confirmed("alice", "premium"))
 
 
 class RenderTokenTests(HostedHarness):
