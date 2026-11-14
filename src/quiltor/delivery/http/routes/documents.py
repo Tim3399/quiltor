@@ -195,11 +195,12 @@ def book_pdf(handler, request: Request, app) -> None:
     except PdfRendererError as error:
         # Category and exit code only: the renderer's stderr can carry the render URL and
         # its token, and PdfRendererError never holds it.
-        handler.application.observability.logger.event(
-            "error",
-            "pdf.render_failed",
-            category=error.category,
-            exit_code=error.exit_code,
-        )
+        if app.observability is not None:
+            app.observability.logger.event(
+                "error",
+                "pdf.render_failed",
+                category=error.category,
+                exit_code=error.exit_code,
+            )
         raise
     handler.send_pdf(body)

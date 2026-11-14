@@ -85,6 +85,8 @@ class DocumentRouteServices:
     issue_render_token: Callable[[str], str]
     # A preview's first saved change makes it a real world with a title of its own.
     finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
+    # The PDF route logs its failure category (F-269-13).
+    observability: ObservabilityServices | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,6 +462,7 @@ class WebApplication:
                 self.render_pdf,
                 self.issue_render_token,
                 self.application.worlds.finish_promotion,
+                self.observability,
             )
         if path.startswith("/api/assistant"):
             return AssistantRouteServices(

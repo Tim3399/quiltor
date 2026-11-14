@@ -114,17 +114,18 @@ class NoUrlOrTokenTests(unittest.TestCase):
         def render_pdf(url):
             _render(STDERR_BY_CATEGORY[self.category], 1)
 
+        # The route logs through its own slice (DocumentRouteServices.observability), never
+        # through the full application composition (test_architecture_contracts).
+        logger = StdlibStructuredLogger(name="quiltor.test.pdf", stream=stream)
         return SimpleNamespace(
             issue_render_token=lambda sub: TOKEN,
             render_pdf=render_pdf,
+            observability=SimpleNamespace(logger=logger),
         )
 
     def _handler_class(self, stream):
-        logger = StdlibStructuredLogger(name="quiltor.test.pdf", stream=stream)
-
         class Handler:
             server = SimpleNamespace(server_address=("127.0.0.1", 8010))
-            application = SimpleNamespace(observability=SimpleNamespace(logger=logger))
 
             def _read_json_body(self):
                 return {"worldId": "w1"}
