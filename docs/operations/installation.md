@@ -259,8 +259,9 @@ including those in the trash, they count the world database, its automatic backu
 mirror folders and the saved versions (`data/history`). Once an account is at the limit,
 Quiltor refuses creating, importing, saving, "Keep version", map images and restoring with
 `403 world.quota`. Unsaved text stays on the device as a draft. Reading and deleting stay
-allowed: deleting a world, removing old versions or emptying the trash brings the account
-back under the limit at once.
+allowed. Only one thing makes room: delete a world and empty the trash ("Delete permanently" in the trash). A deleted world still
+counts while it sits in the trash; emptying the trash removes it for good, and with it its
+backups, mirror folders and all of its saved versions. Single old versions cannot be removed.
 
 ### Content Security Policy (from 3.26)
 

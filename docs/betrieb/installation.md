@@ -262,8 +262,10 @@ Kontos, auch im Papierkorb, die Welt-Datenbank, ihre automatischen Sicherungen, 
 Spiegel-Ordner und die gespeicherten Versionen (`data/history`). Ist ein Konto an der Grenze,
 lehnt Quiltor Anlegen, Importieren, Speichern, „Version sichern“, Kartenbilder und
 Wiederherstellen mit `403 world.quota` ab. Ungespeicherter Text bleibt als Entwurf auf dem
-Gerät. Lesen und Löschen bleiben erlaubt: Wer eine Welt löscht, alte Versionen entfernt oder
-den Papierkorb leert, ist sofort wieder unter der Grenze.
+Gerät. Lesen und Löschen bleiben erlaubt. Platz schafft nur eines: Welt löschen und Papierkorb
+leeren (im Papierkorb „Endgültig löschen“). Eine gelöschte Welt zählt im Papierkorb weiter mit; erst das Leeren entfernt sie
+endgültig, und mit ihr ihre Sicherungen, Spiegel-Ordner und alle gespeicherten Versionen.
+Einzelne alte Versionen lassen sich nicht entfernen.
 
 ### Content Security Policy (ab 3.26)
 
