@@ -2995,6 +2995,31 @@ class PathFilterContractTests(unittest.TestCase):
                 "jobs without a path-filter group: extra",
             ),
             (
+                "the desktop probe runs without being asked for",
+                "    if: needs.plan.outputs.desktop_csp_probe == 'true'\n",
+                "    if: always()\n",
+                "test.yml:desktop-csp-probe must run on exactly",
+            ),
+            (
+                "the plan starts the desktop probe outside a dispatch",
+                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true",
+                "inputs.desktop_csp_probe != false",
+                "must start the optional jobs on dispatch only",
+            ),
+            (
+                "the desktop probe reads a secret",
+                "        env:\n          PYTHONPATH: src\n        run: |\n          status=0\n",
+                "        env:\n          PYTHONPATH: src\n          TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
+                "        run: |\n          status=0\n",
+                "desktop-csp-probe reads the repository and nothing else",
+            ),
+            (
+                "the verdict waits for the desktop probe",
+                "    needs:\n      - plan\n",
+                "    needs:\n      - plan\n      - desktop-csp-probe\n",
+                "browser-e2e must not need an optional job",
+            ),
+            (
                 "the gate accepts any skip",
                 '            elif [ "$2" = "skipped" ] && [ "$3" = "false" ]; then\n',
                 '            elif [ "$2" = "skipped" ]; then\n',

@@ -1113,6 +1113,16 @@ FILTERED_JOBS = {
     ),
 }
 CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
+# Jobs outside the path filter and outside the verdict: started only by a manual run that asks
+# for them, never by a pull request, a push or a release call. browser-e2e must not need them,
+# so a skipped or red probe never touches release evidence. The value is the job's only `if:`.
+OPTIONAL_JOBS = {
+    "desktop-csp-probe": "needs.plan.outputs.desktop_csp_probe == 'true'",  # T-272
+}
+OPTIONAL_JOB_DECISION = (
+    "DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && "
+    "inputs.desktop_csp_probe == true }}"
+)
 
 
 def plan_output_expression(group: str) -> str:
@@ -1365,7 +1375,19 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         )
 
     jobs = dict(_job_blocks(workflow))
-    unplaced = set(jobs) - set(FILTERED_JOBS) - {"plan", "browser-e2e"}
+    unplaced = set(jobs) - set(FILTERED_JOBS) - set(OPTIONAL_JOBS) - {"plan", "browser-e2e"}
+    for name, condition in OPTIONAL_JOBS.items():
+        body = jobs.get(name)
+        if body is None:
+            raise WorkflowContractError(f"workflow is missing the optional {name} job")
+        if not re.search(r"^    needs: plan$", body, re.MULTILINE):
+            raise WorkflowContractError(f"test.yml:{name} must need only the plan job")
+        if re.findall(r"^    if: ([^\n]*)$", body, re.MULTILINE) != [condition]:
+            raise WorkflowContractError(f"test.yml:{name} must run on exactly: if: {condition}")
+        if "secrets." in body or "      contents: read\n" not in body:
+            raise WorkflowContractError(f"test.yml:{name} reads the repository and nothing else")
+    if OPTIONAL_JOB_DECISION not in jobs["plan"]:
+        raise WorkflowContractError("the plan job must start the optional jobs on dispatch only")
     if unplaced:
         raise WorkflowContractError(
             "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
@@ -1404,6 +1426,8 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     # frontend turns the run red. It must stay a required need here, whatever FILTERED_JOBS says.
     if "frontend" not in listed or "frontend" not in FILTERED_JOBS:
         raise WorkflowContractError("browser-e2e must need and gate the frontend job")
+    if set(listed) & set(OPTIONAL_JOBS):
+        raise WorkflowContractError("browser-e2e must not need an optional job")
     if sorted(listed) != sorted(["plan", *FILTERED_JOBS]):
         raise WorkflowContractError("browser-e2e must need the plan and every filtered job")
     for evidence in (
@@ -1600,7 +1624,9 @@ def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
         )
     if not set(FILTERED_JOBS) >= REDUCED_ONLY:
         raise WorkflowContractError("every reduced-only job must be a filtered job")
-    jobs = dict(_job_blocks(workflow))
+    # The optional jobs stand outside on purpose (OPTIONAL_JOBS): only a dispatch that asks for
+    # them starts one, and validate_path_filter holds that browser-e2e never needs them.
+    jobs = {name: body for name, body in _job_blocks(workflow) if name not in OPTIONAL_JOBS}
     if set(jobs) != {"plan", "browser-e2e", *FILTERED_JOBS}:
         raise WorkflowContractError(
             "test.yml must consist of plan, browser-e2e and the filtered jobs browser-e2e gates; "

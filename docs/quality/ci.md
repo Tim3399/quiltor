@@ -248,6 +248,14 @@ test.yml with GitHub's comparison rules for these cases:
 | Browser on Windows (10 slots) and macOS (4 slots)                   | 14                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
 | **Total**                                                           | **26** (was 23)             | **15** (was 23)        |
+| Desktop CSP probe on macos-15, only on request (T-272)              | +1                          | +1                     |
+
+The desktop CSP probe is outside both totals and outside the verdict: only a manual run with
+`desktop_csp_probe: true` starts it, never a pull request, a push or a release call, and
+`browser-e2e` does not wait for it (`OPTIONAL_JOBS` in `workflow_contract.py`). Start it with
+`full_matrix: false`: the full matrix already runs 5 macOS jobs, the plan's limit, and a sixth
+would queue until one of them ends. The job opens the real desktop window under `enforce` and
+`report-only` with `tools/dev/desktop_csp_probe.py` and uploads both JSON reports.
 
 Why this cut:
 

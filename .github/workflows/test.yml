@@ -21,6 +21,12 @@ on:
         description: "Run the full Windows and macOS matrix"
         type: boolean
         default: true
+      # T-272: one optional job, outside the matrix and outside the verdict. Only a manual run
+      # that asks for it starts it; pull requests, pushes and release calls never do.
+      desktop_csp_probe:
+        description: "Also open the desktop window on macOS under each CSP mode (T-272)"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       full_matrix:
@@ -63,6 +69,7 @@ jobs:
       contents: read # the sparse checkout of the path filter on a pull request
     outputs:
       full_matrix: ${{ steps.decide.outputs.full_matrix }}
+      desktop_csp_probe: ${{ steps.probe.outputs.desktop_csp_probe }}
       # One run_<group> per group of .github/test-paths.json. Full mode is true without asking
       # the filter; otherwise only a literal 'false' from a finished filter switches a group off.
       run_checks: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_checks == 'false' && 'false' || 'true') }}
@@ -77,6 +84,12 @@ jobs:
         env:
           FULL_MATRIX: ${{ inputs.full_matrix == true || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}
         run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
+      # Only a workflow_dispatch declares the input; a call or a pull request reads it as
+      # null, which is not true.
+      - id: probe
+        env:
+          DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true }}
+        run: echo "desktop_csp_probe=$DESKTOP_CSP_PROBE" >> "$GITHUB_OUTPUT"
 
       # The path filter reads paths only on a pull request in reduced mode. It needs the git
       # history two commits deep -- the merge commit GitHub builds for the pull request and its
@@ -969,3 +982,46 @@ jobs:
           path: |
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
+
+  # T-272 (D-198): does the desktop window still save, export and sign in when its page policy
+  # is enforced? WKWebView is the open question; Windows passed by hand. The probe opens the
+  # real pywebview window, so this needs a runner with a graphical session -- macos-15 has one,
+  # release.yml starts the built app there too. No secrets, read-only, not part of the verdict.
+  desktop-csp-probe:
+    name: Desktop CSP probe on macos-15
+    needs: plan
+    if: needs.plan.outputs.desktop_csp_probe == 'true'
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+
+      # The desktop app's own lock, hash-bound: pywebview and pyobjc as the release ships them.
+      # Not --only-binary: proxy-tools is published as a source distribution only.
+      - name: Install the desktop dependencies
+        run: python -m pip install --require-hashes -r distribution/desktop/macos/direct/requirements.lock
+
+      - name: Open the window under enforce and report-only
+        env:
+          PYTHONPATH: src
+        run: |
+          status=0
+          python tools/dev/desktop_csp_probe.py --mode enforce --report desktop-csp-enforce.json || status=1
+          python tools/dev/desktop_csp_probe.py --mode report-only --report desktop-csp-report-only.json || status=1
+          exit "$status"
+
+      - name: Upload the probe reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: desktop-csp-probe-macos-15
+          if-no-files-found: error
+          path: desktop-csp-*.json
