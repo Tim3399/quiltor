@@ -21,6 +21,16 @@ on:
         description: "Run the full Windows and macOS matrix"
         type: boolean
         default: true
+      # Optional, on request only (T-179, D-167): starts llama-conformance.yml beside the run.
+      # Dispatch only -- a caller such as release.yml cannot ask for it.
+      llama_conformance:
+        description: "Also run the llama-server conformance (downloads a runtime and a model)"
+        type: boolean
+        default: false
+      llama_spike:
+        description: "llama conformance: allow a model with no pinned sha256 and print its digest"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       full_matrix:
@@ -969,3 +979,15 @@ jobs:
           path: |
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
+
+  # The llama-server conformance, on request only (T-179, D-167). It is not a required check:
+  # browser-e2e does not need it, so a run that does not ask for it skips it on purpose and the
+  # gate never sees it. Its verdict is the called workflow's own. The called file grants
+  # contents: read; this job grants nothing beyond that.
+  llama-conformance:
+    if: inputs.llama_conformance == true
+    permissions:
+      contents: read
+    uses: ./.github/workflows/llama-conformance.yml
+    with:
+      spike: ${{ inputs.llama_spike == true }}

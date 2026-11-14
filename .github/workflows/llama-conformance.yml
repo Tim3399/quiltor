@@ -1,0 +1,89 @@
+name: llama-server conformance
+
+permissions:
+  contents: read
+
+# Runs the local-AI conformance suite against a real llama-server (T-179 part 4).
+#
+# This is the one place a llama-server binary and a model are downloaded. Nothing downloads
+# them locally (D-94). tools/ci/llama_conformance.py fetches the pinned runtime with the
+# product's installer (digest-checked), starts it with the product's start-up arguments, runs
+# tests/python/test_local_ai_conformance.py in its "llama" mode and grades the result against
+# the known deviations in tools/ci/llama-conformance-pins.json.
+#
+# Not a required check: it needs the network and a few hundred megabytes. It runs when a pull
+# request touches what it measures, and by hand. The first run of a new model needs
+# `spike: true`, which allows a model whose digest is not pinned yet and prints the digest.
+# See docs/architecture/local-ai-conformance.md.
+on:
+  workflow_dispatch:
+    inputs:
+      spike:
+        description: "Allow a model with no pinned sha256 and print its digest (first run)"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      spike:
+        description: "Allow a model with no pinned sha256 and print its digest (first run)"
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - ".github/workflows/llama-conformance.yml"
+      - "src/quiltor/infrastructure/inference/install_manifest.py"
+      - "src/quiltor/infrastructure/inference/runtimes/llamacpp.py"
+      - "src/quiltor/infrastructure/inference/shared/contract.py"
+      - "tests/python/test_local_ai_conformance.py"
+      - "tests/python/conformance_support.py"
+      - "tools/ci/llama_conformance.py"
+      - "tools/ci/llama-conformance-pins.json"
+
+concurrency:
+  group: llama-conformance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    name: llama-server ${{ matrix.release }}
+    runs-on: ubuntu-24.04
+    # The runtime archive is about 20 MB; the one approved model is 145 MB. Resolving
+    # and downloading takes minutes, loading a model seconds. The server waits up to three
+    # minutes for /health, so 30 minutes leaves room and still stops a hang.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # b10218 is the product's pin (install_manifest.LLAMA_CPP_RELEASE), the only release
+        # with digests recorded in the repository. Another release (b12183, the one the
+        # contract was measured against, T-194) runs only with --asset-sha256 per asset (D-204).
+        release: [b10218]
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+
+      - name: Run the conformance suite against llama-server ${{ matrix.release }}
+        env:
+          RELEASE: ${{ matrix.release }}
+          SPIKE: ${{ inputs.spike }}
+        run: |
+          args=(--release "$RELEASE" --artifact "$RUNNER_TEMP/llama-answers-$RELEASE.jsonl")
+          if [ "$SPIKE" = "true" ]; then
+            args+=(--spike)
+          fi
+          python tools/ci/llama_conformance.py "${args[@]}"
+
+      - name: Upload the raw answers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: llama-answers-${{ matrix.release }}
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/llama-answers-${{ matrix.release }}.jsonl

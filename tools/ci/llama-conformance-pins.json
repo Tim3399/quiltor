@@ -1,0 +1,29 @@
+{
+  "$comment": "Pins and known deviations for tools/ci/llama_conformance.py (T-179 part 4). Measured in run 42884579021 (spike, both releases) and, for C22, in run 43020642393 (raw answers of 43020642393 in tests/python/fixtures/llama-conformance/). A deviation carries the N code of the contract (local-ai-contract v1, errors.md 3.3; N22 and N23 for C02 and C03 (D-174), N24 for C22 on b10218). A case whose request changed after the run carries 'open:' until the next run measures it. Nothing here was measured locally (D-94).",
+  "models": [
+    {
+      "name": "smollm2-135m-instruct",
+      "repo": "bartowski/SmolLM2-135M-Instruct-GGUF",
+      "revision": "09816acd5d99df7be770d85ea30822623dab342c",
+      "file": "SmolLM2-135M-Instruct-Q8_0.gguf",
+      "license": "Apache-2.0 (model card of the repository)",
+      "origin": "imatrix quantisation of HuggingFaceTB/SmolLM2-135M-Instruct by bartowski, made with llama.cpp b3991",
+      "approximate_bytes": 144811360,
+      "sha256": "5a1395716f7913741cc51d98581b9b1228d80987a9f7d3664106742eb06bba83"
+    }
+  ],
+  "known_deviations": {
+    "b12183": {
+      "C02": ["N22"],
+      "C03": ["N23"],
+      "C20": ["N1", "N2", "N3"],
+      "C22": ["N1"]
+    },
+    "b10218": {
+      "C02": ["N22"],
+      "C03": ["N23"],
+      "C20": ["N1", "N2", "N3"],
+      "C22": ["N1", "N24"]
+    }
+  }
+}

@@ -72,7 +72,10 @@ class _FakeSidecar(_Quiet):
             content = json.dumps({"answer": "ok"})
             self._reply(
                 200,
-                {"choices": [{"message": {"content": content}, "finish_reason": "stop"}]},
+                {
+                    "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                },
             )
 
 
@@ -398,7 +401,7 @@ class BridgeRefusalBodyTests(unittest.TestCase):
             with self.subTest(attempt=attempt):
                 answer = self._post("/tokenize")
                 self.assertEqual(answer.status, 401, answer.body[:200])
-                self.assertEqual(answer.json()["error"], "invalid api key")
+                self.assertEqual(answer.json()["error"]["code"], "invalid_api_key")
 
     def test_a_wrong_key_gets_its_whole_401_even_with_a_large_body(self):
         large = json.dumps({"content": "wort " * 8000}).encode()

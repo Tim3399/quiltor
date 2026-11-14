@@ -3071,6 +3071,71 @@ class PathFilterContractTests(unittest.TestCase):
         ):
             workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
 
+    def test_llama_conformance_runs_only_on_request_and_outside_the_gate(self):
+        """T-179, D-167: test.yml offers the llama conformance by dispatch, never as a gate."""
+        sources = workflow_contract._workflow_sources()
+        workflow = sources[TEST_WORKFLOW]
+        jobs = dict(workflow_contract._job_blocks(workflow))
+        self.assertIn("    if: inputs.llama_conformance == true\n", jobs["llama-conformance"])
+        self.assertNotIn("llama", jobs["browser-e2e"])
+        # Not asked for, the job is skipped and the gate never sees it: the gate script
+        # concludes green with exactly the results it has always had.
+        code, output, _ = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        mutations = (
+            (
+                "runs on every event",
+                "    if: inputs.llama_conformance == true\n",
+                "    if: always()\n",
+                "test.yml:llama-conformance must be exactly an on-request call",
+            ),
+            (
+                "grants more than contents: read",
+                "    permissions:\n      contents: read\n    uses: ./.github/workflows/llama",
+                "    permissions:\n      contents: write\n    uses: ./.github/workflows/llama",
+                "test.yml:llama-conformance must be exactly an on-request call",
+            ),
+            (
+                "requested by default",
+                "      llama_conformance:\n"
+                '        description: "Also run the llama-server conformance (downloads a runtime '
+                'and a model)"\n'
+                "        type: boolean\n        default: false\n",
+                "      llama_conformance:\n"
+                '        description: "Also run the llama-server conformance (downloads a runtime '
+                'and a model)"\n'
+                "        type: boolean\n        default: true\n",
+                "must declare the boolean input llama_conformance, default false",
+            ),
+            (
+                "offered to a caller",
+                "  workflow_call:\n    inputs:\n",
+                "  workflow_call:\n    inputs:\n      llama_conformance:\n        type: boolean\n",
+                "workflow_call may not offer llama_conformance",
+            ),
+            (
+                "made a need of the gate",
+                "      - browser-e2e-oidc\n    if: always()\n",
+                "      - browser-e2e-oidc\n      - llama-conformance\n    if: always()\n",
+                "browser-e2e may not need the optional job llama-conformance",
+            ),
+            (
+                "an unlisted extra job",
+                "  llama-conformance:\n",
+                "  llama-conformance-extra:\n",
+                "test.yml jobs without a path-filter group: llama-conformance-extra",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, workflow)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = workflow.replace(original, replacement, 1)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(error)
+                ):
+                    workflow_contract.validate_path_filter(mutated)
+
     def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
         """T-46: the browsers no longer wait for frontend; the real gate script still fails."""
         code, output, _ = run_gate_script(self.workflow, gate_values("true"))

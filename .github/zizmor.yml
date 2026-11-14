@@ -30,3 +30,7 @@ rules:
       # suggests is unknown to the pinned actionlint (distribution/toolchains.json), and
       # workflow_contract.py (C-4) holds the call to exactly this path.
       - release.yml:72
+      # Test calls llama-conformance.yml the same way, on request only (T-179, D-167); the
+      # same reason applies, and workflow_contract.py (OPTIONAL_JOBS) holds the job to exactly
+      # this path.
+      - test.yml:991

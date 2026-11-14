@@ -1112,6 +1112,23 @@ FILTERED_JOBS = {
         "needs.plan.outputs.run_oidc != 'false'",
     ),
 }
+# Jobs of test.yml that run only when a dispatch asks for them (T-179, D-167). They are not
+# required checks: browser-e2e does not need them, so "not asked for" is a skip by design and
+# never reaches the gate. Each is a call of another workflow, started by a boolean
+# workflow_dispatch input with default false that workflow_call does not offer.
+OPTIONAL_JOBS = {
+    "llama-conformance": {
+        "input": "llama_conformance",
+        "body": (
+            "    if: inputs.llama_conformance == true\n"
+            "    permissions:\n"
+            "      contents: read\n"
+            "    uses: ./.github/workflows/llama-conformance.yml\n"
+            "    with:\n"
+            "      spike: ${{ inputs.llama_spike == true }}\n"
+        ),
+    },
+}
 CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
 
 
@@ -1365,11 +1382,12 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         )
 
     jobs = dict(_job_blocks(workflow))
-    unplaced = set(jobs) - set(FILTERED_JOBS) - {"plan", "browser-e2e"}
+    unplaced = set(jobs) - set(FILTERED_JOBS) - set(OPTIONAL_JOBS) - {"plan", "browser-e2e"}
     if unplaced:
         raise WorkflowContractError(
             "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
         )
+    validate_optional_jobs(workflow, jobs)
     # The browser jobs start beside frontend, not after it (T-46): they serve the committed
     # dist/ and take nothing from frontend. Its edge used to drop them whenever frontend was
     # filtered off; now every rule that selects browser must also select checks.
@@ -1428,6 +1446,44 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
                 raise WorkflowContractError(f"browser-e2e does not gate {name}: {evidence.strip()}")
     if "continue-on-error" in workflow:
         raise WorkflowContractError("test.yml may not use continue-on-error")
+
+
+def _trigger_inputs(workflow: str, trigger: str) -> str:
+    triggers = workflow.partition("\njobs:")[0]
+    block = re.search(rf"^  {trigger}:\n((?:    .*\n|\n)*)", triggers + "\n", re.MULTILINE)
+    return block.group(1) if block else ""
+
+
+def validate_optional_jobs(workflow: str, jobs: dict[str, str]) -> None:
+    """An optional job runs only on a dispatch that asks for it, and no gate waits for it."""
+
+    dispatch = _trigger_inputs(workflow, "workflow_dispatch")
+    call = _trigger_inputs(workflow, "workflow_call")
+    for name, spec in OPTIONAL_JOBS.items():
+        body = jobs.get(name)
+        if body is None:
+            raise WorkflowContractError(f"workflow is missing the {name} job")
+        if body.strip("\n") != spec["body"].strip("\n"):
+            raise WorkflowContractError(
+                f"test.yml:{name} must be exactly an on-request call:\n{spec['body']}"
+            )
+        field = re.search(rf"^      {spec['input']}:\n((?:        .*\n)*)", dispatch, re.MULTILINE)
+        fields = field.group(1) if field else ""
+        if "        type: boolean\n" not in fields or "        default: false\n" not in fields:
+            raise WorkflowContractError(
+                f"test.yml workflow_dispatch must declare the boolean input {spec['input']}, "
+                "default false"
+            )
+        if re.search(rf"^      {spec['input']}:", call, re.MULTILINE):
+            raise WorkflowContractError(
+                f"test.yml workflow_call may not offer {spec['input']}; a caller never runs {name}"
+            )
+        if re.search(
+            rf"^\s+(?:- )?{re.escape(name)}$|needs\['{re.escape(name)}'\]",
+            jobs["browser-e2e"],
+            re.MULTILINE,
+        ):
+            raise WorkflowContractError(f"browser-e2e may not need the optional job {name}")
 
 
 CHECK_RUNNER = "node tools/dev/run-check.mjs"
@@ -1600,7 +1656,9 @@ def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
         )
     if not set(FILTERED_JOBS) >= REDUCED_ONLY:
         raise WorkflowContractError("every reduced-only job must be a filtered job")
-    jobs = dict(_job_blocks(workflow))
+    # An optional job is never part of a caller's run: workflow_call cannot request it
+    # (validate_optional_jobs), so full mode skips it and the verdict does not cover it.
+    jobs = {name: body for name, body in _job_blocks(workflow) if name not in OPTIONAL_JOBS}
     if set(jobs) != {"plan", "browser-e2e", *FILTERED_JOBS}:
         raise WorkflowContractError(
             "test.yml must consist of plan, browser-e2e and the filtered jobs browser-e2e gates; "
