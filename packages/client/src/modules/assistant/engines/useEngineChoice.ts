@@ -31,6 +31,7 @@ export function useEngineChoice(
   const slots = override ?? clientEngineSlots(instance);
   const serverAi = useUserCapabilities().serverAi ?? serverAiFallback;
   const clientAi = instance?.clientAi === true;
+  const ownComputer = instance?.assistantInstall === true;
   const preferences = quiltorClient.platform.preferences;
   const [stored, setStored] = useState(() => readEngineChoice(preferences));
   // A hardware adapter, asked once per page: "gpu" in navigator also holds for a software one.
@@ -43,8 +44,8 @@ export function useEngineChoice(
     };
   }, []);
   const available = useMemo(
-    () => availableEngines({ serverAi, clientAi, webgpu, slots }),
-    [serverAi, clientAi, webgpu, slots],
+    () => availableEngines({ serverAi, clientAi, webgpu, ownComputer, slots }),
+    [serverAi, clientAi, webgpu, ownComputer, slots],
   );
   const engine = effectiveEngine(stored, available);
   const choose = useCallback(

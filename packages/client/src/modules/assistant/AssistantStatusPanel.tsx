@@ -1,4 +1,5 @@
 import { Bot, Database, Download, RotateCw } from "lucide-react";
+import { useId } from "react";
 import { Alert, Button, ProgressBar, SegmentedControl } from "../../design";
 import { useI18n } from "../../i18n";
 import {
@@ -38,9 +39,12 @@ export function AssistantStatusPanel({
   const onServer = choice.engine === "server";
   const EnginePanel = choice.slot?.Panel;
   const engineLabels = useEngineLabels();
-  // Without the premium role the server AI stays in the switch, visibly locked, so the
-  // choice does not look like a plain browser-only assistant (T-275, D-T-61-8a-F2).
-  const serverLocked = !serverAi && choice.available.length > 0;
+  // Without the premium role the server AI stays in the switch, greyed out, and a note says
+  // why; the switch is described by it, so keyboard and screen reader reach the reason too
+  // (T-275 Nachtrag 3, D-T-61-8a-F2). Only a hosted server has a role to lack.
+  const serverLocked =
+    !serverAi && !choice.available.includes("server") && choice.available.length > 0;
+  const lockNote = useId();
   const options = [
     ...(serverLocked
       ? [{ value: "server" as const, label: engineLabels.server, disabled: true }]
@@ -50,18 +54,23 @@ export function AssistantStatusPanel({
   return (
     <>
       {/* Only a real choice is shown: with the server alone nothing changes for the user. */}
-      {options.length > 1 && (
+      {(options.length > 1 || serverLocked) && (
         <div className="assistant-engine">
-          <SegmentedControl
-            className="assistant-engine-choice"
-            size="compact"
-            label={t("assistantEngineLabel")}
-            value={choice.engine}
-            options={options}
-            onChange={choice.choose}
-          />
+          {options.length > 1 && (
+            <SegmentedControl
+              className="assistant-engine-choice"
+              size="compact"
+              aria-describedby={serverLocked ? lockNote : undefined}
+              label={t("assistantEngineLabel")}
+              value={choice.engine}
+              options={options}
+              onChange={choice.choose}
+            />
+          )}
           {serverLocked && (
-            <small className="assistant-engine-note">{t("assistantEngineServerLocked")}</small>
+            <small id={lockNote} className="assistant-engine-note">
+              {t("assistantEngineServerLocked")}
+            </small>
           )}
         </div>
       )}

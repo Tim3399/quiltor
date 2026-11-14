@@ -22,8 +22,9 @@ afterEach(() => vi.restoreAllMocks());
 function wrapper({ children }: { children: ReactNode }) {
   return (
     <CapabilitiesProvider
-      value={{ multiUser: false, signOut: false, deviceSync: true, clientAi: true }}
-      user={{ serverAi: true }}
+      value={{ multiUser: true, signOut: true, deviceSync: true, clientAi: true }}
+      // A browser engine computes only where the server AI is not allowed (D-205).
+      user={{ serverAi: false }}
     >
       {children}
     </CapabilitiesProvider>

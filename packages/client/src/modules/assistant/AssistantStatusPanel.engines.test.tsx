@@ -68,54 +68,56 @@ function renderPanel(instance: Partial<InstanceCapabilities>, serverAi = true) {
   return stored;
 }
 
-describe("engine choice in the assistant status (T-61)", () => {
+describe("engine choice in the assistant status (T-61, D-205, T-275 Nachtrag 3)", () => {
   it("offers no choice without client engines on this server", () => {
     renderPanel({ clientAi: false });
     expect(screen.queryByRole("radiogroup", { name: "KI-Engine" })).not.toBeInTheDocument();
     expect(screen.getByText("Lokales Modell nicht erreichbar")).toBeInTheDocument();
   });
 
-  it("offers the own key next to the server, and in the browser only with WebGPU", () => {
-    renderPanel({ clientAi: true });
-    const choice = screen.getByRole("radiogroup", { name: "KI-Engine" });
-    // Without an identity the server's model is the author's own computer (T-275).
-    expect(choice).toHaveTextContent("Auf diesem Rechner");
-    expect(choice).toHaveTextContent("Eigener Schlüssel");
-    // jsdom has no navigator.gpu.
-    expect(choice).not.toHaveTextContent("Im Browser");
-  });
-
-  it("offers the browser engine when WebGPU is there", async () => {
+  it("on a computer of one's own the model there is the only engine, WebGPU or not", async () => {
     vi.stubGlobal("navigator", { ...navigator, gpu: {} });
     try {
       renderPanel({ clientAi: true });
-      expect(await screen.findByRole("radio", { name: "Im Browser" })).toBeInTheDocument();
+      // The probe resolves after the first render; the computer must still be alone then.
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(screen.queryByRole("radiogroup", { name: "KI-Engine" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Modell-Panel")).not.toBeInTheDocument();
+      expect(screen.getByText("Lokales Modell nicht erreichbar")).toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it("stores the choice and shows the engine's own panel instead of the server's state", () => {
-    const stored = renderPanel({ clientAi: true });
-    fireEvent.click(screen.getByRole("radio", { name: "Eigener Schlüssel" }));
-    expect(stored.get("quiltor-assistant-engine")).toBe("cloud");
-    expect(screen.getByText("Schlüssel-Panel")).toBeInTheDocument();
-    expect(screen.queryByText("Lokales Modell nicht erreichbar")).not.toBeInTheDocument();
+  it("hosted with the premium role offers the server AI and the browser engines", async () => {
+    vi.stubGlobal("navigator", { ...navigator, gpu: {} });
+    try {
+      const stored = renderPanel({ clientAi: true, multiUser: true });
+      expect(await screen.findByRole("radio", { name: "Im Browser" })).toBeEnabled();
+      expect(screen.getByRole("radio", { name: "Server-KI" })).toBeChecked();
+      expect(
+        screen.queryByText("Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung."),
+      ).not.toBeInTheDocument();
+      // A text need not go to the server: the browser engine can be chosen instead.
+      fireEvent.click(screen.getByRole("radio", { name: "Eigener Schlüssel" }));
+      expect(stored.get("quiltor-assistant-engine")).toBe("cloud");
+      expect(screen.getByText("Schlüssel-Panel")).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
-  it("names the server AI as such where accounts sign in", () => {
-    renderPanel({ clientAi: true, multiUser: true });
-    expect(screen.getByRole("radio", { name: "Server-KI" })).toBeEnabled();
-  });
-
-  it("without the server AI shows it locked beside the own key, which stays chosen", () => {
+  it("hosted without the premium role shows the server AI greyed out, with a reachable reason", () => {
     renderPanel({ clientAi: true, multiUser: true }, false);
-    // T-275: the lock is visible as a lock, not as a missing option.
+    const choice = screen.getByRole("radiogroup", { name: "KI-Engine" });
     expect(screen.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
     expect(screen.getByRole("radio", { name: "Eigener Schlüssel" })).toBeChecked();
-    expect(
-      screen.getByText("Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung."),
-    ).toBeInTheDocument();
+    // The reason describes the switch, so a screen reader reads it with the focused choice.
+    expect(choice).toHaveAccessibleDescription(
+      "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
+    );
     expect(screen.getByText("Schlüssel-Panel")).toBeInTheDocument();
+    expect(screen.queryByText("Lokales Modell nicht erreichbar")).not.toBeInTheDocument();
   });
 });

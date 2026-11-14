@@ -10,6 +10,18 @@ Der Assistent kann eine Antwort auf zwei Wegen rechnen lassen:
   bei der Server-KI; nur das Rechnen findet im Browser statt. Dafür braucht es keine
   Premium-Rolle und kein Modell auf dem Server.
 
+Welche Engines zur Wahl stehen, hängt vom Betrieb und von der Berechtigung ab:
+
+| Betrieb                                 | Engines                                                                        |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| auf dem eigenen Rechner, ohne Anmeldung | nur das Modell auf diesem Rechner („Auf diesem Rechner“), ohne Umschalter      |
+| gehostet, Konto mit Premium-Rolle       | Server-KI und KI im Browser, mit Umschalter                                    |
+| gehostet, Konto ohne Premium-Rolle      | KI im Browser; „Server-KI“ steht ausgegraut im Umschalter, mit dem Grund dafür |
+
+Auf einem gehosteten Server bleibt die KI im Browser auch mit Premium wählbar: Wer seinen Text
+nicht an den Server schicken will, rechnet im eigenen Browser. Wer Quiltor auf dem eigenen
+Rechner betreibt, hat das Modell schon dort; eine KI im Browser brächte nichts dazu.
+
 Ein eigener Schlüssel für einen Cloud-Anbieter ist für eine spätere Version geplant. In dieser
 Version gibt es ihn nicht.
 
