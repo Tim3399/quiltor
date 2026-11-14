@@ -120,6 +120,7 @@ class GrammarAbortTests(HostedHarness):
             thread.join(10)
         ((status, document),) = results
         self.assertEqual(status, 429)
+        assert isinstance(document, dict)
         self.assertEqual(document["error"]["code"], "writing_assistance.rate_limited")
 
     def test_another_session_of_the_account_is_still_held_to_the_limit(self) -> None:
@@ -383,6 +384,7 @@ class TrickledBodyTests(HostedHarness):
             finally:
                 sock.close()
         self.assertIsNotNone(closed_after, "the server kept reading a body that trickles")
+        assert closed_after is not None
         self.assertLess(closed_after, 3)
         if reply:
             self.assertRegex(reply[:20], rb"HTTP/1\.[01] 400", reply)
