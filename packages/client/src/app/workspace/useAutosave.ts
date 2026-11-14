@@ -28,12 +28,22 @@ export function isSessionEnded(reason: unknown): boolean {
   );
 }
 
+/** The account is over its world limit (S268-9, F-268-18): the server refuses the save. */
+function isWorldQuota(reason: unknown): boolean {
+  return reason instanceof ApplicationGatewayError && reason.code === "world.quota";
+}
+
 export interface AutosaveOptions<T> {
   /**
    * A save was refused because the session ended. `unsaved` is the newest unsaved value; it
    * stays in memory and dirty, and this is the moment to keep it on the device (T-58 P7b).
    */
   onSessionEnded?: (unsaved: T) => void;
+  /**
+   * A save was refused because the account is over its world limit. The value stays dirty
+   * in memory, and it is kept on the device as well until space has been freed.
+   */
+  onQuotaExceeded?: (unsaved: T) => void;
   /** Everything is saved: a draft kept on the device is no longer needed. */
   onSaved?: () => void;
 }
@@ -82,6 +92,8 @@ export function useAutosave<T>(
       const ended = isSessionEnded(reason);
       setSignInRequired(ended);
       if (ended && latest.current) optionsRef.current.onSessionEnded?.(latest.current);
+      if (isWorldQuota(reason) && latest.current)
+        optionsRef.current.onQuotaExceeded?.(latest.current);
     },
     [t],
   );

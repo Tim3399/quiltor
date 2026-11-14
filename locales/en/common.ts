@@ -37,7 +37,7 @@ export const common = {
     "The example world is only backed up and synced once you change something in it.",
   errorExampleWorldFailed: "The example world could not be opened.",
   errorWorldQuota:
-    "You have reached the maximum number of worlds or the storage space for your worlds. Delete a world or empty the trash to create a new one.",
+    "You have reached the maximum number of worlds or the storage space for your worlds. Delete a world or old versions, or empty the trash, and there is room again.",
   errorServerBusy: "The server is busy right now. Try again in a moment.",
   errorInstallForbiddenHosted:
     "On this server, the operator sets up extensions. Nothing can be installed from here.",

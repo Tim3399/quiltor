@@ -72,7 +72,10 @@ const manuscriptRevision = () => quiltorClient.application.manuscript.revision()
 const figuresRevision = () => quiltorClient.application.storyWorld.revision();
 const storyboardsRevision = () => quiltorClient.application.storyboards.revision();
 
-/** Keeps the unsaved state of `family` on this device when its save meets an ended session. */
+/**
+ * Keeps the unsaved state of `family` on this device when its save meets an ended session
+ * or an account over its world limit.
+ */
 function draftOptions<T>(
   family: DocumentFamily,
   owner: () => DraftOwner | null,
@@ -80,6 +83,10 @@ function draftOptions<T>(
 ) {
   return {
     onSessionEnded: (unsaved: T) => {
+      writeDraft(owner(), family, unsaved, revision());
+    },
+    // Over the world limit the save is refused as well; the text must not be lost on reload.
+    onQuotaExceeded: (unsaved: T) => {
       writeDraft(owner(), family, unsaved, revision());
     },
     onSaved: () => removeDraft(owner(), family),
