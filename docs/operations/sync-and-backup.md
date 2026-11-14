@@ -141,13 +141,26 @@ A realm role may additionally be used to make the scope available only to select
 
 ### Backup-server variables
 
-| Variable                            | Purpose                                      |
-| ----------------------------------- | -------------------------------------------- |
-| `QUILTOR_BACKUP_OIDC_ISSUER`        | Realm issuer                                 |
-| `QUILTOR_BACKUP_OIDC_CLIENT_ID`     | Backup-server client ID                      |
-| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET` | Client secret used for introspection         |
-| `QUILTOR_BACKUP_PUBLIC_URL`         | Public backup endpoint URL                   |
-| `QUILTOR_BACKUP_OIDC_SCOPE`         | Required scope; defaults to `quiltor.backup` |
+| Variable                                        | Purpose                                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `QUILTOR_BACKUP_OIDC_ISSUER`                    | Realm issuer                                                                                |
+| `QUILTOR_BACKUP_OIDC_CLIENT_ID`                 | Backup-server client ID                                                                     |
+| `QUILTOR_BACKUP_OIDC_CLIENT_SECRET`             | Client secret used for introspection                                                        |
+| `QUILTOR_BACKUP_PUBLIC_URL`                     | Public backup endpoint URL                                                                  |
+| `QUILTOR_BACKUP_OIDC_SCOPE`                     | Required scope; defaults to `quiltor.backup`                                                |
+| `QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS`           | Clients whose tokens may write, comma-separated; defaults to `quiltor-desktop`              |
+| `QUILTOR_BACKUP_DEFAULT_LIMIT_BYTES`            | Storage per account when the realm assigns none, in bytes or `unlimited`; defaults to 1 GiB |
+| `QUILTOR_BACKUP_HEADER_DEADLINE_SECONDS`        | Deadline for the request head; defaults to `20`                                             |
+| `QUILTOR_BACKUP_BODY_BASE_DEADLINE_SECONDS`     | Base deadline for the request body; defaults to `30`                                        |
+| `QUILTOR_BACKUP_BODY_MIN_RATE_BYTES_PER_SECOND` | Minimum rate by which the deadline grows with the length; defaults to `65536` (64 KiB/s)    |
+| `QUILTOR_BACKUP_MAX_CONCURRENT_UPLOADS`         | Uploads per account at once; defaults to `4`                                                |
+
+**The pair `QUILTOR_BACKUP_CLIENT_ID` and `QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS`.** From 3.26
+the backup server accepts only tokens of the clients in `QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS`.
+Whoever points Quiltor at a client of their own with `QUILTOR_BACKUP_CLIENT_ID` must list the
+same name there, or every backup ends with `401`. Without a value of its own,
+`docker-compose.yml` derives the list from `QUILTOR_BACKUP_CLIENT_ID`. An empty list lets
+nobody in.
 
 If required authentication values are missing, the backup endpoint deliberately refuses to start.
 

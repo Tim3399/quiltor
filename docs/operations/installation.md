@@ -234,6 +234,34 @@ Environment variables:
 | `QUILTOR_PREMIUM_ROLE`            | Role for the AI assistant; default `premium`               |
 | `QUILTOR_ASSISTANT_MAX_OPEN_JOBS` | Open assistant jobs per account (1–100); default `3`       |
 
+### Reverse proxy and limits per account (from 3.26)
+
+| Variable                              | Purpose                                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------------------------- |
+| `QUILTOR_TRUSTED_PROXIES`             | IP addresses of the reverse proxies in front of Quiltor, comma-separated; default: none |
+| `QUILTOR_MAX_WORLDS_PER_ACCOUNT`      | Worlds per account, trash included; default `50`                                        |
+| `QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT` | Storage of all worlds of one account in bytes; default 2 GiB                            |
+| `QUILTOR_GRAMMAR_MAX_CONCURRENT`      | Grammar checks per account at once; default `2`                                         |
+| `QUILTOR_GRAMMAR_MAX_PER_MINUTE`      | Grammar checks per account and minute; default `30`                                     |
+| `QUILTOR_MAX_HANDLER_THREADS`         | Request threads of the web server; default `128`                                        |
+| `QUILTOR_ASSISTANT_CLIENT_JOBS`       | Assistant jobs with the in-browser AI at once; default `8`, at most `16` makes sense    |
+
+- **Every deployment behind a proxy needs `QUILTOR_TRUSTED_PROXIES`.** Quiltor believes
+  `X-Forwarded-For` only from these addresses. Without it every request counts as one from
+  the proxy, and the limit on sign-in attempts per client address does not work. Networks and
+  names are not allowed. The bundled Caddy has a changing address in the Docker network; give
+  the container a fixed one or set your proxy's address.
+- **`QUILTOR_ASSISTANT_CLIENT_JOBS` above 16:** the server has 16 slots for the relay of the
+  in-browser AI. More jobs at once get `503` at the relay, ask again and go round in circles.
+
+The limits per account apply to a hosted instance only. For every world of the account,
+including those in the trash, they count the world database, its automatic backups, the
+mirror folders and the saved versions (`data/history`). Once an account is at the limit,
+Quiltor refuses creating, importing, saving, "Keep version", map images and restoring with
+`403 world.quota`. Unsaved text stays on the device as a draft. Reading and deleting stay
+allowed: deleting a world, removing old versions or emptying the trash brings the account
+back under the limit at once.
+
 ### Content Security Policy (from 3.26)
 
 Every page carries a Content Security Policy and `X-Frame-Options: DENY`. `QUILTOR_CSP`
