@@ -256,7 +256,10 @@ release call or a full-matrix run, and `browser-e2e` does not wait for it (`OPTI
 `workflow_contract.py`). The full matrix already runs 5 macOS jobs, the plan's limit, so the probe
 never runs beside it. The job opens the real desktop window under `enforce` and `report-only` with
 `tools/dev/desktop_csp_probe.py`, checks the two JSON reports for local paths and tokens, and keeps
-them for five days.
+them for five days. Until T-277 and T-278 land, the job is expected to end in failure: under
+`enforce` WKWebView blocks pywebview's bridge (`bridge-blocked-by-csp`, D-207), and under
+`report-only` pywebview's Cocoa backend drops the `window.open` the backup sign-in uses. A red
+probe job is the measurement, not a broken run.
 
 Why this cut:
 
