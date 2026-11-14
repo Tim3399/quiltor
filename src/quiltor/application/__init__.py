@@ -24,6 +24,7 @@ from quiltor.application.errors import (
     ApplicationUnavailable,
     InvalidApplicationInput,
     PdfExportUnavailable,
+    PdfRendererError,
 )
 from quiltor.application.worlds import OpenedWorld
 
@@ -44,6 +45,7 @@ __all__ = [
     "InvalidDocumentWireV1",
     "OpenedWorld",
     "PdfExportUnavailable",
+    "PdfRendererError",
     "RevisionConflict",
     "VersionedDocument",
     "decode_document_v1",

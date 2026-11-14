@@ -318,6 +318,22 @@ Chromium, das separate ffmpeg-Payload und die Entwicklungswerkzeuge bleiben
 bewusst außerhalb des Runtime-Images. Der extrahierte Browser wird beim Build
 zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
 
+Der Buch-PDF-Export startet Chromium **mit** dessen Sandbox, denn die Seite ist das
+Buch eines anderen Nutzers. Verweigert der Host die dafür nötigen User-Namespaces
+(`No usable sandbox`), antwortet der Server mit `pdf.sandbox_unavailable`, und der
+Client sagt es der Autorin bzw. dem Autor auf Deutsch. Zwei Auswege, beide bewusst
+Sache der Betreiberin bzw. des Betreibers:
+
+- das Container-Profil anpassen (siehe `docker-compose.yml`, seccomp-Profil), oder
+- `QUILTOR_PDF_SANDBOX=off` setzen. Das startet Chromium ohne Sandbox. Der Server
+  schreibt dann bei **jedem Start** die Warnung `pdf.sandbox_disabled` ins Log.
+
+Einen stillen Rückfall auf „ohne Sandbox“ gibt es nicht. Jeder fehlgeschlagene Export
+schreibt das Ereignis `pdf.render_failed` mit einer Kategorie (`sandbox_unavailable`,
+`browser_launch_failed`, `timeout`, `page_error`, `unknown`) und dem Exit-Code ins Log,
+nie den Text des Renderers, denn der kann die Render-URL samt Token enthalten.
+`quiltor config` listet `QUILTOR_PDF_SANDBOX`.
+
 Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
 
 Wo das Server-Log liegt, wie man eine Fehler-ID darin findet und wie man Log-Level und Logdatei setzt, steht in [`docs/operations/logging.md`](../operations/logging.md) (englisch).

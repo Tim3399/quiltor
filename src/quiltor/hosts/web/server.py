@@ -59,7 +59,7 @@ import webbrowser
 from typing import Any, Literal, cast
 from urllib.parse import parse_qs, quote, urlparse
 
-from quiltor.application import ApplicationError
+from quiltor.application import ApplicationError, PdfRendererError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http import routes as api_routes
@@ -244,6 +244,9 @@ def _exception_text(exc: BaseException) -> str:
     an OSError that names no file. sqlite's message itself can carry a path or a
     quoted value, so it never is.
     """
+    if isinstance(exc, PdfRendererError):
+        # The category is one of a fixed set the renderer chose, not stderr's text.
+        return f"{exc.code} ({exc.category})"
     if isinstance(exc, ApplicationError):
         return str(exc.code)
     if isinstance(exc, sqlite3.Error):

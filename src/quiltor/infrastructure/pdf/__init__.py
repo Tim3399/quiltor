@@ -60,6 +60,18 @@ def server_renderer(script: Path, base: Path) -> PdfRenderer:
     return node_chromium.renderer(script, base)
 
 
+def warn_if_sandbox_disabled(logger) -> bool:
+    """Say so in the log, at every start, when QUILTOR_PDF_SANDBOX=off is set.
+
+    The sandbox is what keeps another user's book from reaching the host through
+    Chromium, so turning it off is never silent. Returns whether it is off.
+    """
+    if not node_chromium.sandbox_disabled():
+        return False
+    logger.event("warning", "pdf.sandbox_disabled")
+    return True
+
+
 def python_package_renderer() -> PdfRenderer:
     """PDF capability of the portable Python artifact.
 
@@ -120,6 +132,7 @@ __all__ = [
     "server_renderer",
     "system_browser",
     "unavailable",
+    "warn_if_sandbox_disabled",
     "webkitgtk",
     "webview2",
     "wkwebview",

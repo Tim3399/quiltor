@@ -99,7 +99,36 @@ class PdfExportUnavailable(ApplicationNotSupported):
     code = "pdf.unavailable"
 
 
+#: The only things a failed PDF render may say about itself. Chosen by the renderer from
+#: stderr, never copied from it: stderr can carry the render URL with its one-shot token.
+PDF_FAILURE_CATEGORIES = (
+    "sandbox_unavailable",
+    "browser_launch_failed",
+    "timeout",
+    "page_error",
+    "unknown",
+)
+
+
+class PdfRendererError(ApplicationGatewayError):
+    """The PDF renderer ran and failed. Carries a category and an exit code, no text."""
+
+    code = "pdf.render_failed"
+
+    def __init__(self, category: str, exit_code: int | None = None) -> None:
+        if category not in PDF_FAILURE_CATEGORIES:
+            category = "unknown"
+        if category == "sandbox_unavailable":
+            # The operator has to change the profile or set the switch; asking again helps nothing.
+            self.code = "pdf.sandbox_unavailable"
+            self.retryable = False
+        super().__init__(params={"category": category})
+        self.category = category
+        self.exit_code = exit_code
+
+
 __all__ = [
+    "PDF_FAILURE_CATEGORIES",
     "ApplicationConflict",
     "ApplicationError",
     "ApplicationForbidden",
@@ -109,5 +138,6 @@ __all__ = [
     "ApplicationUnavailable",
     "InvalidApplicationInput",
     "PdfExportUnavailable",
+    "PdfRendererError",
     "SchemaNewerThanSupported",
 ]
