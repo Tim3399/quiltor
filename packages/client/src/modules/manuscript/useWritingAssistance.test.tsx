@@ -2,6 +2,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { ApplicationGatewayError } from "../../platform";
 import type { Chapter, Manuscript } from "./model";
 import type { WorkspaceSelection } from "./workspaceTypes";
 
@@ -121,5 +122,40 @@ describe("useWritingAssistance", () => {
     await act(async () => resolveCheck({ issues: [] }));
 
     expect(result.current.grammarPhase).toBe("checking");
+  });
+
+  it("rides out a 429 silently and checks the newest text once after the pause", async () => {
+    const issue = { id: "i1", from: 0, to: 3, message: "m", replacements: [] };
+    assistance.checkGrammar.mockResolvedValueOnce({ issues: [issue] });
+    const { result, rerender } = setup({ selectionKey: "a", current: chapter("Alt") });
+    await act(async () => {});
+    await act(async () => result.current.checkGrammar());
+    expect(result.current.grammarIssues).toHaveLength(1);
+
+    vi.useFakeTimers();
+    try {
+      assistance.checkGrammar.mockRejectedValueOnce(
+        new ApplicationGatewayError("busy", "writing_assistance.rate_limited", {
+          retryable: true,
+          params: { retryAfter: 2 },
+        }),
+      );
+      await act(async () => result.current.checkGrammar());
+      expect(result.current.grammarPhase).toBe("idle");
+      expect(result.current.grammarError).toBe("");
+      expect(result.current.grammarIssues).toHaveLength(1);
+
+      rerender({ selectionKey: "a", current: chapter("Alt") });
+      assistance.checkGrammar.mockResolvedValueOnce({ issues: [] });
+      await act(async () => vi.advanceTimersByTime(1999));
+      expect(assistance.checkGrammar).toHaveBeenCalledTimes(2);
+      await act(async () => vi.advanceTimersByTime(1));
+      expect(assistance.checkGrammar).toHaveBeenCalledTimes(3);
+      await act(async () => vi.advanceTimersByTime(10_000));
+      expect(assistance.checkGrammar).toHaveBeenCalledTimes(3);
+      expect(result.current.grammarIssues).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

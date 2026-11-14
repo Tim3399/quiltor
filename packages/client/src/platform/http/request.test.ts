@@ -210,6 +210,25 @@ describe("HTTP application errors", () => {
     expect((error as { requestId?: string }).requestId).toBeUndefined();
   });
 
+  it("carries a 429's Retry-After as params.retryAfter", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: { code: "writing_assistance.rate_limited", retryable: true } }),
+            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "3" } },
+          ),
+        ),
+    );
+
+    await expect(requestJson("/api/writing-assistance/check")).rejects.toMatchObject({
+      code: "writing_assistance.rate_limited",
+      params: { retryAfter: 3 },
+    });
+  });
+
   it.each([
     ["storage.read_only", "Speicher ist schreibgeschützt."],
     ["storage.full", "Nicht genug Speicherplatz."],
@@ -226,7 +245,7 @@ describe("HTTP application errors", () => {
     ["project_transfer.limit_exceeded", "Die Projektdatei überschreitet"],
     ["project_transfer.invalid_asset", "Die Projektdatei enthält eine ungültige"],
     ["project_transfer.publication_failed", "Das neue Projekt konnte nicht veröffentlicht"],
-    ["world.quota", "Lösche eine Welt oder alte Versionen oder leere den Papierkorb"],
+    ["world.quota", "Lösche eine Welt und leere den Papierkorb"],
     ["server.busy", "Der Server ist gerade ausgelastet. Versuche es gleich erneut."],
   ])("gives %s a concrete recovery message", async (code, messageStart) => {
     vi.stubGlobal(

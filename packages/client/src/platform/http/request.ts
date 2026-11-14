@@ -199,6 +199,16 @@ function structuredApplicationError(value: unknown): StructuredApplicationError 
   };
 }
 
+/** A `429`'s `Retry-After` in seconds as `params.retryAfter`, so callers can wait as asked. */
+function withRetryAfter(
+  response: Response,
+  params: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> | undefined {
+  const seconds = Number(response.headers?.get("Retry-After") ?? Number.NaN);
+  if (response.status !== 429 || !Number.isFinite(seconds) || seconds < 0) return params;
+  return { ...params, retryAfter: seconds };
+}
+
 export function httpResponseError(response: Response, data: unknown): ApplicationGatewayError {
   const category = applicationCodeForHttpStatus(response.status);
   const structured = structuredApplicationError(data);
@@ -208,7 +218,7 @@ export function httpResponseError(response: Response, data: unknown): Applicatio
     structured?.code ?? category,
     {
       category,
-      params: structured?.params,
+      params: withRetryAfter(response, structured?.params),
       retryable: structured?.retryable ?? response.status >= 500,
       requestId: bodyRequestId(data) ?? validRequestId(response.headers?.get("X-Request-Id")),
     },

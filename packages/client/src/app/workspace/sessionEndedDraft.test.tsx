@@ -108,7 +108,7 @@ describe("a save refused because the account is over its world limit (F-268-18)"
 
     expect(result.current.phase).toBe("error");
     expect(result.current.error).toBe(
-      "Du hast die Höchstzahl an Welten oder den Speicherplatz für deine Welten erreicht. Lösche eine Welt oder alte Versionen oder leere den Papierkorb, dann ist wieder Platz.",
+      "Du hast die Höchstzahl an Welten oder den Speicherplatz für deine Welten erreicht. Lösche eine Welt und leere den Papierkorb („Endgültig löschen“), dann ist wieder Platz. Eine Welt im Papierkorb zählt noch mit.",
     );
     expect(result.current.signInRequired).toBe(false);
     expect(result.current.isDirty()).toBe(true);
