@@ -22,6 +22,7 @@ from quiltor.application.backups import (
     BackupRestoreFailed,
 )
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_growth_over_quota
 
 # Every route registered `world=True` has its world resolved by the dispatch, so
 # `request.world` is never None below and its snapshot context is the only
@@ -132,6 +133,9 @@ def snapshot(handler, request: Request, app) -> None:
         )
     try:
         with app.lock:
+            # The blobs of a version are the bulk of what an account stores (F-268-18).
+            if refuse_growth_over_quota(handler, request):
+                return
             result = app.backups.commit(world.backup, message, push, authorization)
     except ApplicationError as exc:
         _observe_failure(app, "backup.snapshot_failed", exc)

@@ -30,37 +30,65 @@ def _env_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+class GrammarSlot:
+    """One running check. `superseded` is set when a newer check of the same session took
+    its place; the route then drops the result it computed (F-268-20)."""
+
+    __slots__ = ("key", "sub", "superseded")
+
+    def __init__(self, sub: str, key: str) -> None:
+        self.sub = sub
+        self.key = key
+        self.superseded = False
+
+
 class GrammarLimiter:
-    """Concurrent and per-minute limits per account; `acquire` returns a retry delay."""
+    """Concurrent and per-minute limits per account; `acquire` returns a slot or a retry delay.
+
+    Per account and session only the newest check counts. The server cannot see that a client
+    gave up on a check (its thread stays inside LanguageTool until that returns), so aborting
+    the old request would otherwise leave its slot taken for the whole run. A new check of
+    the same session therefore takes the older one's place at once.
+    """
 
     def __init__(self, clock=time.monotonic) -> None:
         self._clock = clock
         self._lock = threading.Lock()
         self._running: dict[str, int] = defaultdict(int)
         self._starts: dict[str, deque[float]] = defaultdict(deque)
+        self._latest: dict[tuple[str, str], GrammarSlot] = {}
 
-    def acquire(self, sub: str) -> int | None:
-        """None when the check may start (call `release` after), else seconds to wait."""
+    def acquire(self, sub: str, key: str = "") -> GrammarSlot | int:
+        """A slot when the check may start (pass it to `release`), else seconds to wait."""
         now = self._clock()
         with self._lock:
             starts = self._starts[sub]
             while starts and now - starts[0] >= GRAMMAR_RATE_WINDOW_SECONDS:
                 starts.popleft()
-            if self._running[sub] >= _env_int(
-                GRAMMAR_MAX_CONCURRENT_ENV, DEFAULT_GRAMMAR_MAX_CONCURRENT
-            ):
+            older = self._latest.get((sub, key))
+            running = self._running[sub] - (1 if older is not None else 0)
+            if running >= _env_int(GRAMMAR_MAX_CONCURRENT_ENV, DEFAULT_GRAMMAR_MAX_CONCURRENT):
                 return 5
             if len(starts) >= _env_int(GRAMMAR_MAX_PER_MINUTE_ENV, DEFAULT_GRAMMAR_MAX_PER_MINUTE):
                 return max(1, int(GRAMMAR_RATE_WINDOW_SECONDS - (now - starts[0])) + 1)
+            if older is not None:
+                older.superseded = True
+                self._running[sub] -= 1
             starts.append(now)
             self._running[sub] += 1
-            return None
+            slot = GrammarSlot(sub, key)
+            self._latest[(sub, key)] = slot
+            return slot
 
-    def release(self, sub: str) -> None:
+    def release(self, slot: GrammarSlot) -> None:
         with self._lock:
-            self._running[sub] -= 1
-            if self._running[sub] <= 0:
-                del self._running[sub]
+            if slot.superseded:  # its place went to the newer check already
+                return
+            if self._latest.get((slot.sub, slot.key)) is slot:
+                del self._latest[(slot.sub, slot.key)]
+            self._running[slot.sub] -= 1
+            if self._running[slot.sub] <= 0:
+                del self._running[slot.sub]
 
 
 grammar_limiter = GrammarLimiter()
@@ -121,35 +149,40 @@ def check(handler, request: Request, app) -> None:
     # Only a shared (hosted) server has someone to protect; locally the one user is not
     # throttled. Taken before the body is read, so a refused call costs no parsing.
     limited = not getattr(app, "installable", True)
-    sub = request.session.sub if limited else ""
+    slot = None
     if limited:
-        retry_after = grammar_limiter.acquire(sub)
-        if retry_after is not None:
+        session = request.session
+        granted = grammar_limiter.acquire(session.sub, session.session_id or session.sub)
+        if isinstance(granted, int):
             handler._discard_unread_body()
-            error = http_errors.for_status(
-                429, code="writing_assistance.rate_limited", retryable=True
-            )
-            return handler.send_json(
-                error.payload(), error.status, headers={"Retry-After": retry_after}
-            )
+            return _rate_limited(handler, granted)
+        slot = granted
     try:
-        _check(handler, app)
+        _check(handler, app, slot)
     finally:
-        if limited:
-            grammar_limiter.release(sub)
+        if slot is not None:
+            grammar_limiter.release(slot)
 
 
-def _check(handler, app) -> None:
+def _rate_limited(handler, retry_after: int) -> None:
+    error = http_errors.for_status(429, code="writing_assistance.rate_limited", retryable=True)
+    handler.send_json(error.payload(), error.status, headers={"Retry-After": retry_after})
+
+
+def _check(handler, app, slot: GrammarSlot | None = None) -> None:
     try:
         payload = handler._read_json_body()
         words = payload.get("customWords", [])
         if not isinstance(words, list):
             raise ValueError("invalid project dictionary")
-        handler.send_json(
-            app.writing_assistance.check(
-                str(payload.get("language", "")), str(payload.get("text", "")), words[:5000]
-            )
+        result = app.writing_assistance.check(
+            str(payload.get("language", "")), str(payload.get("text", "")), words[:5000]
         )
+        if slot is not None and slot.superseded:
+            # A newer check of this session took the place; this answer is stale. Say so
+            # with the existing 429 rather than hand back text the editor has moved past.
+            return _rate_limited(handler, 1)
+        handler.send_json(result)
     except PermissionError:
         handler.send_api_error(
             403,

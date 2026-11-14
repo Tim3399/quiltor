@@ -6,6 +6,7 @@ from quiltor.application.backup_manifest import BackupContractError
 from quiltor.application.errors import ApplicationError
 from quiltor.application.history import HistoryRequestInvalid
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_growth_over_quota
 
 
 @get("/api/history", world=True)
@@ -101,6 +102,8 @@ def restore(handler, request: Request, app) -> None:
     world = request.world
     try:
         with app.lock:
+            if refuse_growth_over_quota(handler, request):
+                return
             result = app.restore_version(
                 world.backup,
                 world.document_location,
