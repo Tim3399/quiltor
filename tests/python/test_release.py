@@ -3002,7 +3002,7 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the plan starts the desktop probe outside a dispatch",
-                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true",
+                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false",
                 "inputs.desktop_csp_probe != false",
                 "must start the optional jobs on dispatch only",
             ),
@@ -3018,6 +3018,18 @@ class PathFilterContractTests(unittest.TestCase):
                 "    needs:\n      - plan\n",
                 "    needs:\n      - plan\n      - desktop-csp-probe\n",
                 "browser-e2e must not need an optional job",
+            ),
+            (
+                "the desktop probe runs beside the full matrix",
+                " && inputs.full_matrix == false }}",
+                " }}",
+                "must start the optional jobs on dispatch only",
+            ),
+            (
+                "the desktop probe keeps its reports for good",
+                "          retention-days: 5\n",
+                "",
+                "desktop-csp-probe must keep its artifact only briefly",
             ),
             (
                 "the gate accepts any skip",

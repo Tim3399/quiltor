@@ -30,6 +30,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import tempfile
@@ -55,8 +56,25 @@ class Probe:
         self.steps: list[dict[str, Any]] = []
         self.opened_externally: list[str] = []
         self.saved_dir = Path(tempfile.mkdtemp(prefix="quiltor-csp-probe-saved-"))
+        # What must never reach the report, which CI uploads: the process token, and the
+        # directories of this machine (home, temp, the probe's own folders).
+        self.secrets: list[str] = []
+        self.paths: list[str] = [str(self.saved_dir), tempfile.gettempdir(), str(Path.home())]
+
+    def redact(self, value: Any) -> Any:
+        text = json.dumps(value, ensure_ascii=False)
+        text = re.sub(r"([?&]token=)[^&\"#\s]*", r"\1<token>", text)
+        for secret in self.secrets:
+            if secret:
+                text = text.replace(json.dumps(secret)[1:-1], "<token>")
+        # Longest first, so a folder inside the home directory is named before the home itself.
+        for path in sorted({p for p in self.paths if p}, key=len, reverse=True):
+            for form in {path, path.replace("\\", "/")}:
+                text = text.replace(json.dumps(form)[1:-1], "<local>")
+        return json.loads(text)
 
     def step(self, name: str, ok: bool, detail: Any = None) -> bool:
+        detail = self.redact(detail)
         self.steps.append(
             {
                 "step": name,
@@ -282,6 +300,7 @@ def main(argv: list[str] | None = None) -> int:
     from quiltor.infrastructure.platform.ports import AppDirectories
 
     probe = Probe(options.mode, options.timeout)
+    probe.paths += [str(home), str(ROOT)]
     directories = AppDirectories(
         data=home / "data",
         config=home / "config",
@@ -300,6 +319,7 @@ def main(argv: list[str] | None = None) -> int:
         daemon=True,
     ).start()
     desktop._wait_until_ready(port)
+    probe.secrets.append(str(getattr(application.identity, "token", "")))
 
     # pywebview hands window.open to the system browser through webbrowser.open.
     webbrowser.open = lambda url, *args, **kwargs: probe.opened_externally.append(url) or True
@@ -317,13 +337,26 @@ def main(argv: list[str] | None = None) -> int:
     build = _build(webview)
     webview.start(run_steps, (window, probe), private_mode=True, debug=False)
 
-    report = {
-        "mode": options.mode,
-        "build": build,
-        "steps": probe.steps,
-        "passed": bool(probe.steps) and all(step["ok"] for step in probe.steps),
-    }
-    options.report.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    report = probe.redact(
+        {
+            "mode": options.mode,
+            "build": build,
+            "steps": probe.steps,
+            "passed": bool(probe.steps) and all(step["ok"] for step in probe.steps),
+        }
+    )
+    written = json.dumps(report, indent=2, ensure_ascii=False)
+    # Last line of defence before the file can be uploaded: no token, no local directory.
+    leaked = [secret for secret in probe.secrets if secret and secret in written]
+    leaked += [
+        local
+        for local in probe.paths
+        if local and (json.dumps(local)[1:-1] in written or local.replace("\\", "/") in written)
+    ]
+    if leaked:
+        print("report withheld: it still names the token or a local directory", file=sys.stderr)
+        return 2
+    options.report.write_text(written, encoding="utf-8")
     print(f"report: {options.report.resolve()}  passed={report['passed']}")
     return 0 if report["passed"] else 1
 

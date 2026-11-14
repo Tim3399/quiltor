@@ -85,10 +85,11 @@ jobs:
           FULL_MATRIX: ${{ inputs.full_matrix == true || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}
         run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
       # Only a workflow_dispatch declares the input; a call or a pull request reads it as
-      # null, which is not true.
+      # null, which is not true. Never beside the full matrix: that already holds the five
+      # macOS jobs the plan allows, so the run must ask for the reduced one as well.
       - id: probe
         env:
-          DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true }}
+          DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false }}
         run: echo "desktop_csp_probe=$DESKTOP_CSP_PROBE" >> "$GITHUB_OUTPUT"
 
       # The path filter reads paths only on a pull request in reduced mode. It needs the git
@@ -1018,10 +1019,25 @@ jobs:
           python tools/dev/desktop_csp_probe.py --mode report-only --report desktop-csp-report-only.json || status=1
           exit "$status"
 
+      # The probe redacts the token and the machine's directories and withholds a report that
+      # still names one; this checks the files that would be uploaded once more.
+      - name: Check the reports name no local path and no token
+        if: always()
+        run: |
+          shopt -s nullglob
+          reports=(desktop-csp-*.json)
+          [ "${#reports[@]}" -gt 0 ] || exit 0
+          if grep -nE "$HOME|$RUNNER_TEMP|/Users/|/var/folders/|token=[^<]" "${reports[@]}"; then
+            echo "::error::a probe report names a local path or a token; not uploaded"
+            rm -f "${reports[@]}"
+            exit 1
+          fi
+
       - name: Upload the probe reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: desktop-csp-probe-macos-15
-          if-no-files-found: error
+          if-no-files-found: warn
+          retention-days: 5
           path: desktop-csp-*.json

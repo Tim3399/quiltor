@@ -1121,7 +1121,7 @@ OPTIONAL_JOBS = {
 }
 OPTIONAL_JOB_DECISION = (
     "DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && "
-    "inputs.desktop_csp_probe == true }}"
+    "inputs.desktop_csp_probe == true && inputs.full_matrix == false }}"
 )
 
 
@@ -1386,6 +1386,10 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
             raise WorkflowContractError(f"test.yml:{name} must run on exactly: if: {condition}")
         if "secrets." in body or "      contents: read\n" not in body:
             raise WorkflowContractError(f"test.yml:{name} reads the repository and nothing else")
+        if "cache:" in body or "actions/cache" in body:
+            raise WorkflowContractError(f"test.yml:{name} may not use a cache")
+        if "retention-days:" not in body:
+            raise WorkflowContractError(f"test.yml:{name} must keep its artifact only briefly")
     if OPTIONAL_JOB_DECISION not in jobs["plan"]:
         raise WorkflowContractError("the plan job must start the optional jobs on dispatch only")
     if unplaced:
@@ -1897,7 +1901,8 @@ def validate_required_step_conditions(sources: dict[Path, str]) -> None:
         re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", _job_body(workflow, "plan"), re.MULTILINE)
     )
     for name, body in _job_blocks(workflow):
-        if name == "plan":
+        # An optional job is not gated and never runs in full mode (OPTIONAL_JOBS).
+        if name == "plan" or name in OPTIONAL_JOBS:
             continue
         for step in re.split(r"^      - ", body, flags=re.MULTILINE)[1:]:
             for condition in re.findall(r"^(?:        )?if:[ ]*([^\n]*)$", step, re.MULTILINE):
