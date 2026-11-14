@@ -9,6 +9,7 @@ from contextlib import suppress
 from typing import Any
 
 from quiltor.application.observability import Metrics, StructuredLogger
+from quiltor.modules.assistant.engines import SERVER
 from quiltor.modules.assistant.ports import (
     AssistantInteractionLogger,
     AssistantJobStore,
@@ -46,6 +47,13 @@ class PremiumRequiredError(Exception):
 
 #: Seconds a worker pauses after the queue itself failed (a locked database, say).
 CLAIM_RETRY_SECONDS = 1.0
+
+
+def _with_engine_step(result: dict[str, Any], engine: str) -> dict[str, Any]:
+    """Name the engine kind as the first step of the answer's trace (T-61 part 9)."""
+
+    steps = [step for step in result.get("agentTrace") or [] if isinstance(step, dict)]
+    return {**result, "agentTrace": [{"step": "engine", "engine": engine}, *steps]}
 
 
 def _stale_world_result(
@@ -418,6 +426,9 @@ class AssistantJobRunner:
         question = str(payload.get("question") or "")
         owner_sub = str(job.get("_ownerSub") or "")
         world_id = str(job.get("_worldId") or payload.get("worldId") or "")
+        # Which kind of engine computed the answer, for the audit (T-61 part 9). Only the
+        # kind from the closed list: no model name and no key ever reach the trace.
+        engine = str(job.get("engine") or SERVER)
         try:
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("The world for this assistant job no longer exists.")
@@ -440,6 +451,7 @@ class AssistantJobRunner:
             if self.store.cancel_requested(job_id):
                 self.store.finish_success(job_id, {}, "")
                 return
+            result = _with_engine_step(result, engine)
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("The world for this assistant job no longer exists.")
             expected_checkpoint = payload.get("documentRevisions")
@@ -475,6 +487,7 @@ class AssistantJobRunner:
                 result,
                 owner_sub=owner_sub,
                 world_id=world_id,
+                engine=engine,
             )
             response = {"ok": True, "interactionId": interaction_id, **result}
             terminal = self.store.finish_success(job_id, response, interaction_id)
@@ -502,6 +515,7 @@ class AssistantJobRunner:
                         error=str(exc),
                         owner_sub=owner_sub,
                         world_id=world_id,
+                        engine=engine,
                     )
                 except Exception as log_exc:  # noqa: BLE001 - a failed interaction log must not mask the job error
                     self.structured_logger.event(

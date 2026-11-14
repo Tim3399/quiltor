@@ -115,6 +115,7 @@ For authors who write themselves and are not looking for an AI ghostwriter. Espe
 - [Features in detail](https://github.com/Tim3399/quiltor/blob/main/docs/features.md)
 - [Installation and operation](https://github.com/Tim3399/quiltor/blob/main/docs/operations/installation.md): source, Python package, desktop, Docker, CLI
 - [The local assistant](https://github.com/Tim3399/quiltor/blob/main/docs/assistant.md): runtime, external endpoint, MCP
+- [Own AI](https://github.com/Tim3399/quiltor/blob/main/docs/operations/own-ai.md): AI in the browser (WebLLM) instead of the server AI, switch, deadlines, reverse proxy and Content Security Policy
 - [German writing tools](https://github.com/Tim3399/quiltor/blob/main/docs/writing-tools.md)
 - [Sync, backup and local data](https://github.com/Tim3399/quiltor/blob/main/docs/operations/sync-and-backup.md)
 - [Development](https://github.com/Tim3399/quiltor/blob/main/docs/development.md) and [architecture](https://github.com/Tim3399/quiltor/blob/main/docs/architecture/overview.md)
