@@ -326,7 +326,7 @@ deliberately the operator's call; try them in this order, narrowest first:
    Chromium Headless Shell; `~/.cache/ms-playwright/` shows it. Example
    `/etc/apparmor.d/quiltor-chromium` (adjust path and user name):
 
-   ```
+   ```text
    abi <abi/4.0>,
    include <tunables/global>
 
@@ -339,6 +339,7 @@ deliberately the operator's call; try them in this order, narrowest first:
 
    Load it with `sudo apparmor_parser -r /etc/apparmor.d/quiltor-chromium`; it survives
    reboots. A new Chromium version changes the directory name, which the `*` covers.
+
 3. **`QUILTOR_PDF_SANDBOX=off` as the last resort.** That starts Chromium without its
    sandbox. A page the renderer loads can then escape the process through a Chromium
    bug. The server writes the warning `pdf.sandbox_disabled` to the log at **every

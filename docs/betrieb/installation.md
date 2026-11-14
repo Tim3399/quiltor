@@ -337,7 +337,7 @@ dieser Reihenfolge, vom engsten zum weitesten:
    Playwrights Chromium Headless Shell; `~/.cache/ms-playwright/` zeigt ihn. Beispiel
    `/etc/apparmor.d/quiltor-chromium` (Pfad und Benutzername anpassen):
 
-   ```
+   ```text
    abi <abi/4.0>,
    include <tunables/global>
 
@@ -351,6 +351,7 @@ dieser Reihenfolge, vom engsten zum weitesten:
    Laden: `sudo apparmor_parser -r /etc/apparmor.d/quiltor-chromium`. Das Profil bleibt
    über Neustarts erhalten. Ändert sich die Chromium-Version, ändert sich der
    Verzeichnisname; das Muster mit `*` deckt das ab.
+
 3. **`QUILTOR_PDF_SANDBOX=off` als letzter Ausweg.** Das startet Chromium ohne Sandbox.
    Eine Seite, die der Renderer lädt, kann dann bei einem Fehler in Chromium aus dem
    Prozess ausbrechen. Der Server schreibt bei **jedem Start** die Warnung
