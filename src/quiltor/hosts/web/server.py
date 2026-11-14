@@ -589,8 +589,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # Every HTML answer carries the policy, whichever path wrote it: the client,
             # the backup callback page, an error page. Not static assets or JSON (T-61).
             policy = getattr(self.application, "content_security_policy", None)
-            if policy is not None and is_html(getattr(self, "_content_type", "")):
+            html = is_html(getattr(self, "_content_type", ""))
+            if policy is not None and html:
                 self.send_header(*policy)
+            # Never in a frame of another site, whatever the CSP mode (S269-2, D-198): a
+            # report-only frame-ancestors blocks nothing, and a page on any site could
+            # otherwise frame the local server and steer the author's clicks.
+            if html:
+                self.send_header("X-Frame-Options", "DENY")
             # Any Set-Cookie headers queued by the auth routes ride along on whatever
             # response actually gets sent (send_json/send_pdf/redirect/static fallback).
             for key, value in getattr(self, "_pending_cookies", None) or []:

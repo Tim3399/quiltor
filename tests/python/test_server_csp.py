@@ -89,13 +89,21 @@ class LiveServer:
 
 class ModeTests(unittest.TestCase):
     def test_each_mode_picks_its_header(self):
-        for mode, header in (("report-only", REPORT_ONLY), ("enforce", ENFORCE), ("", REPORT_ONLY)):
+        # Unset is enforce here: this is a web instance without identity (D-198, S269-1).
+        for mode, header in (("report-only", REPORT_ONLY), ("enforce", ENFORCE), ("", ENFORCE)):
             with self.subTest(mode=mode):
                 response = LiveServer(self, {"QUILTOR_CSP": mode}).get("/")
                 self.assertEqual(response.status, 200)
                 self.assertIsNotNone(response.getheader(header))
                 other = ENFORCE if header == REPORT_ONLY else REPORT_ONLY
                 self.assertIsNone(response.getheader(other))
+
+    def test_every_mode_forbids_framing(self):
+        """S269-2: a report-only or absent frame-ancestors blocks nothing on its own."""
+        for mode in ("enforce", "report-only", "off"):
+            with self.subTest(mode=mode):
+                response = LiveServer(self, {"QUILTOR_CSP": mode}).get("/")
+                self.assertEqual(response.getheader("X-Frame-Options"), "DENY")
 
     def test_off_sends_no_policy(self):
         response = LiveServer(self, {"QUILTOR_CSP": "off"}).get("/")
@@ -169,7 +177,7 @@ class ConnectSrcTests(unittest.TestCase):
         policy = policy_file()
         response = LiveServer(self, {}).get("/")
         self.assertEqual(
-            connect_src(str(response.getheader(REPORT_ONLY))),
+            connect_src(str(response.getheader(ENFORCE))),
             policy["directives"]["connect-src"] + policy["webllmHosts"],
         )
 
@@ -183,7 +191,7 @@ class ConnectSrcTests(unittest.TestCase):
             },
         ).get("/")
         self.assertEqual(
-            connect_src(str(response.getheader(REPORT_ONLY))),
+            connect_src(str(response.getheader(ENFORCE))),
             [
                 *policy["directives"]["connect-src"],
                 *policy["webllmHosts"],
@@ -198,7 +206,7 @@ class ConnectSrcTests(unittest.TestCase):
         for environment in ({}, {"QUILTOR_TEST_HOOKS": "1"}):
             with self.subTest(environment=environment):
                 response = LiveServer(self, environment).get("/")
-                allowed = connect_src(str(response.getheader(REPORT_ONLY)))
+                allowed = connect_src(str(response.getheader(ENFORCE)))
                 for origin in PROVIDER_ORIGINS:
                     self.assertFalse(
                         any(origin in entry for entry in allowed), f"{origin} in {allowed}"

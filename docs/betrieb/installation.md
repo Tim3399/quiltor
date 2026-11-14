@@ -236,6 +236,27 @@ Umgebungsvariablen:
 | `QUILTOR_PREMIUM_ROLE`            | Rolle für den KI-Assistenten; Standard `premium`            |
 | `QUILTOR_ASSISTANT_MAX_OPEN_JOBS` | Offene Assistenten-Aufträge je Konto (1–100); Standard `3`  |
 
+### Content Security Policy (ab 3.26)
+
+Jede Seite trägt eine Content Security Policy und `X-Frame-Options: DENY`. Den Modus wählt
+`QUILTOR_CSP`:
+
+| Betriebsart                                 | Standard      | Ausweg                                                 |
+| ------------------------------------------- | ------------- | ------------------------------------------------------ |
+| Gehostet (mit Keycloak)                     | `enforce`     | `QUILTOR_CSP=report-only`, `QUILTOR_CSP_CONNECT_EXTRA` |
+| Web ohne Keycloak (lokal, selbst betrieben) | `enforce`     | `QUILTOR_CSP=report-only`, `QUILTOR_CSP_CONNECT_EXTRA` |
+| Desktop-App                                 | `report-only` | –                                                      |
+
+- `enforce` blockiert, was die Policy nicht erlaubt. `report-only` meldet es nur in der
+  Browser-Konsole. Das ist ein Ausweg, solange du ein Problem meldest, keine Einstellung auf
+  Dauer. `off` schickt keine Policy.
+- `QUILTOR_CSP_CONNECT_EXTRA` erweitert `connect-src` um weitere Adressen, durch Leerzeichen
+  getrennt, nur genaue `https://`-Origins ohne Pfad und ohne Platzhalter.
+- **Hugging Face wechselt seine Download-Hosts gelegentlich.** Lädt der Assistent im Browser
+  sein Modell nicht mehr und die Konsole zeigt einen CSP-Fehler, trag die blockierte Adresse
+  aus der Konsole in `QUILTOR_CSP_CONNECT_EXTRA` ein.
+- Unabhängig vom Modus lässt sich Quiltor nicht in eine fremde Seite einbetten.
+
 Start:
 
 ```bash

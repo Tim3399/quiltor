@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import LOOPBACK_HOSTS, build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
-from quiltor.bootstrap.web import content_security_policy, csp_mode
+from quiltor.bootstrap.web import DESKTOP, HOSTED, LOCAL, content_security_policy, csp_mode
 from quiltor.hosts.desktop import app as desktop_app
 from quiltor.hosts.desktop.bridge import BRIDGE_VERSION, FILE_SAVE, NativeBridge
 from quiltor.hosts.web import server
@@ -117,10 +117,20 @@ class ContentSecurityPolicyTests(unittest.TestCase):
             with self.subTest(origin=origin), self.assertRaises(RuntimeError):
                 csp_connect_extra(origin)
 
-    @unittest.expectedFailure
-    def test_s269_1_an_unconfigured_instance_enforces_its_policy(self):
-        """S269-1: QUILTOR_CSP unset means report-only, for hosted as well."""
-        self.assertEqual(csp_mode(""), "enforce")
+    def test_s269_1_hosted_enforces_without_any_variable(self):
+        """S269-1, D-198: the default comes from the operation profile, not from the infra."""
+        self.assertEqual(csp_mode("", HOSTED), "enforce")
+        # The documented way out in docker-compose.yml stays open.
+        self.assertEqual(csp_mode("report-only", HOSTED), "report-only")
+
+    def test_s269_1_a_web_instance_without_identity_enforces_by_default(self):
+        """S269-1, D-198: local and self-hosted enforce; report-only stays the way out."""
+        self.assertEqual(csp_mode("", LOCAL), "enforce")
+        self.assertEqual(csp_mode("report-only", LOCAL), "report-only")
+
+    def test_s269_1_the_desktop_window_stays_report_only(self):
+        """D-198: pywebview builds its bridge with `new Function`; enforce is unproven there."""
+        self.assertEqual(csp_mode("", DESKTOP), "report-only")
 
 
 class ResponseHeaderTests(_LocalServer):
@@ -131,16 +141,16 @@ class ResponseHeaderTests(_LocalServer):
         self.assertEqual(status, 200)
         self.assertEqual(headers.get("Cache-Control"), "no-store")
 
-    @unittest.expectedFailure
     def test_s269_2_the_page_cannot_be_framed_by_another_site(self):
-        """S269-2: frame-ancestors is only reported, and no X-Frame-Options is sent."""
+        """S269-2: X-Frame-Options on every page, whatever the CSP mode (test_server_csp)."""
         status, headers, _ = self._get("/")
         self.assertEqual(status, 200)
-        enforced = headers.get("Content-Security-Policy", "")
-        self.assertTrue(
-            "frame-ancestors 'none'" in enforced or headers.get("X-Frame-Options") == "DENY",
-            headers,
-        )
+        self.assertEqual(headers.get("X-Frame-Options"), "DENY")
+
+    def test_json_answers_carry_no_frame_header(self):
+        """Only pages can be framed; the header stays where it means something."""
+        _, headers, _ = self._get("/api/worlds")
+        self.assertNotIn("X-Frame-Options", headers)
 
 
 class HostGuardTests(_LocalServer):
