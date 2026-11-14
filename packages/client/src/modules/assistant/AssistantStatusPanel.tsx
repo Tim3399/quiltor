@@ -6,8 +6,8 @@ import {
   useInstanceCapabilities,
   useUserCapabilities,
 } from "../../shared/capabilities";
-import type { AssistantEngineKind } from "./engines/types";
 import { type EngineChoice, useEngineChoice } from "./engines/useEngineChoice";
+import { useEngineLabels } from "./engines/useEngineLabels";
 import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
@@ -37,23 +37,33 @@ export function AssistantStatusPanel({
   const choice = shared ?? own;
   const onServer = choice.engine === "server";
   const EnginePanel = choice.slot?.Panel;
-  const engineLabels: Record<AssistantEngineKind, string> = {
-    server: t("assistantEngineServer"),
-    webllm: t("assistantEngineBrowser"),
-    cloud: t("assistantEngineOwnKey"),
-  };
+  const engineLabels = useEngineLabels();
+  // Without the premium role the server AI stays in the switch, visibly locked, so the
+  // choice does not look like a plain browser-only assistant (T-275, D-T-61-8a-F2).
+  const serverLocked = !serverAi && choice.available.length > 0;
+  const options = [
+    ...(serverLocked
+      ? [{ value: "server" as const, label: engineLabels.server, disabled: true }]
+      : []),
+    ...choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] })),
+  ];
   return (
     <>
       {/* Only a real choice is shown: with the server alone nothing changes for the user. */}
-      {choice.available.length > 1 && (
-        <SegmentedControl
-          className="assistant-engine-choice"
-          size="compact"
-          label={t("assistantEngineLabel")}
-          value={choice.engine}
-          options={choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] }))}
-          onChange={choice.choose}
-        />
+      {options.length > 1 && (
+        <div className="assistant-engine">
+          <SegmentedControl
+            className="assistant-engine-choice"
+            size="compact"
+            label={t("assistantEngineLabel")}
+            value={choice.engine}
+            options={options}
+            onChange={choice.choose}
+          />
+          {serverLocked && (
+            <small className="assistant-engine-note">{t("assistantEngineServerLocked")}</small>
+          )}
+        </div>
       )}
       {EnginePanel && <EnginePanel />}
       <div className="assistant-scope">

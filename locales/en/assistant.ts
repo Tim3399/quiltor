@@ -11,7 +11,7 @@ export const assistant = {
     "A relationship needs two different elements. Edit the proposal.",
   proposalApplyRelationshipExists:
     "This relationship already exists. Review the existing relationship or edit the proposal.",
-  localOnlySuggestions: "Local · suggestions only",
+  assistantEngineSuggestionsOnly: "{engine} · suggestions only",
   newChat: "New chat",
   closeAssistant: "Close assistant",
   sourcesIndexed: "{n} sources indexed",

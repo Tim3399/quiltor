@@ -17,7 +17,12 @@ vi.mock("./engines/registry", () => ({
 
 const COMPOSER = "Figur anlegen, Beziehung ändern, Timeline prüfen …";
 
-function renderDrawer({ status = NOT_INSTALLED as object, serverAi = true, clientAi = true } = {}) {
+function renderDrawer({
+  status = NOT_INSTALLED as object,
+  serverAi = true,
+  clientAi = true,
+  multiUser = false,
+} = {}) {
   const stored = new Map<string, string>();
   vi.spyOn(preferences, "get").mockImplementation((key) => stored.get(key) ?? null);
   vi.spyOn(preferences, "set").mockImplementation((key, value) => {
@@ -27,7 +32,13 @@ function renderDrawer({ status = NOT_INSTALLED as object, serverAi = true, clien
   render(
     <I18nProvider>
       <CapabilitiesProvider
-        value={{ multiUser: false, signOut: false, deviceSync: true, clientAi }}
+        value={{
+          multiUser,
+          assistantInstall: !multiUser,
+          signOut: false,
+          deviceSync: true,
+          clientAi,
+        }}
         user={{ serverAi }}
       >
         <AssistantDrawer
@@ -45,6 +56,28 @@ function renderDrawer({ status = NOT_INSTALLED as object, serverAi = true, clien
     </I18nProvider>,
   );
 }
+
+describe("the drawer's header names the engine its switch shows (T-275)", () => {
+  it("follows the switch from this computer to the own key", async () => {
+    renderDrawer({ status: ONLINE });
+    const header = screen.getByText(/· nur Vorschläge$/);
+    expect(header).toHaveTextContent("Auf diesem Rechner · nur Vorschläge");
+    fireEvent.click(await screen.findByRole("radio", { name: "Eigener Schlüssel" }));
+    expect(header).toHaveTextContent("Eigener Schlüssel · nur Vorschläge");
+  });
+
+  it("says server AI where accounts sign in", async () => {
+    renderDrawer({ status: ONLINE, multiUser: true });
+    await screen.findByRole("radio", { name: "Server-KI" });
+    expect(screen.getByText("Server-KI · nur Vorschläge")).toBeInTheDocument();
+  });
+
+  it("never names the server while it is locked and the own key computes", async () => {
+    renderDrawer({ status: ONLINE, multiUser: true, serverAi: false });
+    expect(await screen.findByRole("radio", { name: "Server-KI" })).toBeDisabled();
+    expect(screen.getByText("Eigener Schlüssel · nur Vorschläge")).toBeInTheDocument();
+  });
+});
 
 describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
   it("locks the composer while the server engine is chosen", async () => {

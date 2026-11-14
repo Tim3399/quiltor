@@ -2,6 +2,9 @@
 export const assistantClientAi = {
   assistantEngineLabel: "AI engine",
   assistantEngineServer: "Server AI",
+  // Without an identity the server model computes on the author's own computer (T-275).
+  assistantEngineLocal: "On this computer",
+  assistantEngineServerLocked: "The server AI is only available with premium access.",
   assistantEngineBrowser: "In the browser",
   assistantEngineOwnKey: "Own key",
   errorAssistantClientJobRunning:
