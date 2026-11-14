@@ -45,10 +45,11 @@ class GrammarSlot:
 class GrammarLimiter:
     """Concurrent and per-minute limits per account; `acquire` returns a slot or a retry delay.
 
-    Per account and session only the newest check counts. The server cannot see that a client
-    gave up on a check (its thread stays inside LanguageTool until that returns), so aborting
-    the old request would otherwise leave its slot taken for the whole run. A new check of
-    the same session therefore takes the older one's place at once.
+    The concurrent limit counts calls running inside LanguageTool, whichever session sent
+    them. Per account and session only the newest check's result counts: a newer check marks
+    the older one `superseded`, but the older one keeps its place until its call has returned,
+    because the server cannot interrupt a thread inside LanguageTool (F-268-24). When the
+    limit is full, a newer check of the same session is refused at once like any other.
     """
 
     def __init__(self, clock=time.monotonic) -> None:
@@ -65,15 +66,15 @@ class GrammarLimiter:
             starts = self._starts[sub]
             while starts and now - starts[0] >= GRAMMAR_RATE_WINDOW_SECONDS:
                 starts.popleft()
-            older = self._latest.get((sub, key))
-            running = self._running[sub] - (1 if older is not None else 0)
-            if running >= _env_int(GRAMMAR_MAX_CONCURRENT_ENV, DEFAULT_GRAMMAR_MAX_CONCURRENT):
+            if self._running[sub] >= _env_int(
+                GRAMMAR_MAX_CONCURRENT_ENV, DEFAULT_GRAMMAR_MAX_CONCURRENT
+            ):
                 return 5
             if len(starts) >= _env_int(GRAMMAR_MAX_PER_MINUTE_ENV, DEFAULT_GRAMMAR_MAX_PER_MINUTE):
                 return max(1, int(GRAMMAR_RATE_WINDOW_SECONDS - (now - starts[0])) + 1)
+            older = self._latest.get((sub, key))
             if older is not None:
-                older.superseded = True
-                self._running[sub] -= 1
+                older.superseded = True  # still counted until its own release
             starts.append(now)
             self._running[sub] += 1
             slot = GrammarSlot(sub, key)
@@ -82,8 +83,6 @@ class GrammarLimiter:
 
     def release(self, slot: GrammarSlot) -> None:
         with self._lock:
-            if slot.superseded:  # its place went to the newer check already
-                return
             if self._latest.get((slot.sub, slot.key)) is slot:
                 del self._latest[(slot.sub, slot.key)]
             self._running[slot.sub] -= 1
