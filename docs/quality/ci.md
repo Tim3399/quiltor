@@ -244,18 +244,19 @@ test.yml with GitHub's comparison rules for these cases:
 | ------------------------------------------------------------------- | --------------------------- | ---------------------- |
 | plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
 | Core on macOS and Windows                                           | 2                           | 2                      |
-| Linux browser slots + `browser-e2e` aggregator                      | 6 + 1                       | 6 + 1                  |
+| Linux browser slots + OIDC job + `browser-e2e` aggregator           | 6 + 1 + 1                   | 6 + 1 + 1              |
 | Browser on Windows (10 slots) and macOS (4 slots)                   | 14                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
-| **Total**                                                           | **26** (was 23)             | **15** (was 23)        |
-| Desktop CSP probe on macos-15, only on request (T-272)              | +1                          | +1                     |
+| **Total**                                                           | **30** (was 23)             | **18** (was 23)        |
+| Desktop CSP probe on macos-15, only on request (T-272)              | --                          | +1                     |
 
 The desktop CSP probe is outside both totals and outside the verdict: only a manual run with
-`desktop_csp_probe: true` starts it, never a pull request, a push or a release call, and
-`browser-e2e` does not wait for it (`OPTIONAL_JOBS` in `workflow_contract.py`). Start it with
-`full_matrix: false`: the full matrix already runs 5 macOS jobs, the plan's limit, and a sixth
-would queue until one of them ends. The job opens the real desktop window under `enforce` and
-`report-only` with `tools/dev/desktop_csp_probe.py` and uploads both JSON reports.
+`desktop_csp_probe: true` and `full_matrix: false` starts it, never a pull request, a push, a
+release call or a full-matrix run, and `browser-e2e` does not wait for it (`OPTIONAL_JOBS` in
+`workflow_contract.py`). The full matrix already runs 5 macOS jobs, the plan's limit, so the probe
+never runs beside it. The job opens the real desktop window under `enforce` and `report-only` with
+`tools/dev/desktop_csp_probe.py`, checks the two JSON reports for local paths and tokens, and keeps
+them for five days.
 
 Why this cut:
 
@@ -277,7 +278,7 @@ Why this cut:
   cross-platform product jobs; they now run once per system.
 - **Pull requests leave the expensive runners free.** A pull request runs everything on Linux,
   the backend and Rust suites on all three systems, and one smoke runner per system (below). That
-  is 15 jobs instead of 23, and 4 instead of 13 on Windows and macOS.
+  is 18 jobs instead of 23, and 4 instead of 13 on Windows and macOS.
 - **Concurrent jobs on a main push.** The full matrix starts one Windows/macOS job fewer than
   before (10 instead of 11) plus the seconds-long `plan` job. Peak after `frontend`: the 4 Linux slots, the 10
   Windows/macOS slots and Core on windows-2025 (still running), about 15; with the 2–3 Release
