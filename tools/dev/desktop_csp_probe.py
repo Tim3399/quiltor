@@ -11,8 +11,9 @@ window on owner_url() -- and drives the page from Python:
   2. the policy header is the one asked for;
   3. `pywebview.api.invoke` saves files through the bridge, small and export-sized
      (every export -- book PDF, manuscript, project -- goes through this one call);
-  4. the backup login's window half: its fetch answers, and window.open reaches the
-     system browser (captured here instead of opening one);
+  4. the backup login's window half: its fetch answers, and the system browser is reached
+     both by window.open (what the app does) and by a target=_blank link (captured
+     here instead of opening one);
   5. no `securitypolicyviolation` fired while steps 3 and 4 ran.
 
 Each step lands in a JSON report with time, build and result. Exit code 0 means every
@@ -55,6 +56,8 @@ class Probe:
         self.timeout = timeout
         self.steps: list[dict[str, Any]] = []
         self.opened_externally: list[str] = []
+        # "passed", "failed", or "bridge-blocked-by-csp" when the engine refuses injected script.
+        self.outcome = ""
         self.saved_dir = Path(tempfile.mkdtemp(prefix="quiltor-csp-probe-saved-"))
         # What must never reach the report, which CI uploads: the process token, and the
         # directories of this machine (home, temp, the probe's own folders).
@@ -261,19 +264,45 @@ def run_steps(window: Any, probe: Probe) -> None:
         # Without a configured endpoint the server answers 4xx; what counts here is that
         # the request left the page at all under the policy.
         probe.step("backup login request leaves the page", isinstance(login, int), login)
-        _evaluate(window, "(window.open('https://issuer.example.test/authorize', '_blank'), true)")
+        # Two ways out of the window, measured apart. The app's sign-in button calls
+        # window.open (platform/browser/browserPlatformGateway.ts); pywebview's Cocoa backend
+        # hands only an activated link to the system browser and drops a scripted window.open.
+        _evaluate(
+            window, "(window.open('https://issuer.example.test/by-window-open', '_blank'), true)"
+        )
         time.sleep(1.0)
         probe.step(
-            "backup login opens the system browser",
-            any("issuer.example.test" in url for url in probe.opened_externally),
+            "backup login: window.open (as the app does) reaches the system browser",
+            any("by-window-open" in url for url in probe.opened_externally),
+            probe.opened_externally,
+        )
+        _evaluate(
+            window,
+            "(() => { const a = document.createElement('a');"
+            " a.href = 'https://issuer.example.test/by-link'; a.target = '_blank';"
+            " a.rel = 'noopener noreferrer'; document.body.appendChild(a); a.click();"
+            " a.remove(); return true; })()",
+        )
+        time.sleep(1.0)
+        probe.step(
+            "backup login: a target=_blank link reaches the system browser",
+            any("by-link" in url for url in probe.opened_externally),
             probe.opened_externally,
         )
 
         violations = _evaluate(window, "JSON.stringify(window.__violations)")
         found = json.loads(violations) if isinstance(violations, str) else violations
         probe.step("no CSP violation during bridge and login", found == [], found)
-    except Exception:  # noqa: BLE001 -- the report must say what broke, then the window closes
-        probe.step("probe crashed", False, traceback.format_exc())
+    except Exception as error:  # noqa: BLE001 -- the report must say what broke, then close
+        message = str(error)
+        if "unsafe-eval" in message or "EvalError" in message:
+            # WKWebView holds script pywebview injects to the page's script-src. evaluate_js is
+            # also how pywebview hands every bridge result back (webview/window.py), so the
+            # bridge is blocked the same way: a result, not a crash of the probe.
+            probe.outcome = "bridge-blocked-by-csp"
+            probe.step("page scripting and the bridge are refused by the CSP", False, message)
+        else:
+            probe.step("probe crashed", False, traceback.format_exc())
     finally:
         window.destroy()
 
@@ -345,6 +374,7 @@ def main(argv: list[str] | None = None) -> int:
             "passed": bool(probe.steps) and all(step["ok"] for step in probe.steps),
         }
     )
+    report["outcome"] = probe.outcome or ("passed" if report["passed"] else "failed")
     written = json.dumps(report, indent=2, ensure_ascii=False)
     # Last line of defence before the file can be uploaded: no token, no local directory.
     leaked = [secret for secret in probe.secrets if secret and secret in written]
