@@ -8,7 +8,10 @@ if (!url || !target) throw new Error("The render URL and target path are require
 
 // The page is another user's book. Playwright adds --no-sandbox unless this is
 // exactly true; the container grants what the sandbox needs (see docker-compose.yml).
-const browser = await chromium.launch({ headless: true, chromiumSandbox: true });
+// An operator whose host grants no user namespaces opts out with QUILTOR_PDF_SANDBOX=off;
+// nothing here falls back to that on its own.
+const sandbox = (process.env.QUILTOR_PDF_SANDBOX ?? "").trim().toLowerCase() !== "off";
+const browser = await chromium.launch({ headless: true, chromiumSandbox: sandbox });
 try {
   const page = await browser.newPage();
   await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 });

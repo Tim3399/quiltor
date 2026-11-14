@@ -108,6 +108,7 @@ export function TextWorkspace({
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
+  const [pdfSandboxRefused, setPdfSandboxRefused] = useState(false);
   const [exportError, setExportError] = useState("");
   const [exportPreset, setExportPreset] = useState<ManuscriptExportPreset | null>(null);
   const [preview, setPreview] = useState(false);
@@ -290,11 +291,15 @@ export function TextWorkspace({
     );
   const printBook = async () => {
     setPdfState("loading");
+    setPdfSandboxRefused(false);
     try {
       await onSave?.();
       await quiltorClient.application.documents.bookPdf();
       setPdfState("idle");
-    } catch {
+    } catch (error) {
+      setPdfSandboxRefused(
+        (error as { code?: unknown } | null)?.code === "pdf.sandbox_unavailable",
+      );
       setPdfState("error");
     }
   };
@@ -659,7 +664,7 @@ ${markdownBody(current.body, current.marks)}
               onDismiss={() => setPdfState("idle")}
               dismissLabel={t("closeMessage")}
             >
-              {t("bookPdfError")}
+              {t(pdfSandboxRefused ? "bookPdfSandboxError" : "bookPdfError")}
             </Toast>
           )}
           {!!exportError && (

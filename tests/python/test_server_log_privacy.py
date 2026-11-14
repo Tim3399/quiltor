@@ -21,6 +21,7 @@ import io
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import tempfile
 from copy import deepcopy
@@ -478,6 +479,36 @@ class _PrivacyServer(_LiveServer):
         with patch.object(assistant_jobs, "CLAIM_RETRY_SECONDS", 0):
             self.assertIsNone(runner._claim(claim, "client"))
 
+    def scenario_pdf(self):
+        # A failed PDF render whose stderr quotes the render URL with its token and the
+        # author's text, and the start-up warning of QUILTOR_PDF_SANDBOX=off. Only the
+        # category and the exit code reach the log.
+        from quiltor.infrastructure import pdf as pdf_package
+        from quiltor.infrastructure.pdf import node_chromium
+
+        stderr = (
+            f"No usable sandbox! {CANARIES['exception']} {CANARIES['file_path']} "
+            f"http://127.0.0.1/?renderToken={CANARIES['query_render']}"
+        )
+
+        def failing_run(argv, **kwargs):
+            return subprocess.CompletedProcess(argv, 1, stdout="", stderr=stderr)
+
+        renderer = node_chromium.renderer(Path("render.mjs"), Path("."))
+
+        def render(url, timeout=90):
+            with patch.object(node_chromium.subprocess, "run", failing_run):
+                return renderer(url, timeout)
+
+        original = self.application.render_pdf
+        object.__setattr__(self.application, "render_pdf", render)
+        try:
+            self.request("POST", "/api/book.pdf", {"worldId": self.world_id})
+        finally:
+            object.__setattr__(self.application, "render_pdf", original)
+        with patch.dict(os.environ, {"QUILTOR_PDF_SANDBOX": "off"}):
+            pdf_package.warn_if_sandbox_disabled(self.application.observability.logger)
+
     SCENARIOS = (
         "scenario_content",
         "scenario_rejected_saves",
@@ -493,6 +524,7 @@ class _PrivacyServer(_LiveServer):
         "scenario_backup_remote",
         "scenario_assistant_claim",
         "scenario_backup_label",
+        "scenario_pdf",
     )
 
 

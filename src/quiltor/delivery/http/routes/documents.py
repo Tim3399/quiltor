@@ -10,6 +10,7 @@ from quiltor.application import (
     MAX_SAFE_REVISION,
     InvalidDocumentState,
     InvalidDocumentWireV1,
+    PdfRendererError,
     RevisionConflict,
     decode_document_v1,
     encode_document_v1,
@@ -189,4 +190,16 @@ def book_pdf(handler, request: Request, app) -> None:
     # on its first request (see redeem_render_token).
     token = app.issue_render_token(request.session.sub)
     target = f"http://127.0.0.1:{port}/?world={world.id}&renderToken={token}&bookRender=1"
-    handler.send_pdf(app.render_pdf(target))
+    try:
+        body = app.render_pdf(target)
+    except PdfRendererError as error:
+        # Category and exit code only: the renderer's stderr can carry the render URL and
+        # its token, and PdfRendererError never holds it.
+        handler.application.observability.logger.event(
+            "error",
+            "pdf.render_failed",
+            category=error.category,
+            exit_code=error.exit_code,
+        )
+        raise
+    handler.send_pdf(body)

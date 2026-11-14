@@ -308,6 +308,22 @@ tooling, including Playwright's separate ffmpeg payload, are deliberately
 excluded from the runtime image. The extracted browser tree is also verified
 against its committed SHA-256 during the build.
 
+Book-PDF export starts Chromium **with** its sandbox, because the page is another
+user's book. If the host refuses the user namespaces the sandbox needs
+(`No usable sandbox`), the server answers `pdf.sandbox_unavailable` and the client
+tells the author in German. There are two ways out, both deliberately the operator's
+call:
+
+- adjust the container profile (see `docker-compose.yml`, the seccomp profile), or
+- set `QUILTOR_PDF_SANDBOX=off`. That starts Chromium without its sandbox, and the
+  server writes the warning `pdf.sandbox_disabled` to the log at **every start**.
+
+There is no silent fallback to "no sandbox". Every failed export logs a
+`pdf.render_failed` event with a category (`sandbox_unavailable`,
+`browser_launch_failed`, `timeout`, `page_error`, `unknown`) and the exit code, never
+the renderer's own text, which can contain the render URL and its token.
+`quiltor config` lists `QUILTOR_PDF_SANDBOX`.
+
 Sessions live in process memory. Restarting the container therefore signs web users out.
 
 Where the server log lives, how to find an error ID in it and how to set the log level and log file is described in [`docs/operations/logging.md`](logging.md).

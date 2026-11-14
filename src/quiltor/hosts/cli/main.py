@@ -112,6 +112,10 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_GRAMMAR_MAX_PER_MINUTE": "Grammar checks one account may start per minute. Default: 30.",
     "QUILTOR_AI_TIMEOUT": "Seconds one chat request to the AI endpoint may take, at least 30.",
     "QUILTOR_PDF_RENDERER": "PDF renderer override, e.g. system_browser to drive an installed Chrome/Edge.",
+    "QUILTOR_PDF_SANDBOX": (
+        "Set to off to run the PDF export's Chromium without its sandbox, for hosts that grant no "
+        "user namespaces. Logs a warning at every start. Default: sandbox on."
+    ),
     "QUILTOR_CREDENTIAL_BACKEND": (
         "Where stored credentials live: auto (default), file or memory. file is for containers "
         "and sessions without a keychain."

@@ -258,6 +258,8 @@ export const manuscript = {
   manuscriptVersionLabel: "Manuscript version",
   deleteChapterDescription: "“{title}” will be moved to trash.",
   bookPdfError: "The book PDF could not be generated.",
+  bookPdfSandboxError:
+    "The book PDF could not be generated: the server does not allow the PDF renderer its sandbox. The operator has to adjust the container profile or set QUILTOR_PDF_SANDBOX=off.",
   ambiguousMentions: "Ambiguous links",
   worldObject: "World object",
   orphanedMentionsRemoved: "{count} orphaned links were removed.",
