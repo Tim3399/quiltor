@@ -16,6 +16,12 @@ A red case is red. The grade only says whether every red case is one that is alr
 
 Locally, without a download: `--server-url` grades an already running server (the bridge with
 fakes, say) and starts nothing.
+
+The runtime is the product's pin (install_manifest.LLAMA_CPP_RELEASE) with the asset digests
+recorded in install_manifest.LLAMA_CPP_ASSET_SHA256 (D-204). Another release runs only with an
+explicit SHA-256 for every asset it may pick: `--asset-sha256 NAME=HEX` (repeatable), or the
+environment variable QUILTOR_LLAMA_ASSET_SHA256 holding the same pairs separated by whitespace
+or commas. Without them the run stops before anything is downloaded.
 """
 
 from __future__ import annotations
@@ -302,10 +308,50 @@ def wait_ready(url: str, process: Any, timeout: int = READY_TIMEOUT_SECONDS) -> 
     raise RuntimeError(f"llama-server was not ready within {timeout} seconds")
 
 
-def install(home: Path, release: str, model: dict[str, Any]) -> Path:
+ASSET_SHA256_ENV = "QUILTOR_LLAMA_ASSET_SHA256"
+# The release this script may fetch without explicit digests: the product's pin when
+# the script was last checked. A bump of the pin is a decision here too (D-204).
+PINNED_RELEASE = "b10218"
+
+
+def parse_asset_digests(pairs: list[str]) -> dict[str, str]:
+    """`NAME=HEX` pairs, each a lowercase SHA-256, into the installer's digest table."""
+    digests: dict[str, str] = {}
+    for pair in pairs:
+        name, sep, sha = pair.partition("=")
+        name, sha = name.strip(), sha.strip()
+        if not sep or not name or not re.fullmatch(r"[0-9a-f]{64}", sha):
+            raise ValueError(f"asset digest {pair!r} is not NAME=<64 lowercase hex characters>")
+        digests[name] = sha
+    return digests
+
+
+def runtime_digests(release: str, given: dict[str, str]) -> dict[str, str]:
+    """The asset digests the installer must expect for `release` (D-204).
+
+    The product's pin uses the digests recorded in install_manifest.py. Any other release
+    needs digests handed over explicitly; there is no download without one.
+    """
+    from quiltor.infrastructure.inference import install_manifest
+
+    if given:
+        return dict(given)
+    if release == PINNED_RELEASE:
+        return dict(install_manifest.LLAMA_CPP_ASSET_SHA256)
+    raise ValueError(
+        f"llama.cpp release {release} has no pinned digest; pass --asset-sha256 NAME=HEX "
+        f"(or {ASSET_SHA256_ENV}) for every asset, or run the pinned {PINNED_RELEASE}"
+    )
+
+
+def install(
+    home: Path, release: str, model: dict[str, Any], asset_sha256: dict[str, str] | None = None
+) -> Path:
     """The pinned runtime and the model, fetched by the product's own installer."""
     from quiltor.infrastructure.inference import install_manifest, installer
 
+    digests = runtime_digests(release, asset_sha256 or {})
+    install_manifest.LLAMA_CPP_ASSET_SHA256 = digests
     install_manifest.LLAMA_CPP_RELEASE = release
     installer.LLAMA_CPP_RELEASE = release
     paths = installer.InstallerPaths.from_home(home)
@@ -345,6 +391,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--artifact", type=Path, help="file for the raw answers, one line per case")
     parser.add_argument("--summary", type=Path, help="file the markdown summary is appended to")
     parser.add_argument("--spike", action="store_true", help="allow a model with no pinned digest")
+    parser.add_argument(
+        "--asset-sha256",
+        action="append",
+        default=[],
+        metavar="NAME=HEX",
+        help=f"SHA-256 of a runtime asset; required for every asset of a release other than the "
+        f"pin (also read from {ASSET_SHA256_ENV})",
+    )
     parser.add_argument("--model", help="use only this candidate (default: try them in order)")
     parser.add_argument("--home", type=Path, help="install folder (default: a temporary one)")
     parser.add_argument(
@@ -361,6 +415,15 @@ def main(argv: list[str] | None = None) -> int:
     from quiltor.infrastructure.inference.install_manifest import LLAMA_CPP_RELEASE
 
     release = args.release or LLAMA_CPP_RELEASE
+    try:
+        asset_sha256 = parse_asset_digests(
+            [*os.environ.get(ASSET_SHA256_ENV, "").replace(",", " ").split(), *args.asset_sha256]
+        )
+        if not (args.replay or args.server_url):
+            runtime_digests(release, asset_sha256)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 2
     pins = load_pins()
     known = pins["known_deviations"].get(release, {})
     summary = args.summary or (
@@ -410,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
             process = None
             try:
                 require_pin(model, spike=args.spike)
-                model_path = install(home, release, model)
+                model_path = install(home, release, model, asset_sha256)
                 digest = file_sha256(model_path)
                 if model["sha256"] is not None and digest != model["sha256"]:
                     raise PinError(f"model {model['name']}: sha256 {digest} is not the pinned one")

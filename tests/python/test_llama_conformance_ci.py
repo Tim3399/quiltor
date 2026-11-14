@@ -11,11 +11,12 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import re
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -151,7 +152,7 @@ class PinTests(unittest.TestCase):
         pins = json.loads(script.PINS_PATH.read_text(encoding="utf-8"))
         installed: list[str] = []
 
-        def refuse(home, release, model):
+        def refuse(home, release, model, *_):
             installed.append(model["name"])
             raise OSError("no download in tests")
 
@@ -182,6 +183,67 @@ class PinTests(unittest.TestCase):
 
     def test_the_products_pin_has_a_deviation_entry_so_a_bump_is_a_decision(self):
         self.assertIn(LLAMA_CPP_RELEASE, script.load_pins()["known_deviations"])
+
+    def run_install(self, release, asset_sha256=None):
+        from quiltor.infrastructure.inference import install_manifest, installer
+
+        seen = {}
+
+        def fake_runtime(**_):
+            seen["release"] = install_manifest.LLAMA_CPP_RELEASE
+            seen["digests"] = dict(install_manifest.LLAMA_CPP_ASSET_SHA256)
+
+        model = script.load_pins()["models"][0]
+        with (
+            tempfile.TemporaryDirectory() as home,
+            patch.object(install_manifest, "LLAMA_CPP_RELEASE", install_manifest.LLAMA_CPP_RELEASE),
+            patch.object(
+                install_manifest, "LLAMA_CPP_ASSET_SHA256", install_manifest.LLAMA_CPP_ASSET_SHA256
+            ),
+            patch.object(installer, "LLAMA_CPP_RELEASE", installer.LLAMA_CPP_RELEASE),
+            patch.object(installer, "install_runtime", side_effect=fake_runtime) as runtime,
+            patch.object(installer, "install_model") as fetch,
+            redirect_stdout(io.StringIO()),
+        ):
+            try:
+                script.install(Path(home), release, model, asset_sha256)
+            finally:
+                seen["runtime_calls"] = runtime.call_count
+                seen["model_calls"] = fetch.call_count
+        return seen
+
+    def test_the_pinned_release_installs_with_the_manifest_digests(self):
+        from quiltor.infrastructure.inference import install_manifest
+
+        seen = self.run_install(LLAMA_CPP_RELEASE)
+        self.assertEqual(seen["release"], "b10218")
+        self.assertEqual(seen["digests"], install_manifest.LLAMA_CPP_ASSET_SHA256)
+        self.assertTrue(all(name.startswith("llama-b10218-") for name in seen["digests"]))
+
+    def test_another_release_without_a_digest_stops_before_any_download(self):
+        with self.assertRaisesRegex(ValueError, "b12183 has no pinned digest"):
+            self.run_install("b12183")
+        with patch.object(script, "install") as install, redirect_stderr(io.StringIO()) as err:
+            code = script.main(["--release", "b12183"])
+        self.assertEqual(code, 2)
+        install.assert_not_called()
+        self.assertIn("no pinned digest", err.getvalue())
+
+    def test_another_release_with_a_digest_expects_exactly_that_digest(self):
+        given = {"llama-b12183-bin-ubuntu-x64.tar.gz": "a" * 64}
+        seen = self.run_install("b12183", given)
+        self.assertEqual(seen["release"], "b12183")
+        self.assertEqual(seen["digests"], given)
+        self.assertEqual(seen["runtime_calls"], 1)
+        with patch.dict(os.environ, {script.ASSET_SHA256_ENV: "x.zip=" + "b" * 64}):
+            self.assertEqual(
+                script.parse_asset_digests(
+                    [*os.environ[script.ASSET_SHA256_ENV].split(), "y.zip=" + "c" * 64]
+                ),
+                {"x.zip": "b" * 64, "y.zip": "c" * 64},
+            )
+        with self.assertRaisesRegex(ValueError, "64 lowercase hex"):
+            script.parse_asset_digests(["x.zip=ABC"])
 
     def test_the_workflow_matrix_only_names_releases_that_have_an_entry(self):
         match = re.search(r"release: \[([^\]]+)\]", WORKFLOW)

@@ -54,9 +54,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # b10218 is the product's pin (install_manifest.LLAMA_CPP_RELEASE); b12183 is the
-        # release the contract was measured against (T-194).
-        release: [b10218, b12183]
+        # b10218 is the product's pin (install_manifest.LLAMA_CPP_RELEASE), the only release
+        # with digests recorded in the repository. Another release (b12183, the one the
+        # contract was measured against, T-194) runs only with --asset-sha256 per asset (D-204).
+        release: [b10218]
     env:
       PYTHONPATH: src
     steps:
