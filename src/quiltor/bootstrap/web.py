@@ -256,9 +256,10 @@ def csp_mode(configured: str, profile: str = "local") -> str:
     setting a variable: hosted and every web instance without identity (local, self-hosted).
     An operator may step back to `report-only` while a blocked resource is reported, or widen
     connect-src with QUILTOR_CSP_CONNECT_EXTRA when a model host changes (D-197); both are the
-    documented ways out (docker-compose.yml). The desktop window stays on `report-only` until an
-    export under `enforce` has been proven in WebView2 and WKWebView: pywebview builds its
-    bridge with `new Function`.
+    documented ways out (docker-compose.yml). The desktop window stays on `report-only` (D-207):
+    pywebview injects its bridge and hands every result back through `evaluate_js`, and WKWebView
+    holds that to the page's script-src, so under `enforce` saving and exporting die on macOS
+    (CI run 43605654505; WebView2 on Windows is not affected). No `'unsafe-eval'` instead.
     """
     configured = configured.strip()
     if configured and configured not in CSP_MODES:

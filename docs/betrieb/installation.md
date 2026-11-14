@@ -285,6 +285,13 @@ Jede Seite trägt eine Content Security Policy und `X-Frame-Options: DENY`. Den 
   sein Modell nicht mehr und die Konsole zeigt einen CSP-Fehler, trag die blockierte Adresse
   aus der Konsole in `QUILTOR_CSP_CONNECT_EXTRA` ein.
 - Unabhängig vom Modus lässt sich Quiltor nicht in eine fremde Seite einbetten.
+- **Die Desktop-App bleibt bei `report-only` (D-207).** pywebview, die Grundlage des
+  Desktop-Fensters, spielt seinen Code mit `eval` bzw. `evaluate_js` ein und reicht darüber auch
+  jedes Ergebnis von Speichern und Export an die Seite zurück. WKWebView unter macOS wendet die
+  Seiten-Policy darauf an, unter `enforce` wären Speichern und Export damit still blockiert
+  (CI-Lauf 43605654505 auf macOS 15). Unter Windows (WebView2) tritt das nicht auf. Ein
+  `'unsafe-eval'` nur für den Desktop würde die Policy genau dort aufweichen und kommt nicht in
+  Frage.
 
 Start:
 

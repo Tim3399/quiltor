@@ -136,7 +136,8 @@ class ContentSecurityPolicyTests(unittest.TestCase):
         self.assertEqual(csp_mode("report-only", LOCAL), "report-only")
 
     def test_s269_1_the_desktop_window_stays_report_only(self):
-        """D-198: pywebview builds its bridge with `new Function`; enforce is unproven there."""
+        """D-207: under enforce WKWebView refuses pywebview's evaluate_js, and with it the bridge
+        (CI run 43605654505). Turning the desktop to enforce needs a bridge without eval first."""
         self.assertEqual(csp_mode("", DESKTOP), "report-only")
 
 

@@ -282,6 +282,12 @@ picks the mode:
   assistant stops loading its model and the console shows a CSP error, add the blocked
   origin from the console to `QUILTOR_CSP_CONNECT_EXTRA`.
 - Whatever the mode, Quiltor cannot be embedded in another site's page.
+- **The desktop app stays on `report-only` (D-207).** pywebview, which the desktop window is
+  built on, injects its code with `eval` or `evaluate_js` and hands every result of saving and
+  exporting back to the page the same way. WKWebView on macOS applies the page's policy to
+  that, so under `enforce` saving and exporting would be blocked without a word (CI run
+  43605654505 on macOS 15). Windows (WebView2) is not affected. An `'unsafe-eval'` for the
+  desktop alone would weaken the policy exactly there and is not an option.
 
 Start:
 
