@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from quiltor.application.worlds.example import ExampleWorldFailed
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_over_quota
 
 
 @get("/api/worlds")
@@ -48,6 +49,8 @@ def open_example(handler, request: Request, app) -> None:
     lang = payload.get("lang") if isinstance(payload, dict) else None
     try:
         with app.lock:
+            if refuse_over_quota(handler, app, request.session.sub):
+                return
             world = app.example_worlds.open(request.session.sub, lang)
     except ExampleWorldFailed:
         return handler.send_api_error(500, error_code="world.example_failed", retryable=True)
@@ -123,6 +126,8 @@ def _open_or_create(handler, request: Request, app, *, creating: bool) -> None:
         owner = request.session.sub
         with app.lock:
             if creating:
+                if refuse_over_quota(handler, app, owner):
+                    return
                 world = app.worlds.create(
                     str(payload.get("title", "")),
                     str(payload.get("backupUrl", "")),

@@ -1,0 +1,28 @@
+{
+  "$comment": "The Content-Security-Policy of every HTML answer (T-61 part 5). Read by bootstrap/web.py for the server and by tools/dev/csp.mjs for the design gallery. No wildcards anywhere; operators add connect-src origins through QUILTOR_CSP_CONNECT_EXTRA. No provider origin before T-264, which brings the profiles back with them (T-61 part 8a, D-185).",
+  "directives": {
+    "default-src": ["'self'"],
+    "script-src": ["'self'", "'wasm-unsafe-eval'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "img-src": ["'self'", "data:", "blob:"],
+    "font-src": ["'self'"],
+    "connect-src": ["'self'"],
+    "worker-src": ["'self'", "blob:"],
+    "frame-ancestors": ["'none'"],
+    "base-uri": ["'none'"],
+    "form-action": ["'self'"],
+    "object-src": ["'none'"]
+  },
+  "webllmHosts$comment": "The Hugging Face CDN hosts are regional and change (D-197); *.cdn.hf.co is the only exception to the wildcard ban and the xethub hosts are left out on purpose; model libraries (.wasm) come from raw.githubusercontent.com.",
+  "webllmHosts": [
+    "https://huggingface.co",
+    "https://*.cdn.hf.co",
+    "https://cdn-lfs-us-1.hf.co",
+    "https://cdn-lfs-eu-1.hf.co",
+    "https://raw.githubusercontent.com"
+  ],
+  "testHooksOrigin$comment": "In connect-src only with QUILTOR_TEST_HOOKS=1: Chromium blocks a fetch outside connect-src before page.route sees it.",
+  "testHooksOrigin": "https://client-ai.example.test",
+  "designScriptSrcExtra$comment": "Design gallery only: the inline preamble of @vitejs/plugin-react.",
+  "designScriptSrcExtra": ["'unsafe-inline'"]
+}

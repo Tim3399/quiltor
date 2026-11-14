@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 
 from quiltor.application.observability import Metrics, StructuredLogger
+from quiltor.modules.assistant.engines import SERVER
 from quiltor.modules.assistant.ports import (
     AssistantInteractionLogger,
     AssistantJobStore,
@@ -23,6 +25,35 @@ from quiltor.modules.assistant.ports import (
 )
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
+
+#: How many jobs on client engines may run at once in one process (T-61). Each one is a
+#: thread that mostly waits for a browser; one per account is enforced by the store.
+DEFAULT_CLIENT_JOB_SLOTS = 8
+MAX_CLIENT_JOB_SLOTS = 64
+
+#: Builds the runtime that computes one client-engine job from the claimed job and its
+#: stored request, or None when there is no client engine. The runtime must not share
+#: state with the server runtime; its close() releases whatever waits for the browser.
+ClientRuntimeFactory = Callable[[dict[str, Any], dict[str, Any]], Any]
+
+#: Decides, by account, whether a queued server-engine job may still be computed (T-268,
+#: S268-100). None means the deployment has no hosted accounts: nothing to ask.
+ServerJobGate = Callable[[str], bool]
+
+
+class PremiumRequiredError(Exception):
+    """The account no longer holds a confirmed premium role, so the job is not computed."""
+
+
+#: Seconds a worker pauses after the queue itself failed (a locked database, say).
+CLAIM_RETRY_SECONDS = 1.0
+
+
+def _with_engine_step(result: dict[str, Any], engine: str) -> dict[str, Any]:
+    """Name the engine kind as the first step of the answer's trace (T-61 part 9)."""
+
+    steps = [step for step in result.get("agentTrace") or [] if isinstance(step, dict)]
+    return {**result, "agentTrace": [{"step": "engine", "engine": engine}, *steps]}
 
 
 def _stale_world_result(
@@ -119,6 +150,8 @@ def _stale_context_result(
 
 
 def classify_assistant_error(exc: Exception) -> str:
+    if isinstance(exc, PremiumRequiredError):
+        return "premium_required"
     if isinstance(exc, InferenceTimeoutError):
         return "timeout"
     if isinstance(exc, InferenceUnavailableError):
@@ -147,6 +180,8 @@ def classify_assistant_error(exc: Exception) -> str:
 
 
 def assistant_error_status(exc: Exception) -> int:
+    if isinstance(exc, PremiumRequiredError):
+        return 403
     if isinstance(exc, InferenceTimeoutError):
         return 504
     if isinstance(exc, InferenceUnavailableError):
@@ -155,7 +190,12 @@ def assistant_error_status(exc: Exception) -> int:
 
 
 class AssistantJobRunner:
-    """Single worker around an assistant runtime; every adapter is injected."""
+    """Workers around an assistant runtime; every adapter is injected.
+
+    One thread runs the server engine's jobs, one at a time. Jobs on a client engine (T-61)
+    run beside it in a bounded pool, each with a runtime of its own from
+    `client_runtime_factory`; without a factory such a job fails as unavailable.
+    """
 
     def __init__(
         self,
@@ -166,19 +206,33 @@ class AssistantJobRunner:
         world_access: AssistantWorldAccess,
         structured_logger: StructuredLogger,
         metrics: Metrics,
+        client_runtime_factory: ClientRuntimeFactory | None = None,
+        client_slots: int = DEFAULT_CLIENT_JOB_SLOTS,
+        server_job_gate: ServerJobGate | None = None,
     ) -> None:
+        if not 1 <= client_slots <= MAX_CLIENT_JOB_SLOTS:
+            raise ValueError(f"client_slots must be from 1 to {MAX_CLIENT_JOB_SLOTS}.")
         self.assistant = assistant
         self._store_factory = store_factory
         self.interaction_logger = interaction_logger
         self.world_access = world_access
         self.structured_logger = structured_logger
         self.metrics = metrics
+        self.client_runtime_factory = client_runtime_factory
+        self._server_job_gate = server_job_gate
+        self._client_slots = threading.BoundedSemaphore(client_slots)
         self._store: AssistantJobStore | None = None
         self._store_lock = threading.Lock()
         self._wake = threading.Event()
+        self._client_wake = threading.Event()
         self._stop = threading.Event()
         self._start_lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._client_thread: threading.Thread | None = None
+        # Client jobs in flight: their threads, and their runtimes once built.
+        self._active_lock = threading.Lock()
+        self._active_threads: dict[str, threading.Thread] = {}
+        self._active_runtimes: dict[str, Any] = {}
 
     @property
     def store(self) -> AssistantJobStore:
@@ -198,13 +252,26 @@ class AssistantJobRunner:
                 target=self._run, name="quiltor-assistant-jobs", daemon=True
             )
             self._thread.start()
+            self._client_thread = threading.Thread(
+                target=self._run_clients, name="quiltor-assistant-client-jobs", daemon=True
+            )
+            self._client_thread.start()
 
     def close(self, timeout: float = 2.0) -> None:
+        """Stop the workers. A client job still waiting for its browser is released (its
+        runtime closed, so the wait ends at once) and joined, so no thread outlives this."""
         self._stop.set()
         self._wake.set()
-        thread = self._thread
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=timeout)
+        self._client_wake.set()
+        with self._active_lock:
+            runtimes = list(self._active_runtimes.values())
+            threads = list(self._active_threads.values())
+        for runtime in runtimes:
+            self._close_runtime(runtime)
+        deadline = time.monotonic() + timeout
+        for thread in (self._thread, self._client_thread, *threads):
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=max(0.0, deadline - time.monotonic()))
 
     def submit(self, **kwargs: Any) -> tuple[dict[str, Any], bool]:
         self.start()
@@ -212,6 +279,7 @@ class AssistantJobRunner:
         if result[1]:
             self.metrics.increment("assistant_jobs_submitted")
         self._wake.set()
+        self._client_wake.set()
         return result
 
     def get(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None:
@@ -221,6 +289,13 @@ class AssistantJobRunner:
     def cancel(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None:
         self.start()
         result = self.store.cancel(job_id, owner_sub, world_id)
+        # A client job waits for its browser; release that wait now, so the account's one
+        # client slot is free at once and not only after the answer deadline (F-61-5).
+        if result is not None and result.get("cancelRequested"):
+            with self._active_lock:
+                runtime = self._active_runtimes.get(job_id)
+            if runtime is not None:
+                self._close_runtime(runtime)
         self._wake.set()
         return result
 
@@ -245,45 +320,120 @@ class AssistantJobRunner:
                 )
             time.sleep(0.25)
 
+    def _claim(self, claim: Callable[[], dict[str, Any] | None], worker: str):
+        """One claim; a failing queue (locked or unreadable) pauses the worker, never ends it."""
+        try:
+            return claim()
+        except Exception as exc:  # noqa: BLE001 - the worker must outlive a failing queue
+            self.structured_logger.event(
+                "error", "assistant.claim_failed", operation=worker, error_type=type(exc).__name__
+            )
+            self._stop.wait(timeout=CLAIM_RETRY_SECONDS)
+            return None
+
     def _run(self) -> None:
         while not self._stop.is_set():
-            job = self.store.claim_next()
+            job = self._claim(self.store.claim_next_server, "server")
             if job is None:
                 self._wake.wait(timeout=0.5)
                 self._wake.clear()
                 continue
-            try:
-                self._execute(job)
-            except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
-                # Recording the failure is best effort.
-                with suppress(Exception):
-                    self.store.finish_failure(
-                        str(job["id"]),
-                        str(exc),
-                        classify_assistant_error(exc),
-                        assistant_error_status(exc),
-                    )
-                self.metrics.increment("assistant_jobs_failed", error=type(exc).__name__)
-                self.structured_logger.event(
-                    "error",
-                    "assistant.worker_failed",
-                    job_id=str(job["id"]),
-                    error_type=type(exc).__name__,
-                )
+            self._execute_guarded(job, self.assistant, gated=True)
             self._wake.set()
 
-    def _execute(self, job: dict[str, Any]) -> None:
+    def _run_clients(self) -> None:
+        while not self._stop.is_set():
+            if not self._client_slots.acquire(timeout=0.5):
+                continue
+            job = self._claim(self.store.claim_next_client, "client")
+            if job is None:
+                self._client_slots.release()
+                self._client_wake.wait(timeout=0.5)
+                self._client_wake.clear()
+                continue
+            job_id = str(job["id"])
+            thread = threading.Thread(
+                target=self._run_client_job,
+                args=(job,),
+                name=f"quiltor-assistant-client-job-{job_id}",
+                daemon=True,
+            )
+            with self._active_lock:
+                self._active_threads[job_id] = thread
+            thread.start()
+
+    def _run_client_job(self, job: dict[str, Any]) -> None:
+        job_id = str(job["id"])
+        runtime = None
+        try:
+            factory = self.client_runtime_factory
+            if factory is not None:
+                runtime = factory(job, self.store.request_for(job_id))
+            if runtime is None:
+                self._fail(job, InferenceUnavailableError("No client engine is available."))
+                return
+            with self._active_lock:
+                self._active_runtimes[job_id] = runtime
+            if self._stop.is_set():
+                self._close_runtime(runtime)
+            self._execute_guarded(job, runtime)
+        except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the pool
+            self._fail(job, exc)
+        finally:
+            with self._active_lock:
+                self._active_runtimes.pop(job_id, None)
+                self._active_threads.pop(job_id, None)
+            if runtime is not None:
+                self._close_runtime(runtime)
+            self._client_slots.release()
+            self._client_wake.set()
+
+    def _close_runtime(self, runtime: Any) -> None:
+        with suppress(Exception):
+            runtime.close()
+
+    def _execute_guarded(self, job: dict[str, Any], assistant: Any, *, gated: bool = False) -> None:
+        try:
+            gate = self._server_job_gate
+            if gated and gate is not None and not gate(str(job.get("_ownerSub") or "")):
+                # The role was only checked at submit; it may be gone since (S268-100).
+                raise PremiumRequiredError("The account no longer holds a confirmed premium role.")
+            self._execute(job, assistant)
+        except Exception as exc:  # noqa: BLE001 - a failed job is recorded, never kills the worker
+            self._fail(job, exc)
+
+    def _fail(self, job: dict[str, Any], exc: Exception) -> None:
+        # Recording the failure is best effort.
+        with suppress(Exception):
+            self.store.finish_failure(
+                str(job["id"]),
+                str(exc),
+                classify_assistant_error(exc),
+                assistant_error_status(exc),
+            )
+        self.metrics.increment("assistant_jobs_failed", error=type(exc).__name__)
+        self.structured_logger.event(
+            "error",
+            "assistant.worker_failed",
+            job_id=str(job["id"]),
+            error_type=type(exc).__name__,
+        )
+
+    def _execute(self, job: dict[str, Any], assistant: Any) -> None:
         started = time.monotonic()
         job_id = str(job["id"])
         payload = self.store.request_for(job_id)
         question = str(payload.get("question") or "")
         owner_sub = str(job.get("_ownerSub") or "")
         world_id = str(job.get("_worldId") or payload.get("worldId") or "")
+        # Which kind of engine computed the answer, for the audit (T-61 part 9). Only the
+        # kind from the closed list: no model name and no key ever reach the trace.
+        engine = str(job.get("engine") or SERVER)
         try:
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("The world for this assistant job no longer exists.")
-            self.assistant.reload()
-            result = self.assistant.complete(
+            assistant.reload()
+            result = assistant.complete(
                 question,
                 payload.get("manuscript") or {},
                 payload.get("figures") or {},
@@ -301,6 +451,7 @@ class AssistantJobRunner:
             if self.store.cancel_requested(job_id):
                 self.store.finish_success(job_id, {}, "")
                 return
+            result = _with_engine_step(result, engine)
             if not self.world_access.exists(owner_sub, world_id):
                 raise FileNotFoundError("The world for this assistant job no longer exists.")
             expected_checkpoint = payload.get("documentRevisions")
@@ -336,6 +487,7 @@ class AssistantJobRunner:
                 result,
                 owner_sub=owner_sub,
                 world_id=world_id,
+                engine=engine,
             )
             response = {"ok": True, "interactionId": interaction_id, **result}
             terminal = self.store.finish_success(job_id, response, interaction_id)
@@ -363,6 +515,7 @@ class AssistantJobRunner:
                         error=str(exc),
                         owner_sub=owner_sub,
                         world_id=world_id,
+                        engine=engine,
                     )
                 except Exception as log_exc:  # noqa: BLE001 - a failed interaction log must not mask the job error
                     self.structured_logger.event(
@@ -389,7 +542,10 @@ class AssistantJobRunner:
 
 
 __all__ = [
+    "DEFAULT_CLIENT_JOB_SLOTS",
+    "MAX_CLIENT_JOB_SLOTS",
     "AssistantJobRunner",
+    "ClientRuntimeFactory",
     "IdempotencyConflict",
     "TooManyOpenJobs",
     "assistant_error_status",

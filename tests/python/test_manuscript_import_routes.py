@@ -34,7 +34,9 @@ class Handler:
 class ManuscriptImportRouteTests(unittest.TestCase):
     def setUp(self):
         self.service = Mock()
-        self.app = SimpleNamespace(manuscript_import=self.service, lock=threading.Lock())
+        self.app = SimpleNamespace(
+            manuscript_import=self.service, lock=threading.Lock(), worlds=None, syncable=True
+        )
         self.request = Request(
             path="/api/manuscript-import/preview", session=SimpleNamespace(sub="alice")
         )

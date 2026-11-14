@@ -122,6 +122,7 @@ export function createApplicationGatewayStub(
       diff: () => notStubbed("history.diff"),
       textVersion: () => notStubbed("history.textVersion"),
       chapterComparison: () => notStubbed("history.chapterComparison"),
+      chapterTimeline: () => notStubbed("history.chapterTimeline"),
       restore: () => notStubbed("history.restore"),
       ...overrides.history,
     },
@@ -134,6 +135,9 @@ export function createApplicationGatewayStub(
       wait: () => notStubbed("assistant.wait"),
       chat: () => notStubbed("assistant.chat"),
       progress: () => notStubbed("assistant.progress"),
+      relayNext: () => notStubbed("assistant.relayNext"),
+      relayAnswer: () => notStubbed("assistant.relayAnswer"),
+      callProvider: () => notStubbed("assistant.callProvider"),
       ...overrides.assistant,
     },
     writingAssistance: {

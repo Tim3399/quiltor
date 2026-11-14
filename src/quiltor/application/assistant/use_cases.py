@@ -41,6 +41,7 @@ class AssistantAuditUseCases:
         response: dict[str, Any] | None = None,
         *,
         error: str = "",
+        engine: str = "server",
     ) -> str:
         opened = self._worlds.open(world_id, owner_sub)
         return self._documents.log_assistant_interaction(
@@ -48,6 +49,7 @@ class AssistantAuditUseCases:
             response,
             error,
             opened.paths.documents.database,
+            engine,
         )
 
     def list(self, database: Path, limit: int = 50) -> list[dict[str, Any]]:

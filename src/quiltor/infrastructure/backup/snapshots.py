@@ -29,7 +29,9 @@ import shutil
 import sqlite3
 import stat
 import tempfile
+import threading
 import zlib
+from collections import OrderedDict
 from collections.abc import Callable, Iterable
 from contextlib import closing
 from datetime import UTC, datetime
@@ -442,6 +444,21 @@ def _hunks(lines: list[str], interesting: Iterable[int], context: int) -> list[s
     return out
 
 
+_CHAPTER_STATE_CACHE_SIZE = 4096
+
+
+def _chapter_digest(text: str, marks: list[dict[str, Any]]) -> str:
+    """One chapter's text and marks, canonically: equal digests mean the same words
+    with the same bold and italic ranges."""
+    canonical = json.dumps(
+        {"text": text, "marks": sorted(marks, key=lambda mark: json.dumps(mark, sort_keys=True))},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 class SnapshotStore:
     """Version history for world backup directories.
 
@@ -455,11 +472,19 @@ class SnapshotStore:
         history_dir: Path | Callable[[], Path],
         remote_gateway: RemoteBackupGateway | None = None,
         *,
+        now: Callable[[], datetime] = datetime.now,
         structured_logger: StructuredLogger | None = None,
     ):
         self._history_dir = history_dir
         self._remote_gateway = remote_gateway
         self._structured_logger = structured_logger
+        # Tests hand in a clock to give snapshots distinct dates; the server never does.
+        self._now = now
+        # What a chapter looked like in one snapshot, by (snapshot id, chapter id). A
+        # snapshot is content-addressed and never changes, so an entry is never stale;
+        # the cache only spares reopening the snapshot's whole database (T-86).
+        self._chapter_states: OrderedDict[tuple[str, str], dict[str, Any]] = OrderedDict()
+        self._chapter_states_lock = threading.Lock()
 
     @property
     def history_dir(self) -> Path:
@@ -851,7 +876,7 @@ class SnapshotStore:
         manifest = build_manifest_files(sorted(current.items()))
         for payload in current.values():
             self._write_blob(ctx, payload)
-        created = datetime.now()  # local and naive: preserves the released timestamp format
+        created = self._now()  # local and naive: preserves the released timestamp format
         if not message:
             described = _describe_changes(changes)
             kind = "changes" if described else "automatic"
@@ -1158,6 +1183,148 @@ class SnapshotStore:
         if marks is None:
             return {"available": False, "exists": False, "text": "", "marks": []}
         return {"available": True, "exists": True, "text": row[0], "marks": marks}
+
+    def _chapter_state(
+        self, ctx: HistoryContext, entry: dict[str, Any], chapter_id: str
+    ) -> dict[str, Any]:
+        """{available, exists, digest} of a chapter in one snapshot, cached."""
+        key = (entry["id"], chapter_id)
+        with self._chapter_states_lock:
+            cached = self._chapter_states.get(key)
+            if cached is not None:
+                self._chapter_states.move_to_end(key)
+                return cached
+        record = self._chapter_record(ctx, entry, chapter_id)
+        state = {
+            "available": record["available"],
+            "exists": record["exists"],
+            "digest": _chapter_digest(record["text"], record["marks"]) if record["exists"] else "",
+        }
+        self._remember_chapter_state(key, state)
+        return state
+
+    def _remember_chapter_state(self, key: tuple[str, str], state: dict[str, Any]) -> None:
+        with self._chapter_states_lock:
+            self._chapter_states[key] = state
+            self._chapter_states.move_to_end(key)
+            while len(self._chapter_states) > _CHAPTER_STATE_CACHE_SIZE:
+                self._chapter_states.popitem(last=False)
+
+    def _parent_chapter_state(
+        self,
+        ctx: HistoryContext,
+        entry: dict[str, Any],
+        entry_state: dict[str, Any],
+        parent: dict[str, Any],
+        chapter_id: str,
+    ) -> dict[str, Any]:
+        """The parent's state, without opening its database when it is the same database.
+
+        Only in one direction: the same database blob means the same chapter. The
+        Markdown mirrors are no such proof. They are numbered in tree order, not by
+        `position`, so one path cannot stand for one chapter, and they are derived
+        files whose failed write is only logged (persistence/adapters/worlds.py), so
+        identical mirrors can sit on top of a changed chapter."""
+        key = (parent["id"], chapter_id)
+        with self._chapter_states_lock:
+            cached = self._chapter_states.get(key)
+        if cached is not None:
+            return self._chapter_state(ctx, parent, chapter_id)
+        if entry_state["available"]:
+            try:
+                database = self._manifest_of(entry).get(DATABASE_NAME)
+                same = database is not None and database == self._manifest_of(parent).get(
+                    DATABASE_NAME
+                )
+            except BackupContractError:
+                same = False
+            if same:
+                self._remember_chapter_state(key, entry_state)
+                return entry_state
+        return self._chapter_state(ctx, parent, chapter_id)
+
+    def chapter_timeline(
+        self,
+        ctx: HistoryContext,
+        chapter_id: str,
+        limit: int = 20,
+        before: str = "",
+    ) -> dict[str, Any]:
+        """The snapshots that changed one chapter, newest first, one page at a time.
+
+        `limit` counts the snapshots read, not the ones shown, so a page stays bounded
+        however long the chapter stayed the same. The parent of a snapshot is the one
+        it names, never simply the one before it in the index: a restored foreign
+        snapshot may name a parent this machine never had."""
+        everything = self.entries(ctx)  # read once per request, not once per lookup
+        by_id = {entry["id"]: entry for entry in everything}
+        if before:
+            start = next(
+                (index for index, entry in enumerate(everything) if entry["id"] == before),
+                None,
+            )
+            if start is None:
+                raise HistoryRevisionNotFound(params={"operation": "chapter_timeline"})
+        else:
+            start = len(everything)
+        page = everything[max(0, start - limit) : start]
+        labels = self._labels(ctx)
+        listed: list[dict[str, Any]] = []
+        skipped = 0
+        for entry in reversed(page):
+            change = self._chapter_change(ctx, entry, by_id, chapter_id)
+            if change == "unchanged":
+                skipped += 1
+                continue
+            if change is None:
+                continue
+            message = entry.get("message", "")
+            listed.append(
+                {
+                    "hash": entry["id"],
+                    "shortHash": entry["id"][:8],
+                    "date": datetime.fromisoformat(entry["created"]).isoformat(timespec="seconds"),
+                    "subject": message,
+                    "kind": labels.get(entry["id"]) or message_kind(message),
+                    "change": change,
+                }
+            )
+        more = start - limit > 0
+        return {
+            "ok": True,
+            "entries": listed,
+            "skipped": skipped,
+            "next": page[0]["id"] if more and page else None,
+        }
+
+    def _chapter_change(
+        self,
+        ctx: HistoryContext,
+        entry: dict[str, Any],
+        by_id: dict[str, dict[str, Any]],
+        chapter_id: str,
+    ) -> str | None:
+        """created, edited, deleted, unknown, unchanged -- or None when the chapter is
+        in neither the snapshot nor its parent."""
+        state = self._chapter_state(ctx, entry, chapter_id)
+        if not state["available"]:
+            return "unknown"
+        parent_id = entry.get("parent", "")
+        if not parent_id:
+            return "created" if state["exists"] else None
+        parent = by_id.get(parent_id)
+        if parent is None:
+            return "unknown"
+        previous = self._parent_chapter_state(ctx, entry, state, parent, chapter_id)
+        if not previous["available"]:
+            return "unknown"
+        if state["exists"] and previous["exists"]:
+            return "edited" if state["digest"] != previous["digest"] else "unchanged"
+        if state["exists"]:
+            return "created"
+        if previous["exists"]:
+            return "deleted"
+        return None
 
     def chapter_comparison(
         self,

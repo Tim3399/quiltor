@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useInsertionEffect, useMemo, useRef, useState } from "react";
-import { PRODUCT_MARK } from "../config/branding";
+import { BrandMark } from "../config/BrandMark";
 import { PageState, StatusBarItem } from "../design";
 import { useI18n } from "../i18n";
 import { GettingStartedDialog } from "../modules/getting-started";
@@ -50,7 +50,7 @@ import {
   type DraftOwner,
   draftChanges,
   readDraft,
-  removeAllDrafts,
+  forgetAccountOnDevice,
   removeDraft,
   type StoredDraft,
   writeDraft,
@@ -72,7 +72,10 @@ const manuscriptRevision = () => quiltorClient.application.manuscript.revision()
 const figuresRevision = () => quiltorClient.application.storyWorld.revision();
 const storyboardsRevision = () => quiltorClient.application.storyboards.revision();
 
-/** Keeps the unsaved state of `family` on this device when its save meets an ended session. */
+/**
+ * Keeps the unsaved state of `family` on this device when its save meets an ended session
+ * or an account over its world limit.
+ */
 function draftOptions<T>(
   family: DocumentFamily,
   owner: () => DraftOwner | null,
@@ -80,6 +83,10 @@ function draftOptions<T>(
 ) {
   return {
     onSessionEnded: (unsaved: T) => {
+      writeDraft(owner(), family, unsaved, revision());
+    },
+    // Over the world limit the save is refused as well; the text must not be lost on reload.
+    onQuotaExceeded: (unsaved: T) => {
       writeDraft(owner(), family, unsaved, revision());
     },
     onSaved: () => removeDraft(owner(), family),
@@ -821,8 +828,9 @@ export function App() {
       return;
     }
     if (!releaseDocuments({ clear: false })) return;
-    // Drafts belong to the person signed in on this device; signing out leaves none behind.
-    removeAllDrafts(shell.account?.sub);
+    // Drafts and assistant history belong to the person signed in on this device;
+    // signing out leaves none behind.
+    forgetAccountOnDevice(shell.account?.sub);
     shell.logout();
   }, [flushAll, releaseDocuments, shell.account?.sub, shell.logout]);
 
@@ -896,7 +904,7 @@ export function App() {
         {session.world && manuscript && figures && storyboards && (
           <Suspense
             fallback={
-              <PageState kind="loading" mark={PRODUCT_MARK}>
+              <PageState kind="loading" mark={<BrandMark />}>
                 <p>{t("openingWorkshop")}</p>
               </PageState>
             }
@@ -969,6 +977,7 @@ export function App() {
                   openChapterTrashToken={openChapterTrashToken}
                   chapterFilter={chapterFilter}
                   onChapterFilter={setChapterFilter}
+                  versionsAvailable={versionsAvailable}
                 />
               </NoteReferenceProvider>
             </AppShell>
@@ -1036,6 +1045,7 @@ export function App() {
               onCloseOverlay={overlays.close}
               assistantOpen={overlays.assistantOpen}
               assistantEverOpened={overlays.assistantEverOpened}
+              accountSub={shell.account?.sub}
               onCloseAssistant={overlays.closeAssistant}
               worldId={session.world.id}
               manuscript={manuscript}

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import chapterTimeline from "../../../../../contracts/fixtures/application-api/history/chapter-timeline.v1.json";
 import historyLog from "../../../../../contracts/fixtures/application-api/history/log.v1.json";
 import restoreRequest from "../../../../../contracts/fixtures/application-api/history/restore-request.v1.json";
 import restoreResponse from "../../../../../contracts/fixtures/application-api/history/restore-response.v1.json";
@@ -125,5 +126,53 @@ describe("history HTTP port", () => {
       "/api/history/diff?ref=WORK&mode=word&all=0",
       expect.objectContaining({ cache: "no-store" }),
     );
+  });
+
+  // T-86 part 3: the timeline answer is checked, unlike the older history calls.
+  it("decodes a chapter timeline page and asks for the selected world's chapter", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response(chapterTimeline));
+    vi.stubGlobal("fetch", fetchMock);
+    const state = createHttpApplicationState();
+    state.activeWorldId = WORLD_ID;
+    const controller = new AbortController();
+
+    const page = await createHistoryHttpGateway(state).chapterTimeline("chapter / ä", {
+      limit: 20,
+      before: "a".repeat(64),
+      signal: controller.signal,
+    });
+
+    expect(page).toEqual({
+      entries: chapterTimeline.entries,
+      skipped: chapterTimeline.skipped,
+      next: chapterTimeline.next,
+    });
+    expect(page.entries.map((entry) => entry.change)).toEqual([
+      "edited",
+      "unknown",
+      "deleted",
+      "created",
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      `/api/history/chapter-timeline?chapterId=${encodeURIComponent("chapter / ä").replace(/%20/g, "+")}&limit=20&before=${"a".repeat(64)}&world=${encodeURIComponent(WORLD_ID)}`,
+    );
+    expect(init).toEqual(expect.objectContaining({ signal: controller.signal }));
+  });
+
+  it("refuses a timeline answer with an unknown change or a missing field", async () => {
+    const [first, ...rest] = chapterTimeline.entries;
+    const broken = [
+      { ...chapterTimeline, entries: [{ ...first, change: "moved" }, ...rest] },
+      { ...chapterTimeline, entries: [{ ...first, kind: "nightly" }, ...rest] },
+      { ok: true, entries: chapterTimeline.entries, next: null },
+      { ...chapterTimeline, next: 7 },
+    ];
+    for (const body of broken) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(body)));
+      await expect(
+        createHistoryHttpGateway(createHttpApplicationState()).chapterTimeline("c"),
+      ).rejects.toMatchObject({ code: "invalid_response" });
+    }
   });
 });

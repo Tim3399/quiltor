@@ -14,6 +14,10 @@ export type InstanceCapabilities = {
   assistantInstall?: boolean;
   writingDataInstall?: boolean;
   grammarInstall?: boolean;
+  /** Jobs may run on a browser engine here (T-61); undefined on an older server. */
+  clientAi?: boolean;
+  /** QUILTOR_TEST_HOOKS=1 on the server: the test profile may be offered (T-61). */
+  testHooks?: boolean;
 };
 
 /** An install flag, or the status route's `installable` where the server did not say. */

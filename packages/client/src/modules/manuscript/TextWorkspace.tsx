@@ -84,6 +84,7 @@ export function TextWorkspace({
   onSidebarWidth,
   inspectorWidth = 294,
   onInspectorWidth,
+  versionsAvailable = true,
 }: TextWorkspaceProps) {
   const { t, locale } = useI18n();
   const [localCurrentId, setLocalCurrentId] = useState(
@@ -444,6 +445,7 @@ ${markdownBody(current.body, current.marks)}
         binderOpen={binderOpen}
         inspectorOpen={inspectorOpen}
         historyOpen={history.open}
+        versionsAvailable={versionsAvailable}
         canUndo={!history.open && canUndo}
         canRedo={!history.open && canRedo}
         pdfState={pdfState}

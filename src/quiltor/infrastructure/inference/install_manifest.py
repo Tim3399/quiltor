@@ -21,6 +21,76 @@ REPOSITORY_RE = re.compile(
 LLAMA_CPP_RELEASE = "b10218"
 LLAMA_CPP_REPOSITORY = "ggml-org/llama.cpp"
 
+# The SHA-256 of every asset the installer may pick, recorded from the release
+# metadata when LLAMA_CPP_RELEASE was bumped. The digest the API publishes at install
+# time is only compared against this table, never trusted on its own: whoever can
+# replace an asset can also replace the digest next to it.
+LLAMA_CPP_ASSET_SHA256: dict[str, str] = {
+    "llama-b10218-bin-win-cpu-x64.zip": "678d67405b12abd8ea3541ec6f501c10c9c15ba3cd0767bf090f79eb51168a17",
+    "llama-b10218-bin-win-cpu-arm64.zip": "8407f05d4cc6e614eb8391de4c39af549428a6341603f1023355f5bd326611ba",
+    "llama-b10218-bin-macos-arm64.tar.gz": "f3e87f1664c09183a861f16758c55a5adc925672705cd3a47e3dc4444504c914",
+    "llama-b10218-bin-macos-x64.tar.gz": "3cfdcb4c0a2071b470577cf26e182baf9a51edff09a8c89d9252d2d5c7d4b849",
+    "llama-b10218-bin-ubuntu-x64.tar.gz": "78ec7a1964710918030e85c132a0995b10b07e4f43001bdf54fe0fd48d1eb85b",
+    "llama-b10218-bin-ubuntu-arm64.tar.gz": "9692bd7147325654b69c62fb7780118c0a2579945a014dda53ca909b3bc7829e",
+}
+
+
+@dataclass(frozen=True)
+class PinnedModel:
+    """A model repository the installer offers by default, fixed in the repository.
+
+    ``revision`` is the commit every file URL is built from; ``files`` maps each
+    repository-relative path the installer may fetch to its digest
+    (``sha256:<hex>`` for LFS/Xet objects, ``git-sha1:<hex>`` for Git blobs).
+    """
+
+    revision: str
+    files: dict[str, str]
+
+
+PINNED_MODELS: dict[str, PinnedModel] = {
+    "Qwen/Qwen3-4B-GGUF": PinnedModel(
+        revision="bc640142c66e1fdd12af0bd68f40445458f3869b",
+        files={
+            "Qwen3-4B-Q4_K_M.gguf": "sha256:7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+        },
+    ),
+    "mlx-community/Qwen3-4B-4bit": PinnedModel(
+        revision="4dcb3d101c2a062e5c1d4bb173588c54ea6c4d25",
+        files={
+            ".gitattributes": "git-sha1:52373fe24473b1aa44333d318f578ae6bf04b49b",
+            "README.md": "git-sha1:56a0296b7d72cd9b0438f99913ca38b200a22ce3",
+            "added_tokens.json": "git-sha1:b54f9135e44c1e81047e8d05cb027af8bc039eed",
+            "config.json": "git-sha1:032ad326a0daaaeeec00f2a585262acf5f692861",
+            "merges.txt": "git-sha1:31349551d90c7606f325fe0f11bbb8bd5fa0d7c7",
+            "model.safetensors": "sha256:e240c0bdc0ebb0681bf0da0f98d9719fd6ebe269a3633f81542c13e81345651d",
+            "model.safetensors.index.json": "git-sha1:07e230a328dd17a09d96ee045d49b27596656aff",
+            "special_tokens_map.json": "git-sha1:ac23c0aaa2434523c494330aeb79c58395378103",
+            "tokenizer.json": "sha256:aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+            "tokenizer_config.json": "git-sha1:7345216a0785dc7086e8c245b2a9d3896ce2b756",
+            "vocab.json": "git-sha1:4783fe10ac3adce15ac8f358ef5462739852c569",
+        },
+    ),
+}
+
+
+def pinned_model_artifacts(
+    repository: str, artifacts: dict[str, ArtifactManifest]
+) -> dict[str, ArtifactManifest]:
+    """Keep only the pinned files of a pinned repository, each with its pinned digest."""
+
+    pin = PINNED_MODELS[repository]
+    result: dict[str, ArtifactManifest] = {}
+    for path, expected in pin.files.items():
+        artifact = artifacts.get(path)
+        if artifact is None:
+            raise ValueError(f"Pinned model file {path!r} is missing from {repository}.")
+        if f"{artifact.digest_algorithm}:{artifact.digest}" != expected:
+            raise ValueError(f"Model file {path!r} does not match its pinned digest.")
+        result[path] = artifact
+    return result
+
+
 MAX_RUNTIME_ARCHIVE_BYTES = 1024 * 1024 * 1024
 MAX_MODEL_FILE_BYTES = 16 * 1024 * 1024 * 1024
 
@@ -119,6 +189,11 @@ def github_runtime_artifact(
     if type(size) is not int:
         raise ValueError("Pinned llama.cpp asset has no declared size.")
     filename = str(asset.get("name") or "")
+    pinned_digest = LLAMA_CPP_ASSET_SHA256.get(filename)
+    if pinned_digest is None:
+        raise ValueError(f"llama.cpp asset {filename!r} has no digest pinned in the repository.")
+    if raw_digest.removeprefix("sha256:").lower() != pinned_digest:
+        raise ValueError("llama.cpp release metadata does not match the pinned asset digest.")
     url = str(asset.get("browser_download_url") or "")
     parsed = urlsplit(url)
     expected_prefix = (
@@ -139,7 +214,7 @@ def github_runtime_artifact(
         filename=filename,
         url=url,
         digest_algorithm="sha256",
-        digest=raw_digest.removeprefix("sha256:").lower(),
+        digest=pinned_digest,
         maximum_bytes=MAX_RUNTIME_ARCHIVE_BYTES,
         expected_size=size,
         allowed_redirect_origins=(
@@ -331,9 +406,12 @@ def safe_relative_path(value: str):
 
 __all__ = [
     "HUGGINGFACE_TREE_PAGE_LIMIT",
+    "LLAMA_CPP_ASSET_SHA256",
     "LLAMA_CPP_RELEASE",
     "MAX_HUGGINGFACE_TREE_PAGES",
+    "PINNED_MODELS",
     "ArtifactManifest",
+    "PinnedModel",
     "github_release_api_url",
     "github_runtime_artifact",
     "huggingface_artifacts",
@@ -341,5 +419,6 @@ __all__ = [
     "huggingface_repository_revision",
     "huggingface_tree_api_url",
     "huggingface_tree_next_cursor",
+    "pinned_model_artifacts",
     "safe_relative_path",
 ]

@@ -14,6 +14,30 @@ class TooManyOpenJobs(RuntimeError):
         self.limit = limit
 
 
+class ClientJobRunning(RuntimeError):
+    """The account already has an open job on a client engine (T-61).
+
+    One browser computes one job at a time; a second tab waits for the first instead of
+    starting a model or a provider call of its own.
+    """
+
+    def __init__(self, job_id: str) -> None:
+        super().__init__("Another assistant job on a client engine is still open.")
+        self.job_id = job_id
+
+
+class RelayTicketNotFound(LookupError):
+    """No relay ticket matches: unknown, someone else's, or not this session's (T-61)."""
+
+
+class RelayTicketExpired(LookupError):
+    """The relay ticket was answered, cancelled, or ran out of time (T-61)."""
+
+
+class RelayTooManyFailures(LookupError):
+    """The session has failed too often recently; refused without looking (T-61)."""
+
+
 class IdempotencyConflict(RuntimeError):
     """One idempotency key was reused for a different logical request."""
 
@@ -91,13 +115,16 @@ class AssistantJobStore(Protocol):
         execution: dict[str, Any],
         progress_id: str | None = None,
         max_open: int | None = None,
+        engine_kind: str = "server",
     ) -> tuple[dict[str, Any], bool]: ...
 
     def get(self, job_id: str, owner_sub: str, world_id: str) -> dict[str, Any] | None: ...
 
     def request_for(self, job_id: str) -> dict[str, Any]: ...
 
-    def claim_next(self) -> dict[str, Any] | None: ...
+    def claim_next_server(self) -> dict[str, Any] | None: ...
+
+    def claim_next_client(self) -> dict[str, Any] | None: ...
 
     def cancel_requested(self, job_id: str) -> bool: ...
 
@@ -129,6 +156,8 @@ class AssistantInteractionLogger(Protocol):
         error: str = "",
         owner_sub: str,
         world_id: str,
+        # The kind of engine that computed the answer (T-61): never a model name or key.
+        engine: str = "server",
     ) -> str: ...
 
 
@@ -192,12 +221,16 @@ __all__ = [
     "AssistantProgressStore",
     "AssistantReadToolExecutor",
     "AssistantWorldAccess",
+    "ClientJobRunning",
     "IdempotencyConflict",
     "IncompleteInferenceResponse",
     "InferenceEngine",
     "InferenceTimeoutError",
     "InferenceUnavailableError",
     "JobStoreFactory",
+    "RelayTicketExpired",
+    "RelayTicketNotFound",
+    "RelayTooManyFailures",
     "TokenCountCache",
     "TooManyOpenJobs",
 ]

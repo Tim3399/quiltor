@@ -38,6 +38,9 @@ export const common = {
   errorWorldPreview:
     "Die Beispielwelt wird erst gesichert und abgeglichen, wenn du etwas an ihr änderst.",
   errorExampleWorldFailed: "Die Beispielwelt konnte nicht geöffnet werden.",
+  errorWorldQuota:
+    "Du hast die Höchstzahl an Welten oder den Speicherplatz für deine Welten erreicht. Lösche eine Welt oder alte Versionen oder leere den Papierkorb, dann ist wieder Platz.",
+  errorServerBusy: "Der Server ist gerade ausgelastet. Versuche es gleich erneut.",
   errorInstallForbiddenHosted:
     "Auf diesem Server richtet der Betreiber Erweiterungen ein. Hier lässt sich nichts nachinstallieren.",
   errorSyncTargetInvalid:

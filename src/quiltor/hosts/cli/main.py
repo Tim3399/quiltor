@@ -58,8 +58,24 @@ KNOWN_KEYS: dict[str, str] = {
         "json_object for providers that ignore response_format json_schema (Anthropic); the "
         "schema then goes into the prompt."
     ),
+    "QUILTOR_TRUSTED_PROXIES": (
+        "Comma-separated IP addresses of the reverse proxies in front of Quiltor. Only their "
+        "X-Forwarded-For is believed, to tell clients apart when limiting open logins. "
+        "Unset = no per-client login limit."
+    ),
     "QUILTOR_PREMIUM_ROLE": "Realm role an OIDC account needs for the AI assistant. Default: premium.",
     "QUILTOR_ASSISTANT_MAX_OPEN_JOBS": "Open AI assistant jobs per OIDC account, 1-100. Default: 3.",
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM": (
+        "Seconds the browser has to answer one model call on the in-browser AI, 30-3600. "
+        "Default: 300."
+    ),
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD": (
+        "Seconds the browser has to answer one model call on a cloud provider, 10-600. "
+        "Default: 120."
+    ),
+    "QUILTOR_ASSISTANT_RELAY_JOB_MINUTES": (
+        "Minutes one assistant job on the user's own AI may take in all, 1-120. Default: 20."
+    ),
     "QUILTOR_AI_MODEL": "Path to a specific model file, overriding the bundled default.",
     "QUILTOR_AI_BINARY": "Path to a specific llama-server/MLX binary, overriding the bundled default.",
     "QUILTOR_AI_RUNTIME": "Force a specific local runtime: llamacpp or mlx.",

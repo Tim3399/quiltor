@@ -12,7 +12,7 @@ from quiltor.application.errors import SchemaNewerThanSupported
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.persistence.sqlite.connection import connection
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -268,7 +268,8 @@ CREATE TABLE IF NOT EXISTS assistant_interactions (
   question TEXT NOT NULL,
   response_json TEXT,
   status TEXT NOT NULL CHECK (status IN ('completed','failed')),
-  error TEXT NOT NULL DEFAULT ''
+  error TEXT NOT NULL DEFAULT '',
+  engine TEXT NOT NULL DEFAULT 'server'
 );
 CREATE INDEX IF NOT EXISTS assistant_interactions_created
   ON assistant_interactions(created_at DESC);

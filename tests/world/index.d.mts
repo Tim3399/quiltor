@@ -5,10 +5,37 @@
 export type WorldLanguage = "de" | "en";
 export type WorldPart = "base" | "edge";
 
+/** A chapter as the world writes it into the manuscript payload. */
+export interface ExampleWorldChapter {
+  id: string;
+  title: string;
+  body: string;
+  note: string;
+}
+
+/** One version of the check part's chronicle chapter, oldest first (parts/edge.mjs). */
+export interface ExampleWorldHistoryVersion {
+  /** The chronicle chapter's text at this version. */
+  text: string;
+  /** Whether `otherChapterId` carries `appended.text` at this version. */
+  elsewhere: boolean;
+  /** The note the version is kept with. */
+  note: string;
+}
+
+/** The versions the check part describes for T-86; only there when "edge" is included. */
+export interface ExampleWorldHistory {
+  chapterId: string;
+  otherChapterId: string;
+  appended: { text: string };
+  versions: ExampleWorldHistoryVersion[];
+}
+
 export interface ExampleWorldPayloads {
-  manuscript: unknown;
+  manuscript: { chapters: ExampleWorldChapter[]; [key: string]: unknown };
   figures: unknown;
   storyboards: unknown;
+  history?: ExampleWorldHistory;
 }
 
 export declare const LANGUAGES: readonly WorldLanguage[];

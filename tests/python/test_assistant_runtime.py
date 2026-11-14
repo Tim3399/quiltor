@@ -13,6 +13,8 @@ from quiltor.modules.assistant import (
     required_proposal_kinds,
     task_contract,
 )
+from quiltor.modules.assistant.jobs import classify_assistant_error
+from quiltor.modules.assistant.ports import InferenceValidationError
 
 FIGURES = {
     "nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}],
@@ -364,9 +366,10 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         )
 
     def test_read_tool_step_is_injected_before_final_reply_and_traced(self):
+        # The fake catalog's input schema admits no arguments; the reply must follow it.
         tool_step = {
             "action": "tool_calls",
-            "toolCalls": [{"name": "resolve_entity", "arguments": {"mention": "Tarek"}}],
+            "toolCalls": [{"name": "resolve_entity", "arguments": {}}],
         }
         final = {
             "action": "final",
@@ -464,6 +467,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         self.assertNotIn("Glocke klingt", explicit_results)
 
     def test_invalid_tool_name_fails_closed_without_proposal_fallback(self):
+        # T-61 part 4: a tool name outside the catalog breaks the step schema, so the
+        # reply now ends as validation_error before the tool loop sees it.
         runtime, inference = self._runtime(
             {
                 "action": "tool_calls",
@@ -471,27 +476,18 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             }
         )
 
-        result = runtime.complete(
-            "Lege Igor als neue Figur an.",
-            {},
-            FIGURES,
-            history=None,
-            world_revision=9,
-        )
+        with self.assertRaises(InferenceValidationError) as raised:
+            runtime.complete(
+                "Lege Igor als neue Figur an.",
+                {},
+                FIGURES,
+                history=None,
+                world_revision=9,
+            )
 
+        self.assertEqual(classify_assistant_error(raised.exception), "validation_error")
         self.assertEqual(len(inference.calls), 1)
         self.assertEqual(runtime.read_tools.calls, [])
-        self.assertEqual(result["proposals"], [])
-        failure = next(
-            item
-            for item in result["agentTrace"]
-            if item["step"] == "tool_loop" and item["complete"] is False
-        )
-        self.assertEqual(failure["reason"], "invalid_tool_calls")
-        self.assertNotIn(
-            "deterministic_fallback",
-            [item["step"] for item in result["agentTrace"]],
-        )
 
     def test_repair_keeps_tool_results_untrusted_without_requiring_more_tool_steps(self):
         tool_step = {
@@ -573,13 +569,11 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         reply = {
             "message": "Angelegt.",
             "citations": [],
-            "proof": {"checked": True, "worldRevision": 999},
             "proposals": [
                 {
                     "kind": "create_element",
                     "tempId": "new:falke",
                     "element": {"type": "person", "name": "Der Falke"},
-                    "resolution": {"outcome": "create"},
                 }
             ],
         }

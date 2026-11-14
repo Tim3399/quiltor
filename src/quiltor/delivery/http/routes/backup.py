@@ -22,6 +22,7 @@ from quiltor.application.backups import (
     BackupRestoreFailed,
 )
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_growth_over_quota
 
 # Every route registered `world=True` has its world resolved by the dispatch, so
 # `request.world` is never None below and its snapshot context is the only
@@ -132,6 +133,9 @@ def snapshot(handler, request: Request, app) -> None:
         )
     try:
         with app.lock:
+            # The blobs of a version are the bulk of what an account stores (F-268-18).
+            if refuse_growth_over_quota(handler, request):
+                return
             result = app.backups.commit(world.backup, message, push, authorization)
     except ApplicationError as exc:
         _observe_failure(app, "backup.snapshot_failed", exc)
@@ -208,11 +212,16 @@ def restore_local(handler, request: Request, app) -> None:
 #     "whose login is this" but "which endpoint are we talking about", since a
 #     world may name one of its own. See _endpoint_for. Optional matters -- a
 #     machine with no worlds at all is exactly who calls this first.
-#   - none is `anonymous=True`. Starting a flow that ends in a credential on
-#     this disk, and redeeming the code that comes back, is the local user's
-#     business; anonymous would hand both to anything that reaches the port. The
-#     desktop case loses nothing by it -- a loopback request already resolves to
-#     that user (src/quiltor/modules/identity/service.py).
+#   - only the callback is `anonymous=True` (D-203, S269-4), and that reverses
+#     an earlier rule worth keeping in view: "none is anonymous". Starting the
+#     flow stays the local user's business. The callback changed because the
+#     desktop login runs in the *system* browser, which holds no cookie of the
+#     desktop window, and since S269-4 a loopback request no longer resolves to
+#     the owner on its own. What binds the callback now is the `state` of a login
+#     this process itself began: compared in constant time, single-use because
+#     consuming it removes it, and valid for PENDING_TTL. PKCE still binds the
+#     code to the verifier only this process holds. The callback creates no
+#     session; it only completes that login. See login_callback.
 #   - none is `auth_only=True`, and that one is worth saying plainly because the
 #     word invites the opposite guess. `auth_only` means "exists only where
 #     there is more than one user". These are the reverse: the browser flow is
@@ -234,20 +243,29 @@ def _redirect_uri(handler) -> str:
     return f"http://127.0.0.1:{handler.server.server_address[1]}/backup/callback"
 
 
-def _page(handler, message: str, code: int) -> None:
-    """A callback failure the browser can read.
+_DONE_TITLE = "Anmeldung abgeschlossen"
+_DONE_TEXT = "Du kannst dieses Fenster schließen und zu Quiltor zurückkehren."
+_FAILED_TITLE = "Die Anmeldung ist nicht angekommen"
+# One sentence for every failure: no state, a wrong one, a used one, an expired one,
+# a refusal by the provider. The callback is anonymous now, so its answer must not tell
+# a caller which of those it hit (D-203).
+_FAILED_TEXT = "Bitte starte die Anmeldung in Quiltor noch einmal."
+
+
+def _page(handler, title: str, message: str, code: int) -> None:
+    """The page the browser lands on after the provider.
 
     This is the one route a *browser* lands on directly, so a JSON body would
     show the user a line of punctuation and an exception would show them our
-    file names. A plain page and the reason it failed instead.
+    file names. The system browser of a desktop login has no session here, so
+    the page links nowhere it could not open.
     """
     body = (
         '<!doctype html><meta charset="utf-8">'
-        "<title>Quiltor — Anmeldung</title>"
+        f"<title>Quiltor — {html.escape(title)}</title>"
         '<body style="font:16px system-ui;margin:3rem;max-width:34rem">'
-        "<h1>Die Anmeldung ist nicht angekommen</h1>"
+        f"<h1>{html.escape(title)}</h1>"
         f"<p>{html.escape(message)}</p>"
-        '<p><a href="/">Zurück zu Quiltor</a></p>'
     ).encode()
     handler.send_response(code)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
@@ -351,35 +369,36 @@ def login_end(handler, request: Request, app) -> None:
     handler.send_json({"ok": True, "signedIn": False})
 
 
-@get("/backup/callback", device_sync=True)
+@get("/backup/callback", device_sync=True, anonymous=True)
 def login_callback(handler, request: Request, app) -> None:
     """Where the issuer sends the browser back with the authorization code.
 
-    Checking `state` is `backup_login.complete`'s first act, and it is left
-    there on purpose: the pending record is single-use *by being popped*, so
-    consuming it here and completing afterwards would either pop it twice or
-    open a window between the two checks. What this route adds is the redirect
-    the login was started on -- rebuilt from the port we are listening on, and
-    compared inside `complete` against the one that login recorded -- and an
-    answer a browser can read.
+    Anonymous (D-203): the desktop login returns in the system browser, which has
+    no session here. The `state` is the whole binding, so checking it stays
+    `backup_login.complete`'s first act: the pending record is single-use *by
+    being popped* (in constant time, within PENDING_TTL), and consuming it here
+    and completing afterwards would either pop it twice or open a window between
+    the two checks. `complete` also compares the redirect this login was started
+    on -- rebuilt from the port we are listening on. No session is created.
+
+    Every failure answers with the same page and status, whatever the reason; the
+    log keeps the reason for whoever runs the machine.
     """
-    if request.param("error"):
-        return _page(handler, f"Der Anbieter hat abgelehnt: {request.param('error')}", 400)
     code, state = request.param("code"), request.param("state")
-    if not code or not state:
-        return _page(handler, "Die Rückleitung trug keinen Code.", 400)
+    if request.param("error") or not code or not state:
+        _observe_failure(app, "backup.login_callback_rejected", ValueError("Incomplete callback."))
+        return _page(handler, _FAILED_TITLE, _FAILED_TEXT, 400)
     try:
         app.backups.complete_login(code, state, _redirect_uri(handler))
     except ValueError as exc:
         # An unknown state is the interesting one: somebody else's login being
         # pushed onto this machine arrives looking exactly like this.
         _observe_failure(app, "backup.login_callback_rejected", exc)
-        return _page(handler, "Die Anmeldung ist ungültig oder abgelaufen.", 400)
+        return _page(handler, _FAILED_TITLE, _FAILED_TEXT, 400)
     except Exception as exc:
         _observe_failure(app, "backup.login_callback_failed", exc)
-        return _page(handler, "Der Anbieter konnte die Anmeldung nicht abschließen.", 502)
-    # Back into the app rather than onto a success page: the dialog that started
-    # this is still open in the other window and its next status poll shows the
-    # account. A page saying "you may close this tab now" is one more thing to
-    # read and nothing more.
-    handler.send_redirect("/")
+        return _page(handler, _FAILED_TITLE, _FAILED_TEXT, 400)
+    # The dialog that started this is still open in Quiltor's own window, and its
+    # next status poll shows the account. This browser has no session to go back
+    # to, so it gets a page instead of a redirect into the app.
+    _page(handler, _DONE_TITLE, _DONE_TEXT, 200)

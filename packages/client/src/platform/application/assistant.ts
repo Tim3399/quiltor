@@ -1,4 +1,6 @@
 import type { MessageKey } from "../../i18n";
+import type { AssistantEngineWire } from "../../modules/assistant";
+import type { RelayAnswerV1, RelayRequestV1 } from "../contracts/v1/assistantRelay";
 import type {
   AssistantHistoryMessage,
   AssistantJobState,
@@ -12,7 +14,46 @@ export type AssistantBatchRequest = {
   mode?: AssistantMode;
 };
 
-export interface AssistantGateway {
+/**
+ * How one relay call ended (T-61). `ended` carries the status that closes the loop for good:
+ * 401 (signed out), 403 (switched off), 404 (job gone or not ours), 410 (ticket or job over),
+ * 413/400 (the answer itself was refused), 429 (too many failed answers).
+ * Anything else (network, 5xx) throws, and the loop tries again.
+ */
+export type RelayNext =
+  | { kind: "request"; request: RelayRequestV1 }
+  | { kind: "idle" }
+  | { kind: "ended"; status: number };
+
+export type RelayAnswered = { kind: "ok" } | { kind: "ended"; status: number };
+
+/** The browser's half of a client job: take the next model call, send its answer. */
+export interface AssistantRelayGateway {
+  relayNext(jobId: string, signal?: AbortSignal): Promise<RelayNext>;
+  relayAnswer(answer: RelayAnswerV1, signal?: AbortSignal): Promise<RelayAnswered>;
+}
+
+/**
+ * The providers a browser engine may call (T-61 part 8a). A closed list of profile ids, never
+ * a URL: the transport alone knows where each one is, so nothing can make it call elsewhere.
+ * T-264 adds the real profiles.
+ */
+export type ProviderProfileId = "test";
+
+/** A provider's answer as it came, or `network` when no answer arrived (refused, CORS). */
+export type ProviderAnswer =
+  | { kind: "answer"; status: number; body: unknown }
+  | { kind: "network" };
+
+export interface AssistantProviderGateway {
+  /** POST `body` (JSON) to the profile's endpoint. Rejects only on abort. */
+  callProvider(
+    profile: ProviderProfileId,
+    call: { key: string; body: string; signal: AbortSignal },
+  ): Promise<ProviderAnswer>;
+}
+
+export interface AssistantGateway extends AssistantRelayGateway, AssistantProviderGateway {
   status(): Promise<{
     ok: boolean;
     available: boolean;
@@ -47,6 +88,8 @@ export interface AssistantGateway {
     batch?: AssistantBatchRequest,
     idempotencyKey?: string,
     onJobCreated?: (job: AssistantJobState) => void,
+    /** A browser engine for this job (T-61); absent means the server's own model. */
+    engine?: AssistantEngineWire,
   ): Promise<AssistantReply>;
   progress(id: string): Promise<{
     ok: boolean;

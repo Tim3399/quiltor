@@ -154,9 +154,12 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         started = self.json_of("POST", "/api/backup/login", body={})
         self.assertTrue(started["ok"], started)
         code, state = self.issuer.authorize(started["authorizeUrl"])
-        status, headers, _ = self.request("GET", f"/backup/callback?code={code}&state={state}")
-        self.assertEqual(status, 302)
-        self.assertEqual(headers["Location"], "/")
+        status, headers, raw = self.request("GET", f"/backup/callback?code={code}&state={state}")
+        # A page, not a redirect into the app: the desktop login returns in the system
+        # browser, which has no session to go back to (D-203).
+        self.assertEqual(status, 200, raw[:200])
+        self.assertTrue(headers["Content-Type"].startswith("text/html"))
+        self.assertIn("Anmeldung abgeschlossen", raw.decode("utf-8"))
         return started
 
     def create_world(self) -> str:
@@ -231,15 +234,17 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.assertNotIn(b"Traceback", raw)
         self.assertFalse(self.json_of("GET", "/api/backup/login")["signedIn"])
 
-    def test_a_callback_carrying_no_code_says_so_rather_than_failing_later(self):
+    def test_a_callback_carrying_no_code_gets_the_neutral_page(self):
+        # The callback is anonymous since D-203, so no failure tells a caller its reason.
         status, _, raw = self.request("GET", "/backup/callback")
         self.assertEqual(status, 400)
-        self.assertIn("Code", raw.decode("utf-8"))
+        self.assertIn("Bitte starte die Anmeldung in Quiltor noch einmal.", raw.decode("utf-8"))
 
-    def test_a_provider_that_refused_is_reported_as_such(self):
+    def test_a_provider_that_refused_gets_the_neutral_page(self):
         status, _, raw = self.request("GET", "/backup/callback?error=access_denied")
         self.assertEqual(status, 400)
-        self.assertIn("access_denied", raw.decode("utf-8"))
+        self.assertNotIn("access_denied", raw.decode("utf-8"))
+        self.assertIn("Bitte starte die Anmeldung in Quiltor noch einmal.", raw.decode("utf-8"))
 
     # ---------- what the token is for ----------
 
@@ -319,6 +324,27 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         )
         self.assertEqual(status, 400)
         self.assertEqual(json.loads(raw)["error"]["code"], "history.request_invalid")
+
+    def test_the_chapter_timeline_refuses_a_bad_page_request(self):
+        """(T-86 part 2, case 6) limit 1..50, a chapterId, a known before."""
+        world_id = self.create_world()
+        base = f"/api/history/chapter-timeline?world={world_id}"
+        for query in (
+            "&limit=5",
+            "&chapterId=c&limit=0",
+            "&chapterId=c&limit=51",
+            "&chapterId=c&limit=zwei",
+        ):
+            with self.subTest(query=query):
+                status, _, raw = self.request("GET", base + query)
+                self.assertEqual(status, 400)
+                self.assertEqual(json.loads(raw)["error"]["code"], "history.request_invalid")
+        status, _, raw = self.request("GET", base + "&chapterId=c&limit=50")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw), {"ok": True, "entries": [], "skipped": 0, "next": None})
+        status, _, raw = self.request("GET", base + "&chapterId=c&before=" + "0" * 64)
+        self.assertEqual(status, 404)
+        self.assertEqual(json.loads(raw)["error"]["code"], "history.revision_not_found")
 
 
 class HostedTokenTests(BackupRouteTestCase):

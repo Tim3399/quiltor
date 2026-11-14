@@ -46,11 +46,49 @@ function recoverFromTransientSocketFailures(page: Page, testInfo: TestInfo): voi
   });
 }
 
-export const test = base.extend<{ transientSocketRecovery: true }>({
+type BaseFixtures = {
+  transientSocketRecovery: true;
+  /** Every Content-Security-Policy violation the page reported. A test that provokes one on
+   * purpose reads it here and empties it; anything left fails the test. */
+  cspViolations: string[];
+  cspGuard: true;
+};
+
+export const test = base.extend<BaseFixtures>({
   transientSocketRecovery: [
     async ({ page }, use, testInfo) => {
       recoverFromTransientSocketFailures(page, testInfo);
       await use(true);
+    },
+    { auto: true },
+  ],
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright reads a fixture's dependencies from this pattern and rejects anything but object destructuring.
+  cspViolations: async ({}, use) => {
+    await use([]);
+  },
+  // On every product test, whichever fixture file it imports (T-61 part 5, F-61-21).
+  // securitypolicyviolation fires in report-only mode as well, so the guard measures the
+  // default server and needs no QUILTOR_CSP=enforce. The check reads only what the binding
+  // collected, so it does not need the page to be open any more.
+  cspGuard: [
+    async ({ page, cspViolations }, use) => {
+      await page.context().exposeBinding("__quiltorCspViolation", (_source, violation: string) => {
+        cspViolations.push(violation);
+      });
+      await page.context().addInitScript(() => {
+        document.addEventListener("securitypolicyviolation", (event) => {
+          const report = (window as unknown as { __quiltorCspViolation?: (v: string) => void })
+            .__quiltorCspViolation;
+          report?.(
+            `${event.effectiveDirective} blocked ${event.blockedURI || "(inline)"} ` +
+              `at ${event.sourceFile || event.documentURI}:${event.lineNumber} (${event.disposition})`,
+          );
+        });
+      });
+      await use(true);
+      if (cspViolations.length > 0) {
+        throw new Error(`Content-Security-Policy violations:\n${cspViolations.join("\n")}`);
+      }
     },
     { auto: true },
   ],

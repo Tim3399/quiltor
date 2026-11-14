@@ -156,6 +156,35 @@ export function describeEdge(api, world) {
     position: actTwo.length,
   });
 
+  // A chapter that went through three texts (T-86). The part holds the last one; the e2e helper
+  // seedExampleWorldWithHistory puts the earlier ones in as versions, so the chapter's history
+  // has entries that create it and change it.
+  manuscript.chapters.push({
+    id: "x-chronicle",
+    title: t("ch.x-chronicle.title"),
+    body: t("ch.x-chronicle.body-3"),
+    note: "",
+  });
+  manuscript.structure.items.push({
+    id: "item-x-chronicle",
+    kind: "chapter",
+    chapterId: "x-chronicle",
+    parentFolderId: "act-two",
+    position: actTwo.length + 1,
+  });
+  // The versions of that chapter, newest last: the text of x-chronicle at each, whether the
+  // other chapter `otherChapterId` carries the extra sentence, and the note of the version.
+  world.history = {
+    chapterId: "x-chronicle",
+    otherChapterId: "c-arrival",
+    appended: { text: t("ch.x-chronicle.elsewhere") },
+    versions: [1, 2, 2, 3].map((stage, index) => ({
+      text: t(`ch.x-chronicle.body-${stage}`),
+      elsewhere: index >= 2,
+      note: t(`ch.x-chronicle.note-${index + 1}`),
+    })),
+  };
+
   // A chapter in the bin whose folder no longer exists.
   manuscript.trash.push({
     chapter: {
@@ -248,6 +277,8 @@ export const PURPOSE = {
     "opened-out map with a picture but no frame size; the server fills it in (T-79)",
   "x-empty-chapter": "chapter without text and without a note",
   "x-trash-orphan": "chapter in the bin whose folder no longer exists",
+  "x-chronicle":
+    "chapter with three texts; seedExampleWorldWithHistory saves them as versions, the first creates it (T-86)",
   "x-board": "board holding every card of the check part",
   "x-ref-deleted": "reference card to an element that does not exist (T-177)",
   "x-ref-storm-again":

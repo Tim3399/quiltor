@@ -25,6 +25,7 @@ domain and host boundary tests enforce both directions.
 from __future__ import annotations
 
 import hmac
+import time
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from quiltor.modules.identity import auth
@@ -191,11 +192,21 @@ class LocalIdentity(Identity):
         super().__init__(sessions, render_tokens)
         self.master_sub = owner_store.local_owner_id
         self.token = master_token
+        # Whether reaching the loopback port is proof enough (S269-4). True only for the
+        # source-checkout server the suites and `npm start` talk to. The desktop window and
+        # `quiltor run` turn it off: on a machine with several OS accounts the port is open
+        # to all of them, so only whoever started the process -- and was handed the token
+        # in the URL it opened -- is the owner. See require_token().
+        self.trust_loopback = True
+
+    def require_token(self) -> None:
+        """Stop treating a loopback connection as the owner (S269-4)."""
+        self.trust_loopback = False
 
     def resolve(self, handler) -> auth.SessionData | None:
         session = super().resolve(handler)
         if session is not None:
-            return session
+            return self._renewed(handler, session)
 
         header = (handler.headers.get("Authorization") or "").strip()
         if header.lower().startswith("bearer "):
@@ -216,15 +227,34 @@ class LocalIdentity(Identity):
             setattr(handler, REDIRECT_ATTR, path_without(handler, "token"))
             return session
 
-        if handler.server_bound_to_loopback():
-            # The normal desktop/CLI case. A loopback-only instance is one trust
-            # domain -- whoever can reach the port is the user we would be
-            # authenticating anyway -- so demanding a token here would be
-            # ceremony, not security. The boundary that does the work stays the
-            # Host/Origin/Content-Type guard, which is what stops a web page the
-            # user happens to visit from posting to us.
+        if self.trust_loopback and handler.server_bound_to_loopback():
+            # The source-checkout server only (see __init__). There, whoever can
+            # reach the port is the developer we would be authenticating anyway;
+            # the Host/Origin/Content-Type guard is what stops a web page the user
+            # happens to visit from posting to us.
             return self._master_session(handler)
         return None
+
+    def _renewed(self, handler, session: auth.SessionData) -> auth.SessionData:
+        """Keep the owner's cookie alive for as long as the window is in use.
+
+        Without loopback trust the cookie is the only proof the window has, and a
+        session ends after SESSION_TTL. A desktop window open for longer than that
+        would lose access with no way to show the token again, so a request that
+        proves the owner's session in its second half gets a fresh one. Whoever holds
+        that cookie already holds the owner's access; renewing it widens nothing.
+        """
+        if (
+            self.trust_loopback
+            or session.sub != self.master_sub
+            # A render token's session is short on purpose and stays that way.
+            or session.expires_at - session.created_at < self.auth.session_ttl
+            or session.expires_at - time.time() > self.auth.session_ttl / 2
+        ):
+            return session
+        session_id = self.auth.create_session(self.master_sub, "", "")
+        queue_session_cookie(handler, session_id, max_age=self.auth.session_ttl)
+        return self.auth.get_session(session_id) or session
 
     def _master_session(self, handler) -> auth.SessionData | None:
         """The local user's session, queueing its cookie so the rest of this page

@@ -82,7 +82,9 @@ class FakeAssistant:
 
 
 class FakeInteractionLogger:
-    def record(self, question, response=None, *, error="", owner_sub="", world_id=""):
+    def record(
+        self, question, response=None, *, error="", owner_sub="", world_id="", engine="server"
+    ):
         return f"interaction-{question}"
 
 
@@ -215,7 +217,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        claimed = present(self.store.claim_next())
+        claimed = present(self.store.claim_next_server())
         self.assertEqual(claimed["id"], job["id"])
         self.assertEqual(claimed["status"], "running")
 
@@ -244,7 +246,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        self.store.claim_next()
+        self.store.claim_next_server()
         result = {"ok": True, "message": "done", "proposals": [], "sources": []}
         terminal = present(self.store.finish_success(job["id"], result, "interaction-1"))
 
@@ -289,7 +291,7 @@ class AssistantJobLimitTests(unittest.TestCase):
     def test_a_running_job_counts_as_open(self):
         self._submit("a")
         self._submit("b")
-        present(self.store.claim_next())
+        present(self.store.claim_next_server())
         with self.assertRaises(TooManyOpenJobs):
             self._submit("c")
 
@@ -440,7 +442,9 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     result["staleWorld"],
                     {"expectedRevision": 4, "currentRevision": 5},
                 )
-                proof = result["agentTrace"][0]["proof"]
+                # [0] is the engine step (T-61 part 9), the runtime's own steps follow.
+                self.assertEqual(result["agentTrace"][0], {"step": "engine", "engine": "server"})
+                proof = result["agentTrace"][1]["proof"]
                 self.assertTrue(proof["stale"])
                 self.assertFalse(proof["applicable"])
                 self.assertEqual(result["agentTrace"][-1]["step"], "stale_world")

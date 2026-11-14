@@ -21,6 +21,7 @@ from quiltor.infrastructure.inference.archive import extract_archive, locate_exp
 from quiltor.infrastructure.inference.coordinator import InstallationCoordinator
 from quiltor.infrastructure.inference.install_manifest import (
     HUGGINGFACE_TREE_PAGE_LIMIT,
+    LLAMA_CPP_ASSET_SHA256,
     LLAMA_CPP_RELEASE,
     ArtifactManifest,
     github_runtime_artifact,
@@ -381,6 +382,7 @@ class InstallerLogTests(unittest.TestCase):
 
 class InstallManifestTests(unittest.TestCase):
     def test_pinned_runtime_asset_requires_the_published_digest_and_size(self):
+        pinned = LLAMA_CPP_ASSET_SHA256[f"llama-{LLAMA_CPP_RELEASE}-bin-win-cpu-x64.zip"]
         release = {
             "tag_name": LLAMA_CPP_RELEASE,
             "assets": [
@@ -390,15 +392,34 @@ class InstallManifestTests(unittest.TestCase):
                         "https://github.com/ggml-org/llama.cpp/releases/download/"
                         f"{LLAMA_CPP_RELEASE}/llama-{LLAMA_CPP_RELEASE}-bin-win-cpu-x64.zip"
                     ),
-                    "digest": "sha256:" + "a" * 64,
+                    "digest": "sha256:" + pinned,
                     "size": 1234,
                 }
             ],
         }
         artifact = github_runtime_artifact(release, re.compile(r"win-cpu-x64\.zip$"))
         self.assertEqual(artifact.version, LLAMA_CPP_RELEASE)
-        self.assertEqual(artifact.digest, "a" * 64)
+        self.assertEqual(artifact.digest, pinned)
         self.assertEqual(artifact.expected_size, 1234)
+
+    def test_runtime_asset_without_a_repository_pin_is_refused(self):
+        name = f"llama-{LLAMA_CPP_RELEASE}-bin-win-vulkan-x64.zip"
+        release = {
+            "tag_name": LLAMA_CPP_RELEASE,
+            "assets": [
+                {
+                    "name": name,
+                    "browser_download_url": (
+                        "https://github.com/ggml-org/llama.cpp/releases/download/"
+                        f"{LLAMA_CPP_RELEASE}/{name}"
+                    ),
+                    "digest": "sha256:" + "a" * 64,
+                    "size": 1234,
+                }
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "no digest pinned"):
+            github_runtime_artifact(release, re.compile(r"win-vulkan-x64\.zip$"))
 
     def test_runtime_metadata_without_a_digest_fails_closed(self):
         release = {

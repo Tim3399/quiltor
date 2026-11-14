@@ -45,8 +45,10 @@ that ignore json_schema. See the README for all of them.
 import hmac
 import http.cookies
 import http.server
+import ipaddress
 import json
 import os
+import socket
 import socketserver
 import sqlite3
 import sys
@@ -55,12 +57,13 @@ import time
 import traceback
 import webbrowser
 from typing import Any, Literal, cast
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from quiltor.application import ApplicationError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http import routes as api_routes
+from quiltor.infrastructure.identity.runtime import ProviderUnavailable
 from quiltor.infrastructure.observability import schema as log_schema
 from quiltor.infrastructure.platform.system import force_utf8_streams
 from quiltor.modules.identity import service as identity
@@ -68,6 +71,19 @@ from quiltor.modules.identity.service import SESSION_COOKIE
 
 MAX_BODY = 16 * 1024 * 1024  # 16 MB limit per save request
 REQUEST_HEADER_TIMEOUT_SECONDS = 15.0
+# While a body is read, no single recv may wait longer than this, and the whole body must
+# be in within BODY_READ_DEADLINE_SECONDS: the first stops a client that sends the headers
+# and then nothing, the second one that trickles a byte now and then (S268-102).
+BODY_RECV_TIMEOUT_SECONDS = 30.0
+BODY_READ_DEADLINE_SECONDS = 180.0
+# At most this many handler threads at once; a further connection is answered 503 with
+# Retry-After on the accepting thread. Overridable for an operator who sized the host.
+MAX_HANDLER_THREADS = int(os.environ.get("QUILTOR_MAX_HANDLER_THREADS", "128") or "128")
+# The relay long polls hold a thread for up to 25 s each; they get their own smaller pool
+# out of the total, so they cannot use up the threads everything else needs.
+RELAY_POLL_PATH = "/api/assistant/relay/next"
+MAX_RELAY_POLL_THREADS = 16
+SERVER_BUSY_RETRY_AFTER_SECONDS = 5
 
 # How much of a refused request's body is read and thrown away before the answer.
 #
@@ -89,6 +105,7 @@ RequestBodyRejectionReason = Literal[
     "content_type",
     "utf8",
     "json",
+    "timeout",
 ]
 
 
@@ -103,6 +120,7 @@ class RequestBodyRejected(ValueError):
             "content_type": "invalid Content-Type",
             "utf8": "invalid UTF-8",
             "json": "invalid JSON",
+            "timeout": "request body timed out",
         }[reason]
         super().__init__(message)
         self.reason = reason
@@ -188,6 +206,21 @@ def _origin_of(url: str, *, allow_path: bool) -> str | None:
 LOGIN_UI_LOCALES = frozenset({"de", "en"})
 LOGIN_STATE_COOKIE = "quiltor_login_state"
 
+# Shown with a 503 when the identity provider cannot be reached for a login (T-253).
+# German first: the product is built for a German-speaking author.
+LOGIN_UNAVAILABLE_PAGES = {
+    "de": (
+        "Anmeldung kurz nicht erreichbar",
+        "Die Anmeldung ist gerade kurz nicht erreichbar, gleich noch einmal versuchen.",
+        "Noch einmal versuchen",
+    ),
+    "en": (
+        "Sign-in briefly unavailable",
+        "Sign-in is briefly unavailable right now, please try again in a moment.",
+        "Try again",
+    ),
+}
+
 REQUEST_ID_HEADER = "X-Request-Id"
 
 
@@ -245,6 +278,10 @@ def _safe_traceback(exc: BaseException) -> str:
 api_routes.load()
 
 
+def is_html(content_type: str) -> bool:
+    return content_type.strip().lower().startswith("text/html")
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -269,6 +306,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         setattr(self, identity.REDIRECT_ATTR, None)
         self._response_status = 0
         self._sent_connection_header = False
+        self._content_type = ""
         self._error_code = None
         self._bytes_out = 0
         self.connection.settimeout(REQUEST_HEADER_TIMEOUT_SECONDS)
@@ -279,9 +317,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not parsed:
             return False
 
-        # The timeout only bounds an idle socket and request headers. Once framing is
-        # known, uploads and route handlers retain their previous unbounded behavior.
-        self.connection.settimeout(None)
+        # Never unbounded: a client that sends headers promising a body and then nothing
+        # would hold this thread forever (S268-102). read_request_body adds a deadline for
+        # the body as a whole on top of this per-recv limit.
+        self.connection.settimeout(BODY_RECV_TIMEOUT_SECONDS)
 
         connection_tokens = {
             token.strip().lower()
@@ -311,6 +350,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def send_header(self, keyword: str, value: str) -> None:
         if keyword.lower() == "connection":
             self._sent_connection_header = True
+        elif keyword.lower() == "content-type":
+            self._content_type = value
         elif keyword.lower() == "content-length":
             # Every body this server writes declares its length -- JSON, PDF, images,
             # redirects and the static files SimpleHTTPRequestHandler serves -- so the
@@ -492,7 +533,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         """Read the request body. Every route that reads it goes through here, so
         the dispatcher knows afterwards whether a refusal left it unread."""
         self._request_body_read = True
-        return self.rfile.read(length)
+        deadline = time.monotonic() + BODY_READ_DEADLINE_SECONDS
+        chunks: list[bytes] = []
+        remaining = length
+        try:
+            while remaining > 0:
+                # The socket's own timeout (set in parse_request) bounds each recv; this
+                # check between reads bounds the sum.
+                if time.monotonic() > deadline:
+                    raise TimeoutError("body deadline")
+                chunk = self.rfile.read1(min(remaining, 1024 * 1024))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+        except TimeoutError as error:
+            self.close_connection = True
+            raise RequestBodyRejected("timeout") from error
+        return b"".join(chunks)
 
     def _discard_unread_body(self) -> None:
         """Read and drop a small body that no route has read, so the close does not
@@ -528,6 +586,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self) -> None:
         try:
+            # Every HTML answer carries the policy, whichever path wrote it: the client,
+            # the backup callback page, an error page. Not static assets or JSON (T-61).
+            policy = getattr(self.application, "content_security_policy", None)
+            html = is_html(getattr(self, "_content_type", ""))
+            if policy is not None and html:
+                self.send_header(*policy)
+            # Never in a frame of another site, whatever the CSP mode (S269-2, D-198): a
+            # report-only frame-ancestors blocks nothing, and a page on any site could
+            # otherwise frame the local server and steer the author's clicks.
+            if html:
+                self.send_header("X-Frame-Options", "DENY")
             # Any Set-Cookie headers queued by the auth routes ride along on whatever
             # response actually gets sent (send_json/send_pdf/redirect/static fallback).
             for key, value in getattr(self, "_pending_cookies", None) or []:
@@ -613,6 +682,56 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def accepted_login_language(self) -> str:
+        """The first of the login languages that Accept-Language names; German otherwise."""
+        for part in (self.headers.get("Accept-Language") or "").split(","):
+            primary = part.split(";", 1)[0].strip().lower().split("-", 1)[0]
+            if primary in LOGIN_UI_LOCALES:
+                return primary
+        return "de"
+
+    def send_login_unavailable(self, language: str) -> None:
+        """A readable 503 page: the browser is on /login with nothing else to show."""
+        title, message, retry = LOGIN_UNAVAILABLE_PAGES[language]
+        body = (
+            f'<!doctype html><html lang="{language}"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f"<title>{title}</title></head>"
+            '<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:20vh auto;'
+            'padding:0 1rem;line-height:1.5">'
+            f'<h1 style="font-size:1.25rem">{title}</h1><p>{message}</p>'
+            f'<p><a href="/login?ui_locales={language}">{retry}</a></p></body></html>'
+        ).encode()
+        self.send_response(503)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Retry-After", "5")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def login_client_address(self) -> str:
+        """The address a login start is counted under, or "" when it cannot be told (S268-2).
+
+        Behind a trusted proxy that is the last X-Forwarded-For entry (the one the proxy
+        appended). Without QUILTOR_TRUSTED_PROXIES the server cannot know whether a proxy
+        stands in front, so nothing is trusted and no per-client limit applies. This is the
+        only place X-Forwarded-For is read."""
+        trusted = self.application.trusted_proxies
+        if not trusted:
+            return ""
+        try:
+            peer = str(ipaddress.ip_address(str(self.client_address[0]).split("%", 1)[0]))
+        except ValueError:
+            return ""
+        if peer not in trusted:
+            return peer
+        forwarded = ",".join(self.headers.get_all("X-Forwarded-For") or [])
+        try:
+            return str(ipaddress.ip_address(forwarded.rsplit(",", 1)[-1].strip()))
+        except ValueError:
+            return ""
+
     def handle_login(self) -> None:
         redirect_uri = f"{self.public_base_url()}/auth/callback"
         # The client names its interface language so the provider's pages -- and
@@ -620,9 +739,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # the realm offers pass; anything else is dropped, never forwarded.
         requested = (parse_qs(urlparse(self.path).query).get("ui_locales") or [""])[0]
         ui_locale = requested.strip().lower()
-        authorize_url, state = self.application.identity.auth.start_login(
-            redirect_uri, ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None
-        )
+        try:
+            authorize_url, state = self.application.identity.auth.start_login(
+                redirect_uri,
+                ui_locales=ui_locale if ui_locale in LOGIN_UI_LOCALES else None,
+                client=self.login_client_address(),
+            )
+        except ProviderUnavailable as exc:
+            self.application.observability.logger.event(
+                "warning", "identity.login_unavailable", error_type=type(exc).__name__
+            )
+            return self.send_login_unavailable(
+                ui_locale if ui_locale in LOGIN_UI_LOCALES else self.accepted_login_language()
+            )
         self._pending_cookies.append(self.cookie_header(LOGIN_STATE_COOKIE, state, max_age=600))
         return self.send_redirect(authorize_url)
 
@@ -663,11 +792,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 error_type=type(exc).__name__,
             )
             return self.send_redirect("/?authError=exchange")
-        session_id = self.application.identity.auth.create_session(
-            str(claims.get("sub", "")),
-            str(claims.get("email", "")),
-            str(claims.get("name") or claims.get("preferred_username") or ""),
-        )
+        try:
+            session_id = self.application.identity.auth.create_session(
+                str(claims.get("sub", "")),
+                str(claims.get("email", "")),
+                str(claims.get("name") or claims.get("preferred_username") or ""),
+            )
+        except RuntimeError:
+            # The session store is full of other accounts' sessions: ask the author to
+            # try again shortly rather than answer 500 (S268-3).
+            self.application.observability.logger.event(
+                "warning", "identity.login_unavailable", error_type="RuntimeError"
+            )
+            return self.send_login_unavailable(self.accepted_login_language())
         # Keep the provider's own tokens on the session. In this deployment the
         # backup endpoint is guarded by the very issuer this login just went
         # through, so the access token that came back is already the one that
@@ -979,15 +1116,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.log_rejection("sync.forbidden_hosted", route=path)
             return self.send_api_error(403, error_code="sync.forbidden_hosted", retryable=False)
 
-        if registration.premium and (
-            session is None or not self.application.identity.is_premium(session)
-        ):
-            # Same form as the two refusals above: the body stays unread (D-38).
-            self._discard_unread_body()
-            return self.send_api_error(
-                403, error_code="assistant.premium_required", retryable=False
-            )
-
         request = api_routes.Request(path=path, query=query, session=session)
         if registration.world:
             # Resolved before the route runs, so a refusal here leaves the body unread.
@@ -997,7 +1125,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if request.world is None:
                 self._discard_unread_body()
                 return
-        registration.handler(self, request, self.application.route_services(path))
+        if path == RELAY_POLL_PATH:
+            # Checked after the guards, so only a signed-in caller can occupy a slot.
+            slots = cast(Server, self.server).relay_poll_slots
+            if not slots.acquire(blocking=False):
+                self._discard_unread_body()
+                return self.send_json(
+                    http_errors.for_status(503, code="server.busy", retryable=True).payload(),
+                    503,
+                    headers={"Retry-After": SERVER_BUSY_RETRY_AFTER_SECONDS},
+                )
+            try:
+                registration.handler(self, request, self.application.route_services(path))
+            finally:
+                slots.release()
+        else:
+            registration.handler(self, request, self.application.route_services(path))
         if not self._request_body_read:
             # A route may refuse without reading the body (POST /api/backup/login in
             # multi-user mode answers 409 straight away). The connection closes after
@@ -1040,7 +1183,38 @@ class Server(socketserver.ThreadingTCPServer):
 
     def __init__(self, server_address, handler_class, application: WebApplication):
         self.application = application
+        self._thread_slots = threading.BoundedSemaphore(MAX_HANDLER_THREADS)
+        self.relay_poll_slots = threading.BoundedSemaphore(MAX_RELAY_POLL_THREADS)
         super().__init__(server_address, handler_class)
+
+    def process_request(self, request, client_address) -> None:
+        # A full house gets its 503 on the accepting thread instead of one more handler.
+        if not self._thread_slots.acquire(blocking=False):
+            # A TCP server's request is a socket; the base type also allows a UDP tuple.
+            try:
+                if not isinstance(request, socket.socket):
+                    raise OSError
+                request.settimeout(1)
+                request.sendall(
+                    b"HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n"
+                    b"Retry-After: " + str(SERVER_BUSY_RETRY_AFTER_SECONDS).encode() + b"\r\n"
+                    b"Connection: close\r\n\r\n"
+                )
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._thread_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._thread_slots.release()
 
     def handle_error(self, request, client_address) -> None:
         """Do not report a browser that walked away as a server error.
@@ -1094,6 +1268,9 @@ def run(
         print(f"  Identity    Keycloak ({app.identity.auth.issuer})")
     else:
         print("  Identity    local (one user)")
+        if no_open and not getattr(app.identity, "trust_loopback", True):
+            # Nothing was opened, and the port alone no longer signs anyone in (S269-4).
+            print("  Sign-in     open the address with ?token=<token> (see --print-token)")
     if print_token:
         # Only ever on request (--print-token), and only for this process: the
         # token dies with it, so a copied line is not a lasting credential.
@@ -1108,7 +1285,13 @@ def run(
     print()
 
     if not no_open:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        # Opened, never printed, with the process token (S269-4): the browser trades it
+        # for the owner's cookie on the first request. A secret on a terminal is a secret
+        # in a scrollback buffer; --print-token is there for whoever needs it.
+        opened = url
+        if not getattr(app.identity, "trust_loopback", True):
+            opened = f"{url}?token={quote(getattr(app.identity, 'token', ''), safe='')}"
+        threading.Timer(0.6, lambda: webbrowser.open(opened)).start()
 
     try:
         # Defaults to loopback-only, matching the local single-user tool's security

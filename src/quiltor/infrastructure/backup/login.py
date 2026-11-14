@@ -22,11 +22,15 @@ from quiltor.infrastructure.backup import remote
 from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway
 from quiltor.infrastructure.platform.adapters.credentials import default_credential_vault
 from quiltor.infrastructure.platform.ports import CredentialVault
-from quiltor.modules.identity.auth import PENDING_LOGIN_TTL, IdentityConfiguration
+from quiltor.modules.identity.auth import IdentityConfiguration
 
 DEFAULT_CLIENT_ID = "quiltor-desktop"
 DEFAULT_SCOPE = "quiltor.backup"
-PENDING_TTL = PENDING_LOGIN_TTL
+# How long a started backup login waits for its callback (D-203). The callback is anonymous,
+# so this window is how long a `state` could be guessed or replayed at all; it only has to
+# cover one sign-in in the browser, a password manager included. Ten minutes, like the
+# app's own login, and the record is removed on first use or once this has passed.
+PENDING_TTL = 10 * 60
 REFRESH_LEEWAY = 30
 PROBE_TTL = 5.0
 PROBE_PATIENCE = 3.0
@@ -135,7 +139,8 @@ class BackupLoginRuntime:
     def _run_probe(self, base: str) -> None:
         try:
             issuer, scope = self.issuer_for(base)
-            self._gateway(issuer).discover()
+            # No retries: the status answer waits only PROBE_PATIENCE for this probe.
+            self._gateway(issuer).discover(retry=False)
             result = (issuer, scope, True)
         except Exception:  # noqa: BLE001 - a failed discovery probe is cached as "not available"
             result = ("", "", False)

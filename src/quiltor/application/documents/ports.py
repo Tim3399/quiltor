@@ -65,6 +65,7 @@ class DocumentRepository(Protocol):
         response: dict[str, Any] | None,
         error: str,
         database: Path | None,
+        engine: str = "server",
     ) -> str: ...
 
     def list_assistant_interactions(

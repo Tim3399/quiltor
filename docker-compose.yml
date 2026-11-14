@@ -32,12 +32,27 @@ services:
         QUILTOR_VERSION: ${QUILTOR_VERSION:-dev}
     image: quiltor:${QUILTOR_VERSION:-dev}
     restart: unless-stopped
+    security_opt:
+      # The PDF export renders other people's books in Chromium, with Chromium's own
+      # sandbox (S269-103). Docker's default seccomp profile refuses the user
+      # namespace that sandbox needs; this is that profile plus the two clone/unshare
+      # rules for it, nothing else.
+      - seccomp=./distribution/containers/seccomp-chromium.json
     environment:
       QUILTOR_OIDC_ISSUER: ${QUILTOR_OIDC_ISSUER:?Set QUILTOR_OIDC_ISSUER in .env — see .env.example}
       QUILTOR_OIDC_CLIENT_ID: ${QUILTOR_OIDC_CLIENT_ID:?Set QUILTOR_OIDC_CLIENT_ID in .env}
       QUILTOR_OIDC_CLIENT_SECRET: ${QUILTOR_OIDC_CLIENT_SECRET:?Set QUILTOR_OIDC_CLIENT_SECRET in .env}
       QUILTOR_PUBLIC_URL: ${QUILTOR_PUBLIC_URL:?Set QUILTOR_PUBLIC_URL in .env, e.g. https://quiltor.example.com}
       QUILTOR_COOKIE_SECURE: ${QUILTOR_COOKIE_SECURE:-auto}
+      # Content Security Policy for every page (D-198): enforced here. If the browser
+      # blocks something Quiltor needs, `report-only` logs the violation instead of
+      # blocking it -- a way out while you report the problem, not a setting to keep.
+      QUILTOR_CSP: ${QUILTOR_CSP:-enforce}
+      # Extra connect-src origins, space-separated, exact https:// origins only (no
+      # path, no wildcard). The in-browser assistant loads its model from Hugging Face,
+      # whose download hosts change from time to time (D-197): when model loading
+      # stops with a CSP error, add the blocked origin from the browser console here.
+      QUILTOR_CSP_CONNECT_EXTRA: ${QUILTOR_CSP_CONNECT_EXTRA:-}
       # Optional LanguageTool server (see .env.example); empty = no grammar server.
       QUILTOR_LANGUAGETOOL_URL: ${QUILTOR_LANGUAGETOOL_URL:-}
       QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN: ${QUILTOR_LANGUAGETOOL_EXTERNAL_OPT_IN:-}
@@ -47,6 +62,20 @@ services:
       # Empty: the defaults, role `premium` and three open assistant jobs per account.
       QUILTOR_PREMIUM_ROLE: ${QUILTOR_PREMIUM_ROLE:-}
       QUILTOR_ASSISTANT_MAX_OPEN_JOBS: ${QUILTOR_ASSISTANT_MAX_OPEN_JOBS:-}
+      # IP addresses of the reverse proxies in front of this container, comma-separated
+      # (no networks, no names). Only their X-Forwarded-For is believed, and the login
+      # limit per client address works only with it (S268-2). Empty: no proxy trusted,
+      # every request counts as coming from the proxy itself.
+      QUILTOR_TRUSTED_PROXIES: ${QUILTOR_TRUSTED_PROXIES:-}
+      # Worlds per account (trash included) and their bytes in all, hosted only (S268-9).
+      # Empty: the defaults, 50 worlds and 2 GiB.
+      QUILTOR_MAX_WORLDS_PER_ACCOUNT: ${QUILTOR_MAX_WORLDS_PER_ACCOUNT:-}
+      QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT: ${QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT:-}
+      # Grammar checks per account, at once and per minute (S268-103). Empty: 2 and 30.
+      QUILTOR_GRAMMAR_MAX_CONCURRENT: ${QUILTOR_GRAMMAR_MAX_CONCURRENT:-}
+      QUILTOR_GRAMMAR_MAX_PER_MINUTE: ${QUILTOR_GRAMMAR_MAX_PER_MINUTE:-}
+      # Request threads of the web server (S268-102). Empty: 128.
+      QUILTOR_MAX_HANDLER_THREADS: ${QUILTOR_MAX_HANDLER_THREADS:-}
       # External OpenAI-compatible AI endpoint (see .env.example). Empty key = none.
       QUILTOR_AI_KEY: ${QUILTOR_AI_KEY:-}
       QUILTOR_AI_KEY_FILE: ${QUILTOR_AI_KEY_FILE:-}
@@ -98,6 +127,20 @@ services:
       QUILTOR_BACKUP_OIDC_CLIENT_SECRET: ${QUILTOR_BACKUP_OIDC_CLIENT_SECRET:?Set QUILTOR_BACKUP_OIDC_CLIENT_SECRET in .env}
       QUILTOR_BACKUP_PUBLIC_URL: ${QUILTOR_BACKUP_PUBLIC_URL:?Set QUILTOR_BACKUP_PUBLIC_URL in .env, e.g. https://backup.example.com}
       QUILTOR_BACKUP_OIDC_SCOPE: ${QUILTOR_BACKUP_OIDC_SCOPE:-quiltor.backup}
+      # The clients whose tokens may write here, comma-separated (S268-200). It must name
+      # the client Quiltor logs in with, QUILTOR_BACKUP_CLIENT_ID, or every backup gets
+      # 401. Defaults to exactly that one. Never leave it empty: an empty list lets nobody in.
+      QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS: ${QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS:-${QUILTOR_BACKUP_CLIENT_ID:-quiltor-desktop}}
+      # Storage per account when the realm assigns none, in bytes or `unlimited`.
+      # Empty: 1 GiB.
+      QUILTOR_BACKUP_DEFAULT_LIMIT_BYTES: ${QUILTOR_BACKUP_DEFAULT_LIMIT_BYTES:-}
+      # Deadlines per connection against slow senders (F-268-15). Empty: 20 s for the
+      # request head; for a body 30 s plus its length at 64 KiB/s.
+      QUILTOR_BACKUP_HEADER_DEADLINE_SECONDS: ${QUILTOR_BACKUP_HEADER_DEADLINE_SECONDS:-}
+      QUILTOR_BACKUP_BODY_BASE_DEADLINE_SECONDS: ${QUILTOR_BACKUP_BODY_BASE_DEADLINE_SECONDS:-}
+      QUILTOR_BACKUP_BODY_MIN_RATE_BYTES_PER_SECOND: ${QUILTOR_BACKUP_BODY_MIN_RATE_BYTES_PER_SECOND:-}
+      # Blob uploads one account may run at once. Empty: 4.
+      QUILTOR_BACKUP_MAX_CONCURRENT_UPLOADS: ${QUILTOR_BACKUP_MAX_CONCURRENT_UPLOADS:-}
     volumes:
       - quiltor-backups:/data
     networks:

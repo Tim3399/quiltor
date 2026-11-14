@@ -85,7 +85,10 @@ export function WorkspaceSurface({
   openChapterTrashToken,
   chapterFilter,
   onChapterFilter,
+  versionsAvailable = true,
 }: {
+  /** False in the example world's preview: it keeps no versions (T-214). */
+  versionsAvailable?: boolean;
   worldId: string;
   worldTitle: string;
   /** False while the world's documents are still loading; the text editor waits for it. */
@@ -158,6 +161,7 @@ export function WorkspaceSurface({
         openChapterTrashToken={openChapterTrashToken}
         chapterFilter={chapterFilter}
         onChapterFilter={onChapterFilter}
+        versionsAvailable={versionsAvailable}
         onUndo={manuscriptHistory.undo}
         onRedo={manuscriptHistory.redo}
         canUndo={manuscriptHistory.canUndo}
@@ -180,6 +184,7 @@ export function WorkspaceSurface({
         state={figures}
         worldId={worldId}
         onChange={onFiguresChange}
+        manuscript={manuscript}
         targetId={target?.workspace === "figures" ? target.id : undefined}
         targetRequestId={target?.workspace === "figures" ? target.requestId : undefined}
         onUndo={figureHistory.undo}

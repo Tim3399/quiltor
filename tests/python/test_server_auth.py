@@ -15,15 +15,28 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.identity.render_tokens import InMemoryRenderTokenStore
-from quiltor.infrastructure.identity.runtime import StdlibIdentityGateway, TokenEndpointRejected
+from quiltor.infrastructure.identity.runtime import (
+    ProviderUnavailable,
+    StdlibIdentityGateway,
+    TokenEndpointRejected,
+)
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
+from quiltor.infrastructure.persistence.assistant_progress import SQLiteAssistantProgressStore
 from quiltor.infrastructure.persistence.sqlite import config
 from quiltor.infrastructure.platform.ports import AppDirectories
+from quiltor.modules.assistant.jobs import AssistantJobRunner
+from quiltor.modules.assistant.ports import ClientJobRunning
 from quiltor.modules.identity.auth import MAX_ROLES, extract_roles
 from quiltor.modules.identity.service import DEFAULT_PREMIUM_ROLE, LocalIdentity
 from tests.python import late_body
 from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
+from tests.python.test_assistant_jobs import (
+    FakeInteractionLogger,
+    FakeWorldAccess,
+    SilentLogger,
+    TestMetrics,
+)
 
 
 def _cookie_name_value(set_cookie_header: str) -> tuple[str, str]:
@@ -285,6 +298,23 @@ class ServerAuthRouteTests(_LiveAuthServerTestCase):
             else:
                 self.assertNotIn("ui_locales", query, path)
 
+    def test_login_with_an_unreachable_provider_answers_a_friendly_503_page(self):
+        self.discover_patch.stop()
+        with patch.object(self.auth, "discover", side_effect=ProviderUnavailable("down")):
+            german = self._request("GET", "/login")
+            english = self._request("GET", "/login", headers={"Accept-Language": "fr;q=0.9, en-US"})
+            asked = self._request("GET", "/login?ui_locales=en", headers={"Accept-Language": "de"})
+        self.discover_patch.start()
+        status, headers, body, set_cookies = german
+        self.assertEqual(status, 503)
+        self.assertIn("text/html", headers["Content-Type"])
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertIn("Die Anmeldung ist gerade kurz nicht erreichbar", body.decode("utf-8"))
+        self.assertEqual(set_cookies, [])
+        self.assertEqual(english[0], 503)
+        self.assertIn("Sign-in is briefly unavailable", english[2].decode("utf-8"))
+        self.assertIn("Sign-in is briefly unavailable", asked[2].decode("utf-8"))
+
     def test_callback_with_mismatched_state_is_rejected_without_creating_a_session(self):
         """Sent back to the app, not a JSON dead end -- SignInGate reads
         ?authError off the URL and shows something to read and a retry."""
@@ -476,6 +506,96 @@ def _job_body(world_id: str) -> dict[str, Any]:
     return {"worldId": world_id, "question": "Wer ist Tarek?"}
 
 
+class ClientEngineJobTests(_LiveAuthServerTestCase):
+    """A real job queue under OIDC: an account without the premium role works with its own
+    client-engine jobs and sees nothing of anyone else's (T-61 Teil 1, I-3)."""
+
+    def setUp(self):
+        super().setUp()
+        self.application.assistant_client_ai = True
+        # A real queue; the runner has no client engine, so its jobs fail as unavailable.
+        queue = self.directories.data / "assistant-jobs.sqlite3"
+        runner = AssistantJobRunner(
+            MagicMock(),
+            store_factory=lambda: AssistantJobStore(queue),
+            interaction_logger=FakeInteractionLogger(),
+            world_access=FakeWorldAccess(self.directories.data),
+            structured_logger=SilentLogger(),
+            metrics=TestMetrics(),
+        )
+        self.addCleanup(runner.close)
+        runtime = MagicMock()
+        runtime.progress = SQLiteAssistantProgressStore(
+            self.directories.data / "assistant-progress.sqlite3"
+        )
+        self.application.assistant_services = AssistantServices(runtime, runner)
+
+    def _create_world(self, session: str) -> str:
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/worlds/create",
+            body={"title": "Welt", "backupUrl": ""},
+            cookies={"quiltor_session": session},
+        )
+        self.assertEqual(status, 200, body)
+        return json.loads(body)["world"]["id"]
+
+    def _post(self, session: str, world_id: str, engine: dict[str, Any], key: str):
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body={**_job_body(world_id), "engine": engine},
+            headers={"Idempotency-Key": key},
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(body)
+
+    def _get(self, session: str, path: str):
+        status, _, body, _ = self._request("GET", path, cookies={"quiltor_session": session})
+        return status, json.loads(body)
+
+    def test_the_same_key_with_another_engine_is_a_conflict(self):
+        """F-61-7: the engine is part of the request's identity."""
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        status, body = self._post(session, world_id, {"kind": "cloud", "provider": "openai"}, "k")
+        self.assertEqual(status, 202, body)
+        status, body = self._post(session, world_id, {"kind": "webllm"}, "k")
+        self.assertEqual(status, 409, body)
+        self.assertEqual(body["error"]["code"], "assistant.idempotency_conflict")
+
+    def test_an_account_without_the_role_reads_only_its_own_jobs(self):
+        alice = self._login("user-alice", roles=())
+        bob = self._login("user-bob", roles=())
+        alice_world = self._create_world(alice)
+        bob_world = self._create_world(bob)
+        status, body = self._post(alice, alice_world, {"kind": "webllm"}, "alice-key")
+        self.assertEqual(status, 202, body)
+        job_id = body["job"]["id"]
+
+        status, body = self._get(alice, f"/api/assistant/job?id={job_id}&world={alice_world}")
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["job"]["engine"], "webllm")
+        status, body = self._get(alice, f"/api/assistant/progress?id=p-1&world={alice_world}")
+        self.assertEqual(status, 200, body)
+
+        # Bob asks for Alice's job through his own world, and through hers.
+        status, body = self._get(bob, f"/api/assistant/job?id={job_id}&world={bob_world}")
+        self.assertEqual(status, 404, body)
+        self.assertEqual(body["error"]["code"], "assistant.job_not_found")
+        status, _ = self._get(bob, f"/api/assistant/job?id={job_id}&world={alice_world}")
+        self.assertIn(status, {403, 404})
+        status, _ = self._get(bob, f"/api/assistant/progress?id=p-1&world={alice_world}")
+        self.assertIn(status, {403, 404})
+        status, _, body, _ = self._request(
+            "POST",
+            "/api/assistant/job/cancel",
+            body={"worldId": bob_world, "id": job_id},
+            cookies={"quiltor_session": bob},
+        )
+        self.assertEqual(status, 404, body)
+
+
 class PremiumGateTests(_LiveAuthServerTestCase):
     """Under OIDC the assistant's job routes need the premium role; status does not."""
 
@@ -512,15 +632,20 @@ class PremiumGateTests(_LiveAuthServerTestCase):
         self.assertFalse(body["error"]["retryable"])
         self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
 
-    def test_the_gate_answers_before_the_world_is_resolved(self):
+    def test_the_role_is_checked_before_the_world_is_looked_up(self):
+        """Without the role, a job on the server engine is refused before its world is
+        resolved, so the answer says nothing about which worlds exist (T-61, D-122)."""
         session = self._login("user-free", roles=())
         status, _, body, _ = self._request(
-            "GET",
-            "/api/assistant/job?id=x&world=no-such-world",
+            "POST",
+            "/api/assistant/jobs",
+            body={"worldId": "no-such-world", "question": "Wer?", "engine": {"kind": "server"}},
+            headers={"Idempotency-Key": "key-probe"},
             cookies={"quiltor_session": session},
         )
         self.assertEqual(status, 403, body)
         self.assertEqual(json.loads(body)["error"]["code"], "assistant.premium_required")
+        self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
 
     def test_a_role_only_in_realm_access_grants_nothing(self):
         """Fallback guard (D-96): Keycloak's nested role claims are never read."""
@@ -538,7 +663,8 @@ class PremiumGateTests(_LiveAuthServerTestCase):
         self.assertEqual(body["error"]["code"], "assistant.premium_required")
 
     def test_the_refusal_arrives_whole_when_the_body_comes_late(self):
-        """The 403 discards the unread body first (D-38); see tests/python/late_body.py."""
+        """The 403 arrives whole although the body comes late (D-38): the route reads the
+        body to learn the engine before it refuses; see tests/python/late_body.py."""
         session = self._login("user-free", roles=())
         world_id = self._create_world(session)
         headers = {
@@ -561,6 +687,92 @@ class PremiumGateTests(_LiveAuthServerTestCase):
         status, body = self._post_job(session, world_id)
         self.assertEqual(status, 202, body)
         self.assertEqual(body["job"]["id"], "job-1")
+
+    def _post(self, session: str, body: dict[str, Any], key: str = "key-1"):
+        status, _, answer, _ = self._request(
+            "POST",
+            "/api/assistant/jobs",
+            body=body,
+            headers={"Idempotency-Key": key},
+            cookies={"quiltor_session": session},
+        )
+        return status, json.loads(answer)
+
+    def test_an_engine_outside_the_list_is_refused_and_nothing_is_stored(self):
+        """T-61, F-61-3 and F-61-10: only server, webllm and cloud; only absent means server."""
+        self.application.assistant_client_ai = True
+        session = self._login("user-paid")
+        world_id = self._create_world(session)
+        for engine in (
+            {"kind": "Server"},
+            {"kind": "foo"},
+            {"kind": ""},
+            {"kind": 1},
+            {},
+            {"kind": "webllm", "provider": "openai"},
+            {"kind": "cloud"},
+            {"kind": "cloud", "provider": "example"},
+            {"kind": "webllm", "grammar": "yes"},
+            {"kind": "server", "url": "https://example.test"},
+            None,
+            "webllm",
+            ["server"],
+            7,
+        ):
+            with self.subTest(engine=engine):
+                status, body = self._post(session, {**_job_body(world_id), "engine": engine})
+                self.assertEqual(status, 400, body)
+                self.assertEqual(body["error"]["code"], "assistant.engine_invalid")
+        self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
+
+    def test_with_the_switch_off_a_client_engine_is_refused_and_nothing_is_stored(self):
+        self.application.assistant_client_ai = False
+        session = self._login("user-paid")
+        world_id = self._create_world(session)
+        for engine in ({"kind": "webllm"}, {"kind": "cloud", "provider": "openrouter"}):
+            with self.subTest(engine=engine):
+                status, body = self._post(session, {**_job_body(world_id), "engine": engine})
+                self.assertEqual(status, 403, body)
+                self.assertEqual(body["error"]["code"], "assistant.client_ai_disabled")
+        self.assertFalse(cast(MagicMock, self.application.assistant_services.jobs).submit.called)
+
+    def test_without_the_role_only_the_server_engine_is_refused(self):
+        self.application.assistant_client_ai = True
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        jobs = cast(MagicMock, self.application.assistant_services.jobs)
+        for engine in (None, {"kind": "server"}):
+            with self.subTest(engine=engine):
+                body = (
+                    _job_body(world_id)
+                    if engine is None
+                    else {**_job_body(world_id), "engine": engine}
+                )
+                status, answer = self._post(session, body)
+                self.assertEqual(status, 403, answer)
+                self.assertEqual(answer["error"]["code"], "assistant.premium_required")
+        self.assertFalse(jobs.submit.called)
+
+        status, answer = self._post(
+            session, {**_job_body(world_id), "engine": {"kind": "cloud", "provider": "openai"}}
+        )
+        self.assertEqual(status, 202, answer)
+        submitted = jobs.submit.call_args.kwargs
+        self.assertEqual(submitted["engine_kind"], "cloud")
+        self.assertEqual(
+            submitted["intent"]["engine"], {"kind": "cloud", "provider": "openai", "grammar": False}
+        )
+
+    def test_a_second_open_client_job_answers_429_with_the_open_job(self):
+        self.application.assistant_client_ai = True
+        session = self._login("user-free", roles=())
+        world_id = self._create_world(session)
+        jobs = cast(MagicMock, self.application.assistant_services.jobs)
+        jobs.submit.side_effect = ClientJobRunning("job-open")
+        status, body = self._post(session, {**_job_body(world_id), "engine": {"kind": "webllm"}})
+        self.assertEqual(status, 429, body)
+        self.assertEqual(body["error"]["code"], "assistant.client_job_running")
+        self.assertEqual(body["error"]["params"], {"jobId": "job-open"})
 
     def test_status_without_the_role_still_answers_200(self):
         session = self._login("user-free", roles=())

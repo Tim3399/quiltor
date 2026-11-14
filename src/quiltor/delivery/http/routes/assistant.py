@@ -6,12 +6,20 @@ from typing import Any
 
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.routes.assistant_relay import session_key
 from quiltor.modules.assistant import (
     ASSISTANT_REPLY_LANGUAGES,
     DEFAULT_ASSISTANT_LANGUAGE,
 )
+from quiltor.modules.assistant.engines import (
+    CLIENT_ENGINE_KINDS,
+    EngineChoice,
+    InvalidEngine,
+    parse_engine,
+)
 from quiltor.modules.assistant.jobs import IdempotencyConflict, TooManyOpenJobs
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
+from quiltor.modules.assistant.ports import ClientJobRunning
 
 
 @get("/api/assistant/status", world=True)
@@ -44,6 +52,9 @@ def status(handler, request: Request, app) -> None:
             "ok": True,
             **app.assistant.status(),
             "premium": True,
+            # The user's own engines this server accepts jobs for; none while
+            # QUILTOR_ASSISTANT_CLIENT_AI is off (T-61 part 9).
+            "clientEngines": sorted(CLIENT_ENGINE_KINDS) if app.client_ai else [],
             "installed": app.assistant_installation.is_configured(),
             # False on a hosted server: the operator installs, the client shows no button.
             "installable": app.installable,
@@ -64,7 +75,7 @@ def logs(handler, request: Request, app) -> None:
         )
 
 
-@get("/api/assistant/progress", world=True, premium=True)
+@get("/api/assistant/progress", world=True)
 def progress(handler, request: Request, app) -> None:
     identifier = request.param("id")
     state = (
@@ -113,12 +124,40 @@ def install(handler, request: Request, app) -> None:
     )
 
 
+def _engine_or_refuse(handler, request: Request, app, payload: Any) -> EngineChoice | None:
+    """Decide who may compute this job, before the world is looked up (T-61, D-122).
+
+    Order: the engine named in the body, then the instance switch for client engines,
+    then the premium role for the server engine. Each refusal comes before any side
+    effect, and before the world, so an account without the role cannot probe worlds.
+    None means the answer has already been written.
+    """
+
+    try:
+        engine = parse_engine(payload if isinstance(payload, dict) else {})
+    except InvalidEngine:
+        handler.send_api_error(400, error_code="assistant.engine_invalid", retryable=False)
+        return None
+    if engine.is_client and not app.client_ai:
+        handler.send_api_error(403, error_code="assistant.client_ai_disabled", retryable=False)
+        return None
+    if not engine.is_client and not app.identity.is_premium(request.session):
+        # The server engine runs on the operator's hardware or bill (D-40). The check
+        # sits here and not in the dispatch, because only the body names the engine.
+        handler.send_api_error(403, error_code="assistant.premium_required", retryable=False)
+        return None
+    return engine
+
+
 def _prepare_request(
     handler, request: Request, app
-) -> tuple[Any, dict[str, Any], dict[str, Any]] | None:
+) -> tuple[Any, dict[str, Any], dict[str, Any], EngineChoice] | None:
     """Validate one assistant request and snapshot the world it should reason over."""
 
     payload = handler._read_json_body()
+    engine = _engine_or_refuse(handler, request, app, payload)
+    if engine is None:
+        return None
     world = handler.world_from_body(request.session, payload)
     if world is None:
         return None
@@ -172,6 +211,8 @@ def _prepare_request(
         "runBatches": run_batches,
         "mode": mode,
         "language": language,
+        # Part of the request's identity: the same key with another engine is another job.
+        "engine": engine.public(),
     }
     execution = {
         **intent,
@@ -189,14 +230,14 @@ def _prepare_request(
             "storyboards": storyboards_document.revision,
         },
     }
-    return world, intent, execution
+    return world, intent, execution, engine
 
 
 def _send_direct_error(handler, exc: Exception) -> None:
     handler.send_exception(exc)
 
 
-@save("/api/assistant/jobs", premium=True)
+@save("/api/assistant/jobs")
 def create_job(handler, request: Request, app) -> None:
     """Create an idempotent assistant job and return without waiting for the model."""
 
@@ -204,7 +245,7 @@ def create_job(handler, request: Request, app) -> None:
         prepared = _prepare_request(handler, request, app)
         if prepared is None:
             return
-        world, intent, execution = prepared
+        world, intent, execution, engine = prepared
         key = (handler.headers.get("Idempotency-Key") or "").strip()
         if not key:
             return handler.send_api_error(400, error_code="assistant.missing_idempotency_key")
@@ -217,7 +258,17 @@ def create_job(handler, request: Request, app) -> None:
             execution=execution,
             progress_id=execution.get("progressId"),
             max_open=app.max_open_jobs,
+            engine_kind=engine.kind,
         )
+        if engine.is_client and created:
+            # The session that submitted the job is the one browser that computes it; a
+            # retry (200) keeps the binding of the first request (T-61 Teil 3).
+            app.relay_tickets.bind_job(
+                job["id"],
+                sub=request.session.sub,
+                session_id=session_key(request.session),
+                world_id=world.id,
+            )
         handler.send_json(
             {
                 "ok": True,
@@ -226,6 +277,14 @@ def create_job(handler, request: Request, app) -> None:
             },
             202 if created else 200,
         )
+    except ClientJobRunning as running:
+        error = http_errors.for_status(
+            429,
+            code="assistant.client_job_running",
+            params={"jobId": running.job_id},
+            retryable=False,
+        )
+        handler.send_json(error.payload(), error.status)
     except TooManyOpenJobs as refused:
         error = http_errors.for_status(
             429,
@@ -244,7 +303,7 @@ def create_job(handler, request: Request, app) -> None:
         _send_direct_error(handler, exc)
 
 
-@get("/api/assistant/job", world=True, premium=True)
+@get("/api/assistant/job", world=True)
 def job_status(handler, request: Request, app) -> None:
     """Read one job through the same world-ownership gate as other world data."""
 
@@ -258,7 +317,7 @@ def job_status(handler, request: Request, app) -> None:
     handler.send_json({"ok": True, "job": job})
 
 
-@save("/api/assistant/job/cancel", premium=True)
+@save("/api/assistant/job/cancel")
 def cancel_job(handler, request: Request, app) -> None:
     try:
         payload = handler._read_json_body()

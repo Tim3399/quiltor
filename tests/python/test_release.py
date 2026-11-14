@@ -1608,9 +1608,9 @@ class WorkflowBoundaryTests(unittest.TestCase):
 
         mutations = (
             (
-                "final Windows slot repeats the eighth",
-                "slot: 9\n            slots: 9",
-                "slot: 8\n            slots: 9",
+                "final Windows slot repeats the ninth",
+                "slot: 10\n            slots: 10",
+                "slot: 9\n            slots: 10",
                 "one entry per slot",
             ),
             (
@@ -1621,8 +1621,8 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "reused diagnostics name",
-                "diagnostics: windows-2025-9-of-9",
-                "diagnostics: windows-2025-8-of-9",
+                "diagnostics: windows-2025-10-of-10",
+                "diagnostics: windows-2025-9-of-10",
                 "one entry per slot",
             ),
             (
@@ -3454,7 +3454,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         self.assertLessEqual(workflow_contract.REDUCED_ONLY, set(workflow_contract.FILTERED_JOBS))
         self.assertEqual(
             workflow_contract.FULL_MATRIX_EXPANSIONS,
-            {"browser-e2e-shards": 6, "cross-platform-native": 2, "cross-platform-browser": 13},
+            {"browser-e2e-shards": 6, "cross-platform-native": 2, "cross-platform-browser": 14},
         )
 
     def test_full_mode_never_starts_more_macos_jobs_than_the_plan_runs(self):
@@ -3493,7 +3493,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
                 "            label: macos-15 / slot 4 of 4\n            slot: 4\n"
                 "            slots: 4\n            diagnostics: macos-15-4-of-4\n",
                 "",
-                "cross-platform-browser expands to 12 jobs",
+                "cross-platform-browser expands to 13 jobs",
             ),
             (
                 "a matrix the contract cannot count",

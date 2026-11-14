@@ -11,6 +11,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -590,6 +591,126 @@ class DesktopBuildContractTests(unittest.TestCase):
                 for path in shipped:
                     self.assertTrue(path.is_file(), path)
                     self.assertEqual(path.parent, REPO_ROOT / "src/quiltor/resources/example_world")
+
+    # Data files under src/quiltor a desktop bundle does not need, each with its reason.
+    # Everything else must be in data_files(): PyInstaller packs imported modules only, and a
+    # data file the code reads at runtime is otherwise missing from the app (F-61-20). Under
+    # quiltor/resources/ a .py file is data too (the MLX bridge runs in its own interpreter and
+    # nothing imports it), so it counts like any other file there (F-61-23).
+    # The rule behind each exception: a file read at import time must be in every bundle; that
+    # is what test_every_bundle_profile_imports_the_application_from_its_own_files proves.
+    NOT_IN_DESKTOP_BUNDLE: ClassVar[frozenset[str]] = frozenset(
+        {
+            # Documentation for readers of the source.
+            "quiltor/hosts/mcp/README.md",
+            "quiltor/resources/sidecars/README.md",
+            # The checkout's profile; every bundle embeds its own generated one in its place.
+            "quiltor/infrastructure/platform/quiltor-build-profile.json",
+            # The Node PDF renderer of the container image; a desktop app renders through
+            # Playwright's Python driver or the system web view.
+            "quiltor/resources/sidecars/pdf/render-book-pdf.mjs",
+        }
+    )
+    # Needed only where MLX may be installed (macOS with code download), and read only on that
+    # install path, never at import (T-235); data_files() adds them exactly there.
+    MLX_ONLY: ClassVar[frozenset[str]] = frozenset(
+        {
+            "quiltor/resources/sidecars/inference/mlx/bridge.py",
+            "quiltor/resources/sidecars/inference/mlx/requirements.lock",
+        }
+    )
+
+    def test_direct_desktop_bundles_carry_every_runtime_data_file(self):
+        source = REPO_ROOT / "src"
+        data = {
+            path.relative_to(source).as_posix()
+            for path in (source / "quiltor").rglob("*")
+            if path.is_file()
+            and "__pycache__" not in path.parts
+            and path.suffix != ".pyc"
+            and (path.suffix != ".py" or "resources" in path.relative_to(source).parts[1:2])
+        }
+        self.assertIn("quiltor/bootstrap/csp-policy.json", data)
+        self.assertIn("quiltor/resources/sidecars/inference/mlx/bridge.py", data)
+        for profile_id in ("macos-direct", "windows-direct"):
+            with self.subTest(profile=profile_id):
+                packed = set()
+                for origin, destination in bundle.data_files(profile_id):
+                    origin_path = Path(origin)
+                    files = [origin_path] if origin_path.is_file() else []
+                    if origin_path.is_dir():
+                        files = [item for item in origin_path.rglob("*") if item.is_file()]
+                    for item in files:
+                        inside = (
+                            item.relative_to(origin_path)
+                            if origin_path.is_dir()
+                            else Path(item.name)
+                        )
+                        packed.add((Path(destination) / inside).as_posix())
+                exempt = self.NOT_IN_DESKTOP_BUNDLE
+                if profile_id != "macos-direct":
+                    exempt = exempt | self.MLX_ONLY
+                missing = sorted(data - packed - exempt)
+                self.assertEqual(missing, [], "data files the desktop bundle would lack")
+
+    # Every profile bundle.py can build. Each must import the application from exactly its own
+    # file set, so a data file read at import time is never missing from one of them (T-235).
+    BUNDLE_PROFILES: ClassVar[tuple[str, ...]] = tuple(
+        sorted(path.stem for path in (REPO_ROOT / "distribution" / "profiles").glob("*.json"))
+    )
+
+    @staticmethod
+    def _bundle_file_set(profile_id: str, target: Path) -> None:
+        """Every module of src/quiltor plus the profile's data_files(), as PyInstaller lays out."""
+        source = REPO_ROOT / "src"
+        for module in (source / "quiltor").rglob("*.py"):
+            if (
+                "__pycache__" in module.parts
+                or "resources" in module.relative_to(source).parts[1:2]
+            ):
+                continue  # under quiltor/resources/ a .py is data, packed only by data_files()
+            destination = target / module.relative_to(source)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(module, destination)
+        for origin, destination in bundle.data_files(profile_id):
+            origin_path, folder = Path(origin), target / destination
+            folder.mkdir(parents=True, exist_ok=True)
+            if origin_path.is_dir():
+                shutil.copytree(origin_path, folder, dirs_exist_ok=True)
+            else:
+                shutil.copy2(origin_path, folder / origin_path.name)
+
+    def test_every_bundle_profile_imports_the_application_from_its_own_files(self):
+        self.assertIn("windows-direct", self.BUNDLE_PROFILES)
+        self.assertIn("macos-app-store", self.BUNDLE_PROFILES)
+        script = (
+            "import sys; sys.path.insert(0, sys.argv[1]); "
+            "import quiltor.bootstrap.web as web; "
+            "assert web.__file__.startswith(sys.argv[1]), web.__file__; "
+            "web.content_security_policy('report-only')"
+        )
+        # Profiles with the same data_files() share one file set and one import; the embedded
+        # build profile differs per profile but is a single JSON file at the same place.
+        groups: dict[tuple[tuple[str, str], ...], list[str]] = {}
+        for profile_id in self.BUNDLE_PROFILES:
+            files = tuple(
+                (origin, destination)
+                for origin, destination in bundle.data_files(profile_id)
+                if destination != "quiltor/infrastructure/platform"
+            )
+            groups.setdefault(files, []).append(profile_id)
+        for profiles in groups.values():
+            with self.subTest(profiles=profiles), tempfile.TemporaryDirectory() as frozen:
+                self._bundle_file_set(profiles[0], Path(frozen))
+                # -I: neither the checkout on PYTHONPATH nor the working directory may help out.
+                result = subprocess.run(
+                    [sys.executable, "-I", "-c", script, frozen],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr[-2000:])
 
     def test_direct_desktop_bundles_embed_legal_documents(self):
         for profile_id in ("macos-direct", "windows-direct"):

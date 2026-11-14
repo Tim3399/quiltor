@@ -11,6 +11,7 @@ import {
   removeDraft,
   writeDraft,
 } from "./draftStore";
+import { common } from "../../../../../locales/de/common";
 import { useAutosave } from "./useAutosave";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -83,6 +84,35 @@ describe("a save refused because the session ended (T-58 P7b)", () => {
     expect(result.current.phase).toBe("error");
     expect(result.current.signInRequired).toBe(false);
     expect(onSessionEnded).not.toHaveBeenCalled();
+  });
+});
+
+describe("a save refused because the account is over its world limit (F-268-18)", () => {
+  // The text the HTTP boundary puts on a 403 world.quota (platform/http/request.test.ts).
+  const overQuota = () =>
+    new ApplicationGatewayError(common.errorWorldQuota, "world.quota", { category: "forbidden" });
+
+  it("shows the German quota sentence and keeps the unsaved text as a draft", async () => {
+    const save = vi.fn().mockRejectedValue(overQuota());
+    const { result, rerender } = renderHook(
+      ({ value }) =>
+        useAutosave(value, save, undefined, {
+          onQuotaExceeded: (unsaved) => writeDraft(ADA, "manuscript", unsaved, 3),
+        }),
+      { initialProps: { value: { body: "gespeichert" } }, wrapper },
+    );
+    const typed = { body: "neu getippt" };
+    rerender({ value: typed });
+
+    await act(async () => result.current.retry());
+
+    expect(result.current.phase).toBe("error");
+    expect(result.current.error).toBe(
+      "Du hast die Höchstzahl an Welten oder den Speicherplatz für deine Welten erreicht. Lösche eine Welt oder alte Versionen oder leere den Papierkorb, dann ist wieder Platz.",
+    );
+    expect(result.current.signInRequired).toBe(false);
+    expect(result.current.isDirty()).toBe(true);
+    expect(readDraft(ADA, "manuscript")).toMatchObject({ value: typed, baseRevision: 3 });
   });
 });
 

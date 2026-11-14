@@ -1,36 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Translate } from "../../i18n";
 import { applicationErrorMessage, quiltorClient } from "../../platform";
+import { useEngineChoice } from "./engines/useEngineChoice";
+import { useRelayLoop } from "./useRelayLoop";
 import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
 import { replyReferences, resolveAssistantMessage } from "./formatting";
 import type { AssistantClaimStatus, AssistantProposal, AssistantReply } from "./model";
 import { type AssistantProposalApplyResult, scopeAssistantProposals } from "./proposals";
 import { useBatchProgress } from "./useBatchProgress";
-
-function readEntries(storageKey: string): AssistantEntry[] {
-  try {
-    const stored = quiltorClient.platform.preferences.get(storageKey);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
+import { readAssistantHistory, writeAssistantHistory } from "./historyStore";
 
 export function useAssistantConversation({
   worldId,
+  accountSub,
   forcedChapterIds,
   onApply,
   onBeforeSend,
   t,
 }: {
   worldId: string;
+  /** The signed-in account on a shared server; binds the stored history to it (S269-6). */
+  accountSub?: string;
   forcedChapterIds: string[];
   onApply: (proposals: AssistantProposal[]) => AssistantProposalApplyResult;
   onBeforeSend: () => Promise<void>;
   t: Translate;
 }) {
-  const storageKey = `quiltor-assistant:${worldId}`;
-  const [entries, setEntries] = useState<AssistantEntry[]>(() => readEntries(storageKey));
+  const [entries, setEntries] = useState<AssistantEntry[]>(() =>
+    readAssistantHistory(accountSub, worldId),
+  );
   const entriesRef = useRef(entries);
   const [sending, setSending] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -39,15 +37,17 @@ export function useAssistantConversation({
   // in the same render turn cannot both reach the API.
   const sendLockRef = useRef(false);
   const { batchProgress, watchBatchProgress, finishBatchProgress } = useBatchProgress();
+  const currentEngine = useEngineChoice().current;
+  const relayLoop = useRelayLoop(quiltorClient.application.assistant);
 
   const persistEntries = useCallback(
     (update: (current: AssistantEntry[]) => AssistantEntry[]) => {
       const next = update(entriesRef.current);
       entriesRef.current = next;
-      quiltorClient.platform.preferences.set(storageKey, JSON.stringify(next.slice(-40)));
+      writeAssistantHistory(accountSub, worldId, next);
       setEntries(next);
     },
-    [storageKey],
+    [accountSub, worldId],
   );
 
   useEffect(() => {
@@ -220,6 +220,8 @@ export function useAssistantConversation({
       setSending(true);
       const controller = new AbortController();
       abortRef.current = controller;
+      // A browser engine answers the job's model calls itself, beside the usual job polling.
+      const { slot } = currentEngine();
       let progressInterval: number | undefined;
       try {
         // The server snapshots documents when it creates the durable job. Flush all
@@ -244,7 +246,9 @@ export function useAssistantConversation({
             );
             if (currentProgressId && !progressInterval)
               progressInterval = watchBatchProgress(currentProgressId);
+            if (slot) void relayLoop.start(job.id, slot.executor);
           },
+          slot?.wire(),
         );
         storeReply(id, response);
       } catch (error) {
@@ -266,6 +270,7 @@ export function useAssistantConversation({
           ),
         );
       } finally {
+        relayLoop.stop();
         sendLockRef.current = false;
         setSending(false);
         if (abortRef.current === controller) abortRef.current = null;
@@ -283,14 +288,18 @@ export function useAssistantConversation({
       storeReply,
       t,
       watchBatchProgress,
+      currentEngine,
+      relayLoop,
     ],
   );
 
   const cancel = useCallback(() => {
     const jobId = activeJobRef.current;
+    // A client job: stop the engine and answer its open call with `cancelled` (F-61-5).
+    void relayLoop.cancel();
     abortRef.current?.abort();
     if (jobId) void quiltorClient.application.assistant.cancelJob(jobId).catch(() => {});
-  }, []);
+  }, [relayLoop]);
 
   const apply = useCallback(
     (entryId: string, proposals: AssistantProposal[], indices: number[]) => {
