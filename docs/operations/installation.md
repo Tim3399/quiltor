@@ -311,12 +311,42 @@ against its committed SHA-256 during the build.
 Book-PDF export starts Chromium **with** its sandbox, because the page is another
 user's book. If the host refuses the user namespaces the sandbox needs
 (`No usable sandbox`), the server answers `pdf.sandbox_unavailable` and the client
-tells the author in German. There are two ways out, both deliberately the operator's
-call:
+tells the author in German. This happens, for example, on Ubuntu 24.04 without a
+container: it sets `kernel.apparmor_restrict_unprivileged_userns=1`, and programs
+without their own AppArmor profile get no user namespaces. The ways out are
+deliberately the operator's call; try them in this order, narrowest first:
 
-- adjust the container profile (see `docker-compose.yml`, the seccomp profile), or
-- set `QUILTOR_PDF_SANDBOX=off`. That starts Chromium without its sandbox, and the
-  server writes the warning `pdf.sandbox_disabled` to the log at **every start**.
+1. **A container with the bundled seccomp profile.**
+   [`distribution/containers/seccomp-chromium.json`](../../distribution/containers/seccomp-chromium.json)
+   allows the namespaces Chromium needs, and `docker-compose.yml` already uses it.
+   With `docker run`, pass
+   `--security-opt seccomp=distribution/containers/seccomp-chromium.json`.
+2. **An AppArmor profile for the PDF sidecar's Chromium only.** It lets that one program
+   use `userns` while everything else stays restricted. The path is that of Playwright's
+   Chromium Headless Shell; `~/.cache/ms-playwright/` shows it. Example
+   `/etc/apparmor.d/quiltor-chromium` (adjust path and user name):
+
+   ```
+   abi <abi/4.0>,
+   include <tunables/global>
+
+   profile quiltor-chromium /home/quiltor/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell flags=(unconfined) {
+     userns,
+
+     include if exists <local/quiltor-chromium>
+   }
+   ```
+
+   Load it with `sudo apparmor_parser -r /etc/apparmor.d/quiltor-chromium`; it survives
+   reboots. A new Chromium version changes the directory name, which the `*` covers.
+3. **`QUILTOR_PDF_SANDBOX=off` as the last resort.** That starts Chromium without its
+   sandbox. A page the renderer loads can then escape the process through a Chromium
+   bug. The server writes the warning `pdf.sandbox_disabled` to the log at **every
+   start**.
+
+You can also set `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`, but it
+lifts the restriction **for every program on the machine**, not only Quiltor. CI does
+that on its throwaway runners; on a server that does more, option 2 is the better choice.
 
 There is no silent fallback to "no sandbox". Every failed export logs a
 `pdf.render_failed` event with a category (`sandbox_unavailable`,

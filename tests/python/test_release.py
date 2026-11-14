@@ -1447,6 +1447,41 @@ class WorkflowBoundaryTests(unittest.TestCase):
                         sources, script.replace(evidence, "", 1)
                     )
 
+    def test_linux_product_suite_lifts_the_userns_restriction_before_playwright(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_linux_pdf_sandbox(sources)
+        source = sources[TEST_WORKFLOW]
+        step_start = source.index("      - name: Allow user namespaces for Chromium's sandbox")
+        step_end = source.index("      - name: Start the application", step_start)
+        step = source[step_start:step_end]
+
+        def check(mutated_source, message):
+            mutated = dict(sources)
+            mutated[TEST_WORKFLOW] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_linux_pdf_sandbox(mutated)
+
+        with self.subTest(name="step removed"):
+            check(source.replace(step, "", 1), "without lifting")
+        with self.subTest(name="step after Playwright"):
+            moved = source.replace(step, "", 1)
+            at = moved.index("      - name: Upload test durations")
+            check(moved[:at] + step + moved[at:], "without lifting")
+        with self.subTest(name="failure swallowed"):
+            check(
+                source.replace(
+                    workflow_contract.USERNS_SYSCTL, workflow_contract.USERNS_SYSCTL + " || true", 1
+                ),
+                "must fail",
+            )
+        with self.subTest(name="sandbox switched off"):
+            check(
+                source.replace(
+                    "PYTHONPATH: src", "PYTHONPATH: src\n      QUILTOR_PDF_SANDBOX: off", 1
+                ),
+                "switches the PDF sandbox off",
+            )
+
     def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_windows_port_range(sources)

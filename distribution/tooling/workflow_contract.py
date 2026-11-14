@@ -813,6 +813,44 @@ def validate_linux_playwright_install(sources: dict[Path, str], script: str | No
         raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must not swallow a failed attempt")
 
 
+USERNS_SYSCTL = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
+
+
+def validate_linux_pdf_sandbox(sources: dict[Path, str]) -> None:
+    """
+    Every Linux job of test.yml that serves the product suite lifts Ubuntu 24.04's userns limit.
+
+    Without it Chromium gets no sandbox, and the PDF export ends in `sandbox_unavailable` (D-210,
+    run 43611856985). The step must come before the first Playwright step and must fail the job
+    when sysctl refuses; CI never switches the sandbox off, because it has to test it.
+    """
+
+    for path, source in sources.items():
+        if path.name != "test.yml":
+            continue
+        if re.search(r"^[^#\n]*QUILTOR_PDF_SANDBOX\s*[:=]\s*[\"']?off", source, re.MULTILINE):
+            raise WorkflowContractError(
+                f"{path.name} switches the PDF sandbox off; CI must test it with the sandbox"
+            )
+        for name, job in _job_blocks(source):
+            runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+            if not runs_on or "ubuntu" not in runs_on.group(1) or "server.py 8010" not in job:
+                continue
+            steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+            lift = [i for i, step in enumerate(steps) if USERNS_SYSCTL in step]
+            first = next((i for i, step in enumerate(steps) if "playwright test" in step), None)
+            if not lift or first is None or lift[0] > first:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} runs the product suite on Ubuntu without lifting the "
+                    f"user-namespace restriction first: {USERNS_SYSCTL}"
+                )
+            step = steps[lift[0]]
+            if re.search(r"\|\|\s*(true|:)\b", step) or "continue-on-error" in step:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must fail when the user-namespace restriction stays"
+                )
+
+
 WINDOWS_PORT_RANGE = "netsh int ipv4 set dynamicport tcp start=10000 num=55535"
 WINDOWS_PORT_RANGE_CHECK = "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
 
@@ -2844,6 +2882,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_playwright_worker_settings(sources)
         validate_product_server_log(sources)
         validate_linux_playwright_install(sources)
+        validate_linux_pdf_sandbox(sources)
         validate_windows_port_range(sources)
         validate_windows_playwright_install(sources)
         validate_full_matrix_switch(sources)
