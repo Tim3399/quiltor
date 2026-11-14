@@ -84,12 +84,12 @@ class GrammarAbortTests(HostedHarness):
 
         return entered, release, check
 
-    def test_an_aborted_check_does_not_keep_the_place_of_the_next_one(self) -> None:
+    def test_a_new_check_gets_through_after_an_abort_while_a_place_is_free(self) -> None:
         alice = self.login("alice")
         entered, release, check = self._first_check_is_slow()
         body = b'{"language": "de-DE", "text": "Hallo Welt.", "customWords": []}'
         with (
-            patch.dict("os.environ", {"QUILTOR_GRAMMAR_MAX_CONCURRENT": "1"}),
+            patch.dict("os.environ", {"QUILTOR_GRAMMAR_MAX_CONCURRENT": "2"}),
             patch.object(self.application.writing_assistance, "check", check),
         ):
             old = _raw_post(self.port, CHECK, alice, body)
@@ -109,7 +109,7 @@ class GrammarAbortTests(HostedHarness):
             results.append((status, document))
 
         with (
-            patch.dict("os.environ", {"QUILTOR_GRAMMAR_MAX_CONCURRENT": "1"}),
+            patch.dict("os.environ", {"QUILTOR_GRAMMAR_MAX_CONCURRENT": "2"}),
             patch.object(self.application.writing_assistance, "check", check),
         ):
             thread = threading.Thread(target=first)
@@ -142,6 +142,68 @@ class GrammarAbortTests(HostedHarness):
         self.assertEqual(status, 429)
         self.assertEqual(document["error"]["code"], "writing_assistance.rate_limited")
         self.assertEqual(results, [200])  # the first session's check was not displaced
+
+    def test_one_session_never_runs_more_calls_than_the_limit(self) -> None:
+        """F-268-24: a superseded check keeps its place until its LanguageTool call returns."""
+        alice = self.login("alice")
+        guard = threading.Lock()
+        release = threading.Event()
+        both_in = threading.Event()
+        state = {"inside": 0, "peak": 0}
+
+        def check(language, text, words):
+            with guard:
+                state["inside"] += 1
+                state["peak"] = max(state["peak"], state["inside"])
+                if state["inside"] == 2:
+                    both_in.set()
+            release.wait(10)
+            with guard:
+                state["inside"] -= 1
+            return OK_RESULT
+
+        statuses: list[int] = []
+
+        def send() -> None:
+            status, _, _, _ = self._check(alice)
+            statuses.append(status)
+
+        with (
+            patch.dict("os.environ", {"QUILTOR_GRAMMAR_MAX_CONCURRENT": "2"}),
+            patch.object(self.application.writing_assistance, "check", check),
+        ):
+            first = threading.Thread(target=send)
+            first.start()
+            while not state["inside"]:
+                time.sleep(0.01)
+            second = threading.Thread(target=send)
+            second.start()
+            self.assertTrue(both_in.wait(5))
+            refused = [self._check(alice) for _ in range(10)]  # answered at once, no waiting
+            release.set()
+            first.join(10)
+            second.join(10)
+        self.assertLessEqual(state["peak"], 2)
+        self.assertEqual({status for status, *_ in refused}, {429})
+        for _, document, headers, _ in refused:
+            self.assertEqual(document["error"]["code"], "writing_assistance.rate_limited")
+            self.assertTrue(headers.get("retry-after"))
+        self.assertEqual(sorted(statuses), [200, 429])  # the older result is dropped
+
+
+class GrammarLimiterAccountingTests(unittest.TestCase):
+    def test_every_place_is_given_back_once_the_calls_have_returned(self) -> None:
+        limiter = writing_assistance.GrammarLimiter()
+        with patch.dict("os.environ", {"QUILTOR_GRAMMAR_MAX_CONCURRENT": "2"}):
+            older = limiter.acquire("alice", "s")
+            newer = limiter.acquire("alice", "s")
+            assert not isinstance(older, int) and not isinstance(newer, int)
+            self.assertTrue(older.superseded)
+            self.assertIsInstance(limiter.acquire("alice", "s"), int)  # both still count
+            limiter.release(older)
+            limiter.release(newer)
+            again = [limiter.acquire("alice", "s"), limiter.acquire("alice", "s")]
+        self.assertFalse(any(isinstance(granted, int) for granted in again))
 
 
 class WorldBytesOnEveryWriteTests(HostedHarness):
