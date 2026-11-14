@@ -1285,12 +1285,15 @@ def run(
     print()
 
     if not no_open:
-        # Opened, never printed, with the process token (S269-4): the browser trades it
-        # for the owner's cookie on the first request. A secret on a terminal is a secret
-        # in a scrollback buffer; --print-token is there for whoever needs it.
+        # Opened with a one-time open code, never the process token (S269-4, F-269-11):
+        # the launched browser's command line is visible to every account on the
+        # machine, and the code is spent on the first request and short-lived anyway.
+        # --print-token is there for whoever needs the token itself.
         opened = url
         if not getattr(app.identity, "trust_loopback", True):
-            opened = f"{url}?token={quote(getattr(app.identity, 'token', ''), safe='')}"
+            issue = getattr(app.identity, "issue_open_code", None)
+            code = str(issue()) if callable(issue) else ""
+            opened = f"{url}?code={quote(code, safe='')}"
         threading.Timer(0.6, lambda: webbrowser.open(opened)).start()
 
     try:
