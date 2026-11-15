@@ -6,11 +6,12 @@ import prettier from "prettier";
 import { buildExampleWorld, PARTS } from "./index.mjs";
 import { PURPOSE as BASE_PURPOSE } from "./parts/base.mjs";
 import { PURPOSE as EDGE_PURPOSE } from "./parts/edge.mjs";
+import { PURPOSE as GOLD_PURPOSE } from "./parts/gold.mjs";
 
 export const CATALOG_FILE = "tests/world/CATALOG.md";
 
 /** The purpose of every entry, per part. */
-export const PURPOSES = { base: BASE_PURPOSE, edge: EDGE_PURPOSE };
+export const PURPOSES = { base: BASE_PURPOSE, edge: EDGE_PURPOSE, gold: GOLD_PURPOSE };
 
 const cell = (text) => String(text ?? "").replaceAll("|", "\\|");
 
@@ -54,7 +55,8 @@ export async function renderCatalog() {
     "",
     "Generated from `tests/world/` by `npm run world:update`. Do not edit; change the parts and",
     "their `PURPOSE` tables instead. Names are the German texts. The base part is photographed",
-    "for the README and ships as the example world; the edge part (ids `x-...`) never does.",
+    "for the README and ships as the example world; the edge part (ids `x-...`) and the gold",
+    "part (ids `g-...`) never do.",
     "",
     "## Elements",
     "",
@@ -99,6 +101,25 @@ export async function renderCatalog() {
     ...table(
       ["Id", "Time", "Title"],
       figures.timeline.map((moment) => [`\`${moment.id}\``, moment.time, moment.title]),
+    ),
+    "",
+    "## gold – KI-Goldset",
+    "",
+    "The AI gold set (T-289): five chapters, each built around one trap for an extraction",
+    "model, and what a model is expected to propose from them (`world.evaluation.gold`).",
+    "`g-wilm-ghost` and the moments `g-t-death`, `g-t-later`, `g-t-a` and `g-t-b` are the",
+    "time traps of T-290; they never enter a measurement world.",
+    "",
+    ...table(
+      ["Id", "Task", "Chapter", "Category", "Need", "Stands for"],
+      (world.evaluation?.gold ?? []).map((entry) => [
+        `\`${entry.id}\``,
+        entry.task,
+        entry.chapterId ?? "",
+        entry.category,
+        entry.need,
+        entry.ref ?? entry.names.split("|")[0],
+      ]),
     ),
     "",
     "## Storyboards",
