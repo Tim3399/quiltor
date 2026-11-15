@@ -33,7 +33,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from quiltor.modules.assistant.engines import SERVER
+from quiltor.modules.assistant.engines import CLIENT_FAILURE_CODES, SERVER
 from quiltor.modules.assistant.ports import ClientJobRunning, IdempotencyConflict, TooManyOpenJobs
 
 JOB_RETENTION_DAYS = 7
@@ -138,6 +138,18 @@ class AssistantJobStore:
             "result": result,
             "error": row["error"],
             "errorType": row["error_type"],
+            # A client engine's failure as a code the client words, with the browser's own
+            # detail beside it (D-T-61-30); absent for every other job.
+            **(
+                {
+                    "engineError": {
+                        "code": row["error_type"],
+                        **({"detail": row["error"]} if row["error"] else {}),
+                    }
+                }
+                if row["status"] == "failed" and row["error_type"] in CLIENT_FAILURE_CODES
+                else {}
+            ),
             "httpStatus": row["http_status"] or None,
             "interactionId": row["interaction_id"] or None,
             "cancelRequested": bool(row["cancel_requested"]),

@@ -27,6 +27,7 @@ from quiltor.infrastructure.inference.relay.tickets import (
 )
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
+from quiltor.modules.assistant.engines import ClientEngineFailure
 from quiltor.modules.assistant.jobs import AssistantJobRunner
 from quiltor.modules.assistant.ports import (
     ClientJobRunning,
@@ -346,6 +347,18 @@ class RelayOutputTests(RelayTestCase):
     def test_the_browser_errors_map_onto_the_inference_errors(self):
         call = self._answered({"error": {"code": "provider_error", "status": 401}})
         self.assertIsInstance(call.error, InferenceUnavailableError)
+
+    def test_a_browser_error_keeps_its_code_and_detail_apart(self):
+        call = self._answered(
+            {"error": {"code": "engine_unavailable", "detail": "model not loaded"}}
+        )
+        self.assertIsInstance(call.error, ClientEngineFailure)
+        failure = cast(ClientEngineFailure, call.error)
+        self.assertEqual((failure.code, failure.detail), ("engine_unavailable", "model not loaded"))
+
+    def test_a_code_outside_the_list_becomes_client_error(self):
+        call = self._answered({"error": {"code": "gpu_on_fire", "detail": "x"}})
+        self.assertEqual(cast(ClientEngineFailure, call.error).code, "client_error")
 
     def test_without_grammar_the_request_carries_the_schema_in_the_prompt(self):
         engine = RelayInferenceEngine(
