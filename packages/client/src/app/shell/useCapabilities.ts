@@ -24,17 +24,24 @@ async function fromWhoami(): Promise<InstanceCapabilities> {
   }
 }
 
-type Loaded = { instance: InstanceCapabilities; user: UserCapabilities };
+type Loaded = { instance: InstanceCapabilities; user: UserCapabilities; confirmed: boolean };
 
 async function load(): Promise<Loaded> {
   try {
     const answer = await quiltorClient.application.capabilities.current();
-    if (answer) return { instance: fromServer(answer.instance), user: answer.user };
+    if (answer) {
+      return { instance: fromServer(answer.instance), user: answer.user, confirmed: true };
+    }
   } catch {
     // 404 from an older server, or no network: fall back below.
   }
-  return { instance: await fromWhoami(), user: {} };
+  return { instance: await fromWhoami(), user: {}, confirmed: false };
 }
+
+// The capabilities are asked again while only the whoami fallback stands in for them: it says
+// nothing about the browser engine, and a stored choice of it must not be dropped because one
+// request failed (D-T-275-F5).
+export const CAPABILITIES_RETRY_MS = 5000;
 
 /**
  * `instance` is read once at start and is null until it is known. `user` is read
@@ -58,13 +65,19 @@ export function useCapabilities(polling = false): {
 
   useEffect(() => {
     mounted.current = true;
-    void load().then((next) => {
-      if (!mounted.current) return;
-      setInstance(next.instance);
-      setUser(next.user);
-    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      void load().then((next) => {
+        if (!mounted.current) return;
+        setInstance(next.instance);
+        setUser(next.user);
+        if (!next.confirmed) timer = setTimeout(attempt, CAPABILITIES_RETRY_MS);
+      });
+    };
+    attempt();
     return () => {
       mounted.current = false;
+      clearTimeout(timer);
     };
   }, []);
 

@@ -60,8 +60,16 @@ export function useEngineChoice(
   );
   const browserUnsupported = !ownComputer && clientAi && Boolean(slots.webllm) && webgpu === false;
   // Only an explicitly stored choice is kept, and only where the server AI would be the silent
-  // fallback; without the premium role nothing would move to the server anyway.
-  const kept = browserUnsupported && serverAi && stored === "webllm" ? "webllm" : null;
+  // fallback; without the premium role nothing would move to the server anyway. It is kept
+  // until it is known that the browser engine can run: while the capabilities are not loaded
+  // (or the whoami fallback stood in for them and says nothing about `clientAi`) and while the
+  // WebGPU probe has not answered, a missing engine is no reason to send her text to the
+  // server (D-T-275-F5). A computer of one's own is the one case where the server is the only
+  // engine, and the capabilities say so as soon as they are there.
+  const unknown = !ownComputer && (instance === null || instance.clientAi === undefined);
+  const unsupported = clientAi && Boolean(slots.webllm) && webgpu !== true;
+  const kept =
+    serverAi && stored === "webllm" && !ownComputer && (unknown || unsupported) ? "webllm" : null;
   const engine = effectiveEngine(stored, available, kept);
   const choose = useCallback(
     (kind: AssistantEngineKind) => {

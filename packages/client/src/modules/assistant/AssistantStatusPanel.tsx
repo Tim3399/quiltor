@@ -91,7 +91,8 @@ export function AssistantStatusPanel({
           )}
         </div>
       )}
-      {EnginePanel && <EnginePanel />}
+      {/* No model download where the model cannot run: the note above says why (F-275-2). */}
+      {EnginePanel && !choice.blocked && <EnginePanel />}
       <div className="assistant-scope">
         <Database />
         <span>
