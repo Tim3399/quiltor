@@ -50,11 +50,17 @@ export function writeEngineChoice(preferences: Preferences, kind: AssistantEngin
   preferences.set(ENGINE_PREFERENCE_KEY, kind);
 }
 
-/** The stored choice while it is still on offer, else the first engine offered, else the server. */
+/**
+ * The stored choice while it is still on offer, else the first engine offered, else the server.
+ * `kept` is a stored choice that stays even when it is not on offer: the author chose the
+ * browser engine so that no text goes to the server, and a missing WebGPU must not move her
+ * there behind her back (D-205, T-275 F4).
+ */
 export function effectiveEngine(
   stored: AssistantEngineKind | null,
   available: readonly AssistantEngineKind[],
+  kept: AssistantEngineKind | null = null,
 ): AssistantEngineKind {
-  if (stored && available.includes(stored)) return stored;
+  if (stored && (stored === kept || available.includes(stored))) return stored;
   return available[0] ?? "server";
 }

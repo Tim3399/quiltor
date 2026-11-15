@@ -18,6 +18,11 @@ export type EngineChoice = {
    * it (Safari, Firefox, an older device). False while the probe has not answered yet.
    */
   browserUnsupported: boolean;
+  /**
+   * She chose the browser engine, this browser cannot run it, and the choice stays: nothing is
+   * sent, and only she can switch to the server AI.
+   */
+  blocked: boolean;
   choose(kind: AssistantEngineKind): void;
   /** The engine and slot as stored right now; for code that runs outside a render. */
   current(): { engine: AssistantEngineKind; slot: ClientEngineSlot | null };
@@ -53,7 +58,11 @@ export function useEngineChoice(
     () => availableEngines({ serverAi, clientAi, webgpu: webgpu === true, ownComputer, slots }),
     [serverAi, clientAi, webgpu, ownComputer, slots],
   );
-  const engine = effectiveEngine(stored, available);
+  const browserUnsupported = !ownComputer && clientAi && Boolean(slots.webllm) && webgpu === false;
+  // Only an explicitly stored choice is kept, and only where the server AI would be the silent
+  // fallback; without the premium role nothing would move to the server anyway.
+  const kept = browserUnsupported && serverAi && stored === "webllm" ? "webllm" : null;
+  const engine = effectiveEngine(stored, available, kept);
   const choose = useCallback(
     (kind: AssistantEngineKind) => {
       writeEngineChoice(preferences, kind);
@@ -63,9 +72,9 @@ export function useEngineChoice(
   );
   const slot = engine === "server" ? null : (slots[engine] ?? null);
   const current = useCallback(() => {
-    const now = effectiveEngine(readEngineChoice(preferences), available);
+    const now = effectiveEngine(readEngineChoice(preferences), available, kept);
     return { engine: now, slot: now === "server" ? null : (slots[now] ?? null) };
-  }, [available, preferences, slots]);
-  const browserUnsupported = !ownComputer && clientAi && Boolean(slots.webllm) && webgpu === false;
-  return { available, engine, slot, browserUnsupported, choose, current };
+  }, [available, kept, preferences, slots]);
+  const blocked = kept !== null && engine === kept;
+  return { available, engine, slot, browserUnsupported, blocked, choose, current };
 }
