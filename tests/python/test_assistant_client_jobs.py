@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
-from quiltor.modules.assistant.engines import CLOUD, SERVER, WEBLLM
+from quiltor.modules.assistant.engines import CLOUD, SERVER, WEBLLM, ClientEngineFailure
 from quiltor.modules.assistant.jobs import AssistantJobRunner
 from quiltor.modules.assistant.ports import ClientJobRunning
 from tests.python.narrowing import present
@@ -240,7 +240,44 @@ class ClientJobRunnerTests(unittest.TestCase):
             job = _submit(runner, "alice", "client")
             done = runner.wait(job["id"], "alice", WORLD_ID, timeout=3)
             self.assertEqual(done["status"], "failed")
-            self.assertEqual(done["errorType"], "runtime_unavailable")
+            # No browser engine took it: a code the client words, not an English sentence.
+            self.assertEqual(done["errorType"], "client_unavailable")
+            self.assertEqual(done["engineError"], {"code": "client_unavailable"})
+        finally:
+            runner.close()
+
+    def test_an_engine_failure_reaches_the_job_as_code_and_detail(self):
+        class _Unloaded(_BlockingRuntime):
+            def complete(self, question, *args, **kwargs):
+                raise ClientEngineFailure("engine_unavailable", "model not loaded")
+
+        runner = self._runner()
+        self.clients["alice"] = _Unloaded()
+        try:
+            job = _submit(runner, "alice", "client")
+            done = runner.wait(job["id"], "alice", WORLD_ID, timeout=3)
+            self.assertEqual(done["status"], "failed", done)
+            self.assertEqual(
+                done.get("engineError"),
+                {"code": "engine_unavailable", "detail": "model not loaded"},
+            )
+            self.assertEqual(done["errorType"], "engine_unavailable")
+            self.assertNotIn("engine_unavailable", done["error"])
+        finally:
+            runner.close()
+
+    def test_a_server_job_carries_no_engine_error(self):
+        class _Failing(_BlockingRuntime):
+            def complete(self, question, *args, **kwargs):
+                raise RuntimeError("boom")
+
+        self.server = _Failing()
+        runner = self._runner()
+        try:
+            job = _submit(runner, "bob", "server", SERVER)
+            done = runner.wait(job["id"], "bob", WORLD_ID, timeout=3)
+            self.assertEqual(done["status"], "failed")
+            self.assertNotIn("engineError", done)
         finally:
             runner.close()
 

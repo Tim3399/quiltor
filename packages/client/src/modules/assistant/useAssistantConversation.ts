@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Translate } from "../../i18n";
-import { applicationErrorMessage, quiltorClient } from "../../platform";
+import { quiltorClient } from "../../platform";
+import { assistantErrorMessage } from "./engineErrors";
 import { useEngineChoice } from "./engines/useEngineChoice";
 import { useRelayLoop } from "./useRelayLoop";
 import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
@@ -117,7 +118,7 @@ export function useAssistantConversation({
       .catch((error) => {
         const message = controller.signal.aborted
           ? t("requestAborted")
-          : applicationErrorMessage(error);
+          : assistantErrorMessage(error, t);
         persistEntries((current) =>
           current.map((entry) =>
             entry.id === pending.id
@@ -254,7 +255,7 @@ export function useAssistantConversation({
       } catch (error) {
         const message = controller.signal.aborted
           ? t("requestAborted")
-          : applicationErrorMessage(error);
+          : assistantErrorMessage(error, t);
         const keepRequestId = !controller.signal.aborted && !activeJobRef.current;
         persistEntries((current) =>
           current.map((entry) =>

@@ -9,7 +9,7 @@ from contextlib import suppress
 from typing import Any
 
 from quiltor.application.observability import Metrics, StructuredLogger
-from quiltor.modules.assistant.engines import SERVER
+from quiltor.modules.assistant.engines import SERVER, ClientEngineFailure
 from quiltor.modules.assistant.ports import (
     AssistantInteractionLogger,
     AssistantJobStore,
@@ -177,6 +177,17 @@ def classify_assistant_error(exc: Exception) -> str:
     ):
         return "validation_error"
     return "assistant_error"
+
+
+def failure_fields(exc: Exception) -> tuple[str, str]:
+    """The job's `error` and `errorType` for a failure.
+
+    A client engine's failure is stored as its code and the browser's detail, so the client
+    can word it and never shows the raw text (D-T-61-30); anything else keeps its message and
+    its class."""
+    if isinstance(exc, ClientEngineFailure):
+        return exc.detail or "", exc.code
+    return str(exc), classify_assistant_error(exc)
 
 
 def assistant_error_status(exc: Exception) -> int:
@@ -370,7 +381,7 @@ class AssistantJobRunner:
             if factory is not None:
                 runtime = factory(job, self.store.request_for(job_id))
             if runtime is None:
-                self._fail(job, InferenceUnavailableError("No client engine is available."))
+                self._fail(job, ClientEngineFailure("client_unavailable"))
                 return
             with self._active_lock:
                 self._active_runtimes[job_id] = runtime
@@ -403,12 +414,13 @@ class AssistantJobRunner:
             self._fail(job, exc)
 
     def _fail(self, job: dict[str, Any], exc: Exception) -> None:
+        error, error_type = failure_fields(exc)
         # Recording the failure is best effort.
         with suppress(Exception):
             self.store.finish_failure(
                 str(job["id"]),
-                str(exc),
-                classify_assistant_error(exc),
+                error,
+                error_type,
                 assistant_error_status(exc),
             )
         self.metrics.increment("assistant_jobs_failed", error=type(exc).__name__)
@@ -524,10 +536,11 @@ class AssistantJobRunner:
                         job_id=job_id,
                         error_type=type(log_exc).__name__,
                     )
+            error, error_type = failure_fields(exc)
             terminal = self.store.finish_failure(
                 job_id,
-                str(exc),
-                classify_assistant_error(exc),
+                error,
+                error_type,
                 assistant_error_status(exc),
                 interaction_id,
             )

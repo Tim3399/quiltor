@@ -15,6 +15,18 @@ export const assistantClientAi = {
   errorAssistantClientJobRunning:
     "In einem anderen Tab läuft schon ein Auftrag mit deiner eigenen Engine. Warte, bis er fertig ist.",
   errorAssistantClientAiDisabled: "Auf diesem Server kann der Assistent nur die Server-KI nutzen.",
+  // Fehler eines Auftrags auf der eigenen Engine (D-T-61-30). Der rohe Code der Engine erscheint nie im Gespräch.
+  assistantEngineErrorModelNotLoaded:
+    "Das Modell für die KI im Browser liegt noch nicht auf diesem Gerät. Lade es zuerst oben unter „KI im Browser“ herunter.",
+  assistantEngineErrorUnavailable:
+    "Die KI im Browser konnte nicht antworten. Versuche es noch einmal oder lade die Seite neu.",
+  assistantEngineErrorClientUnavailable:
+    "Dieser Browser hat den Auftrag nicht übernommen. Lass den Tab mit dem Assistenten geöffnet und versuche es noch einmal.",
+  assistantEngineErrorProvider:
+    "Der Anbieter hat die Anfrage abgelehnt. Prüfe deinen Schlüssel und versuche es noch einmal.",
+  assistantEngineErrorContextTooLarge:
+    "Die Anfrage ist zu groß für das Modell im Browser. Wähle weniger Kapitel aus.",
+  assistantEngineErrorUnknown: "Die eigene Engine konnte den Auftrag nicht ausführen.",
   webllmTitle: "KI im Browser",
   webllmChecking: "Prüfe, ob das Modell schon auf diesem Gerät liegt …",
   webllmAbsent:

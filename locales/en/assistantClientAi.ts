@@ -13,6 +13,16 @@ export const assistantClientAi = {
   errorAssistantClientJobRunning:
     "A job on your own engine is already running in another tab. Wait until it has finished.",
   errorAssistantClientAiDisabled: "On this server the assistant can only use the server AI.",
+  assistantEngineErrorModelNotLoaded:
+    "The model for the AI in the browser is not on this device yet. Download it first under “AI in the browser” above.",
+  assistantEngineErrorUnavailable:
+    "The AI in the browser could not answer. Try again or reload the page.",
+  assistantEngineErrorClientUnavailable:
+    "This browser did not take the request. Keep the assistant's tab open and try again.",
+  assistantEngineErrorProvider: "The provider refused the request. Check your key and try again.",
+  assistantEngineErrorContextTooLarge:
+    "The request is too large for the model in the browser. Select fewer chapters.",
+  assistantEngineErrorUnknown: "Your own engine could not run the request.",
   webllmTitle: "AI in the browser",
   webllmChecking: "Checking whether the model is already on this device …",
   webllmAbsent:
