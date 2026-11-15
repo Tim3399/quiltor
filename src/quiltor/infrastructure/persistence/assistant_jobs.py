@@ -139,7 +139,8 @@ class AssistantJobStore:
             "error": row["error"],
             "errorType": row["error_type"],
             # A client engine's failure as a code the client words, with the browser's own
-            # detail beside it (D-T-61-30); absent for every other job.
+            # detail beside it (D-T-61-30); absent for every other job. A server job never has
+            # one: its own InferenceContextTooLargeError shares the code `context_too_large`.
             **(
                 {
                     "engineError": {
@@ -147,7 +148,9 @@ class AssistantJobStore:
                         **({"detail": row["error"]} if row["error"] else {}),
                     }
                 }
-                if row["status"] == "failed" and row["error_type"] in CLIENT_FAILURE_CODES
+                if row["status"] == "failed"
+                and row["engine_kind"] != SERVER
+                and row["error_type"] in CLIENT_FAILURE_CODES
                 else {}
             ),
             "httpStatus": row["http_status"] or None,
