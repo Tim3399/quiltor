@@ -116,6 +116,11 @@ test("hosted without the premium role the server AI is greyed out with its reaso
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "The drawer is a side panel only when wide.");
+  // D-T-275-F2: without WebGPU the switch also names that reason (F1). Remove navigator.gpu so
+  // the description is the same on a machine whose browser has WebGPU.
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "gpu", { get: () => undefined });
+  });
   await capabilities(page, { hosted: true, serverAi: false });
   const world = await createTestWorld(page, "Assistent ohne Premium");
   await page.goto(`/?world=${world.id}`);
@@ -127,7 +132,7 @@ test("hosted without the premium role the server AI is greyed out with its reaso
   const choice = drawer.getByRole("radiogroup", { name: "KI-Engine" });
   await expect(choice.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
   await expect(choice).toHaveAccessibleDescription(
-    "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
+    "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung. Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Ein aktueller Browser mit WebGPU auf einem Gerät mit Grafikchip kann es.",
   );
   await expectControlsAtControlHeight(page);
   await testInfo.attach("assistant-drawer-no-premium", {
