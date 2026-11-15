@@ -122,6 +122,22 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
     ).toBeDisabled();
   });
 
+  it("hosted with no engine usable names none and says it once, at the switch", async () => {
+    // No premium role and no browser engine: in production a browser without WebGPU.
+    renderDrawer({ status: ONLINE, serverAi: false, clientAi: false, multiUser: true });
+    expect(await screen.findByText("Keine KI verfügbar")).toBeInTheDocument();
+    expect(screen.queryByText("Server-KI · nur Vorschläge")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(COMPOSER)).toBeDisabled();
+  });
+
   it("keeps the composer usable with a runtime and the premium role", async () => {
     renderDrawer({ status: ONLINE });
     await screen.findByText("Auf diesem Rechner · nur Vorschläge");

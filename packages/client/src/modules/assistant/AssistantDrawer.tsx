@@ -161,7 +161,12 @@ export function AssistantDrawer({
           <span>
             <strong>{t("assistant")}</strong>
             <small>
-              {t("assistantEngineSuggestionsOnly", { engine: engineLabels[engineChoice.engine] })}
+              {/* No engine to name when none can run: hosted, no premium role, no WebGPU. */}
+              {engineChoice.available.length === 0
+                ? t("assistantEngineNone")
+                : t("assistantEngineSuggestionsOnly", {
+                    engine: engineLabels[engineChoice.engine],
+                  })}
             </small>
           </span>
         </div>
