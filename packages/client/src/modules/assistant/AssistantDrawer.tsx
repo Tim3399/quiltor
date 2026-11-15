@@ -71,10 +71,12 @@ export function AssistantDrawer({
   // The server's assistant locks the composer only while a job would run there: without a
   // runtime, or without the premium role, which the server enforces with a 403 (D-40). The
   // effective engine falls back to the server when nothing is offered, so that case locks too.
-  // A browser engine works without either (T-61 part 6, D-T-61-8a-F2).
+  // A browser engine works without either (T-61 part 6, D-T-61-8a-F2). A browser engine she
+  // chose that this browser cannot run locks it too, instead of sending to the server (F4).
   const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
   const serverOffline =
-    engineChoice.engine === "server" && (status?.available === false || !serverAi);
+    (engineChoice.engine === "server" && (status?.available === false || !serverAi)) ||
+    engineChoice.blocked;
   const {
     entries,
     sending,

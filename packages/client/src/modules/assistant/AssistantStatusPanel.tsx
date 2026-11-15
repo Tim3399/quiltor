@@ -58,6 +58,8 @@ export function AssistantStatusPanel({
       ? [{ value: "server" as const, label: engineLabels.server, disabled: true }]
       : []),
     ...choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] })),
+    // The chosen browser engine stays in the switch although this browser cannot run it.
+    ...(choice.blocked ? [{ value: "webllm" as const, label: engineLabels.webllm }] : []),
   ];
   return (
     <>
