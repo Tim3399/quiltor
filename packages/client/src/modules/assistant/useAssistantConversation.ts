@@ -149,6 +149,10 @@ export function useAssistantConversation({
         explicitQuestion ||
         (retryId ? entries.find((entry) => entry.id === retryId)?.question : undefined);
       if (!question || sending) return;
+      // A browser engine without its slot (capabilities not loaded yet) cannot run the job, and
+      // a job without a wire would run on the server: nothing is sent then (D-T-275-F5).
+      const target = currentEngine();
+      if (target.engine !== "server" && !target.slot) return;
 
       sendLockRef.current = true;
       const id = retryId ?? crypto.randomUUID();
