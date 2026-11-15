@@ -34,7 +34,7 @@ export const assistant = {
   findMissingFiguresPrompt: "Based on my existing notes, propose any missing characters.",
   checkTimeline: "Check timeline",
   checkTimelinePrompt: "Check the relationships and timeline for gaps or contradictions.",
-  updateWorldFromManuscript: "Update world model from manuscript",
+  updateWorldFromManuscript: "Update world",
   updateWorldFromManuscriptHint:
     "Creates reviewable proposals from {scope}. The manuscript remains unchanged.",
   updateWorldFromManuscriptRequest: "Update world model from manuscript",

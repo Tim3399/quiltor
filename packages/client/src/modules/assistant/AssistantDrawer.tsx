@@ -194,8 +194,6 @@ export function AssistantDrawer({
           <Button
             className="assistant-world-update-button"
             appearance="secondary"
-            // The label may be cut at a narrow width; the full name stays reachable (T-275).
-            title={t("updateWorldFromManuscript")}
             icon={<BookOpenCheck />}
             disabled={
               sending ||

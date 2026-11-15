@@ -38,7 +38,7 @@ async function openAssistant(page: Page) {
 
 async function expectControlsAtControlHeight(page: Page) {
   const drawer = page.getByRole("complementary", { name: "Lokaler Assistent" });
-  const update = drawer.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" });
+  const update = drawer.getByRole("button", { name: "Welt aktualisieren" });
   const scope = drawer.getByRole("combobox", { name: "Manuskriptbereich" });
   const metrics = await page.evaluate(
     ([updateHandle, scopeHandle]) => {
@@ -139,4 +139,25 @@ test("hosted without the premium role the server AI is greyed out with its reaso
     body: await drawer.screenshot(),
     contentType: "image/png",
   });
+});
+
+test("the world update and its scope share one line with their whole names", async ({
+  page,
+}, testInfo) => {
+  // D-T-275-F2: since T-275 the action took the whole width and pushed the scope below it, and
+  // the empty conversation's suggestions slid out of sight. Only compact may wrap the scope.
+  test.skip(testInfo.project.name === "compact", "Only a compact drawer may wrap the scope.");
+  await capabilities(page, { hosted: true, serverAi: true });
+  const world = await createTestWorld(page, "Assistent in einer Zeile");
+  await page.goto(`/?world=${world.id}`);
+  const drawer = await openAssistant(page);
+  const update = drawer.getByRole("button", { name: "Welt aktualisieren" });
+  const scope = drawer.getByRole("combobox", { name: "Manuskriptbereich" });
+  await expect(update).toBeVisible();
+  await expect(scope).toBeVisible();
+  const [updateBox, scopeBox] = [await update.boundingBox(), await scope.boundingBox()];
+  expect(updateBox).not.toBeNull();
+  expect(scopeBox).not.toBeNull();
+  expect(Math.abs((updateBox?.y ?? 0) - (scopeBox?.y ?? 0))).toBeLessThanOrEqual(1);
+  await expectControlsAtControlHeight(page);
 });

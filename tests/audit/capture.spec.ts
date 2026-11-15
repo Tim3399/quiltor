@@ -359,7 +359,7 @@ async function textScenario(s: Session): Promise<void> {
   const toProposals = async () => {
     await toAssistant();
     const assistant = await openAssistant(s);
-    await s.tap(assistant.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }));
+    await s.tap(assistant.getByRole("button", { name: "Welt aktualisieren" }));
     await expect(assistant.getByRole("button", { name: "Bearbeiten" }).first()).toBeVisible();
   };
   await s.step("assistant.proposals", async () => {

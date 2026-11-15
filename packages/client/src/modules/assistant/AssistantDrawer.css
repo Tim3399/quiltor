@@ -74,11 +74,10 @@
   align-items: center;
   gap: var(--space-5);
 }
-/* One line each: the action keeps its whole name and wraps the scope below it when the
-   drawer is too narrow for both. */
+/* Action and scope share one line, each at its whole width; only a drawer too narrow for both
+   (compact) wraps the scope below (D-T-275-F2). */
 .assistant-world-update-button {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 .assistant-world-update > small {
   color: var(--muted);

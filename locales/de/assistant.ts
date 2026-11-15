@@ -36,7 +36,7 @@ export const assistant = {
     "Lege aus meinen vorhandenen Notizen fehlende Figuren als Vorschläge an.",
   checkTimeline: "Timeline prüfen",
   checkTimelinePrompt: "Prüfe die Beziehungen und Timeline auf Lücken oder Widersprüche.",
-  updateWorldFromManuscript: "Weltmodell aus Manuskript aktualisieren",
+  updateWorldFromManuscript: "Welt aktualisieren",
   updateWorldFromManuscriptHint:
     "Erstellt prüfbare Vorschläge aus {scope}. Das Manuskript bleibt unverändert.",
   updateWorldFromManuscriptRequest: "Weltmodell aus Manuskript aktualisieren",

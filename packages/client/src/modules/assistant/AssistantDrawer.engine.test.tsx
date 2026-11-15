@@ -90,7 +90,7 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(COMPOSER)).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
+      screen.getByRole("button", { name: "Welt aktualisieren" }),
     ).toBeDisabled();
   });
 
@@ -104,7 +104,7 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
       screen.queryByText("Lokales Modell ist noch nicht installiert oder gestartet."),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
+      screen.getByRole("button", { name: "Welt aktualisieren" }),
     ).toBeEnabled();
   });
 
@@ -118,7 +118,7 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(COMPOSER)).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
+      screen.getByRole("button", { name: "Welt aktualisieren" }),
     ).toBeDisabled();
   });
 
