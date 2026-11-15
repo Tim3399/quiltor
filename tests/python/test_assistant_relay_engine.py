@@ -7,6 +7,7 @@ deadline pass. Threads stand in for the job worker that waits and the browser th
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import tempfile
 import threading
@@ -15,7 +16,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap.application import build_assistant_services
 from quiltor.infrastructure.inference.relay import RelayInferenceEngine, RelayTicketStore
@@ -148,6 +149,27 @@ class RelayDeliveryTests(RelayTestCase):
         self.clock.advance(301)
         call.join()
         self.assertIsInstance(call.error, InferenceTimeoutError)
+
+    def test_each_engine_kind_waits_its_own_answer_deadline(self):
+        """F-61-31: a WebLLM ticket gets the WebLLM deadline, a cloud ticket the cloud one."""
+        for kind, seconds in (("webllm", 300.0), ("cloud", 120.0)):
+            with self.subTest(kind=kind):
+                job = f"job-{kind}"
+                self.tickets.bind_job(job, **ALICE)
+                engine = RelayInferenceEngine(
+                    self.tickets,
+                    job,
+                    {"kind": kind, "grammar": True},
+                    clock=self.clock,
+                    answer_seconds={"webllm": 300.0, "cloud": 120.0},
+                )
+                call = Call(engine)
+                present(self.tickets.next_for(**ALICE, job_id=job, wait=2))
+                self.clock.advance(seconds + 1)
+                call.join()
+                error = call.error
+                self.assertIsInstance(error, InferenceTimeoutError)
+                self.assertEqual(cast(InferenceTimeoutError, error).timeout_seconds, seconds)
 
     def test_a_ticket_answers_once(self):
         call = Call(self.engine)
@@ -545,6 +567,37 @@ class ClientCacheTests(unittest.TestCase):
             self.assertEqual(len(server_counts), 1)
             client.close()
 
+
+
+class ClientDeadlineWiringTests(unittest.TestCase):
+    def test_the_environment_deadlines_reach_the_client_job_engine(self):
+        """F-61-31: the bootstrap hands the configured deadlines to every client engine."""
+        environment = {
+            "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM": "900",
+            "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD": "45",
+            "QUILTOR_ASSISTANT_RELAY_JOB_MINUTES": "7",
+        }
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, environment):
+            services = build_assistant_services(
+                base=Path("."),
+                data=Path(directory),
+                assistant=cast(Any, MagicMock()),
+                lock=threading.Lock(),
+                observability=cast(
+                    Any, SimpleNamespace(logger=SilentLogger(), metrics=TestMetrics())
+                ),
+                capabilities=cast(Any, MagicMock()),
+                inference=MagicMock(),
+            )
+            factory = present(services.jobs.client_runtime_factory)
+            client = factory({"id": "job-d", "engine": "webllm"}, {"engine": {"kind": "webllm"}})
+            try:
+                engine = cast(RelayInferenceEngine, client.inference)
+                self.assertIsInstance(engine, RelayInferenceEngine)
+                self.assertEqual(engine._answer_seconds, {"webllm": 900.0, "cloud": 45.0})
+                self.assertEqual(engine._job_seconds, 7 * 60.0)
+            finally:
+                client.close()
 
 if __name__ == "__main__":
     unittest.main()
