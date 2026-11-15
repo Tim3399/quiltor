@@ -138,6 +138,8 @@ extend-ignore-re = [
   "\\(er\\|sie\\|",
   "Papyrus Autor",
   "KI-Suche",
+  # The German articles the gold-set matcher drops from names (tools/evaluation/assistant/goldset_match.py).
+  "ARTICLES_DE = \"der die das den dem des ein eine einen einem\"",
   "`Ende entfernen`",
 
   # German phrases whose words are also plausible English typos. Each one is quoted from
