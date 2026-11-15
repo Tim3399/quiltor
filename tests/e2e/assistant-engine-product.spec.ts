@@ -7,7 +7,7 @@ import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const LOCKED = "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.";
 const NO_WEBGPU =
-  "Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Mit einem aktuellen Chrome oder Edge auf einem Gerät mit Grafikchip geht es.";
+  "Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Ein aktueller Browser mit WebGPU auf einem Gerät mit Grafikchip kann es.";
 
 async function hosted(page: Page, { serverAi, webgpu }: { serverAi: boolean; webgpu: boolean }) {
   await page.addInitScript((hardware) => {
@@ -93,5 +93,11 @@ test("hosted without the premium role and without WebGPU: both reasons, composer
   await expect(choice.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
   await expect(choice).toHaveAccessibleDescription(`${LOCKED} ${NO_WEBGPU}`);
   await expect(drawer.getByText(NO_WEBGPU)).toBeVisible();
+  await expect(drawer.getByText("Keine KI verfügbar")).toBeVisible();
+  await expect(
+    drawer.getByText(
+      "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+    ),
+  ).toHaveCount(0);
   await expect(drawer.getByRole("textbox")).toBeDisabled();
 });

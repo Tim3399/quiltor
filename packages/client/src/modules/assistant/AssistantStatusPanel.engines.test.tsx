@@ -39,7 +39,7 @@ afterEach(() => {
 
 const LOCKED = "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.";
 const NO_WEBGPU =
-  "Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Mit einem aktuellen Chrome oder Edge auf einem Gerät mit Grafikchip geht es.";
+  "Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Ein aktueller Browser mit WebGPU auf einem Gerät mit Grafikchip kann es.";
 
 /** Lets the WebGPU probe answer, which happens after the first render. */
 async function settle() {
@@ -177,14 +177,12 @@ describe("the product's browser engine on a hosted server (D-T-275-F1)", () => {
     expect(screen.queryByRole("radio", { name: "Im Browser" })).not.toBeInTheDocument();
     // Both reasons describe the switch, so the focused choice reads them out.
     expect(choice).toHaveAccessibleDescription(`${LOCKED} ${NO_WEBGPU}`);
+    // The note at the switch says it already; the premium alert would say it twice.
     expect(
-      screen.getByText(
+      screen.queryByText(
         "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
-        {
-          exact: false,
-        },
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("on a computer of one's own there is no WebGPU note, only the computer", async () => {
