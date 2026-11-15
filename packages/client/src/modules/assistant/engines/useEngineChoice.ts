@@ -13,6 +13,11 @@ export type EngineChoice = {
   engine: AssistantEngineKind;
   /** The browser engine's slot when one is chosen, else null. */
   slot: ClientEngineSlot | null;
+  /**
+   * A hosted server offers the in-browser engine, but this browser has no hardware WebGPU for
+   * it (Safari, Firefox, an older device). False while the probe has not answered yet.
+   */
+  browserUnsupported: boolean;
   choose(kind: AssistantEngineKind): void;
   /** The engine and slot as stored right now; for code that runs outside a render. */
   current(): { engine: AssistantEngineKind; slot: ClientEngineSlot | null };
@@ -35,7 +40,8 @@ export function useEngineChoice(
   const preferences = quiltorClient.platform.preferences;
   const [stored, setStored] = useState(() => readEngineChoice(preferences));
   // A hardware adapter, asked once per page: "gpu" in navigator also holds for a software one.
-  const [webgpu, setWebgpu] = useState(false);
+  // null until the probe answers, so no note about a missing WebGPU flashes up meanwhile.
+  const [webgpu, setWebgpu] = useState<boolean | null>(null);
   useEffect(() => {
     let current = true;
     void browserWebGpu().then((value) => current && setWebgpu(value));
@@ -44,7 +50,7 @@ export function useEngineChoice(
     };
   }, []);
   const available = useMemo(
-    () => availableEngines({ serverAi, clientAi, webgpu, ownComputer, slots }),
+    () => availableEngines({ serverAi, clientAi, webgpu: webgpu === true, ownComputer, slots }),
     [serverAi, clientAi, webgpu, ownComputer, slots],
   );
   const engine = effectiveEngine(stored, available);
@@ -60,5 +66,6 @@ export function useEngineChoice(
     const now = effectiveEngine(readEngineChoice(preferences), available);
     return { engine: now, slot: now === "server" ? null : (slots[now] ?? null) };
   }, [available, preferences, slots]);
-  return { available, engine, slot, choose, current };
+  const browserUnsupported = !ownComputer && clientAi && Boolean(slots.webllm) && webgpu === false;
+  return { available, engine, slot, browserUnsupported, choose, current };
 }

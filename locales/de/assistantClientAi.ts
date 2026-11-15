@@ -6,6 +6,9 @@ export const assistantClientAi = {
   assistantEngineLocal: "Auf diesem Rechner",
   assistantEngineServerLocked: "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
   assistantEngineBrowser: "Im Browser",
+  // Gehostet ohne WebGPU (Safari, Firefox, ältere Geräte): Die KI im Browser fehlt im Umschalter (D-T-275-F1).
+  assistantEngineBrowserUnsupported:
+    "Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Mit einem aktuellen Chrome oder Edge auf einem Gerät mit Grafikchip geht es.",
   assistantEngineOwnKey: "Eigener Schlüssel",
   errorAssistantClientJobRunning:
     "In einem anderen Tab läuft schon ein Auftrag mit deiner eigenen Engine. Warte, bis er fertig ist.",

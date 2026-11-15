@@ -6,6 +6,8 @@ export const assistantClientAi = {
   assistantEngineLocal: "On this computer",
   assistantEngineServerLocked: "The server AI is only available with premium access.",
   assistantEngineBrowser: "In the browser",
+  assistantEngineBrowserUnsupported:
+    "The AI in the browser needs WebGPU, which this browser does not offer. A current Chrome or Edge on a device with a graphics chip can run it.",
   assistantEngineOwnKey: "Own key",
   errorAssistantClientJobRunning:
     "A job on your own engine is already running in another tab. Wait until it has finished.",

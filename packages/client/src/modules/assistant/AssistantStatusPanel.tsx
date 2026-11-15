@@ -41,10 +41,16 @@ export function AssistantStatusPanel({
   const engineLabels = useEngineLabels();
   // Without the premium role the server AI stays in the switch, greyed out, and a note says
   // why; the switch is described by it, so keyboard and screen reader reach the reason too
-  // (T-275 Nachtrag 3, D-T-61-8a-F2). Only a hosted server has a role to lack.
-  const serverLocked =
-    !serverAi && !choice.available.includes("server") && choice.available.length > 0;
+  // (T-275 Nachtrag 3, D-T-61-8a-F2). Only a hosted server has a role to lack; on a computer
+  // of one's own the server engine is always on offer. That holds with no other engine as well,
+  // where the greyed-out switch is all there is (D-T-275-F1).
+  const serverLocked = !serverAi && !choice.available.includes("server");
   const lockNote = useId();
+  const browserNote = useId();
+  const described =
+    [serverLocked && lockNote, choice.browserUnsupported && browserNote]
+      .filter(Boolean)
+      .join(" ") || undefined;
   const options = [
     ...(serverLocked
       ? [{ value: "server" as const, label: engineLabels.server, disabled: true }]
@@ -54,13 +60,13 @@ export function AssistantStatusPanel({
   return (
     <>
       {/* Only a real choice is shown: with the server alone nothing changes for the user. */}
-      {(options.length > 1 || serverLocked) && (
+      {(options.length > 1 || serverLocked || choice.browserUnsupported) && (
         <div className="assistant-engine">
-          {options.length > 1 && (
+          {(options.length > 1 || serverLocked) && (
             <SegmentedControl
               className="assistant-engine-choice"
               size="compact"
-              aria-describedby={serverLocked ? lockNote : undefined}
+              aria-describedby={described}
               label={t("assistantEngineLabel")}
               value={choice.engine}
               options={options}
@@ -70,6 +76,11 @@ export function AssistantStatusPanel({
           {serverLocked && (
             <small id={lockNote} className="assistant-engine-note">
               {t("assistantEngineServerLocked")}
+            </small>
+          )}
+          {choice.browserUnsupported && (
+            <small id={browserNote} className="assistant-engine-note">
+              {t("assistantEngineBrowserUnsupported")}
             </small>
           )}
         </div>
