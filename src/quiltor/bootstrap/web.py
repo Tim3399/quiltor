@@ -36,6 +36,7 @@ from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.infrastructure.platform.runtime_target import ProcessRole, current_target
 from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngine
+from quiltor.modules.assistant.sampling import MAX_SEED, EvalSampling, is_seed
 from quiltor.modules.identity.auth import SessionData
 from quiltor.modules.identity.service import Identity, LocalIdentity
 from quiltor.modules.writing_assistance import WritingAssistanceService
@@ -112,6 +113,8 @@ class AssistantRouteServices:
     client_ai: bool = True
     # Hands the model calls of client-engine jobs to the browser (T-61).
     relay_tickets: Any = None
+    # QUILTOR_EVAL=1 only (T-289): the evaluation runner's sampling; None in the product.
+    eval_sampling: EvalSampling | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,6 +310,59 @@ DESKTOP = "desktop"
 LOCAL = "local"
 
 
+def eval_sampling(flag: str, raw: str, operation_profile: str) -> EvalSampling | None:
+    """QUILTOR_EVAL and QUILTOR_EVAL_SAMPLING, read once at startup (T-289, D-213).
+
+    Unset, empty or `0`: no override, and QUILTOR_EVAL_SAMPLING is ignored. `1`: the JSON
+    object `{temperature, seed, max_tokens}` fixes those values; any of them may be left
+    out, and without the variable the product values stay while a job may still name its
+    own `evalSeed`. A hosted server refuses to start with the switch on (D-215), because
+    there one account's evaluation would steer the sampling of everybody's jobs.
+    """
+
+    if flag in ("", "0"):
+        return None
+    if flag != "1":
+        raise RuntimeError("QUILTOR_EVAL must be 0 or 1.")
+    if operation_profile == HOSTED:
+        raise RuntimeError(
+            "QUILTOR_EVAL=1 is for evaluation runs only and is refused on a hosted "
+            "(multi-user) server."
+        )
+    if not raw.strip():
+        return EvalSampling()
+    error = (
+        "QUILTOR_EVAL_SAMPLING must be a JSON object with temperature (0 to 2), seed "
+        f"(0 to {MAX_SEED}) and max_tokens (at least 1), each optional."
+    )
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        raise RuntimeError(error) from None
+    if not isinstance(value, dict) or set(value) - {"temperature", "seed", "max_tokens"}:
+        raise RuntimeError(error)
+    temperature = value.get("temperature")
+    seed = value.get("seed")
+    max_tokens = value.get("max_tokens")
+    if temperature is not None and (
+        isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not 0 <= temperature <= 2
+    ):
+        raise RuntimeError(error)
+    if seed is not None and not is_seed(seed):
+        raise RuntimeError(error)
+    if max_tokens is not None and (
+        isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1
+    ):
+        raise RuntimeError(error)
+    return EvalSampling(
+        temperature=None if temperature is None else float(temperature),
+        seed=seed,
+        max_tokens=max_tokens,
+    )
+
+
 def operation_profile_for(*, multi_user: bool, process_role: ProcessRole | None) -> str:
     """How this instance is operated, which decides who may install software (D-59).
 
@@ -379,6 +435,8 @@ class WebApplication:
     content_security_policy: tuple[str, str] | None = None
     # QUILTOR_TEST_HOOKS=1, read from the environment only, never from a request (T-61).
     test_hooks: bool = False
+    # QUILTOR_EVAL=1 only, read at startup (T-289); None means the product's sampling.
+    eval_sampling: EvalSampling | None = None
 
     @property
     def installable(self) -> bool:
@@ -478,6 +536,7 @@ class WebApplication:
                 assistant_installable(self),
                 self.assistant_client_ai,
                 self.assistant_services.relay_tickets,
+                self.eval_sampling,
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
@@ -640,6 +699,12 @@ def build_web_application(
         multi_user=selected_identity.multi_user,
         process_role=current_target().process_role,
     )
+    # Before anything else is handed out: a hosted server with the switch does not start.
+    sampling = eval_sampling(
+        os.environ.get("QUILTOR_EVAL", ""),
+        os.environ.get("QUILTOR_EVAL_SAMPLING", ""),
+        operation_profile,
+    )
     return WebApplication(
         application=application,
         capabilities=capabilities,
@@ -669,6 +734,7 @@ def build_web_application(
             test_hooks=test_hooks,
         ),
         test_hooks=test_hooks,
+        eval_sampling=sampling,
     )
 
 
@@ -686,5 +752,6 @@ __all__ = [
     "WorldRouteServices",
     "WritingAssistanceRouteServices",
     "build_web_application",
+    "eval_sampling",
     "operation_profile_for",
 ]

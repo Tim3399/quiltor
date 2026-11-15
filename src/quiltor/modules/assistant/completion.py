@@ -48,6 +48,7 @@ from quiltor.modules.assistant.proposal_resolution import (
 )
 from quiltor.modules.assistant.proposals import missing_items, set_deterministic_message
 from quiltor.modules.assistant.references import resolve_reference
+from quiltor.modules.assistant.sampling import EvalSampling, apply_sampling
 from quiltor.modules.assistant.schemas import KINDS, json_schema_format, reply_schema
 from quiltor.modules.assistant.tool_loop import run_tool_loop
 
@@ -66,7 +67,9 @@ class CompletionRuntime(Protocol):
         self, payload: dict[str, Any], prompt_tokens: int
     ) -> dict[str, Any]: ...
 
-    def _plan(self, question: str, context: list[Any]) -> dict[str, Any]: ...
+    def _plan(
+        self, question: str, context: list[Any], sampling: EvalSampling | None = None
+    ) -> dict[str, Any]: ...
 
     def _forced_proposal(
         self, question: str, context_json: str, figures: dict[str, Any]
@@ -85,6 +88,7 @@ class CompletionRuntime(Protocol):
         world_revision: int,
         chapter_ids: list[str] | None = None,
         mode: str = "chat",
+        sampling: EvalSampling | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -283,6 +287,7 @@ def complete_request(
     owner_sub: str = "",
     world_id: str = "",
     world_revision: int = 0,
+    sampling: EvalSampling | None = None,
 ) -> dict[str, Any]:
     started_at = time.monotonic()
     runtime._invocation_metrics = []
@@ -463,6 +468,7 @@ def complete_request(
             world_revision,
             chapter_ids=chapter_ids,
             mode=mode,
+            sampling=sampling,
         )
     planner_uses_context = (
         not extraction_mode and not contract["requiredKinds"] and needs_planner(question)
@@ -485,7 +491,7 @@ def complete_request(
             "planner": "deterministic",
         }
         if contract["requiredKinds"] or not needs_planner(question)
-        else runtime._plan(question, context)
+        else runtime._plan(question, context, sampling)
     )
     plan.setdefault("planner", "model")
     trace.append({"step": "plan", **plan})
@@ -583,6 +589,8 @@ def complete_request(
         ],
         "response_format": json_schema_format(schema),
     }
+    # Evaluation only (T-289): fixed temperature, seed and length, capped at the headroom.
+    apply_sampling(payload, sampling, max_tokens_ceiling=headroom)
     supported = set(KINDS)
     explicit_required = set(contract["requiredKinds"])
     planned_required = {kind for kind in plan.get("requiredKinds", []) if kind in supported}

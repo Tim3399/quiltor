@@ -19,6 +19,7 @@ from quiltor.modules.assistant.ports import (
 )
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, MODEL_CONTEXT_TOKENS
 from quiltor.modules.assistant.proposals import forced_proposal
+from quiltor.modules.assistant.sampling import EvalSampling
 from quiltor.modules.assistant.schema_check import check as check_schema
 
 
@@ -88,6 +89,7 @@ class AssistantRuntime:
         owner_sub: str = "",
         world_id: str = "",
         world_revision: int = 0,
+        sampling: EvalSampling | None = None,
     ) -> dict[str, Any]:
         return complete_request(
             self,
@@ -104,6 +106,7 @@ class AssistantRuntime:
             owner_sub=owner_sub,
             world_id=world_id,
             world_revision=world_revision,
+            sampling=sampling,
         )
 
     def _run_batches(
@@ -119,6 +122,7 @@ class AssistantRuntime:
         world_revision: int = 0,
         chapter_ids: list[str] | None = None,
         mode: str = "chat",
+        sampling: EvalSampling | None = None,
     ) -> dict[str, Any]:
         return run_batches(
             question,
@@ -132,14 +136,17 @@ class AssistantRuntime:
             world_revision,
             chapter_ids=chapter_ids,
             mode=mode,
+            sampling=sampling,
             complete=self.complete,
             progress=self.progress,
             identity=self.url,
             count_tokens=self.inference.count_tokens,
         )
 
-    def _plan(self, question: str, context: list[Any]) -> dict[str, Any]:
-        return plan(question, context, self._invoke)
+    def _plan(
+        self, question: str, context: list[Any], sampling: EvalSampling | None = None
+    ) -> dict[str, Any]:
+        return plan(question, context, self._invoke, sampling)
 
     def _forced_proposal(
         self, question: str, context_json: str, figures: dict[str, Any]
