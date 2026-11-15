@@ -266,10 +266,17 @@ class PdfShellSandbox(unittest.TestCase):
 
     # S269-103
     def test_chromium_is_launched_with_its_sandbox(self) -> None:
-        # Playwright adds --no-sandbox unless chromiumSandbox is exactly true.
-        launch = re.search(r"chromium\.launch\((\{[^)]*\})\)", PDF_SIDECAR.read_text("utf-8"))
+        # Playwright adds --no-sandbox unless chromiumSandbox is exactly true. Since F-269-13
+        # the flag is a variable that is false only for an explicit QUILTOR_PDF_SANDBOX=off.
+        source = PDF_SIDECAR.read_text("utf-8")
+        launch = re.search(r"chromium\.launch\((\{[^)]*\})\)", source)
         assert launch is not None, "chromium.launch(...) not found"
-        self.assertRegex(launch.group(1), r"chromiumSandbox:\s*true")
+        self.assertRegex(launch.group(1), r"chromiumSandbox:\s*sandbox\b")
+        self.assertRegex(
+            source,
+            r'const sandbox = \(process\.env\.QUILTOR_PDF_SANDBOX \?\? ""\)'
+            r'\.trim\(\)\.toLowerCase\(\) !== "off";',
+        )
 
 
 class SigningMaterial(unittest.TestCase):

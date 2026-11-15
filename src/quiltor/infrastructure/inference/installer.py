@@ -254,6 +254,9 @@ def _model_artifacts(repository: str, revision: str = "main") -> dict[str, Artif
     commit = huggingface_repository_revision(metadata)
     if pin is not None and commit != pin.revision:
         raise ValueError(f"Model repository {repository} did not resolve to its pinned commit.")
+    if revision != "main" and len(revision) == len(commit) and commit != revision:
+        # A pinned commit must come back as itself; anything else is not the file the pin names.
+        raise ValueError(f"Model repository {repository} answered {commit}, not {revision}.")
     # Hugging Face serves the file tree one bounded page at a time and points at
     # the next one through a Link header; a repository whose listing is cut short
     # would silently install an incomplete model, so walk it to the end.
@@ -387,12 +390,14 @@ def install_model(
     on_progress: Callable[[str, int], None] | None = None,
     *,
     paths: InstallerPaths | None = None,
+    revision: str | None = None,
 ) -> None:
+    """Fetch one GGUF file; ``revision`` pins the repository commit (default: its main branch)."""
     selected = paths or installer_paths()
     relative = safe_relative_path(filename)
     if len(relative.parts) != 1:
         raise ValueError("GGUF model filename must not contain directories.")
-    artifacts = _model_artifacts(repo)
+    artifacts = _model_artifacts(repo) if revision is None else _model_artifacts(repo, revision)
     artifact = artifacts.get(filename)
     if artifact is None:
         raise ValueError(f"Model file {filename!r} is not published by {repo}.")

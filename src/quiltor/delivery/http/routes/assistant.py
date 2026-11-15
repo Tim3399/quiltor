@@ -11,7 +11,12 @@ from quiltor.modules.assistant import (
     ASSISTANT_REPLY_LANGUAGES,
     DEFAULT_ASSISTANT_LANGUAGE,
 )
-from quiltor.modules.assistant.engines import EngineChoice, InvalidEngine, parse_engine
+from quiltor.modules.assistant.engines import (
+    CLIENT_ENGINE_KINDS,
+    EngineChoice,
+    InvalidEngine,
+    parse_engine,
+)
 from quiltor.modules.assistant.jobs import IdempotencyConflict, TooManyOpenJobs
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 from quiltor.modules.assistant.ports import ClientJobRunning
@@ -47,6 +52,9 @@ def status(handler, request: Request, app) -> None:
             "ok": True,
             **app.assistant.status(),
             "premium": True,
+            # The user's own engines this server accepts jobs for; none while
+            # QUILTOR_ASSISTANT_CLIENT_AI is off (T-61 part 9).
+            "clientEngines": sorted(CLIENT_ENGINE_KINDS) if app.client_ai else [],
             "installed": app.assistant_installation.is_configured(),
             # False on a hosted server: the operator installs, the client shows no button.
             "installable": app.installable,

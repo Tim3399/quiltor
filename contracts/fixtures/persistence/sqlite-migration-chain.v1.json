@@ -2,7 +2,7 @@
   "contract": "quiltor.sqlite-migrations",
   "version": 1,
   "baselineSchemaVersion": 1,
-  "currentSchemaVersion": 15,
+  "currentSchemaVersion": 16,
   "direction": "forward-only",
   "steps": [
     {
@@ -93,6 +93,13 @@
         "Gives every element one note: the text of each Storyboard reference card is appended to the note of the chapter, figure, place or timeline moment it shows, as a block `\n\n— Aus Storyboard „<board title>“ —\n<text>` (without the leading blank paragraph when the element note is empty), ordered by board position, card position and card id, one block per card without deduplication; blank card texts append nothing. Note references and marks move with their text, shifted by the block offset in UTF-16 code units, and a reference id that is already taken on the target note gets the first free suffix `-sb1`, `-sb2`, ....",
         "Afterwards no reference card carries text, note references or note marks. A card whose element is missing (deleted figure or moment, chapter in the trash) or whose block would exceed a note limit (chapter note 100000 characters, 10000 references or marks) loses its text; such cards are counted per board and element in `meta.migration_v15_discarded_notes`, never with their text. A figure without a profile row gets one.",
         "Deterministic and idempotent, so a migrated cloud snapshot and the world it restores have the same fingerprint. Advances `storyboards_revision`, and `manuscript_revision` or `figures_revision`, only when that document changed; a meta-only database is left alone. The markdown mirror is refreshed on the next save, not by this step."
+      ]
+    },
+    {
+      "from": 15,
+      "to": 16,
+      "guarantees": [
+        "Adds the column `engine` to `assistant_interactions`, so the audit names the kind of engine that computed an answer (`server`, `webllm` or `cloud`), never a model name or a key. Every interaction recorded before reads `server`, the column's default, because only the server engine existed. Runs when a world is opened, checks `sqlite_master` first and does nothing for a database without the table, leaves document revisions and every other table untouched, and is idempotent."
       ]
     }
   ]

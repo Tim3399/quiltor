@@ -21,6 +21,16 @@ function numberParam(error: unknown, name: string): number {
   return typeof value === "number" ? value : 0;
 }
 
+/** True for the server's request to pause, which the grammar check rides out silently. */
+export function isRateLimited(error: unknown): boolean {
+  return errorCode(error) === "writing_assistance.rate_limited";
+}
+
+/** The pause a `429` asked for, from its `Retry-After` header; one second when it named none. */
+export function retryAfterMs(error: unknown): number {
+  return Math.max(1, numberParam(error, "retryAfter")) * 1000;
+}
+
 /** "620 MB" in the interface language, which the I18nProvider keeps on <html lang>. */
 function formatMegabytes(bytes: number): string {
   const locale = document.documentElement.lang || "de";

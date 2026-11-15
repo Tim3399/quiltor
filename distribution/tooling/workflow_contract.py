@@ -813,6 +813,44 @@ def validate_linux_playwright_install(sources: dict[Path, str], script: str | No
         raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must not swallow a failed attempt")
 
 
+USERNS_SYSCTL = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
+
+
+def validate_linux_pdf_sandbox(sources: dict[Path, str]) -> None:
+    """
+    Every Linux job of test.yml that serves the product suite lifts Ubuntu 24.04's userns limit.
+
+    Without it Chromium gets no sandbox, and the PDF export ends in `sandbox_unavailable` (D-210,
+    run 43611856985). The step must come before the first Playwright step and must fail the job
+    when sysctl refuses; CI never switches the sandbox off, because it has to test it.
+    """
+
+    for path, source in sources.items():
+        if path.name != "test.yml":
+            continue
+        if re.search(r"^[^#\n]*QUILTOR_PDF_SANDBOX\s*[:=]\s*[\"']?off", source, re.MULTILINE):
+            raise WorkflowContractError(
+                f"{path.name} switches the PDF sandbox off; CI must test it with the sandbox"
+            )
+        for name, job in _job_blocks(source):
+            runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+            if not runs_on or "ubuntu" not in runs_on.group(1) or "server.py 8010" not in job:
+                continue
+            steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+            lift = [i for i, step in enumerate(steps) if USERNS_SYSCTL in step]
+            first = next((i for i, step in enumerate(steps) if "playwright test" in step), None)
+            if not lift or first is None or lift[0] > first:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} runs the product suite on Ubuntu without lifting the "
+                    f"user-namespace restriction first: {USERNS_SYSCTL}"
+                )
+            step = steps[lift[0]]
+            if re.search(r"\|\|\s*(true|:)\b", step) or "continue-on-error" in step:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must fail when the user-namespace restriction stays"
+                )
+
+
 WINDOWS_PORT_RANGE = "netsh int ipv4 set dynamicport tcp start=10000 num=55535"
 WINDOWS_PORT_RANGE_CHECK = "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"
 
@@ -1113,16 +1151,40 @@ FILTERED_JOBS = {
     ),
 }
 CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
-# Jobs outside the path filter and outside the verdict: started only by a manual run that asks
-# for them, never by a pull request, a push or a release call. browser-e2e must not need them,
-# so a skipped or red probe never touches release evidence. The value is the job's only `if:`.
+# Jobs of test.yml that run only when a manual dispatch asks for them (T-179, D-167, T-272).
+# They are not required checks and stand outside the path filter and the verdict: browser-e2e
+# does not need them, so "not asked for" is a skip by design and never reaches the gate. One form
+# describes every one of them (D-208): the boolean workflow_dispatch input that asks for it --
+# default false, never offered to workflow_call -- and how that input starts the job:
+#   "input" -- the job reads the input itself; "body" is the job, exactly (a call of another
+#              workflow).
+#   "plan"  -- the plan job decides; "decision" is the line in plan that turns the input into an
+#              output, "condition" the job's only `if:`. Such a job needs plan alone, reads the
+#              repository and nothing else, uses no cache and keeps its artifact only briefly.
 OPTIONAL_JOBS = {
-    "desktop-csp-probe": "needs.plan.outputs.desktop_csp_probe == 'true'",  # T-272
+    "llama-conformance": {
+        "input": "llama_conformance",
+        "start": "input",
+        "body": (
+            "    if: inputs.llama_conformance == true\n"
+            "    permissions:\n"
+            "      contents: read\n"
+            "    uses: ./.github/workflows/llama-conformance.yml\n"
+            "    with:\n"
+            "      spike: ${{ inputs.llama_spike == true }}\n"
+        ),
+    },
+    # The probe runs only in a reduced run: full_matrix == false is part of the decision.
+    "desktop-csp-probe": {
+        "input": "desktop_csp_probe",
+        "start": "plan",
+        "condition": "needs.plan.outputs.desktop_csp_probe == 'true'",
+        "decision": (
+            "DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && "
+            "inputs.desktop_csp_probe == true && inputs.full_matrix == false }}"
+        ),
+    },
 }
-OPTIONAL_JOB_DECISION = (
-    "DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && "
-    "inputs.desktop_csp_probe == true && inputs.full_matrix == false }}"
-)
 
 
 def plan_output_expression(group: str) -> str:
@@ -1376,26 +1438,11 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
 
     jobs = dict(_job_blocks(workflow))
     unplaced = set(jobs) - set(FILTERED_JOBS) - set(OPTIONAL_JOBS) - {"plan", "browser-e2e"}
-    for name, condition in OPTIONAL_JOBS.items():
-        body = jobs.get(name)
-        if body is None:
-            raise WorkflowContractError(f"workflow is missing the optional {name} job")
-        if not re.search(r"^    needs: plan$", body, re.MULTILINE):
-            raise WorkflowContractError(f"test.yml:{name} must need only the plan job")
-        if re.findall(r"^    if: ([^\n]*)$", body, re.MULTILINE) != [condition]:
-            raise WorkflowContractError(f"test.yml:{name} must run on exactly: if: {condition}")
-        if "secrets." in body or "      contents: read\n" not in body:
-            raise WorkflowContractError(f"test.yml:{name} reads the repository and nothing else")
-        if "cache:" in body or "actions/cache" in body:
-            raise WorkflowContractError(f"test.yml:{name} may not use a cache")
-        if "retention-days:" not in body:
-            raise WorkflowContractError(f"test.yml:{name} must keep its artifact only briefly")
-    if OPTIONAL_JOB_DECISION not in jobs["plan"]:
-        raise WorkflowContractError("the plan job must start the optional jobs on dispatch only")
     if unplaced:
         raise WorkflowContractError(
             "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
         )
+    validate_optional_jobs(workflow, jobs)
     # The browser jobs start beside frontend, not after it (T-46): they serve the committed
     # dist/ and take nothing from frontend. Its edge used to drop them whenever frontend was
     # filtered off; now every rule that selects browser must also select checks.
@@ -1430,8 +1477,6 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
     # frontend turns the run red. It must stay a required need here, whatever FILTERED_JOBS says.
     if "frontend" not in listed or "frontend" not in FILTERED_JOBS:
         raise WorkflowContractError("browser-e2e must need and gate the frontend job")
-    if set(listed) & set(OPTIONAL_JOBS):
-        raise WorkflowContractError("browser-e2e must not need an optional job")
     if sorted(listed) != sorted(["plan", *FILTERED_JOBS]):
         raise WorkflowContractError("browser-e2e must need the plan and every filtered job")
     for evidence in (
@@ -1456,6 +1501,70 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
                 raise WorkflowContractError(f"browser-e2e does not gate {name}: {evidence.strip()}")
     if "continue-on-error" in workflow:
         raise WorkflowContractError("test.yml may not use continue-on-error")
+
+
+def _trigger_inputs(workflow: str, trigger: str) -> str:
+    triggers = workflow.partition("\njobs:")[0]
+    block = re.search(rf"^  {trigger}:\n((?:    .*\n|\n)*)", triggers + "\n", re.MULTILINE)
+    return block.group(1) if block else ""
+
+
+def validate_optional_jobs(workflow: str, jobs: dict[str, str]) -> None:
+    """An optional job runs only on a dispatch that asks for it, and no gate waits for it."""
+
+    dispatch = _trigger_inputs(workflow, "workflow_dispatch")
+    call = _trigger_inputs(workflow, "workflow_call")
+    for name, spec in OPTIONAL_JOBS.items():
+        body = jobs.get(name)
+        if body is None:
+            raise WorkflowContractError(f"workflow is missing the {name} job")
+        if spec["start"] == "input":
+            if body.strip("\n") != spec["body"].strip("\n"):
+                raise WorkflowContractError(
+                    f"test.yml:{name} must be exactly an on-request call:\n{spec['body']}"
+                )
+        elif spec["start"] == "plan":
+            _validate_planned_optional_job(name, spec, body, jobs["plan"])
+        else:
+            raise WorkflowContractError(
+                f"OPTIONAL_JOBS[{name}] has no known start: {spec['start']}"
+            )
+        field = re.search(rf"^      {spec['input']}:\n((?:        .*\n)*)", dispatch, re.MULTILINE)
+        fields = field.group(1) if field else ""
+        if "        type: boolean\n" not in fields or "        default: false\n" not in fields:
+            raise WorkflowContractError(
+                f"test.yml workflow_dispatch must declare the boolean input {spec['input']}, "
+                "default false"
+            )
+        if re.search(rf"^      {spec['input']}:", call, re.MULTILINE):
+            raise WorkflowContractError(
+                f"test.yml workflow_call may not offer {spec['input']}; a caller never runs {name}"
+            )
+        if re.search(
+            rf"^\s+(?:- )?{re.escape(name)}$|needs\['{re.escape(name)}'\]",
+            jobs["browser-e2e"],
+            re.MULTILINE,
+        ):
+            raise WorkflowContractError(f"browser-e2e may not need the optional job {name}")
+
+
+def _validate_planned_optional_job(name: str, spec: dict[str, str], body: str, plan: str) -> None:
+    """An optional job the plan job starts: plan decides, the job only reads that decision."""
+
+    if spec["decision"] not in plan:
+        raise WorkflowContractError(
+            f"the plan job must start {name} on dispatch only: {spec['decision']}"
+        )
+    if not re.search(r"^    needs: plan$", body, re.MULTILINE):
+        raise WorkflowContractError(f"test.yml:{name} must need only the plan job")
+    if re.findall(r"^    if: ([^\n]*)$", body, re.MULTILINE) != [spec["condition"]]:
+        raise WorkflowContractError(f"test.yml:{name} must run on exactly: if: {spec['condition']}")
+    if "secrets." in body or "      contents: read\n" not in body:
+        raise WorkflowContractError(f"test.yml:{name} reads the repository and nothing else")
+    if "cache:" in body or "actions/cache" in body:
+        raise WorkflowContractError(f"test.yml:{name} may not use a cache")
+    if "retention-days:" not in body:
+        raise WorkflowContractError(f"test.yml:{name} must keep its artifact only briefly")
 
 
 CHECK_RUNNER = "node tools/dev/run-check.mjs"
@@ -1628,8 +1737,8 @@ def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
         )
     if not set(FILTERED_JOBS) >= REDUCED_ONLY:
         raise WorkflowContractError("every reduced-only job must be a filtered job")
-    # The optional jobs stand outside on purpose (OPTIONAL_JOBS): only a dispatch that asks for
-    # them starts one, and validate_path_filter holds that browser-e2e never needs them.
+    # An optional job is never part of a caller's run: workflow_call cannot request it
+    # (validate_optional_jobs), so full mode skips it and the verdict does not cover it.
     jobs = {name: body for name, body in _job_blocks(workflow) if name not in OPTIONAL_JOBS}
     if set(jobs) != {"plan", "browser-e2e", *FILTERED_JOBS}:
         raise WorkflowContractError(
@@ -2817,6 +2926,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_playwright_worker_settings(sources)
         validate_product_server_log(sources)
         validate_linux_playwright_install(sources)
+        validate_linux_pdf_sandbox(sources)
         validate_windows_port_range(sources)
         validate_windows_playwright_install(sources)
         validate_full_matrix_switch(sources)

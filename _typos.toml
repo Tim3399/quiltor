@@ -20,6 +20,10 @@ extend-exclude = [
   # The interface itself: German product text (CLAUDE.md, "Language").
   "locales/de/**",
 
+  # Raw answers a real llama-server gave (T-179): model output and random ids, recorded as they
+  # came and graded again from these files. Correcting them would change the evidence.
+  "tests/python/fixtures/llama-conformance/**",
+
   # Build output. Minified bundles contain the German interface text and every identifier
   # of the sources; the sources are the thing to check.
   "dist/**",

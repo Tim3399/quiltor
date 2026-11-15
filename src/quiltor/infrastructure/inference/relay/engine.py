@@ -68,6 +68,7 @@ class RelayInferenceEngine:
         *,
         clock: Callable[[], float] = time.monotonic,
         job_seconds: float = JOB_SECONDS,
+        answer_seconds: dict[str, float] | None = None,
     ) -> None:
         self._tickets = tickets
         self._job_id = job_id
@@ -75,6 +76,7 @@ class RelayInferenceEngine:
         self._clock = clock
         self._job_deadline = clock() + job_seconds
         self._job_seconds = job_seconds
+        self._answer_seconds = dict(ANSWER_SECONDS if answer_seconds is None else answer_seconds)
         self._calibration = 1.0
         # Set by close(): a closed engine opens no further ticket (F-61-12). The pipeline
         # may call invoke again between two model calls after the job was cancelled.
@@ -134,7 +136,9 @@ class RelayInferenceEngine:
         if self._clock() >= self._job_deadline:
             raise InferenceTimeoutError(self._job_seconds)
         request = payload if self._engine.get("grammar") else json_object_fallback(payload)
-        answer_seconds = ANSWER_SECONDS.get(str(self._engine.get("kind")), ANSWER_SECONDS["cloud"])
+        answer_seconds = self._answer_seconds.get(
+            str(self._engine.get("kind")), self._answer_seconds["cloud"]
+        )
         started = self._clock()
         try:
             ticket = self._tickets.issue(

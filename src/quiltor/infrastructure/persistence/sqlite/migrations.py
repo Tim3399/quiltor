@@ -554,6 +554,16 @@ def migrate(database: sqlite3.Connection, version: int) -> None:
         # A reference card stops carrying a note of its own: its text is appended to the one
         # note of the chapter, figure, place or moment it shows (T-177, D-97, D-100).
         _move_reference_card_notes(database)
+    # The audit names the engine that computed an answer (T-61 part 9): the operator's
+    # model or the user's own. Only the kind, never a model name or a key. Every
+    # interaction recorded before ran on the server, the column's default.
+    if version < 16 and _table_exists(database, "assistant_interactions"):
+        columns = {row[1] for row in database.execute("PRAGMA table_info(assistant_interactions)")}
+        if "engine" not in columns:
+            database.execute(
+                "ALTER TABLE assistant_interactions"
+                " ADD COLUMN engine TEXT NOT NULL DEFAULT 'server'"
+            )
     database.execute(
         "INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)",
         (str(SCHEMA_VERSION),),
