@@ -19,7 +19,7 @@ from typing import Any
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.modules.assistant.engines import CLOUD, SERVER, WEBLLM, ClientEngineFailure
 from quiltor.modules.assistant.jobs import AssistantJobRunner
-from quiltor.modules.assistant.ports import ClientJobRunning
+from quiltor.modules.assistant.ports import ClientJobRunning, InferenceContextTooLargeError
 from tests.python.narrowing import present
 from tests.python.test_assistant_jobs import (
     WORLD_ID,
@@ -278,6 +278,40 @@ class ClientJobRunnerTests(unittest.TestCase):
             done = runner.wait(job["id"], "bob", WORLD_ID, timeout=3)
             self.assertEqual(done["status"], "failed")
             self.assertNotIn("engineError", done)
+        finally:
+            runner.close()
+
+    def test_a_server_context_overflow_carries_no_engine_error(self):
+        class _TooLarge(_BlockingRuntime):
+            def complete(self, question, *args, **kwargs):
+                raise InferenceContextTooLargeError("exceeds the local model's context window")
+
+        self.server = _TooLarge()
+        runner = self._runner()
+        try:
+            job = _submit(runner, "bob", "server-large", SERVER)
+            done = runner.wait(job["id"], "bob", WORLD_ID, timeout=3)
+            self.assertEqual(done["status"], "failed")
+            self.assertEqual(done["errorType"], "context_too_large")
+            self.assertNotIn("engineError", done)
+        finally:
+            runner.close()
+
+    def test_a_client_context_overflow_carries_an_engine_error(self):
+        class _TooLarge(_BlockingRuntime):
+            def complete(self, question, *args, **kwargs):
+                raise ClientEngineFailure("context_too_large", "prompt too long")
+
+        runner = self._runner()
+        self.clients["alice"] = _TooLarge()
+        try:
+            job = _submit(runner, "alice", "client-large")
+            done = runner.wait(job["id"], "alice", WORLD_ID, timeout=3)
+            self.assertEqual(done["status"], "failed", done)
+            self.assertEqual(done["errorType"], "context_too_large")
+            self.assertEqual(
+                done.get("engineError"), {"code": "context_too_large", "detail": "prompt too long"}
+            )
         finally:
             runner.close()
 
