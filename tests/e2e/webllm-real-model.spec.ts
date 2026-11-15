@@ -2,7 +2,11 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, chromium } from "@playwright/test";
 import { ROOT } from "./support/python-process";
-import { presentAsHosted, startTestHooksServer, type TestHooksServer } from "./support/test-hooks-server";
+import {
+  presentAsHosted,
+  startTestHooksServer,
+  type TestHooksServer,
+} from "./support/test-hooks-server";
 import { test as base, createTestWorld, expect } from "./support/world-fixture";
 
 // The in-browser engine with the real model, end to end (D-T-61-7-E2E, T-61 part 7).
