@@ -350,7 +350,7 @@ class ExternalEngineTests(_ExternalEngineCase):
         engine = self.engine()
         reply = {"message": "Alles bereit.", "citations": [], "proposals": []}
         # The answer comes through the read-tool loop, which wraps it as its final step.
-        final = {"action": "final", "final": reply}
+        final = {"step": {"action": "final", "final": reply}}
         self.answer_chat((200, chat_answer("openai", json.dumps(final))))
         runtime = AssistantRuntime(
             Path("."),

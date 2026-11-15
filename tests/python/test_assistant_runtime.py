@@ -229,8 +229,8 @@ class FakeInference:
             raise AssertionError("unexpected inference call")
         reply = dict(self.replies.pop(0))
         schema_name = payload.get("response_format", {}).get("json_schema", {}).get("name")
-        if schema_name == "quiltor_read_tool_step" and "action" not in reply:
-            return {"action": "final", "final": reply}
+        if schema_name == "quiltor_read_tool_step":
+            return {"step": reply if "action" in reply else {"action": "final", "final": reply}}
         return reply
 
     def count_tokens(self, text):
@@ -548,6 +548,80 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             "".join(item["content"] for item in repair_call["messages"]),
         )
         self.assertEqual([item["kind"] for item in result["proposals"]], ["create_element"])
+
+    def _repair_run(self, repaired):
+        incomplete_final = {"message": "", "citations": [], "proposals": []}
+        runtime, inference = self._runtime(incomplete_final, repaired)
+        runtime._forced_proposal = lambda *_args: None
+        complete = lambda: runtime.complete(  # noqa: E731
+            "Lege Igor als neue Figur an.", {}, FIGURES, history=None, world_revision=10
+        )
+        return complete, inference
+
+    def test_the_repair_retry_keeps_the_full_check_schema(self):
+        repaired = {
+            "message": "Vorbereitet.",
+            "citations": [],
+            "proposals": [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:igor",
+                    "element": {"type": "person", "name": "Igor"},
+                }
+            ],
+        }
+        complete, inference = self._repair_run(repaired)
+        complete()
+
+        retry_format = inference.calls[-1]["response_format"]
+        wire = retry_format["json_schema"]["schema"]
+        check = retry_format.check_schema
+        self.assertEqual(wire["properties"]["proposals"]["minItems"], 1)
+        self.assertEqual(check["properties"]["proposals"]["minItems"], 1)
+        self.assertTrue(check["properties"]["citations"]["uniqueItems"])
+        self.assertNotIn("uniqueItems", wire["properties"]["citations"])
+        name = check["properties"]["proposals"]["items"]["anyOf"][0]["properties"]["element"]
+        self.assertEqual(name["properties"]["name"]["maxLength"], 160)
+
+    def test_the_repair_retry_is_checked_against_lengths_and_uniqueness(self):
+        for label, repaired in (
+            (
+                "duplicate citations",
+                {
+                    "message": "Vorbereitet.",
+                    "citations": ["c1", "c1"],
+                    "proposals": [
+                        {
+                            "kind": "create_element",
+                            "tempId": "new:igor",
+                            "element": {"type": "person", "name": "Igor"},
+                        }
+                    ],
+                },
+            ),
+            (
+                "name with 161 characters",
+                {
+                    "message": "Vorbereitet.",
+                    "citations": [],
+                    "proposals": [
+                        {
+                            "kind": "create_element",
+                            "tempId": "new:igor",
+                            "element": {"type": "person", "name": "I" * 161},
+                        }
+                    ],
+                },
+            ),
+        ):
+            with self.subTest(label):
+                complete, inference = self._repair_run(repaired)
+                with self.assertRaises(InferenceValidationError):
+                    complete()
+                self.assertEqual(
+                    inference.calls[-1]["response_format"]["json_schema"]["name"], "quiltor_reply"
+                )
+                self.assertEqual(len(inference.calls), 2)
 
     def test_complex_planner_gets_a_deterministic_search_seed_when_model_returns_none(self):
         planner_reply = {"goal": "audit", "steps": [], "searchQueries": [], "requiredKinds": []}
@@ -876,10 +950,10 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         )
         schema = inference.calls[0]["response_format"]["json_schema"]["schema"]
         proposal_kinds = {
-            branch["properties"]["kind"]["const"]
-            for branch in schema["oneOf"][1]["properties"]["final"]["properties"]["proposals"][
-                "items"
-            ]["oneOf"]
+            branch["properties"]["kind"]["enum"][0]
+            for branch in schema["properties"]["step"]["anyOf"][1]["properties"]["final"][
+                "properties"
+            ]["proposals"]["items"]["anyOf"]
         }
         self.assertNotIn("arrange_elements", proposal_kinds)
 

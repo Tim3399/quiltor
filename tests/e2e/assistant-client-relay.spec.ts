@@ -80,9 +80,9 @@ function completion(message: string) {
         {
           message: {
             role: "assistant",
+            // The tool-step schema wraps each step in `step` (T-179 part 3, lac-schema-v1).
             content: JSON.stringify({
-              action: "final",
-              final: { message, citations: [], proposals: [] },
+              step: { action: "final", final: { message, citations: [], proposals: [] } },
             }),
           },
           finish_reason: "stop",

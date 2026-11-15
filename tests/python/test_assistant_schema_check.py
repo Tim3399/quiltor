@@ -43,10 +43,9 @@ CASES = {
         {"a": 1, "b": 2},
     ),
     "enum": ({"enum": ["thematic", "grid"]}, "grid", "spiral"),
-    "const": ({"const": "create_element"}, "create_element", "update_element"),
     "pattern": ({"type": "string", "pattern": "^new:.*$"}, "new:a", "old:a"),
-    "oneOf": (
-        {"oneOf": [{"type": "string"}, {"type": "integer"}]},
+    "anyOf": (
+        {"anyOf": [{"type": "string"}, {"type": "integer"}]},
         "x",
         None,
     ),
@@ -95,13 +94,15 @@ class KeywordTests(unittest.TestCase):
         self.assertEqual(keywords((True, {"type": "number"})), ["type"])
         self.assertEqual(keywords((False, {"type": "integer"})), ["type"])
 
-    def test_one_of_rejects_a_value_matching_two_branches(self):
-        schema = {"oneOf": [{"type": "integer"}, {"type": "number"}]}
-        self.assertEqual(keywords((3, schema)), ["oneOf"])
+    def test_any_of_accepts_a_value_matching_any_branch(self):
+        schema = {"anyOf": [{"type": "integer"}, {"type": "number"}]}
+        self.assertEqual(keywords((3, schema)), [])
+        self.assertEqual(keywords((2.5, schema)), [])
+        self.assertEqual(keywords(("3", schema)), ["anyOf"])
 
     def test_violations_carry_the_path(self):
         violations = check(reply(proposals=[{"kind": "x"}]), reply_schema())
-        self.assertEqual([str(item) for item in violations], ["$.proposals[0] oneOf"])
+        self.assertEqual([str(item) for item in violations], ["$.proposals[0] anyOf"])
 
     def test_a_schema_deeper_than_the_limit_is_refused(self):
         nested = {"type": "array"}
@@ -138,16 +139,18 @@ class SelfTest(unittest.TestCase):
                 check({}, schema)
 
     def test_an_unknown_keyword_raises(self):
-        schema = copy.deepcopy(reply_schema())
-        schema["properties"]["message"] = {"anyOf": [{"type": "string"}]}
-        with self.assertRaises(UnsupportedSchemaKeyword):
-            check(reply(), schema)
+        for keyword in ("oneOf", "allOf", "const"):
+            with self.subTest(keyword=keyword):
+                schema = copy.deepcopy(reply_schema())
+                schema["properties"]["message"] = {keyword: [{"type": "string"}]}
+                with self.assertRaises(UnsupportedSchemaKeyword):
+                    check(reply(), schema)
 
     def test_an_unknown_keyword_raises_in_a_branch_the_value_never_reaches(self):
         schema = copy.deepcopy(tool_step_schema(read_tool_catalog(), KINDS))
-        schema["oneOf"][0]["properties"]["toolCalls"]["format"] = "x"
+        schema["properties"]["step"]["anyOf"][0]["properties"]["toolCalls"]["format"] = "x"
         with self.assertRaises(UnsupportedSchemaKeyword):
-            check({"action": "final", "final": reply()}, schema)
+            check({"step": {"action": "final", "final": reply()}}, schema)
 
     def test_an_unlisted_pattern_raises(self):
         with self.assertRaises(UnsupportedSchemaKeyword):
@@ -164,12 +167,15 @@ class OracleTests(unittest.TestCase):
         reply(proposals=[proposal(i) for i in range(21)]),
         reply(proposals=[{"kind": "create_element", "tempId": "new:a", "element": {"name": "A"}}]),
         reply(proposals=[{"kind": "create_element", "tempId": "a", "element": {"name": "A"}}]),
-        {"action": "final", "final": reply()},
+        {"step": {"action": "final", "final": reply()}},
         {
-            "action": "tool_calls",
-            "toolCalls": [{"name": "get_entity", "arguments": {"elementId": "a"}}],
+            "step": {
+                "action": "tool_calls",
+                "toolCalls": [{"name": "get_entity", "arguments": {"elementId": "a"}}],
+            }
         },
-        {"action": "tool_calls", "toolCalls": []},
+        {"step": {"action": "tool_calls", "toolCalls": []}},
+        {"action": "final", "final": reply()},
         {"goal": "g", "steps": [], "searchQueries": ["a", "a"], "requiredKinds": []},
         {"goal": "g", "steps": ["s"], "searchQueries": [], "requiredKinds": ["mark_deceased"]},
         {"message": True},
