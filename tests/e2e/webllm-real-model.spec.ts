@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type BrowserContext, chromium } from "@playwright/test";
+import { type APIRequestContext, type BrowserContext, chromium, type Page } from "@playwright/test";
+import { seedExampleWorld } from "./support/example-world";
 import { ROOT } from "./support/python-process";
 import {
   presentAsHosted,
@@ -98,6 +99,58 @@ test.use({
   launchOptions: { args: ARGS },
 });
 
+/** The text the server sends when the read step could not finish (completion.py). */
+const READ_STEP_FALLBACK = "Der sichere Leseschritt konnte nicht abgeschlossen werden.";
+/** Figures of the example world an answer may name. */
+const EXAMPLE_FIGURES = ["Mara", "Iven", "Oda", "Tilo", "Ada", "Bela", "Lumen"];
+
+/** Asks the open drawer who is in the world, waits for the job and checks the drawer shows it. */
+async function askAndRead(page: Page, request: APIRequestContext, worldId: string) {
+  const drawer = page.getByRole("complementary", { name: "Lokaler Assistent" });
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/assistant/jobs" &&
+      response.request().method() === "POST",
+  );
+  await drawer
+    .getByRole("textbox", { name: "Nachricht an den lokalen Assistenten" })
+    .fill("Wer kommt in dieser Welt vor?");
+  await drawer.getByRole("button", { name: "Nachricht senden" }).click();
+  const response = await created;
+  expect(response.status(), await response.text()).toBe(202);
+  expect(response.request().postDataJSON().engine?.kind).not.toBe("server");
+  const jobId = ((await response.json()) as { job: { id: string } }).job.id;
+
+  const asked = Date.now();
+  let job: { status: string; result?: { message?: string } | null; error?: string } = {
+    status: "",
+  };
+  await expect
+    .poll(
+      async () => {
+        const read = await request.get(`/api/assistant/job?id=${jobId}&world=${worldId}`);
+        job = ((await read.json()) as { job: typeof job }).job;
+        return job.status;
+      },
+      { timeout: 15 * 60_000, intervals: [2_000] },
+    )
+    .toMatch(/^(completed|failed|cancelled)$/);
+  const answerSeconds = Math.round((Date.now() - asked) / 1000);
+  expect(job.status, job.error).toBe("completed");
+  const answer = (job.result?.message ?? "").trim();
+  expect(answer.length).toBeGreaterThan(0);
+  expect(answer, "the read step ended in the fallback text").not.toContain(READ_STEP_FALLBACK);
+  // The drawer polls the job ever less often (up to ~7 s apart near the end, T-61 diagnosis).
+  await expect(drawer.getByText(answer.slice(0, 40), { exact: false }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  return {
+    answerSeconds,
+    answerLength: answer.length,
+    names: EXAMPLE_FIGURES.filter((name) => answer.includes(name)),
+  };
+}
+
 /** What the run measured, reported even when an assertion fails half-way. */
 let lastLog: Record<string, unknown> | null = null;
 
@@ -190,40 +243,19 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
   }
   log.loadSeconds = Math.round((Date.now() - started) / 1000);
 
-  const created = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/assistant/jobs" &&
-      response.request().method() === "POST",
-  );
-  await drawer
-    .getByRole("textbox", { name: "Nachricht an den lokalen Assistenten" })
-    .fill("Wer kommt in dieser Welt vor?");
-  await drawer.getByRole("button", { name: "Nachricht senden" }).click();
-  const response = await created;
-  expect(response.status(), await response.text()).toBe(202);
-  expect(response.request().postDataJSON().engine?.kind).not.toBe("server");
-  const jobId = ((await response.json()) as { job: { id: string } }).job.id;
+  // An empty world first: there the model looks up ids that do not exist, and a "not found"
+  // once ended the read step with the fallback text (T-61 diagnosis, D-218).
+  log.empty = await askAndRead(page, request, world.id);
 
-  const asked = Date.now();
-  let job: { status: string; result?: { message?: string } | null; error?: string } = {
-    status: "",
-  };
-  await expect
-    .poll(
-      async () => {
-        const read = await request.get(`/api/assistant/job?id=${jobId}&world=${world.id}`);
-        job = ((await read.json()) as { job: typeof job }).job;
-        return job.status;
-      },
-      { timeout: 15 * 60_000, intervals: [2_000] },
-    )
-    .toMatch(/^(completed|failed|cancelled)$/);
-  log.answerSeconds = Math.round((Date.now() - asked) / 1000);
-  expect(job.status, job.error).toBe("completed");
-  const answer = (job.result?.message ?? "").trim();
-  log.answerLength = answer.length;
-  expect(answer.length).toBeGreaterThan(0);
-  await expect(drawer.getByText(answer.slice(0, 40), { exact: false }).first()).toBeVisible();
+  // Then the example world, so the answer has something to read.
+  const seeded = await seedExampleWorld(page);
+  await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
+  await expect(browserEngine).toBeChecked();
+  log.seeded = await askAndRead(page, request, seeded.id);
+  expect(
+    (log.seeded as { names: string[] }).names.length,
+    "the answer about the example world names none of its figures",
+  ).toBeGreaterThan(0);
 
   await drawer.getByRole("button", { name: "Modell entfernen" }).click();
   await expect(drawer.getByRole("button", { name: "Modell herunterladen" })).toBeVisible({

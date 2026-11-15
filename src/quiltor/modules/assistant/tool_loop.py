@@ -45,6 +45,24 @@ def _prompt_tokens(messages: Sequence[dict[str, Any]], count_tokens: CountTokens
     return count_tokens("".join(str(item.get("content") or "") for item in messages))
 
 
+# A read tool's own, well-formed answer that the lookup failed (read_tools._error). It goes back
+# to the model as the tool's result, so that "no such entity" in an empty world becomes an answer
+# instead of ending the read step. Everything else that is not ok -- a wrong name, a missing
+# read-only or side-effect-free promise, another world revision, an exhausted budget -- still
+# ends the loop.
+RETURNABLE_ERROR_CODES = frozenset({"not_found", "invalid_arguments", "unavailable"})
+
+
+def _returnable_error(envelope: Mapping[str, Any]) -> bool:
+    error = envelope.get("error")
+    return (
+        envelope.get("ok") is False
+        and isinstance(error, Mapping)
+        and error.get("code") in RETURNABLE_ERROR_CODES
+        and isinstance(error.get("message"), str)
+    )
+
+
 def _failure(
     reason: str,
     messages: list[dict[str, Any]],
@@ -335,7 +353,7 @@ def run_tool_loop(
             if (
                 not isinstance(envelope, dict)
                 or envelope.get("name") != call["name"]
-                or envelope.get("ok") is not True
+                or not (envelope.get("ok") is True or _returnable_error(envelope))
                 or envelope.get("readOnly") is not True
                 or envelope.get("sideEffectFree") is not True
                 or envelope.get("worldRevision") != world_revision
@@ -387,11 +405,14 @@ def run_tool_loop(
                 result_tokens,
             )
 
-        for entry, serialized_envelope in zip(attempt_entries, serialized_envelopes, strict=False):
+        for entry, envelope, serialized_envelope in zip(
+            attempt_entries, envelopes, serialized_envelopes, strict=False
+        ):
+            succeeded = envelope.get("ok") is True
             entry.update(
                 {
-                    "ok": True,
-                    "status": "accepted",
+                    "ok": succeeded,
+                    "status": "accepted" if succeeded else "error_returned",
                     "resultChars": len(serialized_envelope),
                 }
             )
