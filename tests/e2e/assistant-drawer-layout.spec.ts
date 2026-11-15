@@ -81,7 +81,8 @@ test("on a computer of one's own the drawer names it and shows no switch", async
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "The drawer is a side panel only when wide.");
   await capabilities(page);
-  await createTestWorld(page, "Assistent auf diesem Rechner");
+  const world = await createTestWorld(page, "Assistent auf diesem Rechner");
+  await page.goto(`/?world=${world.id}`);
   const drawer = await openAssistant(page);
   await expect(drawer.getByText("Auf diesem Rechner · nur Vorschläge")).toBeVisible();
   await expect(drawer.getByRole("radiogroup", { name: "KI-Engine" })).toHaveCount(0);
@@ -97,7 +98,8 @@ test("hosted with the premium role the switch offers both and the controls keep 
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "The drawer is a side panel only when wide.");
   await capabilities(page, { hosted: true, serverAi: true });
-  await createTestWorld(page, "Assistent mit Premium");
+  const world = await createTestWorld(page, "Assistent mit Premium");
+  await page.goto(`/?world=${world.id}`);
   const drawer = await openAssistant(page);
   await expect(drawer.getByRole("radio", { name: "Server-KI" })).toBeChecked();
   await expect(drawer.getByText("Server-KI · nur Vorschläge")).toBeVisible();
@@ -115,7 +117,8 @@ test("hosted without the premium role the server AI is greyed out with its reaso
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "The drawer is a side panel only when wide.");
   await capabilities(page, { hosted: true, serverAi: false });
-  await createTestWorld(page, "Assistent ohne Premium");
+  const world = await createTestWorld(page, "Assistent ohne Premium");
+  await page.goto(`/?world=${world.id}`);
   const drawer = await openAssistant(page);
   await expect(drawer.getByText("Eigener Schlüssel · nur Vorschläge")).toBeVisible();
   await expect(
