@@ -163,6 +163,13 @@ class OidcIdentity(Identity):
         return self.auth.refresh_session(session.session_id)
 
 
+# How long the browser keeps the owner's cookie. Long on purpose: `quiltor run` may restart
+# the browser, and a cookie without Max-Age dies with it, leaving the reopened window without
+# its session. The length grants nothing -- the cookie only counts while this process lives
+# (`_owner_cookies` is in memory), and the night rule (F-269-10) still decides what it revives.
+OWNER_COOKIE_MAX_AGE = 365 * 24 * 3600
+
+
 class LocalIdentity(Identity):
     """The single person at this machine -- desktop, CLI, a source checkout.
 
@@ -354,9 +361,7 @@ class LocalIdentity(Identity):
             return
         with self._lock:
             self._owner_cookies.add(_digest(session_id))
-        # A browser-session cookie: no Max-Age the browser could run out on its own while
-        # the window stays open. It ends with the browser, the session with the process.
-        queue_session_cookie(handler, session_id, max_age=None)
+        queue_session_cookie(handler, session_id, max_age=OWNER_COOKIE_MAX_AGE)
 
     def _master_session(self, handler) -> auth.SessionData | None:
         """The local user's session, queueing its cookie so the rest of this page
