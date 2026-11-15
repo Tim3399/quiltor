@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, chromium } from "@playwright/test";
 import { ROOT } from "./support/python-process";
-import { startTestHooksServer, type TestHooksServer } from "./support/test-hooks-server";
+import { presentAsHosted, startTestHooksServer, type TestHooksServer } from "./support/test-hooks-server";
 import { test as base, createTestWorld, expect } from "./support/world-fixture";
 
 // The in-browser engine with the real model, end to end (D-T-61-7-E2E, T-61 part 7).
@@ -11,6 +11,9 @@ import { test as base, createTestWorld, expect } from "./support/world-fixture";
 // and needs a hardware WebGPU adapter, neither of which CI has. Its server is a Quiltor of its
 // own with QUILTOR_CSP=enforce and without test hooks, so connect-src is the policy that ships;
 // the cspGuard of the base fixture fails the test on any violation.
+//
+// The context presents the server as a hosted one (presentAsHosted): since D-205 only a hosted
+// server offers "Im Browser", a local installable one offers the server engine alone.
 //
 // QUILTOR_WEBLLM_PROFILE=<dir> keeps the browser profile, and with it WebLLM's model cache, in
 // that directory instead of a temporary one: the 2.5 GB land on a disk of one's choosing.
@@ -73,7 +76,11 @@ const test = base.extend<
     },
     { scope: "worker", timeout: 120_000 },
   ],
-  context: async ({ context, profileContext }, use) => use(profileContext ?? context),
+  context: async ({ context, profileContext }, use) => {
+    const active = profileContext ?? context;
+    await presentAsHosted(active);
+    await use(active);
+  },
 });
 
 // At file level, so a skipped run starts no server either.
