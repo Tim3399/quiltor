@@ -568,7 +568,6 @@ class ClientCacheTests(unittest.TestCase):
             client.close()
 
 
-
 class ClientDeadlineWiringTests(unittest.TestCase):
     def test_the_environment_deadlines_reach_the_client_job_engine(self):
         """F-61-31: the bootstrap hands the configured deadlines to every client engine."""
@@ -598,6 +597,7 @@ class ClientDeadlineWiringTests(unittest.TestCase):
                 self.assertEqual(engine._job_seconds, 7 * 60.0)
             finally:
                 client.close()
+
 
 if __name__ == "__main__":
     unittest.main()
