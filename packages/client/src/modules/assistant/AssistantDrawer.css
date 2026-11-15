@@ -5,14 +5,20 @@
   right: 0;
   bottom: 0;
   width: min(410px, 100vw);
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  /* A column, not fixed grid rows: the status shows one to four parts (engine switch, engine
+     panel, notices), and with fixed rows the world update landed in the growing row and
+     stretched its buttons to tiles (T-275). Only the conversation grows. */
+  display: flex;
+  flex-direction: column;
   border-left: 1px solid var(--line-strong);
   background: var(--panel);
   box-shadow: var(--shadow);
 }
-.assistant-drawer.has-offline {
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+.assistant-drawer > * {
+  flex: 0 0 auto;
+}
+.assistant-drawer > .assistant-messages {
+  flex: 1 1 auto;
 }
 .assistant-drawer-sheet .assistant-drawer {
   position: static;
@@ -63,9 +69,16 @@
   background: color-mix(in srgb, var(--canvas) 56%, var(--panel));
 }
 .assistant-world-update > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-5);
+}
+/* One line each: the action keeps its whole name and wraps the scope below it when the
+   drawer is too narrow for both. */
+.assistant-world-update-button {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .assistant-world-update > small {
   color: var(--muted);

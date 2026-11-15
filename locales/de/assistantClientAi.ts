@@ -2,6 +2,9 @@
 export const assistantClientAi = {
   assistantEngineLabel: "KI-Engine",
   assistantEngineServer: "Server-KI",
+  // Ohne Identität rechnet das Server-Modell auf dem Rechner der Autorin (T-275).
+  assistantEngineLocal: "Auf diesem Rechner",
+  assistantEngineServerLocked: "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
   assistantEngineBrowser: "Im Browser",
   assistantEngineOwnKey: "Eigener Schlüssel",
   errorAssistantClientJobRunning:

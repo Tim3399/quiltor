@@ -11,6 +11,7 @@ import { AssistantConversation } from "./AssistantConversation";
 import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
 import { useEngineChoice } from "./engines/useEngineChoice";
+import { useEngineLabels } from "./engines/useEngineLabels";
 import type { AssistantProposal } from "./model";
 import type { AssistantProposalApplyResult } from "./proposals";
 import { useAssistantAvailability } from "./useAssistantAvailability";
@@ -65,6 +66,7 @@ export function AssistantDrawer({
   const { status, installState, checkStatus, startInstall } = useAssistantAvailability(open);
   // One choice for the drawer and its status panel, so a switch of engine re-renders both.
   const engineChoice = useEngineChoice(status?.premium !== false);
+  const engineLabels = useEngineLabels();
   // The server's assistant locks the composer only while a job would run there: without a
   // runtime, or without the premium role, which the server enforces with a 403 (D-40). The
   // effective engine falls back to the server when nothing is offered, so that case locks too.
@@ -158,7 +160,9 @@ export function AssistantDrawer({
           <Sparkles />
           <span>
             <strong>{t("assistant")}</strong>
-            <small>{t("localOnlySuggestions")}</small>
+            <small>
+              {t("assistantEngineSuggestionsOnly", { engine: engineLabels[engineChoice.engine] })}
+            </small>
           </span>
         </div>
         <div className="assistant-header-actions">
@@ -185,6 +189,8 @@ export function AssistantDrawer({
           <Button
             className="assistant-world-update-button"
             appearance="secondary"
+            // The label may be cut at a narrow width; the full name stays reachable (T-275).
+            title={t("updateWorldFromManuscript")}
             icon={<BookOpenCheck />}
             disabled={
               sending ||
@@ -279,7 +285,7 @@ export function AssistantDrawer({
     </>
   );
 
-  const className = `assistant-drawer ${serverOffline ? "has-offline" : ""}`;
+  const className = "assistant-drawer";
   // The component remains mounted while closed so requests and install polling survive.
   return compact ? (
     <Sheet
