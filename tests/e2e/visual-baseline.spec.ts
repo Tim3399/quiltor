@@ -55,7 +55,30 @@ const figures = {
   presence: [],
 };
 
-function mockWorkshop(page: Page) {
+/**
+ * What a local Quiltor server answers on /api/capabilities today. The baseline workflow runs
+ * against Vite alone, where nothing answers, so the images would otherwise depend on whether a
+ * Python server stands behind the proxy: the assistant header names its engine only from these
+ * flags (D-T-275-F3).
+ */
+const LOCAL_CAPABILITIES = {
+  ok: true,
+  version: 1,
+  instance: {
+    multiUser: false,
+    signOut: false,
+    deviceSync: true,
+    assistantInstall: true,
+    writingDataInstall: true,
+    grammarInstall: true,
+    clientAi: true,
+    testHooks: false,
+  },
+  user: { serverAi: true },
+};
+
+async function mockWorkshop(page: Page) {
+  await page.route("**/api/capabilities", (route) => route.fulfill({ json: LOCAL_CAPABILITIES }));
   return mockWorkshopRoutes(page, {
     version: "baseline",
     world: {
@@ -274,7 +297,7 @@ for (const theme of ["light", "dark"] as const) {
         : page.getByRole("complementary", { name: "Lokaler Assistent" });
     await expect(assistant).toBeVisible();
     // The header names its engine only once the capabilities have arrived; before that it
-    // reads a bare "nur Vorschläge" (D-T-275-F3). This server is a computer of one's own.
+    // reads a bare "nur Vorschläge" (D-T-275-F3). The mocked capabilities are a local instance.
     await expect(assistant.getByText("Auf diesem Rechner · nur Vorschläge")).toBeVisible();
     // The compact sheet slides up (ui-sheet-up) and is "visible" from its first frame, still
     // off screen. `animations: "disabled"` finishes the animation just before the capture,
