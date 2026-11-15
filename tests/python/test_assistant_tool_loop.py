@@ -74,6 +74,18 @@ def envelope(name="resolve_entity", result=None, *, revision=3, ok=True):
     }
 
 
+def not_found(name="resolve_entity", *, revision=3, code="not_found"):
+    """The read tools' own failure envelope (read_tools._error)."""
+    return {
+        "name": name,
+        "ok": False,
+        "readOnly": True,
+        "sideEffectFree": True,
+        "worldRevision": revision,
+        "error": {"code": code, "message": "The requested exact reference was not found."},
+    }
+
+
 class FakeReadTools:
     def __init__(self, *, tool_catalog=None, execute=None):
         self._catalog = tuple(tool_catalog or catalog())
@@ -222,6 +234,71 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.tool_rounds, 1)
         self.assertEqual(result.tool_calls, 1)
         self.assertEqual(result.trace[0]["status"], "rejected")
+
+    def test_not_found_goes_back_to_the_model_and_the_loop_completes(self):
+        # An empty world: the model looks up an id that does not exist (T-61 WebLLM run).
+        def execute(requested):
+            return tuple(not_found(call["name"]) for call in requested)
+
+        result, calls, _read_tools = self._run(
+            [call_step("get_entity", {"elementId": "new:world"}), final_step("nobody yet")],
+            execute=execute,
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "nobody yet")
+        returned = calls[1][0]["messages"][-1]["content"]
+        # Only the code and the fixed short message reach the model: no paths, no traceback.
+        self.assertIn(
+            '{"name":"get_entity","ok":false,"readOnly":true,"sideEffectFree":true,'
+            '"worldRevision":3,"error":{"code":"not_found",'
+            '"message":"The requested exact reference was not found."}}',
+            returned,
+        )
+        self.assertNotIn("Traceback", returned)
+        self.assertEqual(result.trace[0]["status"], "error_returned")
+        self.assertIs(result.trace[0]["ok"], False)
+
+    def test_error_without_read_only_promise_still_fails_closed(self):
+        result, _calls, _read_tools = self._run(
+            [call_step(), final_step()],
+            execute=lambda requested: tuple(
+                {**not_found(call["name"]), "readOnly": False} for call in requested
+            ),
+        )
+
+        self.assertEqual(result.failure, "tool_execution_rejected")
+        self.assertEqual(result.trace[0]["status"], "rejected")
+
+    def test_error_from_another_world_revision_still_fails_closed(self):
+        result, _calls, _read_tools = self._run(
+            [call_step(), final_step()],
+            execute=lambda requested: tuple(
+                not_found(call["name"], revision=4) for call in requested
+            ),
+        )
+
+        self.assertEqual(result.failure, "tool_execution_rejected")
+
+    def test_returned_errors_still_count_against_the_round_limit(self):
+        result, _calls, _read_tools = self._run(
+            [call_step() for _index in range(MAX_TOOL_ROUNDS + 1)],
+            execute=lambda requested: tuple(not_found(call["name"]) for call in requested),
+        )
+
+        self.assertEqual(result.failure, "tool_round_limit")
+        self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
+
+    def test_budget_errors_are_not_returned_to_the_model(self):
+        for code in ("too_many_calls", "result_too_large", "invalid_snapshot"):
+            with self.subTest(code=code):
+                result, _calls, _read_tools = self._run(
+                    [call_step(), final_step()],
+                    execute=lambda requested, code=code: tuple(
+                        not_found(call["name"], code=code) for call in requested
+                    ),
+                )
+                self.assertEqual(result.failure, "tool_execution_rejected")
 
     def test_execution_error_is_counted_and_traced(self):
         def fail_execution(_requested):
