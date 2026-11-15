@@ -5,7 +5,9 @@ proposals actually satisfied that contract."""
 
 from __future__ import annotations
 
+import json
 import re
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import ResolutionResult, resolve_entity
@@ -422,3 +424,179 @@ def complete_compound_proposals(
             )
             proposals.append({"kind": "create_relationship", "relationship": relationship})
     return proposals
+
+
+# --- Fitting the world state into its budget (T-307) -------------------------------------------
+#
+# Each scope keeps its "always" fields. When the state does not fit, the fields of the stages
+# below go, one stage at a time, first from every entry that is not relevant to the request;
+# then non-relevant entries go entirely (stage 4); then relevant entries lose the same fields,
+# lowest rank first (stage 5). Below "relevant entries with their always fields" nothing fits:
+# the caller raises the context error (F-307-9). For world extraction every entry stays, since
+# the model needs every name to avoid duplicates. Each cut leaves a marker with a count, so the
+# model can tell a shortened profile from an empty one.
+ALWAYS_FIELDS = {
+    "elements": ("id", "type", "name", "diedMomentId"),
+    "relationships": ("id", "from", "to", "directed", "active"),
+    "timeline": ("id", "title", "date"),
+    "presence": ("id", "elementId", "placeId", "momentId"),
+}
+FIELD_STAGES: dict[str, tuple[tuple[str, ...], ...]] = {
+    "elements": (("profile",), ("sub",), ("label",)),
+    "relationships": (("versions",), ("lineStyle", "relationshipKind", "color"), ("label",)),
+    "timeline": (("note",),),
+    "presence": (),
+}
+TYPE_ORDER = ("person", "figur", "ort", "objekt", "organisation", "gruppe", "tier")
+SHORTENED_WORLD_HEADER = (
+    'STRUCTURED WORLD STATE (shortened to fit; "shortened" and "truncated" count what was '
+    "left out; use read tools for details)"
+)
+COMPLETE_WORLD_HEADER = "STRUCTURED WORLD STATE (complete for the requested scopes)"
+
+
+class FittedWorld:
+    """A world state that fits its target, and whether anything was left out."""
+
+    def __init__(self, state: dict[str, Any], tokens: int, shortened: bool) -> None:
+        self.state = state
+        self.tokens = tokens
+        self.shortened = shortened
+
+    @property
+    def header(self) -> str:
+        return SHORTENED_WORLD_HEADER if self.shortened else COMPLETE_WORLD_HEADER
+
+
+def _dump(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _type_rank(entry: dict[str, Any]) -> int:
+    kind = str(entry.get("type") or "")
+    return TYPE_ORDER.index(kind) if kind in TYPE_ORDER else len(TYPE_ORDER)
+
+
+class _ScopeFit:
+    def __init__(
+        self, scope: str, entries: list[Any], relevant: Sequence[str], count: Callable[[str], int]
+    ) -> None:
+        self.scope = scope
+        self.entries = [dict(entry) if isinstance(entry, dict) else entry for entry in entries]
+        self.count = count
+        self.tokens = [count(_dump(entry)) for entry in self.entries]
+        self.removed: set[int] = set()
+        self.shortened: dict[str, int] = {}
+        rank = {ident: position for position, ident in enumerate(dict.fromkeys(relevant))}
+        ids = [str(entry.get("id")) if isinstance(entry, dict) else "" for entry in self.entries]
+        self.relevant = sorted(
+            (index for index, ident in enumerate(ids) if ident in rank),
+            key=lambda index: rank[ids[index]],
+        )
+        relevant_set = set(self.relevant)
+        # Lowest priority first: the order in which entries lose fields and then go.
+        self.others = sorted(
+            (index for index in range(len(self.entries)) if index not in relevant_set),
+            key=lambda index: (_type_rank(self.entries[index]), ids[index]),
+            reverse=True,
+        )
+
+    def size(self) -> int:
+        return sum(tokens for index, tokens in enumerate(self.tokens) if index not in self.removed)
+
+    def drop_fields(self, index: int, fields: tuple[str, ...]) -> None:
+        entry = self.entries[index]
+        if not isinstance(entry, dict):
+            return
+        changed = False
+        for field in fields:
+            if field in entry:
+                del entry[field]
+                self.shortened[field] = self.shortened.get(field, 0) + 1
+                changed = True
+        if changed:
+            self.tokens[index] = self.count(_dump(entry))
+
+    def stages(self) -> tuple[tuple[str, ...], ...]:
+        # The named stages, then everything else that is not an "always" field.
+        named = FIELD_STAGES.get(self.scope, ())
+        listed = {field for stage in named for field in stage}
+        always = ALWAYS_FIELDS.get(self.scope, ())
+        rest = sorted(
+            {
+                field
+                for entry in self.entries
+                if isinstance(entry, dict)
+                for field in entry
+                if field not in always and field not in listed
+            }
+        )
+        return (*named, tuple(rest)) if rest else named
+
+    def fit(self, target: int, keep_all_entries: bool) -> bool:
+        if self.size() <= target:
+            return True
+        stages = self.stages()
+        others = self.others
+        for fields in stages:
+            for index in others:
+                self.drop_fields(index, fields)
+            if self.size() <= target:
+                return True
+        if not keep_all_entries:
+            for index in others:
+                self.removed.add(index)
+                if self.size() <= target:
+                    return True
+        for fields in stages:
+            for index in reversed(self.relevant):
+                self.drop_fields(index, fields)
+                if self.size() <= target:
+                    return True
+        return self.size() <= target
+
+    def result(self) -> list[Any]:
+        return [entry for index, entry in enumerate(self.entries) if index not in self.removed]
+
+
+def fit_world_state(
+    figures: dict[str, Any],
+    contract: dict[str, Any],
+    *,
+    target: int,
+    count: Callable[[str], int],
+    relevant: Mapping[str, Sequence[str]] | None = None,
+    keep_all_entries: bool = False,
+) -> FittedWorld | None:
+    """The world state of ``contract`` in at most ``target`` tokens, or None below its floor.
+
+    ``relevant`` names, per scope, the ids the request is about, highest rank first; relevance
+    holds within its own scope only. The output keeps the world's own order.
+    """
+    full = structured_world_state(figures, contract)
+    full_tokens = count(_dump(full))
+    if full_tokens <= target:
+        return FittedWorld(full, full_tokens, False)
+    relevant = relevant or {}
+    fits = {
+        scope: _ScopeFit(scope, list(entries), relevant.get(scope, ()), count)
+        for scope, entries in full.items()
+    }
+    total = sum(fit.size() for fit in fits.values()) or 1
+    # Each scope gets a share in proportion to its full size; what one leaves goes to the next.
+    # Smaller scopes first, so their leftovers reach the large ones.
+    carry = 0
+    for scope in sorted(fits, key=lambda name: fits[name].size()):
+        fit = fits[scope]
+        share = target * fit.size() // total + carry
+        if not fit.fit(share, keep_all_entries):
+            return None
+        carry = share - fit.size()
+    state: dict[str, Any] = {scope: fits[scope].result() for scope in full}
+    shortened = {scope: fit.shortened for scope, fit in fits.items() if fit.shortened}
+    truncated = {scope: len(fit.removed) for scope, fit in fits.items() if fit.removed}
+    if shortened:
+        state["shortened"] = shortened
+    if truncated:
+        state["truncated"] = truncated
+    return FittedWorld(state, count(_dump(state)), bool(shortened or truncated))

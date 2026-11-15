@@ -277,19 +277,12 @@ test("The in-browser engine answers on an empty world with the real model under 
   network.check(log);
 });
 
-// T-307: the prompt fills the 8192-token window before the first model call on the example
-// world (tool_context_limit, 7805/8192), so this case fails until the context budget is fixed.
-// Remove the test.fail line below together with that fix.
 test("The in-browser engine answers on the example world with the real model", async ({
   page,
   context,
   request,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
-  test.fail(
-    true,
-    "T-307: the prompt fills the 8192-token window before the first model call on the example world",
-  );
   test.setTimeout(60 * 60_000);
 
   const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };

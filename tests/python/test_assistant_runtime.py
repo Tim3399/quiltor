@@ -212,9 +212,13 @@ class ConversationMessagesTests(unittest.TestCase):
 class FakeInference:
     identity = "http://mock"
 
-    def __init__(self, replies=None, tokens=0):
+    def __init__(self, replies=None, tokens=0, heavy=None):
         self.replies = list(replies or [])
         self.tokens = tokens
+        # With `heavy`, only those texts (chapter bodies) count as `tokens` and everything else
+        # by length: the batch tests need one chapter per batch, and since T-307 every prompt
+        # part has its own budget, which a constant count for every text cannot meet.
+        self.heavy = None if heavy is None else frozenset(heavy)
         self.calls = []
 
     def reload(self):
@@ -234,7 +238,9 @@ class FakeInference:
         return reply
 
     def count_tokens(self, text):
-        return self.tokens
+        if self.heavy is None:
+            return self.tokens
+        return self.tokens if text in self.heavy else max(1, len(text) // 4)
 
     def close(self):
         pass
@@ -277,8 +283,8 @@ class CrossTurnReferenceResolutionCharacterizationTests(unittest.TestCase):
 
 class AssistantRuntimeCompleteTests(unittest.TestCase):
     # `Any`: the tests replace runtime members and read the fakes' recordings back.
-    def _runtime(self, *replies, tokens=0) -> tuple[Any, FakeInference]:
-        inference = FakeInference(replies, tokens)
+    def _runtime(self, *replies, tokens=0, heavy=None) -> tuple[Any, FakeInference]:
+        inference = FakeInference(replies, tokens, heavy)
         read_tools = _ReadTools()
         return (
             AssistantRuntime(
@@ -850,7 +856,7 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             def finish(self, *args):
                 events.append(("finish", args))
 
-        runtime, _ = self._runtime(tokens=2000)
+        runtime, _ = self._runtime(tokens=2000, heavy=("a", "b"))
         runtime.progress = RecordingProgress()
         calls = []
 
@@ -917,7 +923,12 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(element_reply, moment_reply, tokens=2000)
+        runtime, inference = self._runtime(
+            element_reply,
+            moment_reply,
+            tokens=2000,
+            heavy=("Nova, die Botin, kommt.", "Nova erreicht den Hafen."),
+        )
 
         result = runtime.complete(
             "Dieser Text wird im Extraktionsmodus serverseitig ersetzt.",
@@ -958,7 +969,7 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         self.assertNotIn("arrange_elements", proposal_kinds)
 
     def test_world_extraction_filters_batches_to_the_explicit_chapter_scope(self):
-        runtime, _ = self._runtime(tokens=2000)
+        runtime, _ = self._runtime(tokens=2000, heavy=("a", "b"))
         calls = []
 
         def complete(_question, _manuscript, _figures, _history, *, chapter_ids, mode, **_options):
@@ -998,7 +1009,7 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             def finish(self, *args):
                 events.append("finish")
 
-        runtime, _ = self._runtime(tokens=2000)
+        runtime, _ = self._runtime(tokens=2000, heavy=("a", "b"))
         runtime.progress = RecordingProgress()
         calls = []
 
@@ -1050,7 +1061,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(duplicate, duplicate, tokens=2000)
+        runtime, inference = self._runtime(
+            duplicate, duplicate, tokens=2000, heavy=("Nova kommt.", "Nova bleibt.")
+        )
 
         result = runtime._run_batches(
             "Lege alle Figuren aus den Kapiteln an.",
@@ -1102,7 +1115,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(duplicate, duplicate, tokens=2000)
+        runtime, inference = self._runtime(
+            duplicate, duplicate, tokens=2000, heavy=("Tarek kommt an.", "Tarek bleibt dort.")
+        )
 
         result = runtime._run_batches(
             "Setze die Anwesenheit in allen Kapiteln.",
@@ -1147,7 +1162,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(duplicate, duplicate, tokens=2000)
+        runtime, inference = self._runtime(
+            duplicate, duplicate, tokens=2000, heavy=("Tarek kommt an.", "Tarek bleibt dort.")
+        )
 
         result = runtime._run_batches(
             "Lege die Figur in allen Kapiteln an.",
