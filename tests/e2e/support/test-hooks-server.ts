@@ -17,7 +17,14 @@ export interface TestHooksServer {
   stop: () => Promise<void>;
 }
 
-export async function startTestHooksServer(): Promise<TestHooksServer> {
+/**
+ * `testHooks: false` starts the same instance without QUILTOR_TEST_HOOKS, so connect-src is
+ * the policy that ships (D-T-61-7-E2E measures the in-browser engine against it).
+ */
+export async function startTestHooksServer(
+  options: { testHooks?: boolean } = {},
+): Promise<TestHooksServer> {
+  const testHooks = options.testHooks ?? true;
   const [python, prefix] = pythonCommand();
   const scratch = mkdtempSync(join(tmpdir(), "quiltor-e2e-test-hooks-"));
   const port = await freePort();
@@ -32,7 +39,7 @@ export async function startTestHooksServer(): Promise<TestHooksServer> {
         ...process.env,
         PYTHONUNBUFFERED: "1",
         QUILTOR_HOME: join(scratch, "quiltor"),
-        QUILTOR_TEST_HOOKS: "1",
+        ...(testHooks ? { QUILTOR_TEST_HOOKS: "1" } : {}),
         QUILTOR_CSP: "enforce",
         QUILTOR_CREDENTIAL_BACKEND: "memory",
       },

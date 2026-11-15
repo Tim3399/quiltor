@@ -118,7 +118,11 @@ class RouteTableTests(unittest.TestCase):
             for path, entry in table.items()
             if entry.anonymous
         }
-        self.assertEqual(anonymous, {"/api/version", "/login", "/auth/callback", "/logout"})
+        # /backup/callback is bound to the pending login's state, not a session (D-203): the
+        # desktop's backup sign-in returns in the system browser, which has no session cookie.
+        self.assertEqual(
+            anonymous, {"/api/version", "/login", "/auth/callback", "/logout", "/backup/callback"}
+        )
 
     def test_whoami_is_neither_anonymous_nor_account_only(self):
         """Every request has a session now, so "who is asking" always has an

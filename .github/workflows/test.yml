@@ -21,8 +21,18 @@ on:
         description: "Run the full Windows and macOS matrix"
         type: boolean
         default: true
-      # T-272: one optional job, outside the matrix and outside the verdict. Only a manual run
-      # that asks for it starts it; pull requests, pushes and release calls never do.
+      # Optional, on request only (T-179, D-167): starts llama-conformance.yml beside the run.
+      # Dispatch only -- a caller such as release.yml cannot ask for it.
+      llama_conformance:
+        description: "Also run the llama-server conformance (downloads a runtime and a model)"
+        type: boolean
+        default: false
+      llama_spike:
+        description: "llama conformance: allow a model with no pinned sha256 and print its digest"
+        type: boolean
+        default: false
+      # T-272: the desktop CSP probe, outside the matrix and outside the verdict. Only a manual
+      # run that asks for it starts it; pull requests, pushes and release calls never do.
       desktop_csp_probe:
         description: "Also open the desktop window on macOS under each CSP mode (T-272)"
         type: boolean
@@ -370,6 +380,14 @@ jobs:
         run: bash tools/dev/playwright-linux.sh
       - name: Install the application
         run: python -m pip install --quiet -e .
+      # Ubuntu 24.04 refuses unprivileged user namespaces to programs without an AppArmor profile
+      # (kernel.apparmor_restrict_unprivileged_userns=1), so Chromium got no sandbox here and the
+      # slot's PDF export ended in pdf.render_failed / sandbox_unavailable (run 43611856985).
+      # D-210: lift the restriction on this throwaway runner so the suite exercises the export
+      # WITH the sandbox that T-269 F makes mandatory. QUILTOR_PDF_SANDBOX=off stays out of CI on
+      # purpose; operators get the narrower options in docs/operations/installation.md.
+      - name: Allow user namespaces for Chromium's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Start the application
         run: |
           # The structured log goes to a file the product suite reads: save-error-id.spec.ts
@@ -1041,3 +1059,15 @@ jobs:
           if-no-files-found: warn
           retention-days: 5
           path: desktop-csp-*.json
+
+  # The llama-server conformance, on request only (T-179, D-167). It is not a required check:
+  # browser-e2e does not need it, so a run that does not ask for it skips it on purpose and the
+  # gate never sees it. Its verdict is the called workflow's own. The called file grants
+  # contents: read; this job grants nothing beyond that.
+  llama-conformance:
+    if: inputs.llama_conformance == true
+    permissions:
+      contents: read
+    uses: ./.github/workflows/llama-conformance.yml
+    with:
+      spike: ${{ inputs.llama_spike == true }}

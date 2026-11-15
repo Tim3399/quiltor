@@ -259,8 +259,9 @@ including those in the trash, they count the world database, its automatic backu
 mirror folders and the saved versions (`data/history`). Once an account is at the limit,
 Quiltor refuses creating, importing, saving, "Keep version", map images and restoring with
 `403 world.quota`. Unsaved text stays on the device as a draft. Reading and deleting stay
-allowed: deleting a world, removing old versions or emptying the trash brings the account
-back under the limit at once.
+allowed. Only one thing makes room: delete a world and empty the trash ("Delete permanently" in the trash). A deleted world still
+counts while it sits in the trash; emptying the trash removes it for good, and with it its
+backups, mirror folders and all of its saved versions. Single old versions cannot be removed.
 
 ### Content Security Policy (from 3.26)
 
@@ -313,6 +314,53 @@ matching its Playwright runtime. Firefox, WebKit, full Chromium, and development
 tooling, including Playwright's separate ffmpeg payload, are deliberately
 excluded from the runtime image. The extracted browser tree is also verified
 against its committed SHA-256 during the build.
+
+Book-PDF export starts Chromium **with** its sandbox, because the page is another
+user's book. If the host refuses the user namespaces the sandbox needs
+(`No usable sandbox`), the server answers `pdf.sandbox_unavailable` and the client
+tells the author in German. This happens, for example, on Ubuntu 24.04 without a
+container: it sets `kernel.apparmor_restrict_unprivileged_userns=1`, and programs
+without their own AppArmor profile get no user namespaces. The ways out are
+deliberately the operator's call; try them in this order, narrowest first:
+
+1. **A container with the bundled seccomp profile.**
+   [`distribution/containers/seccomp-chromium.json`](../../distribution/containers/seccomp-chromium.json)
+   allows the namespaces Chromium needs, and `docker-compose.yml` already uses it.
+   With `docker run`, pass
+   `--security-opt seccomp=distribution/containers/seccomp-chromium.json`.
+2. **An AppArmor profile for the PDF sidecar's Chromium only.** It lets that one program
+   use `userns` while everything else stays restricted. The path is that of Playwright's
+   Chromium Headless Shell; `~/.cache/ms-playwright/` shows it. Example
+   `/etc/apparmor.d/quiltor-chromium` (adjust path and user name):
+
+   ```text
+   abi <abi/4.0>,
+   include <tunables/global>
+
+   profile quiltor-chromium /home/quiltor/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell flags=(unconfined) {
+     userns,
+
+     include if exists <local/quiltor-chromium>
+   }
+   ```
+
+   Load it with `sudo apparmor_parser -r /etc/apparmor.d/quiltor-chromium`; it survives
+   reboots. A new Chromium version changes the directory name, which the `*` covers.
+
+3. **`QUILTOR_PDF_SANDBOX=off` as the last resort.** That starts Chromium without its
+   sandbox. A page the renderer loads can then escape the process through a Chromium
+   bug. The server writes the warning `pdf.sandbox_disabled` to the log at **every
+   start**.
+
+You can also set `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`, but it
+lifts the restriction **for every program on the machine**, not only Quiltor. CI does
+that on its throwaway runners; on a server that does more, option 2 is the better choice.
+
+There is no silent fallback to "no sandbox". Every failed export logs a
+`pdf.render_failed` event with a category (`sandbox_unavailable`,
+`browser_launch_failed`, `timeout`, `page_error`, `unknown`) and the exit code, never
+the renderer's own text, which can contain the render URL and its token.
+`quiltor config` lists `QUILTOR_PDF_SANDBOX`.
 
 Sessions live in process memory. Restarting the container therefore signs web users out.
 

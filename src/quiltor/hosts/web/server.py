@@ -59,7 +59,7 @@ import webbrowser
 from typing import Any, Literal, cast
 from urllib.parse import parse_qs, quote, urlparse
 
-from quiltor.application import ApplicationError
+from quiltor.application import ApplicationError, PdfRendererError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
 from quiltor.delivery.http import errors as http_errors
 from quiltor.delivery.http import routes as api_routes
@@ -244,6 +244,9 @@ def _exception_text(exc: BaseException) -> str:
     an OSError that names no file. sqlite's message itself can carry a path or a
     quoted value, so it never is.
     """
+    if isinstance(exc, PdfRendererError):
+        # The category is one of a fixed set the renderer chose, not stderr's text.
+        return f"{exc.code} ({exc.category})"
     if isinstance(exc, ApplicationError):
         return str(exc.code)
     if isinstance(exc, sqlite3.Error):
@@ -1285,12 +1288,15 @@ def run(
     print()
 
     if not no_open:
-        # Opened, never printed, with the process token (S269-4): the browser trades it
-        # for the owner's cookie on the first request. A secret on a terminal is a secret
-        # in a scrollback buffer; --print-token is there for whoever needs it.
+        # Opened with a one-time open code, never the process token (S269-4, F-269-11):
+        # the launched browser's command line is visible to every account on the
+        # machine, and the code is spent on the first request and short-lived anyway.
+        # --print-token is there for whoever needs the token itself.
         opened = url
         if not getattr(app.identity, "trust_loopback", True):
-            opened = f"{url}?token={quote(getattr(app.identity, 'token', ''), safe='')}"
+            issue = getattr(app.identity, "issue_open_code", None)
+            code = str(issue()) if callable(issue) else ""
+            opened = f"{url}?code={quote(code, safe='')}"
         threading.Timer(0.6, lambda: webbrowser.open(opened)).start()
 
     try:

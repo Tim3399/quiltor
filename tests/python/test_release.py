@@ -1447,6 +1447,41 @@ class WorkflowBoundaryTests(unittest.TestCase):
                         sources, script.replace(evidence, "", 1)
                     )
 
+    def test_linux_product_suite_lifts_the_userns_restriction_before_playwright(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_linux_pdf_sandbox(sources)
+        source = sources[TEST_WORKFLOW]
+        step_start = source.index("      - name: Allow user namespaces for Chromium's sandbox")
+        step_end = source.index("      - name: Start the application", step_start)
+        step = source[step_start:step_end]
+
+        def check(mutated_source, message):
+            mutated = dict(sources)
+            mutated[TEST_WORKFLOW] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_linux_pdf_sandbox(mutated)
+
+        with self.subTest(name="step removed"):
+            check(source.replace(step, "", 1), "without lifting")
+        with self.subTest(name="step after Playwright"):
+            moved = source.replace(step, "", 1)
+            at = moved.index("      - name: Upload test durations")
+            check(moved[:at] + step + moved[at:], "without lifting")
+        with self.subTest(name="failure swallowed"):
+            check(
+                source.replace(
+                    workflow_contract.USERNS_SYSCTL, workflow_contract.USERNS_SYSCTL + " || true", 1
+                ),
+                "must fail",
+            )
+        with self.subTest(name="sandbox switched off"):
+            check(
+                source.replace(
+                    "PYTHONPATH: src", "PYTHONPATH: src\n      QUILTOR_PDF_SANDBOX: off", 1
+                ),
+                "switches the PDF sandbox off",
+            )
+
     def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_windows_port_range(sources)
@@ -3004,7 +3039,7 @@ class PathFilterContractTests(unittest.TestCase):
                 "the plan starts the desktop probe outside a dispatch",
                 "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false",
                 "inputs.desktop_csp_probe != false",
-                "must start the optional jobs on dispatch only",
+                "must start desktop-csp-probe on dispatch only",
             ),
             (
                 "the desktop probe reads a secret",
@@ -3017,13 +3052,13 @@ class PathFilterContractTests(unittest.TestCase):
                 "the verdict waits for the desktop probe",
                 "    needs:\n      - plan\n",
                 "    needs:\n      - plan\n      - desktop-csp-probe\n",
-                "browser-e2e must not need an optional job",
+                "browser-e2e may not need the optional job desktop-csp-probe",
             ),
             (
                 "the desktop probe runs beside the full matrix",
                 " && inputs.full_matrix == false }}",
                 " }}",
-                "must start the optional jobs on dispatch only",
+                "must start desktop-csp-probe on dispatch only",
             ),
             (
                 "the desktop probe keeps its reports for good",
@@ -3107,6 +3142,135 @@ class PathFilterContractTests(unittest.TestCase):
             ),
         ):
             workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
+
+    def test_llama_conformance_runs_only_on_request_and_outside_the_gate(self):
+        """T-179, D-167: test.yml offers the llama conformance by dispatch, never as a gate."""
+        sources = workflow_contract._workflow_sources()
+        workflow = sources[TEST_WORKFLOW]
+        jobs = dict(workflow_contract._job_blocks(workflow))
+        self.assertIn("    if: inputs.llama_conformance == true\n", jobs["llama-conformance"])
+        self.assertNotIn("llama", jobs["browser-e2e"])
+        # Not asked for, the job is skipped and the gate never sees it: the gate script
+        # concludes green with exactly the results it has always had.
+        code, output, _ = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        mutations = (
+            (
+                "runs on every event",
+                "    if: inputs.llama_conformance == true\n",
+                "    if: always()\n",
+                "test.yml:llama-conformance must be exactly an on-request call",
+            ),
+            (
+                "grants more than contents: read",
+                "    permissions:\n      contents: read\n    uses: ./.github/workflows/llama",
+                "    permissions:\n      contents: write\n    uses: ./.github/workflows/llama",
+                "test.yml:llama-conformance must be exactly an on-request call",
+            ),
+            (
+                "requested by default",
+                "      llama_conformance:\n"
+                '        description: "Also run the llama-server conformance (downloads a runtime '
+                'and a model)"\n'
+                "        type: boolean\n        default: false\n",
+                "      llama_conformance:\n"
+                '        description: "Also run the llama-server conformance (downloads a runtime '
+                'and a model)"\n'
+                "        type: boolean\n        default: true\n",
+                "must declare the boolean input llama_conformance, default false",
+            ),
+            (
+                "offered to a caller",
+                "  workflow_call:\n    inputs:\n",
+                "  workflow_call:\n    inputs:\n      llama_conformance:\n        type: boolean\n",
+                "workflow_call may not offer llama_conformance",
+            ),
+            (
+                "made a need of the gate",
+                "      - browser-e2e-oidc\n    if: always()\n",
+                "      - browser-e2e-oidc\n      - llama-conformance\n    if: always()\n",
+                "browser-e2e may not need the optional job llama-conformance",
+            ),
+            (
+                "an unlisted extra job",
+                "  llama-conformance:\n",
+                "  llama-conformance-extra:\n",
+                "test.yml jobs without a path-filter group: llama-conformance-extra",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, workflow)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = workflow.replace(original, replacement, 1)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(error)
+                ):
+                    workflow_contract.validate_path_filter(mutated)
+
+    def test_one_optional_job_form_covers_both_kinds_of_start(self):
+        """D-208: one OPTIONAL_JOBS entry form holds the dispatch rules for every optional job.
+
+        llama-conformance reads its input itself; desktop-csp-probe is started by the plan job.
+        The shared rules -- boolean dispatch input, default false, not offered to a caller --
+        must bite on both, and a start the contract does not know must not pass unchecked.
+        """
+        self.assertEqual(
+            {name: spec["start"] for name, spec in workflow_contract.OPTIONAL_JOBS.items()},
+            {"llama-conformance": "input", "desktop-csp-probe": "plan"},
+        )
+        sources = workflow_contract._workflow_sources()
+        workflow = sources[TEST_WORKFLOW]
+        workflow_contract.validate_path_filter(sources)
+        probe_input = (
+            "      desktop_csp_probe:\n"
+            '        description: "Also open the desktop window on macOS under each CSP mode '
+            '(T-272)"\n'
+            "        type: boolean\n        default: false\n"
+        )
+        mutations = (
+            (
+                "the probe is requested by default",
+                probe_input,
+                probe_input.replace("default: false", "default: true"),
+                "must declare the boolean input desktop_csp_probe, default false",
+            ),
+            (
+                "the probe is offered to a caller",
+                "  workflow_call:\n    inputs:\n",
+                "  workflow_call:\n    inputs:\n      desktop_csp_probe:\n        type: boolean\n",
+                "workflow_call may not offer desktop_csp_probe",
+            ),
+            (
+                "the probe needs more than the plan",
+                "    name: Desktop CSP probe on macos-15\n    needs: plan\n",
+                "    name: Desktop CSP probe on macos-15\n    needs: [plan, frontend]\n",
+                "test.yml:desktop-csp-probe must need only the plan job",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, workflow)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = workflow.replace(original, replacement, 1)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(error)
+                ):
+                    workflow_contract.validate_path_filter(mutated)
+        unknown = {
+            **workflow_contract.OPTIONAL_JOBS,
+            "desktop-csp-probe": {
+                **workflow_contract.OPTIONAL_JOBS["desktop-csp-probe"],
+                "start": "push",
+            },
+        }
+        with (
+            patch.object(workflow_contract, "OPTIONAL_JOBS", unknown),
+            self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError, "has no known start: push"
+            ),
+        ):
+            workflow_contract.validate_path_filter(sources)
 
     def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
         """T-46: the browsers no longer wait for frontend; the real gate script still fails."""

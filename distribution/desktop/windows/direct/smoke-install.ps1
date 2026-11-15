@@ -120,17 +120,67 @@ function Assert-NoInstalledProcess {
     if ($Processes.Count -ne 0) { throw "A process from the isolated install target is still running." }
 }
 
-function Start-AndProbe([string]$ExpectedVersion) {
+function New-ProcessToken {
+    # 64 hex characters: the shape QUILTOR_MASTER_TOKEN accepts. Generated here, handed to the
+    # process through its environment and never printed, so the smoke can open the owner URL
+    # without the process having to write its own token anywhere (T-269 S269-4).
+    $Bytes = New-Object byte[] 32
+    $Rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $Rng.GetBytes($Bytes) } finally { $Rng.Dispose() }
+    return ([BitConverter]::ToString($Bytes) -replace '-', '').ToLowerInvariant()
+}
+
+function Invoke-LoopbackGet([string]$PathAndQuery, [string]$Cookie) {
+    # One request, no redirect followed, so a 302 and its Set-Cookie can be read as they are.
+    Add-Type -AssemblyName System.Net.Http
+    $Handler = New-Object System.Net.Http.HttpClientHandler
+    $Handler.AllowAutoRedirect = $false
+    $Handler.UseCookies = $false
+    $Client = New-Object System.Net.Http.HttpClient($Handler)
+    $Client.Timeout = [TimeSpan]::FromSeconds(5)
+    try {
+        $Request = New-Object System.Net.Http.HttpRequestMessage(
+            [System.Net.Http.HttpMethod]::Get, "http://127.0.0.1:8843$PathAndQuery")
+        if ($Cookie) { $Request.Headers.TryAddWithoutValidation("Cookie", $Cookie) | Out-Null }
+        $Response = $Client.SendAsync($Request).GetAwaiter().GetResult()
+        $SetCookie = @()
+        if ($Response.Headers.Contains("Set-Cookie")) { $SetCookie = @($Response.Headers.GetValues("Set-Cookie")) }
+        $Location = if ($Response.Headers.Location) { $Response.Headers.Location.OriginalString } else { "" }
+        return [pscustomobject]@{ Status = [int]$Response.StatusCode; SetCookie = $SetCookie; Location = $Location }
+    } finally {
+        $Client.Dispose()
+    }
+}
+
+function Assert-OwnerTokenPath([string]$Token) {
+    # No token: the loopback port alone must not open the owner's worlds.
+    $Anonymous = Invoke-LoopbackGet "/api/whoami" ""
+    if ($Anonymous.Status -ne 401) { throw "GET /api/whoami without a token answered $($Anonymous.Status), expected 401." }
+    # The owner URL the window opens: a redirect that drops the token and sets the cookie.
+    $Owner = Invoke-LoopbackGet "/?token=$Token" ""
+    if ($Owner.Status -ne 302) { throw "GET /?token=<process token> answered $($Owner.Status), expected 302." }
+    if ($Owner.Location -like "*token=*") { throw "The owner redirect still carries the token." }
+    if ($Owner.SetCookie.Count -eq 0) { throw "The owner redirect set no session cookie." }
+    $Cookie = ($Owner.SetCookie[0] -split ';')[0]
+    $Session = Invoke-LoopbackGet "/api/whoami" $Cookie
+    if ($Session.Status -ne 200) { throw "GET /api/whoami with the owner cookie answered $($Session.Status), expected 200." }
+}
+
+function Start-AndProbe([string]$ExpectedVersion, [bool]$CheckToken = $false) {
     Assert-PortFree
     $OldHome = $env:QUILTOR_HOME
     $OldData = $env:QUILTOR_DATA_DIR
+    $OldToken = $env:QUILTOR_MASTER_TOKEN
+    $ProcessToken = if ($CheckToken) { New-ProcessToken } else { $null }
     try {
         $env:QUILTOR_HOME = Join-Path $UserRoot "home"
         $env:QUILTOR_DATA_DIR = Join-Path $UserRoot "data"
+        if ($CheckToken) { $env:QUILTOR_MASTER_TOKEN = $ProcessToken }
         $script:ActiveProcess = Start-Process -FilePath (Join-Path $InstallDir "Quiltor.exe") -PassThru
     } finally {
         $env:QUILTOR_HOME = $OldHome
         $env:QUILTOR_DATA_DIR = $OldData
+        $env:QUILTOR_MASTER_TOKEN = $OldToken
     }
 
     $Ready = $false
@@ -146,6 +196,8 @@ function Start-AndProbe([string]$ExpectedVersion) {
         Start-Sleep -Seconds 1
     }
     if (-not $Ready) { throw "Installed Quiltor did not report expected version $ExpectedVersion." }
+    # Only the current build: a predecessor release may predate the token path.
+    if ($CheckToken) { Assert-OwnerTokenPath $ProcessToken }
     Start-Sleep -Seconds 2
     if ($ActiveProcess.HasExited) { throw "Installed Quiltor exited immediately after readiness." }
     Stop-Process -Id $ActiveProcess.Id -Force
@@ -223,14 +275,14 @@ try {
     } else {
         $BootstrapRegistration = Invoke-Installer $CurrentInstaller
         if ($BootstrapRegistration.DisplayVersion -ne $Version) { throw "Bootstrap install registered the wrong version." }
-        Start-AndProbe $Version
+        Start-AndProbe $Version $true
         Set-Content -LiteralPath (Join-Path $UserRoot "data\native-smoke-marker") -Value "bootstrap-reinstall-preserves-user-data"
     }
 
     $CurrentRegistration = Invoke-Installer $CurrentInstaller
     if ($CurrentRegistration.DisplayVersion -ne $Version) { throw "Upgrade registered the wrong current version." }
     if (-not (Test-Path (Join-Path $UserRoot "data\native-smoke-marker"))) { throw "Upgrade lost isolated user data." }
-    Start-AndProbe $Version
+    Start-AndProbe $Version $true
     Invoke-NativeUninstall
     Write-Host "Windows native install/upgrade/launch/uninstall smoke passed for $Version"
 } finally {

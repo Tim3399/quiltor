@@ -82,7 +82,9 @@ class FakeAssistant:
 
 
 class FakeInteractionLogger:
-    def record(self, question, response=None, *, error="", owner_sub="", world_id=""):
+    def record(
+        self, question, response=None, *, error="", owner_sub="", world_id="", engine="server"
+    ):
         return f"interaction-{question}"
 
 
@@ -440,7 +442,9 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     result["staleWorld"],
                     {"expectedRevision": 4, "currentRevision": 5},
                 )
-                proof = result["agentTrace"][0]["proof"]
+                # [0] is the engine step (T-61 part 9), the runtime's own steps follow.
+                self.assertEqual(result["agentTrace"][0], {"step": "engine", "engine": "server"})
+                proof = result["agentTrace"][1]["proof"]
                 self.assertTrue(proof["stale"])
                 self.assertFalse(proof["applicable"])
                 self.assertEqual(result["agentTrace"][-1]["step"], "stale_world")

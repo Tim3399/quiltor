@@ -113,6 +113,8 @@ FIELD_RULES: dict[str, Callable[[Any], Any | None]] = {
     "sqlite_name": _matching(_IDENTIFIER_RE, 128),
     "errno": _integer,
     "errno_name": _matching(_IDENTIFIER_RE, 128),
+    "category": _matching(_IDENTIFIER_RE, 64),
+    "exit_code": _integer,
     "log_level": _level,
     "file": _text(),
     "transfer_encoding_present": _boolean,
@@ -144,6 +146,11 @@ EVENTS: dict[str, frozenset[str]] = {
     "storage.failed": frozenset(
         {"request_id", "code", "sqlite_code", "sqlite_name", "errno", "errno_name"}
     ),
+    # routes/documents.py, when the PDF renderer fails: a category the renderer chose and
+    # its exit code. Never its stderr, which can carry the render URL and its token.
+    "pdf.render_failed": frozenset({"request_id", "category", "exit_code"}),
+    # apps/web/server.py, at every start with QUILTOR_PDF_SANDBOX=off.
+    "pdf.sandbox_disabled": frozenset(),
     "logging.configured": frozenset({"log_level", "file"}),
     "install.forbidden_hosted": frozenset({"request_id", "route"}),
     "sync.forbidden_hosted": frozenset({"request_id", "route"}),

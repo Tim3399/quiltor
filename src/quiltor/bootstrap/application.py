@@ -419,6 +419,49 @@ def assistant_client_job_slots(configured: str) -> int:
     return int(configured)
 
 
+@dataclass(frozen=True, slots=True)
+class RelayDeadlines:
+    """How long a browser may take, per answer and per job (T-61 part 9)."""
+
+    answer_seconds: dict[str, float]
+    job_seconds: float
+
+
+#: name, default, lower and upper bound, unit factor to seconds.
+RELAY_DEADLINE_LIMITS = {
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM": (300, 30, 3600, 1.0),
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD": (120, 10, 600, 1.0),
+    "QUILTOR_ASSISTANT_RELAY_JOB_MINUTES": (20, 1, 120, 60.0),
+}
+
+
+def _relay_deadline(name: str, configured: str) -> float:
+    default, lowest, highest, factor = RELAY_DEADLINE_LIMITS[name]
+    configured = configured.strip()
+    if not configured:
+        return default * factor
+    if not (configured.isascii() and configured.isdigit()) or not (
+        lowest <= int(configured) <= highest
+    ):
+        raise RuntimeError(f"{name} must be a whole number from {lowest} to {highest}.")
+    return int(configured) * factor
+
+
+def relay_deadlines(environment: Mapping[str, str]) -> RelayDeadlines:
+    """The relay deadlines from the environment; a value out of bounds stops the start."""
+
+    def read(name: str) -> float:
+        return _relay_deadline(name, environment.get(name, ""))
+
+    return RelayDeadlines(
+        answer_seconds={
+            "webllm": read("QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM"),
+            "cloud": read("QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD"),
+        },
+        job_seconds=read("QUILTOR_ASSISTANT_RELAY_JOB_MINUTES"),
+    )
+
+
 #: A client runtime estimates tokens without a tokenizer, so its cache stays small.
 CLIENT_TOKEN_CACHE_BYTES = 256 * 1024
 
@@ -432,6 +475,7 @@ def client_runtime_factory(
     tickets: RelayTicketStore,
     debug_enabled: bool,
     token_cache: Callable[[], Any],
+    deadlines: RelayDeadlines | None = None,
 ) -> Callable[[dict[str, Any], dict[str, Any]], AssistantRuntime]:
     """Build a runtime of its own for each client-engine job (T-61, F6).
 
@@ -447,7 +491,19 @@ def client_runtime_factory(
         return AssistantRuntime(
             base,
             data,
-            RelayInferenceEngine(tickets, str(job["id"]), engine),
+            RelayInferenceEngine(
+                tickets,
+                str(job["id"]),
+                engine,
+                **(
+                    {}
+                    if deadlines is None
+                    else {
+                        "answer_seconds": deadlines.answer_seconds,
+                        "job_seconds": deadlines.job_seconds,
+                    }
+                ),
+            ),
             progress=progress,
             read_tools=read_tools,
             token_cache=token_cache(),
@@ -498,6 +554,7 @@ def build_assistant_services(
             debug_enabled=debug_enabled,
             # A fresh cache per job, never the server runtime's (F-61-1).
             token_cache=lambda: BoundedTokenCountCache(max_bytes=CLIENT_TOKEN_CACHE_BYTES),
+            deadlines=relay_deadlines(os.environ),
         ),
         client_slots=assistant_client_job_slots(
             os.environ.get("QUILTOR_ASSISTANT_CLIENT_JOBS", "")

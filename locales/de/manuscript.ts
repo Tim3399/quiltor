@@ -264,6 +264,8 @@ export const manuscript = {
   manuscriptVersionLabel: "Manuskriptfassung",
   deleteChapterDescription: "„{title}“ wird in den Papierkorb verschoben.",
   bookPdfError: "Das Buch-PDF konnte nicht erzeugt werden.",
+  bookPdfSandboxError:
+    "Das Buch-PDF konnte nicht erzeugt werden: Der Server erlaubt dem PDF-Renderer die Sandbox nicht. Die Betreiberin oder der Betreiber muss das Container-Profil anpassen oder QUILTOR_PDF_SANDBOX=off setzen.",
   ambiguousMentions: "Mehrdeutige Verknüpfungen",
   worldObject: "Weltobjekt",
   orphanedMentionsRemoved: "{count} verwaiste Verknüpfungen wurden entfernt.",

@@ -124,6 +124,16 @@ class SingleUserCapabilitiesTest(_InstallStubs):
                 _, _, body = self.capabilities()
                 self.assertIs(body["instance"]["clientAi"], allowed)
 
+    def test_status_reports_client_engines_only_while_the_switch_is_on(self):
+        # T-61 part 9: the switch off means no own AI anywhere, status included.
+        for allowed, engines in ((True, ["cloud", "webllm"]), (False, [])):
+            self.application.assistant_client_ai = allowed
+            with self.subTest(allowed=allowed):
+                _, _, raw = self.request("GET", f"/api/assistant/status?world={self.world_id}")
+                self.assertEqual(json.loads(raw)["clientEngines"], engines)
+                _, _, body = self.capabilities()
+                self.assertIs(body["instance"]["clientAi"], allowed)
+
     def test_test_hooks_reports_what_the_application_was_built_with(self):
         self.application.test_hooks = True
         _, _, body = self.capabilities()

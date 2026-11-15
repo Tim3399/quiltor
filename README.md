@@ -115,6 +115,7 @@ Für Autorinnen und Autoren, die selbst schreiben und keinen KI-Ghostwriter such
 - [Funktionen im Detail](https://github.com/Tim3399/quiltor/blob/main/docs/funktionen.md)
 - [Installation und Betrieb](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/installation.md): Quellcode, Python-Paket, Desktop, Docker, CLI
 - [Der lokale Assistent](https://github.com/Tim3399/quiltor/blob/main/docs/assistent.md): Runtime, externer Endpunkt, MCP
+- [Eigene KI](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/eigene-ki.md): KI im Browser (WebLLM) statt Server-KI, Schalter, Fristen, Reverse-Proxy und Content-Security-Policy
 - [Deutsche Schreibwerkzeuge](https://github.com/Tim3399/quiltor/blob/main/docs/schreibwerkzeuge.md)
 - [Sync, Backup und lokale Daten](https://github.com/Tim3399/quiltor/blob/main/docs/betrieb/sync-und-backup.md)
 - [Entwicklung](https://github.com/Tim3399/quiltor/blob/main/docs/development.md) und [Architektur](https://github.com/Tim3399/quiltor/blob/main/docs/architecture/overview.md) (englisch)

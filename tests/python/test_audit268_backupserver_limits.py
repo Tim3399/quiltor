@@ -173,6 +173,10 @@ class StagedUploadsTest(BackupServerCase):
             [b"201", b"507"],
             "the second upload no longer fits once the first is stored",
         )
-        self.assertEqual(
-            [p.name for p in self.stored_files()], [hashlib.sha256(payloads[0]).hexdigest()]
-        )
+        # The refused upload removes its staging file in a finally after the 507 is sent, so
+        # the answer can reach the client a moment before the file is gone (CI 43603899533).
+        expected = [hashlib.sha256(payloads[0]).hexdigest()]
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and [p.name for p in self.stored_files()] != expected:
+            time.sleep(0.05)
+        self.assertEqual([p.name for p in self.stored_files()], expected)

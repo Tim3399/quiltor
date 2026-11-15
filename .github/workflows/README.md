@@ -214,3 +214,23 @@ artifact. Afterwards, the upgrade smoke uses the newest earlier stable release
 that contains exactly one canonical artifact for that target. Portable-only
 releases in between are skipped because they are not native upgrade origins;
 duplicate or ambiguous target assets remain release errors.
+
+## llama-server conformance
+
+`llama-conformance.yml` runs the local-AI conformance suite against a real
+llama-server. It is the only workflow that downloads a llama-server binary and a
+model; it is not a required check and no release reads its result. It has three
+triggers: a manual dispatch, `workflow_call` (so another workflow can offer it as
+an optional job), and a pull request that touches the manifest, `llamacpp.py`,
+`shared/contract.py`, the suite or its own files. It reads the repository only and
+uses no secret. Its first run of a new model needs the `spike` input, which allows
+a model whose SHA-256 is not pinned yet and prints the digest to pin. How the job
+grades a run, the one approved model and the known deviations per llama.cpp release
+are in [docs/architecture/local-ai-conformance.md](../../docs/architecture/local-ai-conformance.md).
+
+`test.yml` offers it as that optional job: a manual dispatch with
+`llama_conformance: true` (and `llama_spike: true` for a first run) calls it
+beside the usual jobs. It is dispatch-only -- `workflow_call` does not offer the
+input, so `release.yml` never runs it -- and `browser-e2e` does not need it: a run
+that does not ask for it skips it on purpose, and the gate and the verdict never
+see it. The job grants `contents: read` and nothing more.

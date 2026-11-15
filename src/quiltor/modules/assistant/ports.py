@@ -156,6 +156,8 @@ class AssistantInteractionLogger(Protocol):
         error: str = "",
         owner_sub: str,
         world_id: str,
+        # The kind of engine that computed the answer (T-61): never a model name or key.
+        engine: str = "server",
     ) -> str: ...
 
 

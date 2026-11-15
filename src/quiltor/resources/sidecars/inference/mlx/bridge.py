@@ -38,6 +38,7 @@ import os
 import sys
 import threading
 import time
+import uuid
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast
@@ -52,6 +53,52 @@ STATE: dict[str, Any] = {
 GENERATION_LOCK = threading.Lock()
 GRAMMAR_CACHE: dict[str, Any] = {}
 MAX_PROMPT_TOKENS = 7000
+# The model name echoed when a request names none (a request without one is refused, but
+# run_completion is also called directly).
+DEFAULT_MODEL = "mlx-bridge"
+# The largest request body read. Quiltor's own requests are a few hundred kilobytes at most.
+MAX_REQUEST_BYTES = 16 * 1024 * 1024
+CHAT_ROLES = frozenset({"system", "user", "assistant", "tool", "developer"})
+SCHEMA_PARAM = "response_format.json_schema.schema"
+
+
+class BridgeRequestError(Exception):
+    """A request the bridge refuses, with everything the error envelope (contract 3.1) needs."""
+
+    status = 400
+    code = "invalid_request"
+    error_type = "invalid_request_error"
+
+    def __init__(self, message: str, param: str | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.param = param
+
+
+class InvalidRequestError(BridgeRequestError):
+    pass
+
+
+class ContextTooLargeError(BridgeRequestError):
+    code = "context_too_large"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, param="messages")
+
+
+class SchemaRequiredError(BridgeRequestError):
+    def __init__(self) -> None:
+        super().__init__(f"{SCHEMA_PARAM} is required", param=SCHEMA_PARAM)
+
+
+class InvalidSchemaError(BridgeRequestError):
+    def __init__(self, detail: str) -> None:
+        super().__init__(f"invalid schema: {detail}", param=SCHEMA_PARAM)
+
+
+class RequestTooLargeError(BridgeRequestError):
+    status = 413
+    code = "too_large"
 
 
 def _resolve_apply_bitmask() -> Any:
@@ -140,7 +187,7 @@ def get_grammar(schema: dict[str, Any]) -> Any:
         grammar = matcher_cls.grammar_from_json_schema(schema)
         error = matcher_cls.validate_grammar(grammar)
         if error:
-            raise ValueError(f"invalid schema: {error}")
+            raise InvalidSchemaError(str(error))
         GRAMMAR_CACHE[key] = grammar
     return GRAMMAR_CACHE[key]
 
@@ -158,13 +205,15 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
     response_format = payload.get("response_format") or {}
     schema = (response_format.get("json_schema") or {}).get("schema")
     if not isinstance(schema, dict):
-        raise ValueError("response_format.json_schema.schema is required")
+        raise SchemaRequiredError()
 
     grammar = get_grammar(schema)
     prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
     prompt_len = len(tokenizer.encode(prompt))
     if prompt_len > MAX_PROMPT_TOKENS:
-        raise ValueError(f"prompt too long: {prompt_len} tokens (limit {MAX_PROMPT_TOKENS})")
+        raise ContextTooLargeError(
+            f"prompt too long: {prompt_len} tokens (limit {MAX_PROMPT_TOKENS})"
+        )
 
     matcher = LLMatcher(ll_tokenizer, grammar, log_level=0)
     processor = SchemaProcessor(matcher, ll_tokenizer.vocab_size, prompt_len)
@@ -198,7 +247,10 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         finish_reason = "length" if completion_tokens >= max_tokens else "stop"
 
+    model = payload.get("model")
     return {
+        "id": f"chatcmpl-{uuid.uuid4().hex}",
+        "created": int(time.time()),
         "choices": [
             {
                 "index": 0,
@@ -211,7 +263,7 @@ def run_completion(payload: dict[str, Any]) -> dict[str, Any]:
             "completion_tokens": completion_tokens,
             "total_tokens": prompt_len + completion_tokens,
         },
-        "model": "mlx-bridge",
+        "model": model if isinstance(model, str) and model else DEFAULT_MODEL,
         "object": "chat.completion",
     }
 
@@ -232,6 +284,67 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_error(
+        self,
+        status: int,
+        code: str,
+        error_type: str,
+        message: str,
+        param: str | None = None,
+        **extra: Any,
+    ) -> None:
+        """The one error envelope (contract 3.1): {"error": {message, type, param, code}}.
+
+        Extra fields travel inside the error object and carry the `x_` prefix the contract
+        requires of anything it does not define itself (`x_status` on a 503).
+        """
+        error = {"message": message, "type": error_type, "param": param, "code": code, **extra}
+        self._send_json(status, {"error": error})
+
+    def _send_unavailable(self) -> None:
+        # The load failure itself stays in the log; the client only learns "not coming back".
+        failed = STATE["error"] is not None
+        self._send_error(
+            503,
+            "unavailable",
+            "service_unavailable_error",
+            "model failed to load" if failed else "model is still loading",
+            x_status="unavailable" if failed else "loading",
+        )
+
+    def _read_payload(self) -> dict[str, Any]:
+        """The request body as a JSON object, or the refusal that explains why it is not one."""
+        raw_length = (self.headers.get("Content-Length") or "0").strip()
+        if not (raw_length.isascii() and raw_length.isdigit()):
+            self.close_connection = True
+            raise InvalidRequestError("Content-Length must be a non-negative integer")
+        length = int(raw_length)
+        if length > MAX_REQUEST_BYTES:
+            self.close_connection = True
+            raise RequestTooLargeError(f"request body is larger than {MAX_REQUEST_BYTES} bytes")
+        try:
+            payload = json.loads(self.rfile.read(length))
+        except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError both
+            raise InvalidRequestError("request body is not valid JSON") from exc
+        if not isinstance(payload, dict):
+            raise InvalidRequestError("request body must be a JSON object")
+        return payload
+
+    @staticmethod
+    def _check_chat_request(payload: dict[str, Any]) -> None:
+        model = payload.get("model")
+        if not isinstance(model, str) or not model:
+            raise InvalidRequestError("model is required", param="model")
+        messages = payload.get("messages")
+        if not isinstance(messages, list) or not messages:
+            raise InvalidRequestError("messages must be a non-empty array", param="messages")
+        for index, message in enumerate(messages):
+            role = message.get("role") if isinstance(message, dict) else None
+            if role not in CHAT_ROLES:
+                raise InvalidRequestError(
+                    "role must be system, user or assistant", param=f"messages[{index}].role"
+                )
 
     def _discard_body(self) -> None:
         """Read and drop a small body that no code has read, before a refusal is sent.
@@ -266,13 +379,14 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def do_GET(self) -> None:
-        if self.path == "/health":
+        # /x/v1/health is the contract's path (2.4); /health is what Quiltor's own callers use.
+        if self.path in {"/x/v1/health", "/health"}:
             if STATE["ready"]:
-                self._send_json(200, {"status": "ok"})
+                self._send_json(200, {"status": "ok", "contract": "lac-v1"})
             else:
-                self._send_json(503, {"status": "loading", "error": STATE["error"]})
+                self._send_unavailable()
             return
-        self._send_json(404, {"error": "not found"})
+        self._send_error(404, "not_found", "invalid_request_error", "not found")
 
     def _authorized(self) -> bool:
         """Whether the request carries the key Quiltor started this bridge with (T-58 P4).
@@ -289,30 +403,41 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path not in {"/v1/chat/completions", "/tokenize"}:
             self._discard_body()
-            self._send_json(404, {"error": "not found"})
+            self._send_error(404, "not_found", "invalid_request_error", "not found")
             return
         if not self._authorized():
             self._discard_body()
-            self._send_json(401, {"error": "invalid api key"})
+            self._send_error(401, "invalid_api_key", "invalid_request_error", "invalid api key")
             return
         if not STATE["ready"]:
             self._discard_body()
-            self._send_json(503, {"error": "model not loaded yet"})
+            self._send_unavailable()
             return
-        length = int(self.headers.get("Content-Length", "0"))
         try:
-            payload = json.loads(self.rfile.read(length))
+            payload = self._read_payload()
+            if self.path == "/v1/chat/completions":
+                self._check_chat_request(payload)
             if self.path == "/tokenize":
                 tokens = STATE["tokenizer"].encode(str(payload.get("content", "")))
                 self._send_json(200, {"tokens": list(tokens)})
                 return
             result = run_completion(payload)
             self._send_json(200, result)
-        except ValueError as exc:
-            self._send_json(400, {"error": str(exc)})
+        except BridgeRequestError as exc:
+            self._send_error(exc.status, exc.code, exc.error_type, exc.message, exc.param)
+        except (ValueError, TypeError) as exc:
+            # A field with a value the bridge cannot use (a temperature that is not a number).
+            print(f"MLX bridge: invalid request value: {exc}", flush=True)
+            self._send_error(
+                400,
+                "invalid_request",
+                "invalid_request_error",
+                "a request field has an invalid value",
+            )
         except Exception as exc:  # noqa: BLE001 -- surface every failure as a 500, never let the handler crash the server
+            # The text is fixed: what went wrong is in the log, not in a reply to whoever asked.
             print(f"MLX bridge: request failed: {exc}", flush=True)
-            self._send_json(500, {"error": str(exc)})
+            self._send_error(500, "internal_error", "api_error", "internal server error")
 
 
 def main() -> None:
