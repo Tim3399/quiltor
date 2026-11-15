@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import type { BrowserContext } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,4 +62,30 @@ export async function startTestHooksServer(
     await stop();
     throw error;
   }
+}
+
+/**
+ * Shows this instance to a browser context as a hosted server without the premium role
+ * (D-205, T-275 Nachtrag 3): `assistantInstall: false`, `clientAi: true`, `serverAi: false`.
+ *
+ * Only a hosted server offers "Im Browser"; on a local, installable instance the product
+ * deliberately offers the server engine alone. A truly hosted instance needs OIDC
+ * (`operation_profile_for`: hosted is exactly multi-user), and there is no environment switch
+ * for it by design, so the instance stays local and `GET /api/capabilities` is rewritten in
+ * the browser, as assistant-engine-product.spec.ts and assistant-client-relay.spec.ts do.
+ * The jobs themselves run in the browser, so the server needs no other change.
+ */
+export async function presentAsHosted(context: BrowserContext): Promise<void> {
+  await context.route("**/api/capabilities", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        instance: { ...body.instance, assistantInstall: false, clientAi: true },
+        user: { ...body.user, serverAi: false },
+      },
+    });
+  });
 }
