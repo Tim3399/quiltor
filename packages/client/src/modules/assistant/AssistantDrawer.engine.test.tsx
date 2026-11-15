@@ -89,9 +89,7 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
       await screen.findByText("Lokales Modell ist noch nicht installiert oder gestartet."),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(COMPOSER)).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Welt aktualisieren" })).toBeDisabled();
   });
 
   it("keeps the composer usable with the stand-in browser engine", async () => {
@@ -103,9 +101,7 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
     expect(
       screen.queryByText("Lokales Modell ist noch nicht installiert oder gestartet."),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Welt aktualisieren" })).toBeEnabled();
   });
 
   it("locks the composer without the premium role, even with a runtime", async () => {
@@ -117,9 +113,7 @@ describe("AssistantDrawer without a local model (D-T-61-8a-F2)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(COMPOSER)).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Welt aktualisieren" })).toBeDisabled();
   });
 
   it("hosted with no engine usable names none and says it once, at the switch", async () => {

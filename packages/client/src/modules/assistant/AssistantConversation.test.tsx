@@ -326,9 +326,7 @@ describe("assistant conversation content", () => {
     );
     const { onApply } = setup();
     await screen.findByText("Was soll ich in der Welt nachtragen?");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Welt aktualisieren" }));
 
     const apply = await screen.findByRole("button", { name: "Übernehmen" });
     expect(apply).toBeDisabled();
@@ -492,9 +490,7 @@ describe("assistant conversation content", () => {
     );
     const { onApply } = setup();
     await screen.findByText("Was soll ich in der Welt nachtragen?");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Welt aktualisieren" }));
     fireEvent.click(await screen.findByText("Gruppe übernehmen"));
 
     expect(onApply).toHaveBeenCalledTimes(1);
