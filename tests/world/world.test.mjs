@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -16,6 +17,7 @@ import {
   structureKeys,
 } from "./index.mjs";
 import { LOCK_FILE, lockBytes, lockDifferences, renderLock } from "./lock.mjs";
+import { measurementWorlds, TIME_CHECK_ELEMENTS, TIME_CHECK_MOMENTS } from "./parts/gold.mjs";
 import { renderShipFiles, SHIP_DIRECTORY, SHIP_FORMAT } from "./ship.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -48,6 +50,11 @@ const TEXT_FIELDS = new Set([
   "eraName",
   "eraAbbreviation",
   "displayFormat",
+  // The expectations of the gold part: names, synonyms and keywords in the author's language.
+  "names",
+  "synonyms",
+  "keys",
+  "titles",
 ]);
 const OFFSET_FIELDS = new Set(["from", "to"]);
 const NAMED_IN_BOTH = new Set(["person", "tier"]);
@@ -306,6 +313,26 @@ test("the shipped world is the base world and nothing else", () => {
       [],
       `${lang}: a check-part id ships`,
     );
+    // The same for the gold part, on disk and in what ship.mjs renders now: no id starting
+    // with "g-", no gold text key, no expectations.
+    const rendered = JSON.parse(
+      renderShipFiles()[`${SHIP_DIRECTORY}/${lang}.json`].toString("utf8"),
+    );
+    for (const [where, document] of [
+      ["on disk", shipped],
+      ["rendered", rendered],
+    ]) {
+      assert.deepEqual(
+        [...everyString(document)].filter(([, value]) => /^(item-)?g-|^gold\./.test(value)),
+        [],
+        `${lang} ${where}: a gold-part id or text key ships`,
+      );
+      assert.equal(
+        JSON.stringify(document).includes('"evaluation"'),
+        false,
+        `${lang} ${where}: the gold expectations ship`,
+      );
+    }
   }
 });
 
@@ -364,16 +391,29 @@ test("the check part only appends: the base world is a prefix of every list", ()
   }
 });
 
-test("every id of the check part starts with x-, and no base id does", () => {
+/** The id prefix of every part after the base world. */
+const PART_PREFIX = { edge: "x-", gold: "g-" };
+
+test("every id of a later part starts with its prefix, and no base id does", () => {
   const baseIds = new Set(worldIds(buildExampleWorld("de")));
-  const added = worldIds(buildExampleWorld("de", { include: PARTS })).filter(
-    (id) => !baseIds.has(id),
-  );
-  assert.ok(added.length >= 15, `only ${added.length} ids in the check part`);
-  for (const id of added) {
-    assert.ok(/^x-|^item-x-/.test(bareId(id)), `${id} is in the check part without x-`);
+  for (const part of PARTS.filter((name) => name !== "base")) {
+    const prefix = PART_PREFIX[part];
+    assert.ok(prefix, `the ${part} part has no id prefix`);
+    const added = worldIds(buildExampleWorld("de", { include: [part] })).filter(
+      (id) => !baseIds.has(id),
+    );
+    assert.ok(added.length >= 15, `only ${added.length} ids in the ${part} part`);
+    for (const id of added) {
+      const bare = bareId(id);
+      assert.ok(
+        bare.startsWith(prefix) || bare.startsWith(`item-${prefix}`),
+        `${id} is in the ${part} part without ${prefix}`,
+      );
+    }
+    for (const id of baseIds) {
+      assert.ok(!bareId(id).startsWith(prefix), `${id} is a base id with ${prefix}`);
+    }
   }
-  for (const id of baseIds) assert.ok(!bareId(id).startsWith("x-"), `${id} is a base id with x-`);
 });
 
 test("base and check part share no id and no text key", () => {
@@ -388,14 +428,169 @@ test("base and check part share no id and no text key", () => {
     "ids of the check part that the base world already uses",
   );
   for (const lang of LANGUAGES) {
-    const baseKeys = Object.keys(PART_DICTIONARIES.base[lang]);
-    const edgeKeys = new Set(Object.keys(PART_DICTIONARIES.edge[lang]));
-    assert.deepEqual(
-      baseKeys.filter((key) => edgeKeys.has(key)),
-      [],
-      `${lang}: text keys in both parts`,
-    );
+    const owner = new Map();
+    for (const part of PARTS) {
+      for (const key of Object.keys(PART_DICTIONARIES[part][lang])) {
+        assert.ok(!owner.has(key), `${lang}: text key ${key} in ${owner.get(key)} and ${part}`);
+        owner.set(key, part);
+      }
+    }
   }
+});
+
+test("every gold expectation stands for an entry of the gold part", () => {
+  const baseIds = new Set(worldIds(buildExampleWorld("de")).map(bareId));
+  for (const lang of LANGUAGES) {
+    const world = buildExampleWorld(lang, { include: ["gold"] });
+    const goldIds = new Set(
+      worldIds(world)
+        .map(bareId)
+        .filter((id) => !baseIds.has(id)),
+    );
+    const { gold } = world.evaluation;
+    assert.ok(gold.length >= 30, `${lang}: only ${gold.length} gold expectations`);
+    const ids = gold.map((entry) => entry.id);
+    assert.equal(new Set(ids).size, ids.length, `${lang}: an expectation id given out twice`);
+    const references = gold.flatMap((entry) =>
+      [
+        entry.ref,
+        entry.from,
+        entry.to,
+        entry.elementId,
+        entry.placeId,
+        entry.chapterId,
+        ...(entry.refs ?? []),
+      ]
+        .filter((value) => value !== undefined)
+        .map((value) => [entry.id, value]),
+    );
+    for (const [id, value] of references) {
+      assert.ok(value.startsWith("g-") && goldIds.has(value), `${lang}: ${id} points at ${value}`);
+    }
+    for (const entry of gold) {
+      assert.ok(["extract", "missing"].includes(entry.task), `${lang}: ${entry.id} task`);
+      assert.ok(["required", "optional"].includes(entry.need), `${lang}: ${entry.id} need`);
+      for (const field of ["names", "synonyms", "keys"]) {
+        if (field in entry)
+          assert.ok(
+            entry[field].split("|").every((item) => item.trim()),
+            entry.id,
+          );
+      }
+    }
+    // Each expectation of a missing figure names somebody no world holds as an element.
+    const elementNames = new Set(world.figures.nodes.map((node) => node.name.toLowerCase()));
+    for (const entry of gold.filter((item) => item.task === "missing")) {
+      for (const name of entry.names.split("|")) {
+        assert.ok(!elementNames.has(name.toLowerCase()), `${lang}: ${name} is an element`);
+      }
+    }
+  }
+});
+
+test("no gold name belongs to two gold entries", () => {
+  const normalize = (name) =>
+    name
+      .normalize("NFKC")
+      .toLowerCase()
+      .replaceAll("ß", "ss")
+      .replace(/[\p{P}]/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  for (const lang of LANGUAGES) {
+    const { gold } = buildExampleWorld(lang, { include: ["gold"] }).evaluation;
+    const owner = new Map();
+    for (const entry of gold.filter((item) => item.names)) {
+      const who = entry.ref ?? entry.id;
+      for (const name of entry.names.split("|").map(normalize)) {
+        assert.ok(
+          !owner.has(name) || owner.get(name) === who,
+          `${lang}: "${name}" names ${owner.get(name)} and ${who}`,
+        );
+        owner.set(name, who);
+      }
+    }
+  }
+});
+
+test("every measurement world holds only gold entries, and nothing points outside it", () => {
+  for (const lang of LANGUAGES) {
+    const worlds = measurementWorlds(buildExampleWorld(lang, { include: ["gold"] }));
+    assert.deepEqual(
+      Object.keys(worlds).filter((name) => name.startsWith("extract-")).length,
+      10,
+      `${lang}: extract worlds`,
+    );
+    for (const [name, { manuscript, figures }] of Object.entries(worlds)) {
+      const ids = worldIds({
+        manuscript,
+        figures,
+        storyboards: { boards: [], nodes: [], edges: [] },
+      });
+      for (const id of ids) {
+        const bare = bareId(id);
+        assert.ok(bare.startsWith("g-") || bare.startsWith("item-g-"), `${lang} ${name}: ${id}`);
+      }
+      assert.equal("timeSystem" in figures, false, `${lang} ${name}: a calendar came along`);
+      const nodeIds = new Set(figures.nodes.map((node) => node.id));
+      const momentIds = new Set(figures.timeline.map((moment) => moment.id));
+      for (const edge of figures.edges) {
+        assert.ok(nodeIds.has(edge.from) && nodeIds.has(edge.to), `${lang} ${name}: ${edge.id}`);
+      }
+      for (const entry of figures.presence) {
+        assert.ok(nodeIds.has(entry.elementId) && nodeIds.has(entry.placeId), entry.id);
+        assert.ok(momentIds.has(entry.momentId), `${lang} ${name}: ${entry.id}`);
+      }
+      for (const node of figures.nodes) {
+        if (node.diedMomentId) assert.ok(momentIds.has(node.diedMomentId), `${lang} ${name}`);
+      }
+      for (const chapter of manuscript.chapters) {
+        for (const mention of chapter.mentions ?? []) {
+          if (name.startsWith("extract-B")) assert.ok(nodeIds.has(mention.elementId), mention.id);
+        }
+        if (name.startsWith("extract-A")) assert.equal("mentions" in chapter, false, chapter.id);
+      }
+      if (name === "time-check") continue;
+      for (const id of [...TIME_CHECK_ELEMENTS, ...TIME_CHECK_MOMENTS]) {
+        assert.ok(!nodeIds.has(id) && !momentIds.has(id), `${lang} ${name}: ${id} is measured`);
+      }
+    }
+  }
+});
+
+test("every measurement world passes the server's validation", () => {
+  const worlds = Object.fromEntries(
+    LANGUAGES.flatMap((lang) =>
+      Object.entries(measurementWorlds(buildExampleWorld(lang, { include: ["gold"] }))).map(
+        ([name, world]) => [`${lang}:${name}`, world],
+      ),
+    ),
+  );
+  const script = [
+    "import json, sys",
+    "from quiltor.domain.story_world.validation import valid_figures, valid_manuscript",
+    'worlds = json.loads(sys.stdin.buffer.read().decode("utf-8"))',
+    "bad = [name for name, world in worlds.items()",
+    "       if not valid_manuscript(world['manuscript']) or not valid_figures(world['figures'])]",
+    "print(json.dumps(bad))",
+  ].join("\n");
+  const result = spawnSync(
+    process.execPath,
+    [join(repositoryRoot, "tools/dev/python.mjs"), "--needs", "quiltor", "-c", script],
+    {
+      cwd: repositoryRoot,
+      input: JSON.stringify(worlds),
+      encoding: "utf8",
+      env: { ...process.env, PYTHONPATH: join(repositoryRoot, "src") },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    JSON.parse(result.stdout.trim().split("\n").at(-1)),
+    [],
+    "worlds the server refuses",
+  );
+  assert.ok(Object.keys(worlds).length >= 26);
 });
 
 test("the check part carries the edge cases the suites rely on", () => {
