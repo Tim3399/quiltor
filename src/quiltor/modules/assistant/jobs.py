@@ -23,6 +23,7 @@ from quiltor.modules.assistant.ports import (
     JobStoreFactory,
     TooManyOpenJobs,
 )
+from quiltor.modules.assistant.sampling import EvalSampling
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
@@ -459,6 +460,8 @@ class AssistantJobRunner:
                 owner_sub=owner_sub,
                 world_id=world_id,
                 world_revision=int(payload.get("worldRevision") or 0),
+                # Present only on a server started with QUILTOR_EVAL (T-289).
+                sampling=EvalSampling.from_wire(payload.get("sampling")),
             )
             if self.store.cancel_requested(job_id):
                 self.store.finish_success(job_id, {}, "")

@@ -20,6 +20,7 @@ from quiltor.modules.assistant.engines import (
 from quiltor.modules.assistant.jobs import IdempotencyConflict, TooManyOpenJobs
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 from quiltor.modules.assistant.ports import ClientJobRunning
+from quiltor.modules.assistant.sampling import is_seed
 
 
 @get("/api/assistant/status", world=True)
@@ -149,6 +150,13 @@ def _engine_or_refuse(handler, request: Request, app, payload: Any) -> EngineCho
     return engine
 
 
+def _eval_seed(payload: Any) -> tuple[bool, Any]:
+    """Whether the body names `evalSeed`, and its raw value."""
+    if not isinstance(payload, dict):
+        return False, None
+    return "evalSeed" in payload, payload.get("evalSeed")
+
+
 def _prepare_request(
     handler, request: Request, app
 ) -> tuple[Any, dict[str, Any], dict[str, Any], EngineChoice] | None:
@@ -158,6 +166,14 @@ def _prepare_request(
     engine = _engine_or_refuse(handler, request, app, payload)
     if engine is None:
         return None
+    # T-289: a seed per job, for the evaluation runner only. The field's presence counts,
+    # not its truth (`evalSeed: 0`), and the refusal comes before any job exists.
+    names_eval_seed, eval_seed = _eval_seed(payload)
+    if names_eval_seed and app.eval_sampling is None:
+        handler.send_api_error(400, error_code="assistant.eval_disabled", retryable=False)
+        return None
+    if names_eval_seed and not is_seed(eval_seed):
+        raise ValueError("evalSeed must be a whole number from 0 to 2147483647.")
     world = handler.world_from_body(request.session, payload)
     if world is None:
         return None
@@ -213,9 +229,16 @@ def _prepare_request(
         "language": language,
         # Part of the request's identity: the same key with another engine is another job.
         "engine": engine.public(),
+        # Another seed is another job; absent outside evaluation, so product keys stay as they were.
+        **({"evalSeed": eval_seed} if names_eval_seed else {}),
     }
+    sampling = app.eval_sampling
+    if sampling is not None and names_eval_seed:
+        sampling = sampling.with_seed(eval_seed)
     execution = {
         **intent,
+        # Only on a server started with QUILTOR_EVAL; the worker hands it to the engine.
+        **({"sampling": sampling.wire()} if sampling is not None else {}),
         "worldId": world.id,
         "progressId": progress_id,
         # A queued job means "the world when Send was pressed", not whatever
