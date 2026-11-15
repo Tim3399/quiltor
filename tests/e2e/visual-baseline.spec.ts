@@ -273,6 +273,9 @@ for (const theme of ["light", "dark"] as const) {
         ? page.getByRole("dialog", { name: "Lokaler Assistent" })
         : page.getByRole("complementary", { name: "Lokaler Assistent" });
     await expect(assistant).toBeVisible();
+    // The header names its engine only once the capabilities have arrived; before that it
+    // reads a bare "nur Vorschläge" (D-T-275-F3). This server is a computer of one's own.
+    await expect(assistant.getByText("Auf diesem Rechner · nur Vorschläge")).toBeVisible();
     // The compact sheet slides up (ui-sheet-up) and is "visible" from its first frame, still
     // off screen. `animations: "disabled"` finishes the animation just before the capture,
     // but on a loaded macOS runner the capture once showed the sheet 526 px short of its
