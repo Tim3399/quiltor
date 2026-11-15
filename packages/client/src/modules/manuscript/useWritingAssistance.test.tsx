@@ -158,4 +158,30 @@ describe("useWritingAssistance", () => {
       vi.useRealTimers();
     }
   });
+
+  it("drops a superseded check silently and never checks again for it", async () => {
+    const issue = { id: "i1", from: 0, to: 3, message: "m", replacements: [] };
+    assistance.checkGrammar.mockResolvedValueOnce({ issues: [issue] });
+    const { result } = setup({ selectionKey: "a", current: chapter("Alt") });
+    await act(async () => {});
+    await act(async () => result.current.checkGrammar());
+    expect(assistance.checkGrammar).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers();
+    try {
+      assistance.checkGrammar.mockRejectedValueOnce(
+        new ApplicationGatewayError("replaced", "writing_assistance.superseded", {
+          retryable: false,
+        }),
+      );
+      await act(async () => result.current.checkGrammar());
+      expect(result.current.grammarPhase).toBe("idle");
+      expect(result.current.grammarError).toBe("");
+      expect(result.current.grammarIssues).toHaveLength(1);
+      await act(async () => vi.advanceTimersByTime(240_000));
+      expect(assistance.checkGrammar).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

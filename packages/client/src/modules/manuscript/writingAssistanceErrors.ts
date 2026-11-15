@@ -26,6 +26,12 @@ export function isRateLimited(error: unknown): boolean {
   return errorCode(error) === "writing_assistance.rate_limited";
 }
 
+/** True when a newer check of this tab took the place of this one. Silent and never retried:
+ * the newer check is already under way (F-268-28). */
+export function isSuperseded(error: unknown): boolean {
+  return errorCode(error) === "writing_assistance.superseded";
+}
+
 /** The pause a `429` asked for, from its `Retry-After` header; one second when it named none. */
 export function retryAfterMs(error: unknown): number {
   return Math.max(1, numberParam(error, "retryAfter")) * 1000;

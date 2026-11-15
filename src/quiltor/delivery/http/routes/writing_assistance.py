@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from collections import defaultdict, deque
@@ -20,6 +21,17 @@ GRAMMAR_MAX_PER_MINUTE_ENV = "QUILTOR_GRAMMAR_MAX_PER_MINUTE"
 DEFAULT_GRAMMAR_MAX_CONCURRENT = 2
 DEFAULT_GRAMMAR_MAX_PER_MINUTE = 30
 GRAMMAR_RATE_WINDOW_SECONDS = 60.0
+# Each browser tab names itself with a random id, so two tabs of one session do not take each
+# other's place (F-268-28). The id is only a key, never a credential: anything that is not a
+# short token falls back to the session's one anonymous key, without an error.
+GRAMMAR_TAB_HEADER = "X-Quiltor-Tab"
+_TAB_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def grammar_key(session_key: str, tab: str | None) -> str:
+    """The key under which only the newest check counts: the session and the tab."""
+    tab = (tab or "").strip()
+    return f"{session_key}\n{tab if _TAB_ID.fullmatch(tab) else ''}"
 
 
 def _env_int(name: str, default: int) -> int:
@@ -31,7 +43,7 @@ def _env_int(name: str, default: int) -> int:
 
 
 class GrammarSlot:
-    """One running check. `superseded` is set when a newer check of the same session took
+    """One running check. `superseded` is set when a newer check of the same session and tab took
     its place; the route then drops the result it computed (F-268-20)."""
 
     __slots__ = ("key", "sub", "superseded")
@@ -46,7 +58,7 @@ class GrammarLimiter:
     """Concurrent and per-minute limits per account; `acquire` returns a slot or a retry delay.
 
     The concurrent limit counts calls running inside LanguageTool, whichever session sent
-    them. Per account and session only the newest check's result counts: a newer check marks
+    them. Per account, session and tab only the newest check's result counts: a newer check marks
     the older one `superseded`, but the older one keeps its place until its call has returned,
     because the server cannot interrupt a thread inside LanguageTool (F-268-24). When the
     limit is full, a newer check of the same session is refused at once like any other.
@@ -151,7 +163,9 @@ def check(handler, request: Request, app) -> None:
     slot = None
     if limited:
         session = request.session
-        granted = grammar_limiter.acquire(session.sub, session.session_id or session.sub)
+        tab = handler.headers.get(GRAMMAR_TAB_HEADER)
+        key = grammar_key(session.session_id or session.sub, tab)
+        granted = grammar_limiter.acquire(session.sub, key)
         if isinstance(granted, int):
             handler._discard_unread_body()
             return _rate_limited(handler, granted)
@@ -168,6 +182,13 @@ def _rate_limited(handler, retry_after: int) -> None:
     handler.send_json(error.payload(), error.status, headers={"Retry-After": retry_after})
 
 
+def _superseded(handler) -> None:
+    # Not a request to pause: the tab already has the newer check under way and must not
+    # check again (F-268-28), so there is no Retry-After either.
+    error = http_errors.for_status(429, code="writing_assistance.superseded", retryable=False)
+    handler.send_json(error.payload(), error.status)
+
+
 def _check(handler, app, slot: GrammarSlot | None = None) -> None:
     try:
         payload = handler._read_json_body()
@@ -178,9 +199,9 @@ def _check(handler, app, slot: GrammarSlot | None = None) -> None:
             str(payload.get("language", "")), str(payload.get("text", "")), words[:5000]
         )
         if slot is not None and slot.superseded:
-            # A newer check of this session took the place; this answer is stale. Say so
-            # with the existing 429 rather than hand back text the editor has moved past.
-            return _rate_limited(handler, 1)
+            # A newer check of this tab took the place; this answer is stale. Say so with a
+            # code of its own rather than hand back text the editor has moved past.
+            return _superseded(handler)
         handler.send_json(result)
     except PermissionError:
         handler.send_api_error(

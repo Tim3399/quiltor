@@ -35,11 +35,27 @@ export function createWritingAssistanceHttpGateway(): WritingAssistanceGateway {
       ),
     checkGrammar: async (text, customWords, signal) =>
       decodeGrammarCheckV1(
-        await postJson<GrammarCheckWireV1>(
-          "/api/writing-assistance/check",
-          { language: "de-DE", text, customWords },
+        await requestJson<GrammarCheckWireV1>("/api/writing-assistance/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", [GRAMMAR_TAB_HEADER]: grammarTabId },
+          body: JSON.stringify({ language: "de-DE", text, customWords }),
           signal,
-        ),
+        }),
       ),
   };
 }
+
+/** The header that names this tab to the grammar check (F-268-28). */
+export const GRAMMAR_TAB_HEADER = "X-Quiltor-Tab";
+
+// The server lets only the newest check of a session and tab count. Each tab names itself
+// once, in memory only: sessionStorage would be copied into a duplicated tab, which would then
+// share the key again. The id is a key and nothing more; the server trusts nothing about it.
+function newTabId(): string {
+  const random = globalThis.crypto;
+  if (typeof random?.randomUUID === "function") return random.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** This tab's id for the grammar check. */
+export const grammarTabId = newTabId();
