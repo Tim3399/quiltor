@@ -11,7 +11,7 @@ import { AssistantConversation } from "./AssistantConversation";
 import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
 import { useEngineChoice } from "./engines/useEngineChoice";
-import { useEngineLabels } from "./engines/useEngineLabels";
+import { useEngineLabels, useEngineLabelsKnown } from "./engines/useEngineLabels";
 import type { AssistantProposal } from "./model";
 import type { AssistantProposalApplyResult } from "./proposals";
 import { useAssistantAvailability } from "./useAssistantAvailability";
@@ -67,6 +67,7 @@ export function AssistantDrawer({
   // One choice for the drawer and its status panel, so a switch of engine re-renders both.
   const engineChoice = useEngineChoice(status?.premium !== false);
   const engineLabels = useEngineLabels();
+  const engineLabelsKnown = useEngineLabelsKnown();
   // The server's assistant locks the composer only while a job would run there: without a
   // runtime, or without the premium role, which the server enforces with a 403 (D-40). The
   // effective engine falls back to the server when nothing is offered, so that case locks too.
@@ -162,11 +163,14 @@ export function AssistantDrawer({
             <strong>{t("assistant")}</strong>
             <small>
               {/* No engine to name when none can run: hosted, no premium role, no WebGPU. */}
+              {/* No engine either while the capabilities load: its name depends on them. */}
               {engineChoice.available.length === 0
                 ? t("assistantEngineNone")
-                : t("assistantEngineSuggestionsOnly", {
-                    engine: engineLabels[engineChoice.engine],
-                  })}
+                : !engineLabelsKnown
+                  ? t("assistantSuggestionsOnly")
+                  : t("assistantEngineSuggestionsOnly", {
+                      engine: engineLabels[engineChoice.engine],
+                    })}
             </small>
           </span>
         </div>

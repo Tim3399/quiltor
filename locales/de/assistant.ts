@@ -12,6 +12,7 @@ export const assistant = {
     "Eine Beziehung benötigt zwei verschiedene Elemente. Passe den Vorschlag an.",
   proposalApplyRelationshipExists:
     "Diese Beziehung besteht bereits. Prüfe die vorhandene Beziehung oder passe den Vorschlag an.",
+  assistantSuggestionsOnly: "nur Vorschläge",
   assistantEngineSuggestionsOnly: "{engine} · nur Vorschläge",
   newChat: "Neuer Chat",
   closeAssistant: "Assistent schließen",

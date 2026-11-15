@@ -17,3 +17,12 @@ export function useEngineLabels(): Record<AssistantEngineKind, string> {
     cloud: t("assistantEngineOwnKey"),
   };
 }
+
+/**
+ * Whether the instance capabilities have arrived, and with them the name of the server engine.
+ * Until then neither header nor switch names an engine: a computer of one's own would briefly
+ * read "Server-KI", which it must never do (D-205, D-T-275-F3).
+ */
+export function useEngineLabelsKnown(): boolean {
+  return useInstanceCapabilities() !== null;
+}

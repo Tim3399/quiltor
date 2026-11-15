@@ -61,7 +61,9 @@ export function AssistantStatusPanel({
   ];
   return (
     <>
-      {/* Only a real choice is shown: with the server alone nothing changes for the user. */}
+      {/* Only a real choice is shown: with the server alone nothing changes for the user.
+          Before the capabilities arrive no other engine is offered, so no switch can name the
+          server engine too early (D-T-275-F3). */}
       {(options.length > 1 || serverLocked || choice.browserUnsupported) && (
         <div className="assistant-engine">
           {(options.length > 1 || serverLocked) && (
