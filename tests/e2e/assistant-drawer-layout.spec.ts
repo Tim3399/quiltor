@@ -126,11 +126,18 @@ test("hosted without the premium role the server AI is greyed out with its reaso
   await page.goto(`/?world=${world.id}`);
   const drawer = await openAssistant(page);
   await expect(drawer.getByText("Eigener Schlüssel · nur Vorschläge")).toBeVisible();
-  await expect(
-    drawer.getByText("Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung."),
-  ).toBeVisible();
+  // The reason is a tooltip on the greyed-out option, not a standing note (T-275-F6).
+  const tooltip = page.getByRole("tooltip", {
+    name: "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
+  });
+  await expect(tooltip).toBeHidden();
   const choice = drawer.getByRole("radiogroup", { name: "KI-Engine" });
-  await expect(choice.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
+  const server = choice.getByRole("radio", { name: "Server-KI" });
+  await expect(server).toBeDisabled();
+  await server.hover();
+  await expect(tooltip).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toBeHidden();
   await expect(choice).toHaveAccessibleDescription(
     "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung. Die KI im Browser braucht WebGPU, und dieser Browser bietet es nicht an. Ein aktueller Browser mit WebGPU auf einem Gerät mit Grafikchip kann es.",
   );

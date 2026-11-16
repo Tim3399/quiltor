@@ -1,0 +1,11 @@
+/* The tooltip borrows the popover surface (.ui-popover) and only narrows it to a short hint. */
+.ui-tooltip {
+  padding: var(--spacing-optical-base) var(--spacing-compact-base);
+  font-size: var(--font-size-metadata);
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.ui-tooltip[hidden] {
+  display: none;
+}

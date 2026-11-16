@@ -64,4 +64,31 @@ describe("SegmentedControl", () => {
     fireEvent.keyDown(screen.getByRole("radio", { name: "Letzte" }), { key: "Home" });
     expect(change).toHaveBeenLastCalledWith("first");
   });
+
+  it("keeps a segment locked with a hint focusable and described, but never chosen", () => {
+    const change = vi.fn();
+    render(
+      <SegmentedControl
+        label="KI-Engine"
+        value="own"
+        options={[
+          { value: "server", label: "Server-KI", disabled: true, hint: "Nur mit Premium" },
+          { value: "own", label: "Eigener Schlüssel" },
+        ]}
+        onChange={change}
+      />,
+    );
+    const locked = screen.getByRole("radio", { name: "Server-KI" });
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    expect(locked).not.toBeDisabled();
+    expect(locked).toHaveAccessibleDescription("Nur mit Premium");
+    fireEvent.click(locked);
+    const own = screen.getByRole("radio", { name: "Eigener Schlüssel" });
+    own.focus();
+    fireEvent.keyDown(own, { key: "ArrowLeft" });
+    expect(locked).toHaveFocus();
+    expect(change).not.toHaveBeenCalled();
+    fireEvent.focus(locked);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Nur mit Premium");
+  });
 });

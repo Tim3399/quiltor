@@ -130,7 +130,10 @@ describe("a stored browser choice survives a missing WebGPU (D-205, T-275 F4)", 
     renderDrawer({ stored: "webllm", serverAi: false });
     expect(await screen.findByText(NO_WEBGPU)).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Im Browser" })).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Server-KI" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 });
 

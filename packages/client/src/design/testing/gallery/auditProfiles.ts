@@ -334,6 +334,14 @@ export const designAuditProfiles = {
       responsive: ["ResponsiveLabel", "PersistentLabel"],
     },
   },
+  Tooltip: {
+    priority: "P1",
+    coverage: {
+      default: ["Default"],
+      keyboard: ["Default"],
+      overlay: ["Default"],
+    },
+  },
   UndoRedoControls: {
     priority: "P1",
     coverage: {

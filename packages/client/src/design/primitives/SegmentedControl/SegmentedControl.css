@@ -43,7 +43,8 @@
   outline-offset: 1px;
 }
 
-.ui-segmented button:disabled {
+.ui-segmented button:disabled,
+.ui-segmented button[aria-disabled="true"] {
   color: var(--disabled-content);
   cursor: default;
 }
