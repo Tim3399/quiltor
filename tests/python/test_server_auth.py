@@ -97,6 +97,7 @@ def _assert_icons_served(test: unittest.TestCase, port: int, headers: dict | Non
         # /email-logo.png is linked from no page: its path is a contract with the
         # Keycloak mails, which load it from https://quiltor.app (T-175).
         for path in ["/favicon.ico", "/email-logo.png", *(f"/{href[2:]}" for href in hrefs)]:
+            # The links carry ?v=<digest> (T-323); the server must answer them as the file.
             conn.request("GET", path, headers=dict(headers or {}))
             response = conn.getresponse()
             body = response.read()

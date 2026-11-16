@@ -15,6 +15,9 @@ Produces:
   apps/web/public/apple-touch-icon.png         home-screen icon, opaque, 180 px
   apps/web/public/email-logo.png               logo the Keycloak mails load: the brand's
                                                quiltor-logo-light-192.png, byte for byte
+  apps/web/index.html                          icon links carry ?v=<digest of the file>, so
+                                               a new icon is a new URL and no browser keeps
+                                               showing the one it cached (T-323)
 
     python distribution/tooling/make_icons.py
     python distribution/tooling/make_icons.py --check   # every icon still shows the logo
@@ -22,7 +25,9 @@ Produces:
 
 from __future__ import annotations
 
+import hashlib
 import io
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +39,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = REPO_ROOT / "distribution" / "assets" / "icons"
 ICONSET_DIR = OUT_DIR / "icon.iconset"
 WEB_DIR = REPO_ROOT / "apps" / "web" / "public"
+WEB_INDEX = REPO_ROOT / "apps" / "web" / "index.html"
+# The icons index.html links; email-logo.png is linked from the Keycloak mails only.
+LINKED_WEB_ICONS = ("favicon.ico", "favicon-32.png", "apple-touch-icon.png")
 BRAND_PNG_DIR = REPO_ROOT / "distribution" / "assets" / "brand" / "png"
 # The opaque icons sit on white: dark mail clients and home screens cannot tint it.
 WEB_BACKGROUND = (255, 255, 255)
@@ -163,6 +171,43 @@ def check_web_icons(web_dir: Path = WEB_DIR) -> list[str]:
     return problems
 
 
+def icon_href(name: str, web_dir: Path = WEB_DIR) -> str:
+    """
+    The href index.html links an icon by: the file plus a digest of its bytes.
+
+    The server sends icons without Cache-Control, and browsers keep a favicon far longer
+    than any heuristic says, so after 3.26.0 replaced the logo they went on showing the old
+    one from the same URL. A query that changes with the bytes makes every new icon a new URL.
+    """
+
+    digest = hashlib.sha256((web_dir / name).read_bytes()).hexdigest()[:12]
+    return f"./{name}?v={digest}"
+
+
+def _icon_link_pattern(name: str) -> re.Pattern[str]:
+    return re.compile(r'(href=")\./' + re.escape(name) + r'(?:\?v=[0-9a-f]*)?(")')
+
+
+def check_icon_links(index: Path = WEB_INDEX, web_dir: Path = WEB_DIR) -> list[str]:
+    """Which icon links in index.html do not carry their file's current digest."""
+
+    html = index.read_text(encoding="utf-8")
+    problems = []
+    for name in LINKED_WEB_ICONS:
+        href = icon_href(name, web_dir)
+        if f'href="{href}"' not in html:
+            problems.append(f"{index} does not link {href}")
+    return problems
+
+
+def _write_icon_links() -> None:
+    html = WEB_INDEX.read_text(encoding="utf-8")
+    for name in LINKED_WEB_ICONS:
+        html = _icon_link_pattern(name).sub(lambda m, n=name: m[1] + icon_href(n) + m[2], html)
+    WEB_INDEX.write_text(html, encoding="utf-8", newline="\n")
+    print(f"Wrote {WEB_INDEX} (icon links)")
+
+
 def _write_web_icons() -> None:
     for name, data in web_icons().items():
         (WEB_DIR / name).write_bytes(data)
@@ -172,7 +217,7 @@ def _write_web_icons() -> None:
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if args == ["--check"]:
-        problems = check_web_icons()
+        problems = check_web_icons() + check_icon_links()
         for problem in problems:
             print(problem, file=sys.stderr)
         if problems:
@@ -186,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     _write_tray_png()
     _write_icns_if_available()
     _write_web_icons()
+    _write_icon_links()
     return 0
 
 
