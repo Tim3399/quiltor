@@ -44,6 +44,25 @@ def sidecar_asset(relative_path: str) -> Path:
     return path
 
 
+EXAMPLE_WORLD_LANGUAGES = frozenset({"de", "en"})
+
+
+def example_world_document(lang: str) -> Path:
+    """One language of the shipped example world (T-214), never an arbitrary file."""
+
+    if lang not in EXAMPLE_WORLD_LANGUAGES:
+        raise ValueError(f"Unsupported example world language: {lang}")
+    return PACKAGE_ROOT / "resources" / "example_world" / f"{lang}.json"
+
+
+def example_world_file(name: str) -> Path:
+    """A file the example world document names, such as its map image."""
+
+    if not name or "/" in name or "\\" in name or name.startswith("."):
+        raise ValueError(f"Unsupported example world file: {name}")
+    return PACKAGE_ROOT / "resources" / "example_world" / name
+
+
 def version_file() -> Path:
     bundled = PACKAGE_ROOT / "VERSION"
     return bundled if bundled.is_file() else source_root() / "VERSION"

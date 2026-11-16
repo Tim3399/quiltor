@@ -188,7 +188,7 @@ export const designAuditProfiles = {
     coverage: {
       default: ["Phases"],
       variants: ["AttentionOnlyLabel"],
-      error: ["LongError", "ErrorWithId"],
+      error: ["LongError", "ErrorWithId", "SessionEnded"],
       longContent: ["LongError"],
     },
   },
@@ -204,8 +204,8 @@ export const designAuditProfiles = {
     priority: "P0",
     coverage: {
       default: ["Default"],
-      disabled: ["DisabledOption"],
-      keyboard: ["Default", "DisabledOption"],
+      disabled: ["DisabledOption", "LockedWithReason"],
+      keyboard: ["Default", "DisabledOption", "LockedWithReason"],
       touch: ["Touch"],
     },
   },
@@ -216,6 +216,14 @@ export const designAuditProfiles = {
       variants: ["Hint"],
       error: ["ErrorState"],
       disabled: ["Disabled"],
+      longContent: ["LongContent"],
+    },
+  },
+  CollapsibleGroup: {
+    priority: "P1",
+    coverage: {
+      default: ["Open"],
+      variants: ["Closed"],
       longContent: ["LongContent"],
     },
   },
@@ -231,7 +239,7 @@ export const designAuditProfiles = {
     priority: "P0",
     coverage: {
       default: ["Default"],
-      variants: ["WithTrailingActions"],
+      variants: ["WithTrailingActions", "Dashed"],
       selection: ["Selected"],
       disabled: ["Disabled"],
       longContent: ["LongContent"],
@@ -324,6 +332,14 @@ export const designAuditProfiles = {
       selection: ["Pressed"],
       disabled: ["Disabled"],
       responsive: ["ResponsiveLabel", "PersistentLabel"],
+    },
+  },
+  Tooltip: {
+    priority: "P1",
+    coverage: {
+      default: ["Default"],
+      keyboard: ["Default"],
+      overlay: ["Default"],
     },
   },
   UndoRedoControls: {

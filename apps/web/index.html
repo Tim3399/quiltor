@@ -3,15 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      const savedTheme = localStorage.getItem("quiltor-theme") || "system";
-      document.documentElement.dataset.theme =
-        savedTheme === "system"
-          ? matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light"
-          : savedTheme;
-    </script>
+    <!-- Classic and synchronous, so the theme is set before the first paint; a file and
+         not inline, so the Content-Security-Policy needs no 'unsafe-inline' (T-61). -->
+    <script src="./theme-boot.js"></script>
     <link rel="icon" href="./favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />

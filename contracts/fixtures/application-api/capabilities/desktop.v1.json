@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "version": 1,
+  "instance": {
+    "multiUser": false,
+    "signOut": false,
+    "deviceSync": true,
+    "assistantInstall": true,
+    "writingDataInstall": true,
+    "grammarInstall": true,
+    "clientAi": true,
+    "testHooks": false
+  },
+  "user": {
+    "serverAi": true
+  }
+}

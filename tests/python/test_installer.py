@@ -21,6 +21,7 @@ from quiltor.infrastructure.inference.archive import extract_archive, locate_exp
 from quiltor.infrastructure.inference.coordinator import InstallationCoordinator
 from quiltor.infrastructure.inference.install_manifest import (
     HUGGINGFACE_TREE_PAGE_LIMIT,
+    LLAMA_CPP_ASSET_SHA256,
     LLAMA_CPP_RELEASE,
     ArtifactManifest,
     github_runtime_artifact,
@@ -381,6 +382,7 @@ class InstallerLogTests(unittest.TestCase):
 
 class InstallManifestTests(unittest.TestCase):
     def test_pinned_runtime_asset_requires_the_published_digest_and_size(self):
+        pinned = LLAMA_CPP_ASSET_SHA256[f"llama-{LLAMA_CPP_RELEASE}-bin-win-cpu-x64.zip"]
         release = {
             "tag_name": LLAMA_CPP_RELEASE,
             "assets": [
@@ -390,15 +392,34 @@ class InstallManifestTests(unittest.TestCase):
                         "https://github.com/ggml-org/llama.cpp/releases/download/"
                         f"{LLAMA_CPP_RELEASE}/llama-{LLAMA_CPP_RELEASE}-bin-win-cpu-x64.zip"
                     ),
-                    "digest": "sha256:" + "a" * 64,
+                    "digest": "sha256:" + pinned,
                     "size": 1234,
                 }
             ],
         }
         artifact = github_runtime_artifact(release, re.compile(r"win-cpu-x64\.zip$"))
         self.assertEqual(artifact.version, LLAMA_CPP_RELEASE)
-        self.assertEqual(artifact.digest, "a" * 64)
+        self.assertEqual(artifact.digest, pinned)
         self.assertEqual(artifact.expected_size, 1234)
+
+    def test_runtime_asset_without_a_repository_pin_is_refused(self):
+        name = f"llama-{LLAMA_CPP_RELEASE}-bin-win-vulkan-x64.zip"
+        release = {
+            "tag_name": LLAMA_CPP_RELEASE,
+            "assets": [
+                {
+                    "name": name,
+                    "browser_download_url": (
+                        "https://github.com/ggml-org/llama.cpp/releases/download/"
+                        f"{LLAMA_CPP_RELEASE}/{name}"
+                    ),
+                    "digest": "sha256:" + "a" * 64,
+                    "size": 1234,
+                }
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "no digest pinned"):
+            github_runtime_artifact(release, re.compile(r"win-vulkan-x64\.zip$"))
 
     def test_runtime_metadata_without_a_digest_fails_closed(self):
         release = {
@@ -541,6 +562,42 @@ class InstallManifestTests(unittest.TestCase):
         self.assertEqual(sorted(artifacts), ["config.json", "model.safetensors"])
         self.assertNotIn("cursor=", seen[0])
         self.assertIn("cursor=next1", seen[1])
+
+    def test_model_artifacts_resolve_the_requested_revision_and_pin_the_download_to_it(self):
+        revision = "d" * 40
+        entry = {"type": "file", "path": "m.gguf", "size": 1, "lfs": {"oid": "b" * 64}}
+        urls = []
+        with (
+            patch.object(
+                installer,
+                "read_json",
+                side_effect=lambda url: urls.append(url) or {"sha": revision},
+            ),
+            patch.object(installer, "read_json_page", return_value=([entry], "")),
+        ):
+            artifacts = installer._model_artifacts("owner/model", revision)
+        self.assertTrue(urls[0].endswith(f"/api/models/owner/model/revision/{revision}"))
+        self.assertIn(f"/resolve/{revision}/m.gguf", artifacts["m.gguf"].url)
+
+    def test_model_artifacts_refuse_a_commit_other_than_the_pinned_one(self):
+        with (
+            patch.object(installer, "read_json", return_value={"sha": "e" * 40}),
+            self.assertRaisesRegex(ValueError, "not " + "d" * 40),
+        ):
+            installer._model_artifacts("owner/model", "d" * 40)
+
+    def test_install_model_asks_for_main_unless_given_a_revision(self):
+        artifact = {"m.gguf": object()}
+        with tempfile.TemporaryDirectory() as folder:
+            paths = installer.InstallerPaths.from_home(Path(folder))
+            for revision, expected in ((None, ("o/r",)), ("d" * 40, ("o/r", "d" * 40))):
+                with (
+                    patch.object(installer, "_model_artifacts", return_value=artifact) as lookup,
+                    patch.object(installer, "download"),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    installer.install_model("o/r", "m.gguf", paths=paths, revision=revision)
+                self.assertEqual(lookup.call_args.args, expected)
 
     def test_model_artifacts_refuse_a_looping_cursor(self):
         revision = "d" * 40

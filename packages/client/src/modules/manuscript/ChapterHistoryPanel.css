@@ -68,3 +68,32 @@
   text-decoration-color: var(--diff-delete-text);
   text-decoration-thickness: 1.5px;
 }
+
+.chapter-history__view {
+  margin-bottom: var(--space-10);
+}
+
+.chapter-timeline {
+  display: grid;
+  gap: var(--space-8);
+  margin-bottom: var(--space-10);
+}
+
+.chapter-timeline__list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-timeline__words,
+.chapter-timeline__skipped {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-size-metadata-legacy-micro);
+}
+
+.chapter-timeline__words {
+  padding: var(--space-4) var(--space-10);
+}

@@ -9,8 +9,8 @@ own:
 
 * a client-generated idempotency key makes retries of the same logical request
   safe;
-* only one assistant inference is allowed to run at a time for this Quiltor data
-  directory;
+* only one job on the server engine is allowed to run at a time for this Quiltor
+  data directory; jobs on a client engine (T-61) run beside it, one per account;
 * queued/running work survives a browser reload and is recovered after a server
   restart;
 * terminal results are persisted long enough for a reconnecting client to read
@@ -33,7 +33,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from quiltor.modules.assistant.ports import IdempotencyConflict
+from quiltor.modules.assistant.engines import CLIENT_FAILURE_CODES, SERVER
+from quiltor.modules.assistant.ports import ClientJobRunning, IdempotencyConflict, TooManyOpenJobs
 
 JOB_RETENTION_DAYS = 7
 
@@ -55,6 +56,7 @@ CREATE TABLE IF NOT EXISTS assistant_jobs (
   http_status INTEGER NOT NULL DEFAULT 0,
   interaction_id TEXT NOT NULL DEFAULT '',
   cancel_requested INTEGER NOT NULL DEFAULT 0,
+  engine_kind TEXT NOT NULL DEFAULT 'server',
   created_at TEXT NOT NULL,
   started_at TEXT,
   finished_at TEXT,
@@ -92,6 +94,14 @@ class AssistantJobStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as conn:
             conn.executescript(SCHEMA)
+            # Queues written before T-61 have no engine column; every job in them ran on
+            # the server engine, which is the column's default.
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(assistant_jobs)")}
+            if "engine_kind" not in columns:
+                conn.execute(
+                    "ALTER TABLE assistant_jobs ADD COLUMN engine_kind TEXT NOT NULL "
+                    "DEFAULT 'server'"
+                )
         self.prune()
 
     def _connect(self) -> sqlite3.Connection:
@@ -128,9 +138,25 @@ class AssistantJobStore:
             "result": result,
             "error": row["error"],
             "errorType": row["error_type"],
+            # A client engine's failure as a code the client words, with the browser's own
+            # detail beside it (D-T-61-30); absent for every other job. A server job never has
+            # one: its own InferenceContextTooLargeError shares the code `context_too_large`.
+            **(
+                {
+                    "engineError": {
+                        "code": row["error_type"],
+                        **({"detail": row["error"]} if row["error"] else {}),
+                    }
+                }
+                if row["status"] == "failed"
+                and row["engine_kind"] != SERVER
+                and row["error_type"] in CLIENT_FAILURE_CODES
+                else {}
+            ),
             "httpStatus": row["http_status"] or None,
             "interactionId": row["interaction_id"] or None,
             "cancelRequested": bool(row["cancel_requested"]),
+            "engine": row["engine_kind"],
             "createdAt": row["created_at"],
             "startedAt": row["started_at"],
             "finishedAt": row["finished_at"],
@@ -145,6 +171,8 @@ class AssistantJobStore:
         intent: dict[str, Any],
         execution: dict[str, Any],
         progress_id: str | None = None,
+        max_open: int | None = None,
+        engine_kind: str = SERVER,
     ) -> tuple[dict[str, Any], bool]:
         """Create or reuse one job atomically.
 
@@ -152,6 +180,15 @@ class AssistantJobStore:
         therefore always creates a fresh job, even when the question happens to
         equal another in-flight question. Retries reuse the original key and get
         the original job back.
+
+        With `max_open`, an owner who already has that many queued or running jobs
+        gets TooManyOpenJobs instead of a new one. The count comes after the key
+        lookup, so a retry never meets the limit, and sits in the same transaction
+        as the insert, so two requests at once cannot both slip under it.
+
+        A job on a client engine is refused with ClientJobRunning while the owner has
+        another open one, in the same transaction: one browser computes one job at a
+        time, with or without the limit above.
         """
 
         key = idempotency_key.strip()
@@ -180,13 +217,39 @@ class AssistantJobStore:
                 assert public is not None  # noqa: S101 - type narrowing, not a runtime check
                 return public, False
 
+            if engine_kind != SERVER:
+                running = conn.execute(
+                    """
+                    SELECT id FROM assistant_jobs
+                    WHERE owner_sub=? AND engine_kind!='server'
+                      AND status IN ('queued','running')
+                    ORDER BY created_at, id LIMIT 1
+                    """,
+                    (owner_sub,),
+                ).fetchone()
+                if running is not None:
+                    conn.rollback()
+                    raise ClientJobRunning(running["id"])
+
+            if max_open is not None:
+                (open_jobs,) = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM assistant_jobs
+                    WHERE owner_sub=? AND status IN ('queued','running')
+                    """,
+                    (owner_sub,),
+                ).fetchone()
+                if open_jobs >= max_open:
+                    conn.rollback()
+                    raise TooManyOpenJobs(max_open)
+
             job_id = uuid.uuid4().hex
             conn.execute(
                 """
                 INSERT INTO assistant_jobs(
                   id, owner_sub, world_id, idempotency_key, request_hash,
-                  request_json, progress_id, status, created_at
-                ) VALUES(?,?,?,?,?,?,?,'queued',?)
+                  request_json, progress_id, status, engine_kind, created_at
+                ) VALUES(?,?,?,?,?,?,?,'queued',?,?)
                 """,
                 (
                     job_id,
@@ -196,6 +259,7 @@ class AssistantJobStore:
                     digest,
                     request_json,
                     progress_id or "",
+                    engine_kind,
                     _now(),
                 ),
             )
@@ -226,26 +290,49 @@ class AssistantJobStore:
             raise ValueError(f"Assistant job {job_id} has an invalid request payload.")
         return value
 
-    def claim_next(self) -> dict[str, Any] | None:
-        """Atomically claim one queued job when no job is currently running."""
+    def claim_next_server(self) -> dict[str, Any] | None:
+        """Atomically claim one queued server-engine job when none is running.
 
+        The server engine is one model on the operator's hardware or bill: one job at a
+        time. Jobs on a client engine neither count here nor are claimed here.
+        """
+
+        return self._claim(
+            blocked_by="SELECT id FROM assistant_jobs WHERE status='running' "
+            "AND engine_kind='server' LIMIT 1",
+            candidates="SELECT * FROM assistant_jobs WHERE status='queued' "
+            "AND engine_kind='server' ORDER BY created_at, id LIMIT 1",
+        )
+
+    def claim_next_client(self) -> dict[str, Any] | None:
+        """Atomically claim the oldest queued client-engine job whose owner has none running.
+
+        Each account computes on its own engine, so two accounts run side by side; one
+        account runs one job at a time.
+        """
+
+        return self._claim(
+            blocked_by=None,
+            candidates="""
+                SELECT * FROM assistant_jobs AS candidate
+                WHERE candidate.status='queued' AND candidate.engine_kind!='server'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM assistant_jobs AS other
+                    WHERE other.owner_sub=candidate.owner_sub
+                      AND other.engine_kind!='server' AND other.status='running'
+                  )
+                ORDER BY candidate.created_at, candidate.id LIMIT 1
+            """,
+        )
+
+    def _claim(self, *, blocked_by: str | None, candidates: str) -> dict[str, Any] | None:
         with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
-            running = conn.execute(
-                "SELECT id FROM assistant_jobs WHERE status='running' LIMIT 1"
-            ).fetchone()
-            if running is not None:
+            if blocked_by is not None and conn.execute(blocked_by).fetchone() is not None:
                 conn.rollback()
                 return None
 
-            row = conn.execute(
-                """
-                SELECT * FROM assistant_jobs
-                WHERE status='queued'
-                ORDER BY created_at, id
-                LIMIT 1
-                """
-            ).fetchone()
+            row = conn.execute(candidates).fetchone()
             if row is None:
                 conn.rollback()
                 return None
@@ -407,8 +494,11 @@ class AssistantJobStore:
     def recover_interrupted(self) -> None:
         """Recover rows left `running` by a previous process.
 
-        Model inference has no side effects. Replaying an interrupted inference is
-        therefore safe; an interaction is only written after complete() returns.
+        Model inference has no side effects. Replaying an interrupted inference on the
+        server engine is therefore safe; an interaction is only written after complete()
+        returns. A job on a client engine cannot be replayed: the browser that held the
+        model or the key, and the session bound to it, are gone with the old process. It
+        fails as `client_unavailable`, queued or running.
         """
 
         now = _now()
@@ -418,6 +508,16 @@ class AssistantJobStore:
                 UPDATE assistant_jobs
                 SET status='cancelled', finished_at=?, request_json='{}'
                 WHERE status='running' AND cancel_requested=1
+                """,
+                (now,),
+            )
+            conn.execute(
+                """
+                UPDATE assistant_jobs
+                SET status='failed', finished_at=?, request_json='{}',
+                    error='The browser computing this job is no longer connected.',
+                    error_type='client_unavailable', http_status=503
+                WHERE engine_kind!='server' AND status IN ('queued','running')
                 """,
                 (now,),
             )

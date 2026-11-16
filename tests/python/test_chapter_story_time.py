@@ -21,6 +21,7 @@ from quiltor.application.documents import (
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.domain.manuscript import story_time_anchor_issue, valid_story_time_reference
 from quiltor.infrastructure.persistence.adapters.documents import SQLiteDocumentRepository
+from quiltor.infrastructure.persistence.adapters.place_maps import SQLitePlaceMapRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript, revisions, schema, story_world
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 from tests.python.narrowing import present
@@ -48,16 +49,16 @@ class _CoordinatedRepository(SQLiteDocumentRepository):
         self._ready = threading.Barrier(2)
         self._first_committed = threading.Event()
 
-    def save(self, kind, state, expected_revision, database):
+    def save(self, kind, state, expected_revision, database, *, promote=True):
         self._ready.wait(timeout=5)
         if kind == self._first:
             try:
-                return super().save(kind, state, expected_revision, database)
+                return super().save(kind, state, expected_revision, database, promote=promote)
             finally:
                 self._first_committed.set()
         if not self._first_committed.wait(timeout=5):
             raise TimeoutError("The first concurrent document save did not finish.")
-        return super().save(kind, state, expected_revision, database)
+        return super().save(kind, state, expected_revision, database, promote=promote)
 
 
 def _timeline() -> dict:
@@ -201,6 +202,7 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
             SQLiteDocumentRepository(),
             cast(BackupRepository, _Backups()),
             cast(UseCaseObserver, _Observer()),
+            SQLitePlaceMapRepository(),
         )
 
     def tearDown(self):
@@ -294,6 +296,7 @@ class ChapterStoryTimePersistenceTests(unittest.TestCase):
                     _CoordinatedRepository(first),
                     cast(BackupRepository, _Backups()),
                     cast(UseCaseObserver, _Observer()),
+                    SQLitePlaceMapRepository(),
                 )
                 with ThreadPoolExecutor(max_workers=2) as pool:
                     futures = {

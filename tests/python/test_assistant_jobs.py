@@ -13,9 +13,13 @@ from quiltor.modules.assistant.jobs import (
     AssistantJobRunner,
     IdempotencyConflict,
 )
+from quiltor.modules.assistant.ports import TooManyOpenJobs
 from tests.python.narrowing import present
 
 WORLD_ID = "a" * 32
+
+# A busy CI runner sometimes needs more than 3 s; wait returns as soon as the job is done.
+JOB_WAIT_SECONDS = 15
 
 
 def intent(question: str) -> dict:
@@ -78,7 +82,9 @@ class FakeAssistant:
 
 
 class FakeInteractionLogger:
-    def record(self, question, response=None, *, error="", owner_sub="", world_id=""):
+    def record(
+        self, question, response=None, *, error="", owner_sub="", world_id="", engine="server"
+    ):
         return f"interaction-{question}"
 
 
@@ -211,7 +217,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        claimed = present(self.store.claim_next())
+        claimed = present(self.store.claim_next_server())
         self.assertEqual(claimed["id"], job["id"])
         self.assertEqual(claimed["status"], "running")
 
@@ -240,7 +246,7 @@ class AssistantJobStoreTests(unittest.TestCase):
             intent=intent("hello"),
             execution=execution("hello"),
         )
-        self.store.claim_next()
+        self.store.claim_next_server()
         result = {"ok": True, "message": "done", "proposals": [], "sources": []}
         terminal = present(self.store.finish_success(job["id"], result, "interaction-1"))
 
@@ -251,6 +257,70 @@ class AssistantJobStoreTests(unittest.TestCase):
                 "SELECT request_json FROM assistant_jobs WHERE id=?", (job["id"],)
             ).fetchone()[0]
         self.assertEqual(request_json, "{}")
+
+
+class AssistantJobLimitTests(unittest.TestCase):
+    """At most `max_open` queued or running jobs per owner (T-58 P6)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = AssistantJobStore(Path(self.tmp.name) / "assistant-jobs.sqlite3")
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _submit(self, key: str, *, owner: str = "user", max_open: int | None = 2):
+        return self.store.submit(
+            owner_sub=owner,
+            world_id=WORLD_ID,
+            idempotency_key=key,
+            intent=intent("hello"),
+            execution=execution("hello"),
+            max_open=max_open,
+        )
+
+    def test_the_job_beyond_the_limit_is_refused(self):
+        self._submit("a")
+        self._submit("b")
+        with self.assertRaises(TooManyOpenJobs) as refused:
+            self._submit("c")
+        self.assertEqual(refused.exception.limit, 2)
+        with closing(sqlite3.connect(self.store.path)) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM assistant_jobs").fetchone()[0], 2)
+
+    def test_a_running_job_counts_as_open(self):
+        self._submit("a")
+        self._submit("b")
+        present(self.store.claim_next_server())
+        with self.assertRaises(TooManyOpenJobs):
+            self._submit("c")
+
+    def test_finished_jobs_do_not_count(self):
+        first, _ = self._submit("a")
+        self._submit("b")
+        self.store.cancel(first["id"], "user", WORLD_ID)
+        job, created = self._submit("c")
+        self.assertTrue(created)
+        self.assertEqual(job["status"], "queued")
+
+    def test_a_retry_with_the_old_key_is_no_refusal_at_the_limit(self):
+        first, _ = self._submit("a")
+        self._submit("b")
+        again, created = self._submit("a")
+        self.assertFalse(created)
+        self.assertEqual(again["id"], first["id"])
+
+    def test_the_limit_is_counted_per_owner(self):
+        self._submit("a")
+        self._submit("b")
+        job, created = self._submit("a", owner="someone-else")
+        self.assertTrue(created)
+        self.assertEqual(job["status"], "queued")
+
+    def test_without_a_limit_nothing_is_refused(self):
+        for index in range(10):
+            _, created = self._submit(f"key-{index}", max_open=None)
+            self.assertTrue(created)
 
 
 class AssistantJobRunnerTests(unittest.TestCase):
@@ -275,7 +345,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     intent=intent("hello"),
                     execution=execution("hello"),
                 )
-                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
                 self.assertEqual(terminal["status"], "failed")
                 self.assertFalse((data / "worlds" / f"{WORLD_ID}.sqlite3").exists())
             finally:
@@ -310,8 +380,8 @@ class AssistantJobRunnerTests(unittest.TestCase):
                 self.assertEqual(assistant.max_active, 1)
 
                 assistant.release_first.set()
-                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=3)
-                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=3)
+                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
+                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
                 self.assertEqual(first_done["status"], "completed")
                 self.assertEqual(second_done["status"], "completed")
                 self.assertEqual(assistant.calls, ["first", "second"])
@@ -362,7 +432,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     execution=request,
                 )
 
-                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
 
                 self.assertEqual(terminal["status"], "completed")
                 result = terminal["result"]
@@ -372,7 +442,9 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     result["staleWorld"],
                     {"expectedRevision": 4, "currentRevision": 5},
                 )
-                proof = result["agentTrace"][0]["proof"]
+                # [0] is the engine step (T-61 part 9), the runtime's own steps follow.
+                self.assertEqual(result["agentTrace"][0], {"step": "engine", "engine": "server"})
+                proof = result["agentTrace"][1]["proof"]
                 self.assertTrue(proof["stale"])
                 self.assertFalse(proof["applicable"])
                 self.assertEqual(result["agentTrace"][-1]["step"], "stale_world")
@@ -421,7 +493,7 @@ class AssistantJobRunnerTests(unittest.TestCase):
                     execution=request,
                 )
 
-                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=3)
+                terminal = runner.wait(job["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
 
                 result = terminal["result"]
                 self.assertEqual(result["sources"], [])
@@ -464,8 +536,8 @@ class AssistantJobRunnerTests(unittest.TestCase):
                 self.assertEqual(assistant.max_active, 1)
 
                 assistant.release_first.set()
-                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=3)
-                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=3)
+                first_done = runner.wait(first["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
+                second_done = runner.wait(second["id"], "user", WORLD_ID, timeout=JOB_WAIT_SECONDS)
                 self.assertEqual(first_done["status"], "cancelled")
                 self.assertEqual(second_done["status"], "completed")
                 self.assertEqual(assistant.max_active, 1)

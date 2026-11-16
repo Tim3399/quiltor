@@ -181,6 +181,11 @@ def _valid_node(value: object, board_ids: set[str]) -> TypeGuard[StoryboardNode]
     if kind == "reference":
         if not _valid_target(target, _REFERENCE_KINDS):
             return False
+        # A reference card shows the note of its element and keeps none of its own (T-177).
+        # Empty values stay allowed: the client creates every card with them, and nothing
+        # can be lost in an empty note (F-177-3).
+        if text or node.get("noteReferences") or node.get("noteMarks"):
+            return False
     elif kind == "storyboard":
         if not _valid_target(target, {"storyboard"}) or target["id"] not in board_ids:
             return False

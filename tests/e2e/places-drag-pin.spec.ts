@@ -126,22 +126,22 @@ test("Derived places drag by a pointer-accurate pin on expanded and entered maps
   await page.locator(".react-flow__controls-zoomin").click();
   await waitForMapViewport(page);
 
-  const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
+  const map = page.locator('.react-flow__node-placeMap[data-id="x-weltkarte"]');
   const mapRect = await settledBox(map);
   const firstAnchor = { u: 0.61, v: 0.56 };
   await dragPlaceToPointer({
     page,
-    node: page.locator('.react-flow__node[data-id="graufurth"] .place-node-shell'),
-    placeId: "graufurth",
+    node: page.locator('.react-flow__node[data-id="x-graufurth"] .place-node-shell'),
+    placeId: "x-graufurth",
     target: pointOn(mapRect, firstAnchor.u, firstAnchor.v),
     screenshot: testInfo.outputPath("expanded-map-drag-preview.png"),
   });
   await expectStoredAnchor(
     fixture.savedState,
-    "graufurth",
+    "x-graufurth",
     {
       ...firstAnchor,
-      parentPlaceId: "weltkarte",
+      parentPlaceId: "x-weltkarte",
     },
     mapRect,
   );
@@ -156,17 +156,17 @@ test("Derived places drag by a pointer-accurate pin on expanded and entered maps
   const secondAnchor = { u: 0.38, v: 0.68 };
   await dragPlaceToPointer({
     page,
-    node: page.locator('.react-flow__node[data-id="graufurth"] .place-node-shell'),
-    placeId: "graufurth",
+    node: page.locator('.react-flow__node[data-id="x-graufurth"] .place-node-shell'),
+    placeId: "x-graufurth",
     target: pointOn(groundRect, secondAnchor.u, secondAnchor.v),
     grab: { u: 0.75, v: 0.25 },
   });
   await expectStoredAnchor(
     fixture.savedState,
-    "graufurth",
+    "x-graufurth",
     {
       ...secondAnchor,
-      parentPlaceId: "weltkarte",
+      parentPlaceId: "x-weltkarte",
     },
     groundRect,
   );
@@ -186,7 +186,7 @@ test("A free place uses the pointer anchor when dropped onto an expanded map", a
   const fixture = await mockExpandedMapWorld(page, state);
   await openExpandedMapWorld(page);
   const mapRect = await page
-    .locator('.react-flow__node-placeMap[data-id="weltkarte"]')
+    .locator('.react-flow__node-placeMap[data-id="x-weltkarte"]')
     .boundingBox();
   if (!mapRect) throw new Error("The expanded map has no screen geometry.");
   const anchor = { u: 0.22, v: 0.73 };
@@ -202,7 +202,7 @@ test("A free place uses the pointer anchor when dropped onto an expanded map", a
     "klippenhaus",
     {
       ...anchor,
-      parentPlaceId: "weltkarte",
+      parentPlaceId: "x-weltkarte",
     },
     mapRect,
   );
@@ -218,7 +218,7 @@ test("Pinned places and expanded maps retain their established drag behavior", a
     sub: "Bewacht den nördlichen Pass.",
     x: 0,
     y: 0,
-    parentPlaceId: "weltkarte",
+    parentPlaceId: "x-weltkarte",
     mapU: 0.52,
     mapV: 0.2,
     pinned: true,
@@ -243,8 +243,8 @@ test("Pinned places and expanded maps retain their established drag behavior", a
 
   const chrome = page.locator(".place-map-chrome");
   await chrome.getByRole("button", { name: "Weltkarte lösen", exact: true }).click();
-  await expect.poll(() => place(fixture.savedState(), "weltkarte")?.pinned).toBe(false);
-  const map = page.locator('.react-flow__node-placeMap[data-id="weltkarte"]');
+  await expect.poll(() => place(fixture.savedState(), "x-weltkarte")?.pinned).toBe(false);
+  const map = page.locator('.react-flow__node-placeMap[data-id="x-weltkarte"]');
   const before = await map.boundingBox();
   if (!before) throw new Error("The expanded map has no screen geometry.");
   await page.mouse.move(before.x + before.width * 0.4, before.y + before.height * 0.4);
@@ -257,7 +257,7 @@ test("Pinned places and expanded maps retain their established drag behavior", a
   await page.mouse.up();
   await expect
     .poll(() => {
-      const moved = place(fixture.savedState(), "weltkarte");
+      const moved = place(fixture.savedState(), "x-weltkarte");
       return [moved?.mapX, moved?.mapY];
     })
     .not.toEqual([undefined, undefined]);
@@ -268,11 +268,11 @@ test("Blur and touch cancellation restore the place without persisting the drag"
 }) => {
   const fixture = await mockExpandedMapWorld(page);
   await openExpandedMapWorld(page);
-  const node = page.locator('.react-flow__node[data-id="graufurth"] .place-node-shell');
+  const node = page.locator('.react-flow__node[data-id="x-graufurth"] .place-node-shell');
   const original = await node.boundingBox();
   if (!original) throw new Error("The derived place has no screen geometry.");
   const mapRect = await page
-    .locator('.react-flow__node-placeMap[data-id="weltkarte"]')
+    .locator('.react-flow__node-placeMap[data-id="x-weltkarte"]')
     .boundingBox();
   if (!mapRect) throw new Error("The expanded map has no screen geometry.");
 
@@ -293,8 +293,8 @@ test("Blur and touch cancellation restore the place without persisting the drag"
         return Math.max(Math.abs(restored.x - original.x), Math.abs(restored.y - original.y));
       })
       .toBeLessThanOrEqual(PREVIEW_TOLERANCE);
-    expect(place(fixture.savedState(), "graufurth")).toMatchObject({
-      parentPlaceId: "weltkarte",
+    expect(place(fixture.savedState(), "x-graufurth")).toMatchObject({
+      parentPlaceId: "x-weltkarte",
       mapU: 0.3,
       mapV: 0.4,
     });

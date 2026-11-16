@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from quiltor.application.document_wire_v1 import decode_document_v1, encode_document_v1
+from quiltor.application.errors import SchemaNewerThanSupported
 from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
 from quiltor.infrastructure.persistence import mirror
 from quiltor.infrastructure.persistence.sqlite import (
@@ -272,6 +274,24 @@ class MigrationSafetyTest(unittest.TestCase):
         self.assertEqual(self.database.read_bytes(), before)
         self.assertEqual(manuscript.load(self.database)["chapters"][0]["body"], "Aktueller Text")
         self.assertEqual(revisions.revision("manuscript", db_path=self.database), 1)
+
+    def test_restoring_a_copy_from_a_newer_version_names_the_version_problem(self):
+        schema.initialize(self.database)
+        self._save("Aktueller Text", 0)
+        newer = self.backups / "backup-newer.sqlite3"
+        shutil.copyfile(self.database, newer)
+        with connection(newer) as database:
+            database.execute(
+                "UPDATE meta SET value=? WHERE key='schema_version'",
+                (str(schema.SCHEMA_VERSION + 1),),
+            )
+        before = self.database.read_bytes()
+
+        with self.assertRaises(SchemaNewerThanSupported) as raised:
+            restore.restore_backup(newer.name, db_path=self.database, backups_dir=self.backups)
+
+        self.assertEqual(raised.exception.code, "storage.schema_newer")
+        self.assertEqual(self.database.read_bytes(), before)
 
     def test_restore_invalidates_revisions_issued_before_restore(self):
         schema.initialize(self.database)

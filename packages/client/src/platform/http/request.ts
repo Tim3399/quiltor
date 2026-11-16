@@ -89,8 +89,21 @@ function localizedApplicationErrorMessage(category: ApplicationErrorCategory): s
   return messageByCategory[category];
 }
 
-function localizedStructuredErrorMessage(code: string | undefined): string | undefined {
+function localizedStructuredErrorMessage(
+  code: string | undefined,
+  params: Readonly<Record<string, unknown>> = {},
+): string | undefined {
   const messages = currentMessages();
+  if (code === "assistant.premium_required") return messages.errorAssistantPremiumRequired;
+  if (code === "assistant.client_job_running") return messages.errorAssistantClientJobRunning;
+  if (code === "assistant.client_ai_disabled") return messages.errorAssistantClientAiDisabled;
+  if (code === "assistant.too_many_jobs") {
+    // The server names its own limit (QUILTOR_ASSISTANT_MAX_OPEN_JOBS); without a usable number
+    // the category's generic message is the honest answer.
+    const limit = params.limit;
+    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1) return undefined;
+    return messages.errorAssistantTooManyJobs.replace("{limit}", String(limit));
+  }
   if (code === "storage.read_only") return messages.errorStorageReadOnly;
   if (code === "cloud.quota_exceeded") return messages.cloudQuotaExceeded;
   if (code === "cloud.read_only") return messages.cloudReadOnly;
@@ -100,10 +113,19 @@ function localizedStructuredErrorMessage(code: string | undefined): string | und
     return messages.cloudStaleComparison;
   if (code === "storage.full") return messages.errorStorageFull;
   if (code === "storage.locked") return messages.errorStorageLocked;
+  if (code === "storage.schema_newer") return messages.errorStorageSchemaNewer;
   if (code === "backup.preview_failed") return messages.errorBackupPreviewFailed;
   if (code === "backup_content_integrity") return messages.errorBackupContentIntegrity;
   if (code === "backup_content_unavailable") return messages.errorBackupContentUnavailable;
   if (code === "sync.forbidden_hosted") return messages.errorSyncForbiddenHosted;
+  // A preview of the example world is not synced or backed up until it is the author's.
+  if (code === "world.preview") return messages.errorWorldPreview;
+  if (code === "world.example_failed") return messages.errorExampleWorldFailed;
+  // A hosted server bounds the worlds of one account, by count and by size (S268-9).
+  if (code === "world.quota") return messages.errorWorldQuota;
+  if (code === "server.busy") return messages.errorServerBusy;
+  // A hosted server refuses operator-only routes such as installing the assistant (T-184).
+  if (code === "install.forbidden_hosted") return messages.errorInstallForbiddenHosted;
   if (code === "sync.target_invalid") return messages.errorSyncTargetInvalid;
   if (code === "project_transfer.invalid_archive")
     return messages.errorProjectTransferInvalidArchive;
@@ -177,15 +199,26 @@ function structuredApplicationError(value: unknown): StructuredApplicationError 
   };
 }
 
+/** A `429`'s `Retry-After` in seconds as `params.retryAfter`, so callers can wait as asked. */
+function withRetryAfter(
+  response: Response,
+  params: Readonly<Record<string, unknown>> | undefined,
+): Readonly<Record<string, unknown>> | undefined {
+  const seconds = Number(response.headers?.get("Retry-After") ?? Number.NaN);
+  if (response.status !== 429 || !Number.isFinite(seconds) || seconds < 0) return params;
+  return { ...params, retryAfter: seconds };
+}
+
 export function httpResponseError(response: Response, data: unknown): ApplicationGatewayError {
   const category = applicationCodeForHttpStatus(response.status);
   const structured = structuredApplicationError(data);
   return new ApplicationGatewayError(
-    localizedStructuredErrorMessage(structured?.code) ?? localizedApplicationErrorMessage(category),
+    localizedStructuredErrorMessage(structured?.code, structured?.params) ??
+      localizedApplicationErrorMessage(category),
     structured?.code ?? category,
     {
       category,
-      params: structured?.params,
+      params: withRetryAfter(response, structured?.params),
       retryable: structured?.retryable ?? response.status >= 500,
       requestId: bodyRequestId(data) ?? validRequestId(response.headers?.get("X-Request-Id")),
     },

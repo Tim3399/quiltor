@@ -6,6 +6,7 @@ not part of this integration suite.
 """
 
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -16,6 +17,11 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import AssistantServices, build_identity, build_web_application
+from quiltor.bootstrap.web import (
+    AssistantRouteServices,
+    assistant_client_ai,
+    assistant_max_open_jobs,
+)
 from quiltor.hosts.web import server
 from quiltor.infrastructure.persistence.assistant_interactions import (
     ApplicationAssistantWorldAccess,
@@ -158,7 +164,8 @@ class ServerAssistantRouteTests(_LiveServerTestCase):
             response["job"]["id"],
             cast(LocalIdentity, self.app.identity).master_sub,
             self.world_id,
-            timeout=3,
+            # A busy CI runner sometimes needs more than 3 s; wait returns as soon as the job is done.
+            timeout=15,
         )
 
     def _interactions(self):
@@ -485,6 +492,136 @@ class FreshInstallRouteTests(_LiveServerTestCase):
         """The explicitly composed sentinel is initialized without globals."""
         self.assertEqual(manuscript.load(db_path=self.sentinel_db)["chapters"], [])
         self.assertEqual(assistant_history.list_interactions(db_path=self.sentinel_db), [])
+
+
+class LocalAssistantLimitsTests(_LiveServerTestCase):
+    """The limits of a shared server never reach the one person at a local one."""
+
+    def setUp(self):
+        super().setUp()
+        status, body = self._request(
+            "POST", "/api/worlds/create", {"title": "Testwelt", "backupUrl": ""}
+        )
+        self.assertEqual(status, 200, body)
+        self.world_id = body["world"]["id"]
+
+    def test_ten_open_jobs_are_all_accepted(self):
+        reply = {"message": "ok", "citations": [], "proposals": [], "sources": [], "agentTrace": []}
+        with patch.object(
+            self.app.assistant_jobs, "assistant", MagicMock(complete=MagicMock(return_value=reply))
+        ):
+            for index in range(10):
+                with self.subTest(job=index):
+                    status, body = self._request(
+                        "POST",
+                        "/api/assistant/jobs",
+                        {"question": f"Frage {index}", "worldId": self.world_id},
+                        headers={"Idempotency-Key": f"key-{index}"},
+                    )
+                    self.assertEqual(status, 202, body)
+
+    def test_status_says_premium_and_keeps_the_runtime_fields(self):
+        fake_status = {"available": True, "mode": "local", "reason": "", "backend": "llama"}
+        with patch.object(
+            self.app,
+            "assistant_services",
+            AssistantServices(
+                MagicMock(
+                    reload=MagicMock(),
+                    status=MagicMock(return_value=fake_status),
+                    progress=self.app.assistant.progress,
+                ),
+                self.app.assistant_jobs,
+            ),
+        ):
+            status, body = self._get(f"/api/assistant/status?world={self.world_id}")
+        self.assertEqual(status, 200)
+        self.assertIs(body["premium"], True)
+        self.assertIs(body["available"], True)
+        self.assertEqual(body["backend"], "llama")
+
+    def test_install_is_unchanged_locally(self):
+        with patch.object(
+            self.app.assistant_installation, "start_async", return_value=True
+        ) as start:
+            status, body = self._request("POST", "/api/assistant/install", {})
+        self.assertEqual(status, 200, body)
+        self.assertIs(body["started"], True)
+        start.assert_called_once()
+
+
+class AssistantMaxOpenJobsSettingTests(unittest.TestCase):
+    def test_the_default_is_three_when_unset_or_empty(self):
+        self.assertEqual(assistant_max_open_jobs(""), 3)
+        self.assertEqual(assistant_max_open_jobs("  "), 3)
+
+    def test_a_whole_number_from_one_to_one_hundred_is_taken(self):
+        for text, value in (("1", 1), ("3", 3), ("100", 100), (" 7 ", 7)):
+            with self.subTest(text=text):
+                self.assertEqual(assistant_max_open_jobs(text), value)
+
+    def test_anything_else_is_a_startup_error_without_the_value(self):
+        for text in ("0", "101", "-1", "2.5", "drei", "1e1", "\u0663"):
+            with self.subTest(text=text):
+                with self.assertRaises(RuntimeError) as raised:
+                    assistant_max_open_jobs(text)
+                # One fixed text: whatever was configured never ends up in it.
+                self.assertEqual(
+                    str(raised.exception),
+                    "QUILTOR_ASSISTANT_MAX_OPEN_JOBS must be a whole number from 1 to 100.",
+                )
+
+
+class AssistantClientAiSettingTests(unittest.TestCase):
+    """QUILTOR_ASSISTANT_CLIENT_AI: own-AI jobs are on unless switched off (T-61, F-61-17)."""
+
+    def test_unset_or_empty_means_on(self):
+        self.assertTrue(assistant_client_ai(""))
+        self.assertTrue(assistant_client_ai("  "))
+
+    def test_one_is_on_and_zero_is_off(self):
+        self.assertTrue(assistant_client_ai("1"))
+        self.assertTrue(assistant_client_ai(" 1 "))
+        self.assertFalse(assistant_client_ai("0"))
+
+    def test_anything_else_is_a_startup_error_without_the_value(self):
+        for text in ("yes", "true", "off", "2", "-1", "01"):
+            with self.subTest(text=text):
+                with self.assertRaises(RuntimeError) as raised:
+                    assistant_client_ai(text)
+                self.assertEqual(
+                    str(raised.exception), "QUILTOR_ASSISTANT_CLIENT_AI must be 0 or 1."
+                )
+
+    def test_a_server_started_without_the_variable_offers_own_ai(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            directories = AppDirectories(
+                data=root,
+                config=root / "config",
+                cache=root / "cache",
+                models=root / "models",
+                logs=root / "logs",
+                temp=root / "temp",
+            )
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key != "QUILTOR_ASSISTANT_CLIENT_AI"
+            }
+            with patch.dict(os.environ, environment, clear=True):
+                app = build_web_application(
+                    identity=build_identity(False),
+                    ensure_assistant_installed=False,
+                    inference=_UnavailableInference(),
+                    app_directories=directories,
+                )
+            try:
+                self.assertTrue(app.assistant_client_ai)
+                services = cast(AssistantRouteServices, app.route_services("/api/assistant/jobs"))
+                self.assertTrue(services.client_ai)
+            finally:
+                app.assistant_services.jobs.close()
 
 
 if __name__ == "__main__":

@@ -10,8 +10,16 @@ const shell = vi.hoisted(() => ({ syncAvailable: true as boolean | null }));
 vi.mock("../shell/useShellStatus", () => ({
   useShellStatus: () => ({
     account: { email: "author@example.org" },
-    syncAvailable: shell.syncAvailable,
     logout: vi.fn(),
+  }),
+}));
+// Device sync comes from the capabilities since T-102; null is "not answered yet".
+vi.mock("../shell/useCapabilities", () => ({
+  useCapabilities: () => ({
+    instance:
+      shell.syncAvailable === null
+        ? null
+        : { multiUser: true, signOut: true, deviceSync: shell.syncAvailable },
   }),
 }));
 vi.mock("../shell/useTheme", () => ({

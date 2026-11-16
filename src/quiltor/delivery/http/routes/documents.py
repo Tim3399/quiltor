@@ -10,12 +10,14 @@ from quiltor.application import (
     MAX_SAFE_REVISION,
     InvalidDocumentState,
     InvalidDocumentWireV1,
+    PdfRendererError,
     RevisionConflict,
     decode_document_v1,
     encode_document_v1,
 )
 from quiltor.application.documents import DocumentKind
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_growth_over_quota
 
 
 @get("/api/state", world=True)
@@ -65,6 +67,11 @@ def write_storyboards(handler, request: Request, app) -> None:
 def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
     from datetime import datetime
 
+    # A save adds bytes (the mirrors, the document itself); over the byte limit of a hosted
+    # account it is refused before the body is read (F-268-18).
+    with app.lock:
+        if refuse_growth_over_quota(handler, request):
+            return
     try:
         wire = decode_document_v1(kind, handler._read_json_body())
     except (InvalidDocumentWireV1, TypeError, ValueError) as error:
@@ -116,6 +123,12 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
             raise
 
     updated_revision = saved.revision
+    # The write above already made a preview of the example world real, in its own
+    # transaction; this gives it its title "(2)" if needed and tells the client (T-214-5a).
+    promoted = None
+    if getattr(request.world, "preview", False):
+        with app.lock:
+            promoted = app.finish_promotion(request.world.id)
     now = datetime.now().strftime("%H:%M:%S")
     if kind == "manuscript":
         chapters = payload["chapters"]
@@ -135,6 +148,7 @@ def _write(handler, request: Request, app, *, kind: DocumentKind) -> None:
             "zeit": now,
             "revision": updated_revision,
             **({"warnings": list(saved.warnings)} if saved.warnings else {}),
+            **({"world": promoted} if promoted is not None else {}),
         },
         headers={"ETag": f'"{updated_revision}"'},
     )
@@ -176,4 +190,17 @@ def book_pdf(handler, request: Request, app) -> None:
     # on its first request (see redeem_render_token).
     token = app.issue_render_token(request.session.sub)
     target = f"http://127.0.0.1:{port}/?world={world.id}&renderToken={token}&bookRender=1"
-    handler.send_pdf(app.render_pdf(target))
+    try:
+        body = app.render_pdf(target)
+    except PdfRendererError as error:
+        # Category and exit code only: the renderer's stderr can carry the render URL and
+        # its token, and PdfRendererError never holds it.
+        if app.observability is not None:
+            app.observability.logger.event(
+                "error",
+                "pdf.render_failed",
+                category=error.category,
+                exit_code=error.exit_code,
+            )
+        raise
+    handler.send_pdf(body)

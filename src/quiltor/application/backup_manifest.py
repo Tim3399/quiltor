@@ -9,7 +9,7 @@ import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, TypedDict
 
 from quiltor.domain.json_values import JsonObject, as_object
 
@@ -309,10 +309,19 @@ def verify_blob(record: ManifestFile, payload: object) -> bytes:
     return payload
 
 
-def build_manifest_files(files: Iterable[tuple[str, bytes]]) -> dict[str, dict[str, Any]]:
+class ManifestFileDescriptor(TypedDict):
+    """One file of a V2 manifest, as it is written into the manifest."""
+
+    sha256: str
+    size: int
+
+
+def build_manifest_files(
+    files: Iterable[tuple[str, bytes]],
+) -> dict[str, ManifestFileDescriptor]:
     """Create V2 file descriptors after applying the same path/size rules as readers."""
 
-    descriptors: dict[str, dict[str, Any]] = {}
+    descriptors: dict[str, ManifestFileDescriptor] = {}
     total = 0
     for path, payload in files:
         canonical = _validate_logical_path(path)

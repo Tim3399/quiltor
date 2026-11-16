@@ -16,14 +16,16 @@ def log_interaction(
     response: dict[str, Any] | None = None,
     error: str = "",
     db_path: Path | None = None,
+    *,
+    engine: str = "server",
 ) -> str:
     interaction_id = uuid.uuid4().hex
     with connection(db_path) as database:
         database.execute(
             """
             INSERT INTO assistant_interactions(
-              id,created_at,question,response_json,status,error
-            ) VALUES(?,?,?,?,?,?)
+              id,created_at,question,response_json,status,error,engine
+            ) VALUES(?,?,?,?,?,?,?)
             """,
             (
                 interaction_id,
@@ -32,6 +34,7 @@ def log_interaction(
                 json.dumps(response, ensure_ascii=False) if response is not None else None,
                 "failed" if error else "completed",
                 error,
+                engine,
             ),
         )
     return interaction_id
@@ -44,7 +47,7 @@ def list_interactions(
     with connection(db_path) as database:
         rows = database.execute(
             """
-            SELECT id,created_at,question,response_json,status,error
+            SELECT id,created_at,question,response_json,status,error,engine
             FROM assistant_interactions
             ORDER BY created_at DESC LIMIT ?
             """,
@@ -58,6 +61,7 @@ def list_interactions(
             "response": json.loads(row["response_json"]) if row["response_json"] else None,
             "status": row["status"],
             "error": row["error"],
+            "engine": row["engine"],
         }
         for row in rows
     ]

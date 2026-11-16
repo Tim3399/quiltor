@@ -13,11 +13,11 @@ test("Map child pins and cards stop painting outside their host frame", async ({
     localStorage.setItem("quiltor-interface-language", "de");
   });
   const state = expandedMapState();
-  const place = state.nodes.find((node) => node.id === "graufurth")!;
+  const place = state.nodes.find((node) => node.id === "x-graufurth")!;
   place.placeDisplay = "pin";
   const fixture = await mockExpandedMapWorld(page, state);
   await openExpandedMapWorld(page);
-  const node = page.locator('.react-flow__node[data-id="graufurth"]');
+  const node = page.locator('.react-flow__node[data-id="x-graufurth"]');
   const pin = node.locator(".place-node-pin");
   const header = page.locator(".place-map-chrome__header");
   const canvas = await page.locator(".places-flow-area").boundingBox();
@@ -53,7 +53,7 @@ test("Map child pins and cards stop painting outside their host frame", async ({
   });
 
   // A partially intersecting card obeys the same boundary, including its name and shadow.
-  const card = page.locator('.react-flow__node[data-id="tannenhain"] .place-node-shell');
+  const card = page.locator('.react-flow__node[data-id="x-tannenhain"] .place-node-shell');
   const bounds = await card.boundingBox();
   if (!bounds) throw new Error("The ordinary map card has no geometry.");
   const shift = frame.x - (bounds.x + bounds.width * 0.4);
@@ -106,7 +106,7 @@ test("Map child pins and cards stop painting outside their host frame", async ({
   });
   expect(fixture.savedState().nodes.find((item) => item.id === place.id)).toMatchObject({
     placeDisplay: "pin",
-    parentPlaceId: "weltkarte",
+    parentPlaceId: "x-weltkarte",
     mapU: 0.3,
     mapV: 0.4,
   });

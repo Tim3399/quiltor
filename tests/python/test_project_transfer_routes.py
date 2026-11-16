@@ -55,7 +55,9 @@ class Handler:
 class ProjectTransferRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = Mock()
-        self.app = SimpleNamespace(project_transfer=self.service, lock=threading.Lock())
+        self.app = SimpleNamespace(
+            project_transfer=self.service, lock=threading.Lock(), worlds=None, syncable=True
+        )
         self.session = SimpleNamespace(sub="alice")
 
     def test_preview_and_import_accept_raw_archives_for_the_session_owner(self):

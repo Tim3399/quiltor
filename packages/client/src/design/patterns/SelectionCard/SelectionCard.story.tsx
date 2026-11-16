@@ -79,3 +79,17 @@ export function LongContent() {
     </div>
   );
 }
+
+export function Dashed() {
+  return (
+    <SelectionCard
+      dashed
+      label="Der gläserne Atlas – Beispielwelt – Welt öffnen"
+      title="Der gläserne Atlas"
+      description="Beispielwelt · Zuletzt geändert am 07.11.2026"
+      leading={<BookOpen />}
+      indicator={<ChevronRight />}
+      onSelect={() => undefined}
+    />
+  );
+}

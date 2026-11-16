@@ -47,9 +47,11 @@ import contextlib
 import datetime
 import hashlib
 import http.server
+import io
 import json
 import os
 import re
+import socket
 import socketserver
 import ssl
 import stat
@@ -104,6 +106,41 @@ TRUSTED_ENDPOINT_ORIGINS = tuple(
     if value.strip()
 )
 POLICY_FILE = os.environ.get("QUILTOR_BACKUP_POLICY_FILE", "").strip()
+# Which OIDC clients' access tokens this server accepts (matched against `azp`,
+# comma-separated). The scope alone cannot tell the desktop app from any other
+# client in the realm that happens to carry it. The default is the one client
+# that actually performs the backup login (src/quiltor/infrastructure/backup/login.py).
+ALLOWED_CLIENTS = frozenset(
+    value.strip()
+    for value in os.environ.get("QUILTOR_BACKUP_OIDC_ALLOWED_CLIENTS", "quiltor-desktop").split(",")
+    if value.strip()
+)
+
+# Bytes an account may store when the policy file says nothing about it. Subjects
+# are opaque UUIDs, so the operator cannot list future accounts; without a default
+# every holder of the scope would be unlimited. 1 GiB holds a long manuscript with
+# many snapshots many times over (blobs are deduplicated by content).
+DEFAULT_LIMIT_BYTES_FALLBACK = 1024**3
+
+
+def _default_limit_from_environment() -> int | None:
+    raw = os.environ.get("QUILTOR_BACKUP_DEFAULT_LIMIT_BYTES", "").strip()
+    if not raw:
+        return DEFAULT_LIMIT_BYTES_FALLBACK
+    if raw.lower() == "unlimited":
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        value = -1
+    if value < 0:
+        raise SystemExit(
+            "QUILTOR_BACKUP_DEFAULT_LIMIT_BYTES must be a nonnegative integer or 'unlimited'."
+        )
+    return value
+
+
+DEFAULT_LIMIT_BYTES: int | None = _default_limit_from_environment()
 POLICIES: dict[str, dict] = {}
 
 METADATA_PATH = "/.well-known/oauth-protected-resource"
@@ -114,6 +151,56 @@ METADATA_PATH = "/.well-known/oauth-protected-resource"
 TOKEN_TTL = 60.0
 TOKEN_CACHE_MAX = 512
 HTTP_TIMEOUT = 10
+# Per-connection socket timeout in seconds, applied to every read (request line,
+# headers, body chunks): a silent or stalled client frees its thread.
+CLIENT_SOCKET_TIMEOUT = 30
+
+
+def _positive_number_from_environment(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if not value > 0:
+        raise SystemExit(f"{name} must be a positive number.")
+    return value
+
+
+# The socket timeout above bounds each single recv, which a client defeats by sending one
+# byte every 10 s: it never runs into the 30 s and holds its thread for good (F-268-15).
+# These bound the SUM, per connection, the way the web server's BODY_READ_DEADLINE_SECONDS
+# does. The header block of a real client arrives in one round trip, so 20 s is generous.
+# The body deadline has to fit the biggest legitimate upload (a 512 MiB blob): 30 minutes
+# is about 300 KiB/s, below what any backup is worth waiting for on a slower line.
+HEADER_DEADLINE_SECONDS = _positive_number_from_environment(
+    "QUILTOR_BACKUP_HEADER_DEADLINE_SECONDS", 20.0
+)
+# The body deadline scales with the announced Content-Length, so a tiny upload cannot hold
+# a handler slot for as long as a huge one is allowed to: BODY_BASE_DEADLINE_SECONDS plus
+# length / BODY_MIN_RATE_BYTES_PER_SECOND. 30 s covers the round trips and a slow start;
+# 64 KiB/s is a line no backup should be slower than. That is 30 s for 1 KiB and about
+# 2.3 h for a 512 MiB blob. Manifests and the sync head have small limits, so they get
+# little more than the base. (A fixed 30 minutes let 16 accounts of 4 uploads fill all 64
+# slots with 1 KiB blobs.)
+BODY_BASE_DEADLINE_SECONDS = _positive_number_from_environment(
+    "QUILTOR_BACKUP_BODY_BASE_DEADLINE_SECONDS", 30.0
+)
+BODY_MIN_RATE_BYTES_PER_SECOND = _positive_number_from_environment(
+    "QUILTOR_BACKUP_BODY_MIN_RATE_BYTES_PER_SECOND", 64 * 1024
+)
+# One account may stage this many blob uploads at once. Each holds an (initially empty)
+# staging file of up to MAX_BLOB_BYTES that the quota pre-check cannot see yet, so without
+# a cap one account parks 64 x 512 MiB on the disk. Capping the count changes less than
+# summing announced lengths (which would also have to subtract what is already staged).
+MAX_CONCURRENT_UPLOADS_PER_ACCOUNT = int(
+    _positive_number_from_environment("QUILTOR_BACKUP_MAX_CONCURRENT_UPLOADS", 4)
+)
+# At most this many handler threads at once; further connections get a 503.
+MAX_HANDLER_THREADS = 64
+UPLOAD_CHUNK_BYTES = 64 * 1024
 MAX_DISCOVERY_BYTES = 1024 * 1024
 MAX_INTROSPECTION_BYTES = 64 * 1024
 
@@ -121,6 +208,7 @@ _lock = threading.Lock()
 _discovery: dict[str, dict] = {}
 _tokens: dict[str, tuple[float, dict]] = {}
 _account_locks: dict[str, threading.RLock] = {}
+STAGING_PREFIX = ".quiltor-upload-"
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -228,7 +316,8 @@ def load_policy_configuration() -> None:
         ):
             raise ValueError("Backup policy contains an invalid account entry.")
         access = entry.get("access", "read-write")
-        limit = entry.get("limitBytes")
+        # An absent limitBytes takes the default; an explicit null is unlimited.
+        limit = entry.get("limitBytes", DEFAULT_LIMIT_BYTES)
         delete_after = entry.get("deleteAfter")
         if type(access) is not str or access not in ACCESS_VALUES:
             raise ValueError("Backup policy access must be read-write or read-only.")
@@ -247,8 +336,11 @@ def load_policy_configuration() -> None:
 def _account_policy(account: str) -> dict:
     return POLICIES.get(
         account,
-        {"access": "read-write", "limitBytes": None, "deleteAfter": None},
+        {"access": "read-write", "limitBytes": DEFAULT_LIMIT_BYTES, "deleteAfter": None},
     )
+
+
+_running_uploads: dict[str, int] = {}
 
 
 def _account_lock(account: str) -> threading.RLock:
@@ -256,12 +348,30 @@ def _account_lock(account: str) -> threading.RLock:
         return _account_locks.setdefault(account, threading.RLock())
 
 
+def _resolved(path: Path) -> Path:
+    r"""`path.resolve()` without the Windows extended-length prefix.
+
+    While a sibling upload renames or removes a file in the same directory, Windows can
+    make the resolution of a path come back as `\\?\C:\...`. The same location then no
+    longer sits under `ROOT`, and a harmless concurrent upload was refused as an unsafe
+    destination (400 instead of 507, Windows CI runs 43465440525 and 43473691046).
+    """
+
+    resolved = path.resolve(strict=False)
+    text = str(resolved)
+    if text.startswith("\\\\?\\UNC\\"):
+        return Path("\\\\" + text[8:])
+    if text.startswith("\\\\?\\"):
+        return Path(text[4:])
+    return resolved
+
+
 def _safe_storage_path(*parts: str) -> Path:
     """Resolve a store path without accepting symlink/reparse escapes."""
 
     target = ROOT.joinpath(*parts)
     try:
-        target.resolve(strict=False).relative_to(ROOT.resolve(strict=False))
+        _resolved(target).relative_to(_resolved(ROOT))
     except (OSError, ValueError) as exc:
         raise BackupContractError(
             "unsafe_backup_destination", "Backup destination failed safety checks."
@@ -298,7 +408,15 @@ def _account_usage(account: str) -> int:
             )
         for name in (*names, *files):
             path = directory_path / name
-            if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
+            try:
+                linked = path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
+            except OSError as exc:
+                if name.startswith(STAGING_PREFIX):
+                    continue  # a sibling upload's staging file mid-rename (Windows)
+                raise BackupContractError(
+                    "unsafe_backup_destination", "Backup destination failed safety checks."
+                ) from exc
+            if linked:
                 raise BackupContractError(
                     "unsafe_backup_destination", "Backup destination failed safety checks."
                 )
@@ -306,6 +424,19 @@ def _account_usage(account: str) -> int:
             path = directory_path / name
             try:
                 total += path.stat().st_size
+            except FileNotFoundError:
+                # Another upload renamed or removed its staging file after the walk listed
+                # it. A file that is gone takes no space; the check under the account lock
+                # counts again.
+                continue
+            except PermissionError as exc:
+                # Windows reports a file that is being renamed or deleted ("delete pending")
+                # as access denied. For a sibling's staging file that is the same as gone.
+                if name.startswith(STAGING_PREFIX):
+                    continue
+                raise BackupContractError(
+                    "backup_content_integrity", "Backup content failed integrity verification."
+                ) from exc
             except OSError as exc:
                 raise BackupContractError(
                     "backup_content_integrity", "Backup content failed integrity verification."
@@ -313,12 +444,18 @@ def _account_usage(account: str) -> int:
     return total
 
 
-def _quota_allows(account: str, target: Path, payload: bytes) -> bool:
+def _quota_allows(account: str, target: Path, size: int, staged: Path | None = None) -> bool:
+    """Whether storing `size` bytes at `target` keeps the account within its limit.
+
+    `staged` is the account's own half-written upload, which already counts in the
+    usage walk and must not be charged a second time.
+    """
     limit = _account_policy(account)["limitBytes"]
     if limit is None:
         return True
     previous = target.stat().st_size if target.exists() else 0
-    return _account_usage(account) - previous + len(payload) <= limit
+    own = staged.stat().st_size if staged is not None and staged.exists() else 0
+    return _account_usage(account) - previous - own + size <= limit
 
 
 def _head(account: str, world: str) -> dict:
@@ -505,6 +642,23 @@ def _scopes(claims: dict) -> set[str]:
     return set()
 
 
+def _is_access_token_of_allowed_client(claims: dict) -> bool:
+    """An access token (not a refresh or ID token) issued to a client we trust.
+
+    Fails closed: a missing or non-string `azp` is refused like a foreign one. `typ`
+    is Keycloak's token type ("Bearer" for access tokens); where it, or the RFC 7662
+    `token_type`, is present it must say so.
+    """
+    authorized_party = claims.get("azp")
+    if type(authorized_party) is not str or authorized_party not in ALLOWED_CLIENTS:
+        return False
+    token_type = claims.get("typ")
+    if token_type is not None and (type(token_type) is not str or token_type.lower() != "bearer"):
+        return False
+    rfc_type = claims.get("token_type")
+    return rfc_type is None or (type(rfc_type) is str and rfc_type.lower() == "bearer")
+
+
 def metadata_document() -> dict:
     """RFC 9728 protected-resource metadata: which issuer guards this server."""
     return {
@@ -515,8 +669,37 @@ def metadata_document() -> dict:
     }
 
 
+class _DeadlineReader(io.RawIOBase):
+    """Reads a socket so that every recv is bounded by what is left of a deadline.
+
+    Under it the buffered rfile still serves readline/read, but a read never waits past
+    the deadline, and once it has passed the next read raises TimeoutError.
+    """
+
+    def __init__(self, connection: socket.socket, seconds: float) -> None:
+        super().__init__()
+        self._connection = connection
+        self.deadline = time.monotonic() + seconds
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer) -> int:  # type: ignore[override]
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("connection deadline")
+        self._connection.settimeout(min(float(CLIENT_SOCKET_TIMEOUT), remaining))
+        return self._connection.recv_into(buffer)
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "QuiltorBackup/1"
+    timeout = CLIENT_SOCKET_TIMEOUT
+
+    def setup(self) -> None:
+        super().setup()
+        self._reader = _DeadlineReader(self.connection, HEADER_DEADLINE_SECONDS)
+        self.rfile = io.BufferedReader(self._reader, UPLOAD_CHUNK_BYTES)
 
     def _reply(
         self,
@@ -556,6 +739,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return None
         claims = introspect(token)
         if claims is None or not claims.get("active"):
+            self._unauthorized("Token is not active.")
+            return None
+        if not _is_access_token_of_allowed_client(claims):
             self._unauthorized("Token is not active.")
             return None
         if REQUIRED_SCOPE not in _scopes(claims):
@@ -660,6 +846,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return parts[3]
 
     def do_PUT(self) -> None:
+        # The headers are in; from here the body has its own deadline. The base holds until
+        # the announced length is known (below), so a slow token check cannot expire it.
+        self._reader.deadline = time.monotonic() + BODY_BASE_DEADLINE_SECONDS
         account = self._account()
         if account is None:
             return  # _account already wrote the 401 or 403
@@ -686,7 +875,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             maximum = MAX_MANIFEST_BYTES
         if length < 0 or length > maximum:
             return self._reply(413, {"error": "Payload too large."})
-        payload = self.rfile.read(length)
+        self._reader.deadline = time.monotonic() + (
+            BODY_BASE_DEADLINE_SECONDS + length / BODY_MIN_RATE_BYTES_PER_SECOND
+        )
+
+        # Refuse an upload that cannot fit before reading a single byte of it.
+        try:
+            if sync_world is not None:
+                declared_target = _safe_storage_path(account, sync_world, "sync.json")
+            elif route is not None:
+                declared_target = _safe_storage_path(
+                    account,
+                    route[0],
+                    route[1],
+                    route[2] if route[1] == "blobs" else f"{route[2]}.json",
+                )
+            else:
+                return self._reply(404, {"error": "No such route."})
+            with _account_lock(account):
+                fits = _quota_allows(account, declared_target, length)
+        except BackupContractError:
+            return self._reply(400, {"error": "Backup payload failed validation."})
+        if not fits:
+            return self._reply(
+                507, {"code": "cloud.quota_exceeded", "error": "Account quota exceeded."}
+            )
+
+        if route is not None and route[1] == "blobs":
+            return self._put_blob(account, route[0], route[2], declared_target, length)
+
+        try:
+            payload = self._read_body(length)
+        except OSError:
+            self.close_connection = True
+            return None
         if len(payload) != length:
             return self._reply(400, {"error": "Invalid request payload."})
 
@@ -698,28 +920,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self._put_sync(account, sync_world, payload)
                 if route is None:  # not reachable (404 above); narrows the type for the checker
                     return self._reply(404, {"error": "No such route."})
-                world, kind, name = route
-                target = _safe_storage_path(
-                    account, world, kind, name if kind == "blobs" else f"{name}.json"
-                )
-                if kind == "blobs":
-                    if hashlib.sha256(payload).hexdigest() != name:
-                        return self._reply(400, {"error": "Blob failed integrity verification."})
-                    if target.exists():
-                        existing = _read_file_limited(target, MAX_BLOB_BYTES)
-                        if hashlib.sha256(existing).hexdigest() != name:
-                            return self._reply(500, {"error": "Stored backup content is corrupt."})
-                        return self._reply(200, {"ok": True, "stored": False})
-                else:
-                    parsed = strict_json_loads(payload, maximum_bytes=MAX_MANIFEST_BYTES)
-                    manifest = validate_manifest(parsed, expected_world=world, expected_id=name)
-                    for record in manifest.files:
-                        blob = _safe_storage_path(account, world, "blobs", record.digest)
-                        verify_blob(record, _read_file_limited(blob, record.maximum_size))
-                    if target.exists():
-                        _verify_stored_snapshot(account, world, name)
-                        return self._reply(200, {"ok": True, "stored": False})
-                if not _quota_allows(account, target, payload):
+                world, _kind, name = route  # blobs were streamed above; this is a manifest
+                target = declared_target
+                parsed = strict_json_loads(payload, maximum_bytes=MAX_MANIFEST_BYTES)
+                manifest = validate_manifest(parsed, expected_world=world, expected_id=name)
+                for record in manifest.files:
+                    blob = _safe_storage_path(account, world, "blobs", record.digest)
+                    verify_blob(record, _read_file_limited(blob, record.maximum_size))
+                if target.exists():
+                    _verify_stored_snapshot(account, world, name)
+                    return self._reply(200, {"ok": True, "stored": False})
+                if not _quota_allows(account, target, len(payload)):
                     return self._reply(
                         507,
                         {"code": "cloud.quota_exceeded", "error": "Account quota exceeded."},
@@ -728,6 +939,98 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except BackupContractError:
                 return self._reply(400, {"error": "Backup payload failed validation."})
         return self._reply(201, {"ok": True, "stored": True})
+
+    def _read_body(self, length: int) -> bytes:
+        """The request body, read in chunks (a short result means the client left)."""
+        chunks: list[bytes] = []
+        remaining = length
+        while remaining > 0:
+            chunk = self.rfile.read(min(UPLOAD_CHUNK_BYTES, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    def _put_blob(self, account: str, world: str, name: str, target: Path, length: int) -> None:
+        """Stream a blob to a temporary file beside its destination, hashing as it
+        arrives, and only then publish it with an atomic rename. The body never sits
+        in memory in full."""
+        with _lock:
+            running = _running_uploads.get(account, 0)
+            admitted = running < MAX_CONCURRENT_UPLOADS_PER_ACCOUNT
+            if admitted:
+                _running_uploads[account] = running + 1
+        if not admitted:
+            self.close_connection = True
+            return self._reply(
+                429,
+                {"code": "cloud.too_many_uploads", "error": "Too many uploads at once."},
+                headers={"Retry-After": "5"},
+            )
+        try:
+            return self._stage_blob(account, world, name, target, length)
+        finally:
+            with _lock:
+                if _running_uploads[account] <= 1:
+                    del _running_uploads[account]
+                else:
+                    _running_uploads[account] -= 1
+
+    def _stage_blob(self, account: str, world: str, name: str, target: Path, length: int) -> None:
+        staged: Path | None = None
+        try:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _safe_storage_path(*target.relative_to(ROOT).parts)
+                descriptor, staged_name = tempfile.mkstemp(prefix=STAGING_PREFIX, dir=target.parent)
+            except (BackupContractError, OSError):
+                return self._reply(400, {"error": "Backup payload failed validation."})
+            staged = Path(staged_name)
+            digest = hashlib.sha256()
+            received = 0
+            try:
+                with os.fdopen(descriptor, "wb") as handle:
+                    while received < length:
+                        chunk = self.rfile.read(min(UPLOAD_CHUNK_BYTES, length - received))
+                        if not chunk:
+                            break
+                        digest.update(chunk)
+                        handle.write(chunk)
+                        received += len(chunk)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except OSError:
+                # Timeout or a dropped connection: nobody is left to answer.
+                self.close_connection = True
+                return None
+            if received != length:
+                return self._reply(400, {"error": "Invalid request payload."})
+            if digest.hexdigest() != name:
+                return self._reply(400, {"error": "Blob failed integrity verification."})
+            with _account_lock(account):
+                if not self._write_allowed(account):
+                    return None
+                try:
+                    if target.exists():
+                        existing = _read_file_limited(target, MAX_BLOB_BYTES)
+                        if hashlib.sha256(existing).hexdigest() != name:
+                            return self._reply(500, {"error": "Stored backup content is corrupt."})
+                        return self._reply(200, {"ok": True, "stored": False})
+                    if not _quota_allows(account, target, received, staged):
+                        return self._reply(
+                            507,
+                            {"code": "cloud.quota_exceeded", "error": "Account quota exceeded."},
+                        )
+                    _safe_storage_path(*target.relative_to(ROOT).parts)
+                    staged.replace(target)
+                except BackupContractError:
+                    return self._reply(400, {"error": "Backup payload failed validation."})
+            return self._reply(201, {"ok": True, "stored": True})
+        finally:
+            if staged is not None:
+                with contextlib.suppress(FileNotFoundError):
+                    staged.unlink()
 
     def _put_sync(self, account: str, world: str, payload: bytes) -> None:
         try:
@@ -760,7 +1063,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             }
             encoded = json.dumps(updated, separators=(",", ":")).encode("utf-8")
             target = _safe_storage_path(account, world, "sync.json")
-            if not _quota_allows(account, target, encoded):
+            if not _quota_allows(account, target, len(encoded)):
                 return self._reply(
                     507,
                     {"code": "cloud.quota_exceeded", "error": "Account quota exceeded."},
@@ -880,6 +1183,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
+
+    def __init__(self, *args, **kwargs) -> None:
+        self._thread_slots = threading.BoundedSemaphore(MAX_HANDLER_THREADS)
+        super().__init__(*args, **kwargs)
+
+    def process_request(self, request, client_address) -> None:
+        # A full house gets a 503 on the accept thread instead of one more handler.
+        if not self._thread_slots.acquire(blocking=False):
+            # A TCP server's request is a socket; the base type also allows a UDP tuple.
+            try:
+                if not isinstance(request, socket.socket):
+                    raise OSError
+                request.settimeout(1)
+                request.sendall(
+                    b"HTTP/1.0 503 Service Unavailable\r\nContent-Length: 0\r\n"
+                    b"Retry-After: 5\r\n\r\n"
+                )
+            except OSError:
+                pass
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._thread_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._thread_slots.release()
 
 
 @contextlib.contextmanager

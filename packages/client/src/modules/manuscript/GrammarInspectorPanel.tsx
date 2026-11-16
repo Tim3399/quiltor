@@ -10,6 +10,7 @@ import {
 } from "../../design";
 import { useI18n } from "../../i18n";
 import type { WritingAssistanceStatus } from "../../platform";
+import { installAllowed, useInstanceCapabilities } from "../../shared/capabilities";
 import type { Chapter, Manuscript, WritingIssue } from "./model";
 import type { GrammarPhase } from "./WritingAidInspector.types";
 
@@ -55,7 +56,11 @@ export function GrammarInspectorPanel({
     !!grammar && (grammar.javaVersion === null || grammar.javaVersion < grammar.javaRequired);
   const mode = manuscript.grammarMode || "manual";
   // A hosted server's operator installs LanguageTool; the panel never offers it there.
-  const installable = status?.installable !== false && grammar?.installable !== false;
+  // Both flags count, as the two installable fields did before T-102.
+  const capabilities = useInstanceCapabilities();
+  const installable =
+    installAllowed(capabilities?.grammarInstall, grammar?.installable) &&
+    installAllowed(capabilities?.writingDataInstall, status?.installable);
 
   return (
     <div className="grammar-tool">

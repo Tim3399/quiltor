@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from quiltor.infrastructure.identity.runtime import (
     MAX_OIDC_RESPONSE_BYTES,
     MAX_TOKEN_RESPONSE_BYTES,
+    ProviderUnavailable,
     StdlibIdentityGateway,
 )
 from quiltor.modules.identity.auth import (
@@ -149,6 +150,48 @@ class IdentityRuntimeTests(unittest.TestCase):
         self.assertIsNot(first, second)
         self.assertEqual(len(self.transport.calls), 1)
 
+    def _flaky_runtime(self, failures: int) -> tuple[StdlibIdentityGateway, list[float]]:
+        """A gateway whose provider answers 503 `failures` times, then works."""
+        remaining = [failures]
+        sleeps: list[float] = []
+        healthy = self.transport
+
+        class Flaky:
+            def request(self, url, data=None, headers=None):
+                if remaining[0] > 0:
+                    remaining[0] -= 1
+                    raise ProviderUnavailable("OIDC provider returned HTTP 503.")
+                return healthy.request(url, data, headers)
+
+        runtime = StdlibIdentityGateway(
+            IdentityConfiguration("https://issuer.test/", "quiltor-demo", "client-secret"),
+            transport=Flaky(),
+            clock=lambda: self.now,
+            sleep=sleeps.append,
+        )
+        return runtime, sleeps
+
+    def test_login_rides_out_a_provider_that_answers_503_first(self) -> None:
+        runtime, sleeps = self._flaky_runtime(failures=2)
+        url, _ = runtime.start_login("https://app.test/auth/callback")
+        self.assertTrue(url.startswith("https://issuer.test/authorize?"))
+        self.assertEqual(sleeps, [0.5, 1.0])
+
+    def test_a_provider_that_stays_away_raises_unavailable_after_bounded_retries(self) -> None:
+        runtime, sleeps = self._flaky_runtime(failures=100)
+        with self.assertRaises(ProviderUnavailable):
+            runtime.start_login("https://app.test/auth/callback")
+        self.assertEqual(sleeps, [0.5, 1.0, 2.0])
+
+    def test_a_failed_discovery_is_not_cached(self) -> None:
+        runtime, _ = self._flaky_runtime(failures=100)
+        with self.assertRaises(ProviderUnavailable):
+            runtime.discover()
+        # The provider is back: the very next login asks again and succeeds.
+        runtime._transport = self.transport
+        url, _ = runtime.start_login("https://app.test/auth/callback")
+        self.assertTrue(url.startswith("https://issuer.test/authorize?"))
+
     def test_pkce_pair_has_the_expected_challenge_and_unique_state(self) -> None:
         verifier, challenge = self.runtime.new_pkce_pair()
         expected = (
@@ -170,6 +213,13 @@ class IdentityRuntimeTests(unittest.TestCase):
         assert pending is not None
         self.assertEqual(pending["redirect_uri"], "https://app.test/auth/callback")
         self.assertIsNone(self.runtime.consume_pending_login(state))
+
+    def test_start_login_names_the_interface_language_only_when_given(self) -> None:
+        url, _ = self.runtime.start_login("https://app.test/auth/callback", ui_locales="de")
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+        self.assertEqual(query["ui_locales"], ["de"])
+        url, _ = self.runtime.start_login("https://app.test/auth/callback")
+        self.assertNotIn("ui_locales", urllib.parse.parse_qs(urllib.parse.urlsplit(url).query))
 
     def test_pending_login_expires_against_injected_clock(self) -> None:
         _, state = self.runtime.start_login("https://app.test/callback")

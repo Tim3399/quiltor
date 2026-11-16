@@ -9,8 +9,19 @@ import { StoryGraphCanvas } from "./StoryGraphCanvas";
 vi.mock("@xyflow/react", () => ({
   BackgroundVariant: { Lines: "lines" },
   Background: () => <div data-testid="background" />,
-  Controls: ({ children }: { children?: ReactNode }) => (
-    <div data-testid="controls">{children}</div>
+  Controls: ({
+    children,
+    onInteractiveChange,
+  }: {
+    children?: ReactNode;
+    onInteractiveChange?: (interactive: boolean) => void;
+  }) => (
+    <div data-testid="controls">
+      {children}
+      <button type="button" onClick={() => onInteractiveChange?.(false)}>
+        Testschloss
+      </button>
+    </div>
   ),
   ControlButton: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
@@ -18,8 +29,10 @@ vi.mock("@xyflow/react", () => ({
     </button>
   ),
   MiniMap: () => <div data-testid="minimap" />,
-  ReactFlow: ({ children }: { children: ReactNode }) => (
-    <div data-testid="react-flow">{children}</div>
+  ReactFlow: ({ children, nodesDraggable }: { children: ReactNode; nodesDraggable?: boolean }) => (
+    <div data-testid="react-flow" data-nodes-draggable={String(nodesDraggable)}>
+      {children}
+    </div>
   ),
 }));
 
@@ -90,5 +103,36 @@ describe("StoryGraphCanvas", () => {
     expect(css).toMatch(
       /\.graph-viewport-surface \.react-flow__attribution a\s*\{[^}]*color:\s*var\(--attribution\);/s,
     );
+  });
+});
+
+describe("whether the surface lets nodes be dragged", () => {
+  const canvas = (flowProps: { nodesDraggable?: boolean }) =>
+    render(
+      <I18nProvider>
+        <StoryGraphCanvas
+          nodes={[{ id: "node", position: { x: 0, y: 0 }, data: {} }]}
+          edges={[]}
+          zoomTier="detail"
+          gridSize={20}
+          flowProps={flowProps}
+        />
+      </I18nProvider>,
+    );
+
+  it("keeps nodes still when the caller says so", () => {
+    canvas({ nodesDraggable: false });
+    expect(screen.getByTestId("react-flow")).toHaveAttribute("data-nodes-draggable", "false");
+  });
+
+  it("lets nodes be dragged when the caller says nothing", () => {
+    canvas({});
+    expect(screen.getByTestId("react-flow")).toHaveAttribute("data-nodes-draggable", "true");
+  });
+
+  it("keeps nodes still under a closed lock, whatever the caller says", () => {
+    canvas({ nodesDraggable: true });
+    fireEvent.click(screen.getByRole("button", { name: "Testschloss" }));
+    expect(screen.getByTestId("react-flow")).toHaveAttribute("data-nodes-draggable", "false");
   });
 });

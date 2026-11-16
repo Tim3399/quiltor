@@ -67,7 +67,7 @@ describe("storyboards wire v1", () => {
       })),
     ).toEqual([
       { kind: "note", text: "Mara reaches the archive.", referenceCount: 1 },
-      { kind: "reference", text: "Mara protects the archive.", referenceCount: 1 },
+      { kind: "reference", text: "", referenceCount: 0 },
       { kind: "storyboard", text: "Plot alternatives.", referenceCount: 1 },
       { kind: "group", text: "Opening sequence.", referenceCount: 1 },
     ]);
@@ -86,6 +86,8 @@ describe("storyboards wire v1", () => {
     expect(source.payload.nodes[1].target?.id).toBe("mara");
 
     for (const [index, node] of decoded.document.nodes.entries()) {
+      // A reference card keeps no note of its own; it shows its element's (T-177).
+      if (node.kind === "reference") continue;
       const noteReference = node.noteReferences?.[0];
       if (!noteReference) throw new Error(`fixture reference missing for node ${index}`);
       const originalTargetId = noteReference.target.id;
@@ -104,6 +106,8 @@ describe("storyboards wire v1", () => {
     referenceNode.target.id = "changed-after-encode";
     expect(encoded.payload.nodes[1].target?.id).toBe("changed-after-decode");
     for (const [index, node] of decoded.document.nodes.entries()) {
+      // A reference card keeps no note of its own; it shows its element's (T-177).
+      if (node.kind === "reference") continue;
       const noteReference = node.noteReferences?.[0];
       const encodedTargetId = encoded.payload.nodes[index].noteReferences?.[0].target.id;
       if (!noteReference || !encodedTargetId) {
@@ -146,10 +150,10 @@ describe("storyboards wire v1", () => {
     expect(() => decodeStoryboardsV1(emptyReferencesWithoutText)).not.toThrow();
 
     const referencesWithoutText = copy(fixture);
-    delete (referencesWithoutText.payload.nodes[1] as { text?: string }).text;
+    delete (referencesWithoutText.payload.nodes[2] as { text?: string }).text;
     expect(() => decodeStoryboardsV1(referencesWithoutText)).toThrow();
 
-    for (const index of [0, 1, 2, 3]) {
+    for (const index of [0, 2, 3]) {
       const invalid = copy(fixture);
       const noteReference = invalid.payload.nodes[index].noteReferences?.[0];
       if (!noteReference) throw new Error(`fixture reference missing for node ${index}`);

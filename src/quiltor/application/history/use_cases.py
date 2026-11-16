@@ -54,5 +54,15 @@ class HistoryUseCases:
     ) -> dict[str, Any]:
         return self._history.chapter_comparison(context, ref, chapter_id)
 
+    def chapter_timeline(
+        self,
+        context: HistoryContext,
+        chapter_id: str,
+        *,
+        limit: int,
+        before: str,
+    ) -> dict[str, Any]:
+        return self._history.chapter_timeline(context, chapter_id, limit, before)
+
 
 __all__ = ["HistoryUseCases"]

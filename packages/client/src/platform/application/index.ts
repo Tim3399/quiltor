@@ -1,5 +1,6 @@
 import type { AssistantGateway } from "./assistant";
 import type { BackupGateway } from "./backup";
+import type { CapabilitiesGateway } from "./capabilities";
 import type { DocumentsGateway } from "./documents";
 import type { HistoryGateway } from "./history";
 import type { IdentityGateway } from "./identity";
@@ -19,6 +20,7 @@ export interface ApplicationGateway {
   readonly metadata: MetadataGateway;
   readonly worlds: WorldsGateway;
   readonly identity: IdentityGateway;
+  readonly capabilities: CapabilitiesGateway;
   readonly storyWorld: StoryWorldGateway;
   readonly storyboards: StoryboardsGateway;
   readonly manuscript: ManuscriptGateway;
@@ -33,8 +35,18 @@ export interface ApplicationGateway {
   readonly synchronization: SynchronizationGateway;
 }
 
-export type { AssistantBatchRequest, AssistantGateway } from "./assistant";
+export type {
+  AssistantBatchRequest,
+  AssistantGateway,
+  AssistantProviderGateway,
+  AssistantRelayGateway,
+  ProviderAnswer,
+  ProviderProfileId,
+  RelayAnswered,
+  RelayNext,
+} from "./assistant";
 export type { BackupGateway, BackupLoginStart, BackupLoginStatus } from "./backup";
+export type { CapabilitiesGateway } from "./capabilities";
 export type {
   DocumentsGateway,
   ManuscriptDocxPreset,
@@ -48,6 +60,10 @@ export type {
 export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
 export type {
   ChapterComparisonResult,
+  ChapterTimelineChange,
+  ChapterTimelineEntry,
+  ChapterTimelinePage,
+  ChapterTimelineRequest,
   HistoryGateway,
   SnapshotChangesWire,
   SnapshotChapterRecord,

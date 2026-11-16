@@ -22,9 +22,7 @@ describe("AssistantDrawer shell", () => {
     setup();
     await screen.findByText("Was soll ich in der Welt nachtragen?");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Weltmodell aus Manuskript aktualisieren" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Welt aktualisieren" }));
 
     await vi.waitFor(() => expect(api.chat).toHaveBeenCalledTimes(1));
     expect(vi.mocked(api.chat).mock.calls[0][3]).toEqual(["c1"]);

@@ -1,5 +1,6 @@
-import type { Page, Route } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
+import { syncAvailability } from "./support/device-sync";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 const DIALOG = "Versionen & Sicherungen";
@@ -31,15 +32,6 @@ async function openFromMenu(page: Page) {
 async function openPalette(page: Page) {
   await page.keyboard.press("Control+KeyK");
   await expect(page.getByRole("heading", { name: "Suchen & Befehle" })).toBeVisible();
-}
-
-/** Answers `/api/whoami` with the server's own reply, `syncAvailable` overridden. */
-async function syncAvailability(page: Page, available: boolean) {
-  await page.route("**/api/whoami", async (route: Route) => {
-    const response = await route.fetch();
-    const body = await response.json().catch(() => ({ ok: false }));
-    await route.fulfill({ response, json: { ...body, syncAvailable: available } });
-  });
 }
 
 test("The menu groups the actions and keeps none of the old entries", async ({ page }) => {
@@ -245,6 +237,35 @@ test("Palette entries open their tab and the shortcut lands in the note field", 
     "true",
   );
   await expect(dialog.getByLabel("Was hat sich geändert?")).toBeFocused();
+});
+
+test("The dialog closes while the sync tab is still loading", async ({ page }) => {
+  // The sync tab's first load once counted as a sync in flight, and the close button did nothing
+  // until it ended. Holding the load open makes that window as long as a slow machine can.
+  await syncAvailability(page, true);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let loading = false;
+  await page.route("**/api/sync/target**", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    loading = true;
+    await held;
+    await route.continue().catch(() => {});
+  });
+  await openWorld(page, "Laden");
+  await openPalette(page);
+  await page
+    .getByRole("dialog")
+    .getByRole("option", { name: /Mit anderen Geräten abgleichen/ })
+    .click();
+  const dialog = page.getByRole("dialog", { name: DIALOG, exact: true });
+  await expect(dialog.getByText("Cloud-Stand wird geprüft …")).toBeVisible();
+  await expect.poll(() => loading).toBe(true);
+  await dialog.getByRole("button", { name: "Dialog schließen", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  release();
 });
 
 test("Without device sync there is no sync tab, palette entry or address field", async ({

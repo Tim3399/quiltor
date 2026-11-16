@@ -49,6 +49,9 @@ class SQLitePaths:
 # from the ``quiltor-internal:`` namespace, so an external account can never
 # collide with or claim locally owned worlds.
 LOCAL_OWNER = "quiltor-internal:local-owner"
+# A world that is still a preview of the example world carries this `meta` key, with the
+# time it was made. The first change a route writes deletes it (T-214-5a, D-127).
+PREVIEW_KEY = "preview_created_at"
 
 
 __all__ = [
@@ -57,6 +60,7 @@ __all__ = [
     "DATA",
     "DB",
     "LOCAL_OWNER",
+    "PREVIEW_KEY",
     "WORLDS",
     "SQLitePaths",
 ]

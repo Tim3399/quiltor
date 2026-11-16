@@ -85,6 +85,18 @@ export const shared = {
   notSaved: "Nicht gespeichert",
   saveFailed: "Speichern fehlgeschlagen",
   saveErrorId: "Fehler-ID: {id}",
+  saveSessionEnded:
+    "Deine Anmeldung ist abgelaufen. Melde dich in einem neuen Tab an, dein Text bleibt hier erhalten.",
+  saveSignInNewTab: "In neuem Tab anmelden",
+  draftOfferTitle: "Ungespeicherter Entwurf gefunden",
+  draftOfferBody:
+    "Auf diesem Gerät liegt ein Entwurf vom {time}, der nicht mehr gespeichert werden konnte. Betroffen: {items}.",
+  draftOfferMore: "und {n} weitere",
+  draftOfferAdopt: "Entwurf übernehmen",
+  draftOfferDiscard: "Entwurf verwerfen",
+  draftFamilyManuscript: "Manuskript",
+  draftFamilyFigures: "Figuren und Orte",
+  draftFamilyStoryboards: "Storyboards",
   saveUnboundWorld:
     "Nicht gespeichert: Diese Änderung gehört zu einer Welt, die nicht mehr geöffnet ist.",
   recoveryOpen: "Entwurf retten",

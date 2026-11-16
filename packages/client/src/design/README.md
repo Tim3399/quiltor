@@ -164,19 +164,21 @@ visuellen Zustände werden zusätzlich durch die maschinenlesbare Auditmatrix un
 | `Tabs`             | Zugängliche Tab-Navigation und Panels                     |
 | `Toast`            | Flüchtige Statusmeldung und Toast-Region                  |
 | `ToolbarButton`    | Einheitliche Toolbar-Aktion mit responsivem Label         |
+| `Tooltip`          | Kurze Zusatzhilfe bei Hover, Fokus und Tippen             |
 | `UndoRedoControls` | Gekoppelte Undo-/Redo-Aktionen                            |
 | `WorkspaceToolbar` | Struktur und Gruppierung eines Workspace-Kontexts         |
 
 ### Patterns
 
-| API              | Zweck                                                 |
-| ---------------- | ----------------------------------------------------- |
-| `CommandPalette` | Such- und Tastaturablauf für Kommandos                |
-| `ConfirmDialog`  | Bestätigung, optional mit Hold-to-confirm             |
-| `DropdownMenu`   | Trigger-, Open-/Close- und Fokuskomposition für Menüs |
-| `SelectableRow`  | Auswahlzeile mit Metadaten und Nebenaktion            |
-| `SelectionCard`  | Visuell stärkere auswählbare Karte                    |
-| `SelectionMenu`  | Auswahlablauf innerhalb eines Menüs                   |
+| API                | Zweck                                                                     |
+| ------------------ | ------------------------------------------------------------------------- |
+| `CommandPalette`   | Such- und Tastaturablauf für Kommandos                                    |
+| `ConfirmDialog`    | Bestätigung, optional mit Hold-to-confirm                                 |
+| `DropdownMenu`     | Trigger-, Open-/Close- und Fokuskomposition für Menüs                     |
+| `CollapsibleGroup` | Listengruppe mit Kopf zum Auf- und Zuklappen; Zustand liegt beim Aufrufer |
+| `SelectableRow`    | Auswahlzeile mit Metadaten und Nebenaktion                                |
+| `SelectionCard`    | Visuell stärkere auswählbare Karte                                        |
+| `SelectionMenu`    | Auswahlablauf innerhalb eines Menüs                                       |
 
 ## Verbindlicher Folder-Vertrag
 
@@ -322,7 +324,7 @@ statischen Debt-Inventare stehen auf null. Dieser historische Nachweis ist ausdr
 vollständiger visueller Abschlussnachweis.
 
 Seit dem 26. August läuft deshalb das strengere
-[`Design-Component-Audit v2`](../../../../ai/design-component-audit-2026-08.md). Es prüft zusätzlich
+`Design-Component-Audit v2` (`ai/design-component-audit-2026-08.md`, ein lokales, nicht versioniertes Arbeitsdokument). Es prüft zusätzlich
 semantische Farbrollen, Spacing-Rhythmus, innere und Portal-Overflows, Narrow-Container,
 Hit-Targets sowie Produktkompositionen. Sein Definition-of-Done ersetzt für visuelle Konsistenz die
 frühere Aussage „alle Gallery-Tests sind grün“.

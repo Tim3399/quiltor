@@ -545,7 +545,7 @@ for (const theme of ["light", "dark"] as const) {
       const suedhafen = page.locator('.react-flow__node[data-id="suedhafen"]');
       await nordhafen.click();
       await expect(page.locator(".places-measure-overlays").getByRole("status")).toContainText(
-        "Wähle den zweiten Ort für die gezielte Distanz.",
+        "Wähle den zweiten Ort oder einen Punkt auf der Karte.",
       );
       await suedhafen.click();
       const targeted = page.locator(".distance-edge.is-targeted");

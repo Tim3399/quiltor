@@ -6,8 +6,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 /*
  * Splits the browser suites across CI slots by measured duration instead of by test count.
  *
- *   node tools/dev/test-shards.mjs select --os linux --slots 4 --slot 1 --out-dir <dir>
- *   node tools/dev/test-shards.mjs plan   --os linux --slots 4 [--list-product <json>] ...
+ *   node tools/dev/test-shards.mjs select --os linux --slots 6 --slot 1 --out-dir <dir>
+ *   node tools/dev/test-shards.mjs plan   --os linux --slots 6 [--list-product <json>] ...
  *   node tools/dev/test-shards.mjs update --suite product --os linux <report.json>...
  *
  * `--shard` cuts by count, and many product tests skip themselves for a project, so one Linux

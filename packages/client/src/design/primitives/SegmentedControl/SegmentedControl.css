@@ -43,7 +43,28 @@
   outline-offset: 1px;
 }
 
-.ui-segmented button:disabled {
+.ui-segmented button:disabled,
+.ui-segmented button[aria-disabled="true"] {
   color: var(--disabled-content);
   cursor: default;
+}
+
+/* A segment locked with a reason carries a small lock beside its label (T-275-F6). */
+.ui-segmented button[aria-disabled="true"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-optical-wide);
+}
+
+.ui-segmented__lock {
+  display: inline-flex;
+  width: var(--font-size-metadata);
+  height: var(--font-size-metadata);
+  flex: none;
+}
+
+.ui-segmented__lock > svg {
+  width: 100%;
+  height: 100%;
 }

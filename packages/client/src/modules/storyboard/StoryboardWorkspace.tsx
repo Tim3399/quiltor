@@ -24,6 +24,7 @@ import {
   isGraphDeleteShortcut,
   positionGraphRelationshipEdgeLabels,
 } from "../graph";
+import type { ElementNote, ElementNoteTarget } from "../notes";
 import { type WorldReferenceCandidate, worldReferenceKey } from "../world-references";
 import type {
   StoryboardBoard,
@@ -67,9 +68,20 @@ import "./StoryboardWorkspace.css";
 
 export type StoryboardWorkspaceProps = {
   state: StoryboardState;
+  /** The open world: the element library remembers its folded groups per world. */
+  worldId?: string;
   onChange: (value: StoryboardState, options?: { separateHistoryStep?: boolean }) => void;
   candidates: readonly WorldReferenceCandidate[];
   onOpenReference: (target: WorldReferenceTarget) => void;
+  /** The one note of the element a reference card shows; null once it is deleted. */
+  elementNote?: (target: ElementNoteTarget) => ElementNote | null;
+  elementInTrash?: (target: ElementNoteTarget) => boolean;
+  onElementNoteChange?: (
+    target: ElementNoteTarget,
+    text: string,
+    noteReferences: NoteReference[],
+    noteMarks: NoteMark[],
+  ) => void;
   targetId?: string;
   targetRequestId?: number;
   onUndo?: () => void;
@@ -88,9 +100,13 @@ export function StoryboardWorkspace(props: StoryboardWorkspaceProps) {
 
 function StoryboardWorkspaceInner({
   state,
+  worldId,
   onChange,
   candidates,
   onOpenReference,
+  elementNote,
+  elementInTrash,
+  onElementNoteChange,
   targetId,
   targetRequestId,
   onUndo,
@@ -280,6 +296,11 @@ function StoryboardWorkspaceInner({
             boardContext: noteBoardContext,
             onPatch: patchNode,
             onNoteChange: changeNote,
+            onElementNoteChange,
+            elementNote:
+              item.kind === "reference" && elementNote ? elementNote(item.target) : undefined,
+            elementInTrash:
+              item.kind === "reference" && elementInTrash ? elementInTrash(item.target) : undefined,
             onOpenReference: openReference,
             onOpenBoard: openBoard,
           },
@@ -292,7 +313,10 @@ function StoryboardWorkspaceInner({
       allCandidates,
       boards,
       changeNote,
+      elementInTrash,
+      elementNote,
       noteBoardContext,
+      onElementNoteChange,
       openBoard,
       openReference,
       patchNode,
@@ -303,14 +327,20 @@ function StoryboardWorkspaceInner({
   // flowNodes mirrors derivedNodes but is state of its own: React Flow writes into it between
   // two derivations (onNodesChange applies drag positions, previewGroupMove shows a group's
   // members moving before anything is persisted), and the next derivation replaces those
-  // transient positions. Deriving it during render would need those writes to live elsewhere,
-  // so the mirror stays an effect until a drag spec holds that rewrite (T-17 P3 plan, S2).
-  // The reset keeps each node's `measured` size: without it React Flow hides every card until
-  // it measures them again, which on macOS left a selected card without its commands (T-149).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- flowNodes is React Flow's controlled node state, written by onNodesChange and previewGroupMove between derivations; the effect resets it to derivedNodes when they change, keeping the measured sizes
+  // transient positions, so those writes keep flowNodes a state of its own. The reset keeps
+  // each node's `measured` size: without it React Flow hides every card until it measures them
+  // again, which on macOS left a selected card without its commands (T-149).
+  //
+  // The reset happens while rendering, not in an effect. Every keystroke in a card's note
+  // derives new nodes; an effect turned each into a second synchronous commit, and React counts
+  // those across keystrokes that arrive faster than it settles. Some fifty characters typed
+  // quickly into a card threw "Maximum update depth exceeded", blanked the page and lost the
+  // text before it was saved (D-T-177-F1).
+  const [mirroredNodes, setMirroredNodes] = useState<StoryboardFlowNode[] | null>(null);
+  if (mirroredNodes !== derivedNodes) {
+    setMirroredNodes(derivedNodes);
     setFlowNodes((current) => keepMeasuredFlowNodes(derivedNodes, current));
-  }, [derivedNodes]);
+  }
 
   // The default board: when the active one is gone (replaced state, deleted board), fall back
   // to the first and start its trail over. Adjusted during render, React redoes the render at
@@ -744,6 +774,7 @@ function StoryboardWorkspaceInner({
       <div className={`storyboard-layout ${libraryOpen ? "has-library" : ""}`.trim()}>
         {libraryOpen && (
           <StoryboardSearchPanel
+            worldId={worldId}
             candidates={allCandidates}
             query={query}
             onQueryChange={setQuery}

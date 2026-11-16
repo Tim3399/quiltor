@@ -25,6 +25,25 @@ export function DisabledOption() {
   );
 }
 
+export function LockedWithReason() {
+  return (
+    <SegmentedControl
+      label="KI-Engine"
+      value="browser"
+      options={[
+        {
+          value: "server",
+          label: "Server-KI",
+          disabled: true,
+          hint: "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
+        },
+        { value: "browser", label: "Im Browser" },
+      ]}
+      onChange={() => undefined}
+    />
+  );
+}
+
 export function Touch() {
   return (
     <SegmentedControl

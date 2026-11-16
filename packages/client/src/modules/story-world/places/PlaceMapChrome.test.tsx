@@ -196,18 +196,25 @@ describe.each(["expanded", "collapsed"] as const)("shared %s map scale editor", 
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     const editor = screen.getByRole("dialog", { name: "Maßstab von Weltkarte" });
-    fireEvent.change(within(editor).getByRole("spinbutton", { name: "Maßstab" }), {
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Maßstab" }), {
       target: { value: "50" },
     });
     expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 50 });
-    fireEvent.change(within(editor).getByRole("spinbutton", { name: "Maßstab" }), {
+    // Neither a negative number nor an empty field is a scale: nothing is written.
+    const calls = vi.mocked(options.onScale).mock.calls.length;
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Maßstab" }), {
       target: { value: "-12" },
     });
-    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.01 });
-    fireEvent.change(within(editor).getByRole("spinbutton", { name: "Maßstab" }), {
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Maßstab" }), {
       target: { value: "" },
     });
-    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.01 });
+    expect(options.onScale).toHaveBeenCalledTimes(calls);
+    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 50 });
+    // A measured city plan reads below the old floor of 0.01 and is written as it is.
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Maßstab" }), {
+      target: { value: "0.0667" },
+    });
+    expect(options.onScale).toHaveBeenLastCalledWith({ unitsPer100px: 0.0667 });
     fireEvent.change(within(editor).getByRole("textbox", { name: "Einheit" }), {
       target: { value: "Meilen" },
     });
@@ -226,7 +233,7 @@ describe("scale editor field labels", () => {
       </I18nProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Maßstab von Weltkarte" }));
-    const field = within(screen.getByRole("dialog")).getByRole("spinbutton", { name: "Maßstab" });
+    const field = within(screen.getByRole("dialog")).getByRole("textbox", { name: "Maßstab" });
     const label = document.querySelector(`label[for="${field.id}"]`);
     expect(label).toHaveClass("sr-only");
     expect(screen.getByText("pro 100px")).toBeVisible();

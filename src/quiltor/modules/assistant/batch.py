@@ -206,7 +206,12 @@ def run_batches(
         count_tokens,
     )
     untitled = UNTITLED_CHAPTER.get(language, UNTITLED_CHAPTER[DEFAULT_ASSISTANT_LANGUAGE])
-    titles = {chapter["id"]: chapter.get("title") or untitled for chapter in chapters}
+    titles = {
+        chapter["id"]: title
+        if isinstance(title := chapter.get("title"), str) and title
+        else untitled
+        for chapter in chapters
+    }
     trace: list[dict[str, Any]] = [
         {"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}
     ]
@@ -300,6 +305,15 @@ def run_batches(
                     "index": index,
                     "chapterIds": group,
                     "proposalKinds": [item.get("kind") for item in proposals],
+                    # The prompt parts of this group's model call (T-307), for the trace reader.
+                    "budget": next(
+                        (
+                            step
+                            for step in result.get("agentTrace") or []
+                            if isinstance(step, dict) and step.get("step") == "budget"
+                        ),
+                        None,
+                    ),
                 }
             )
             if progress_id:

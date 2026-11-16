@@ -44,7 +44,82 @@ KNOWN_KEYS: dict[str, str] = {
     "QUILTOR_OIDC_CLIENT_SECRET": "OIDC client secret.",
     "QUILTOR_PUBLIC_URL": "Public base URL Quiltor is reachable at (must match the OIDC redirect URI).",
     "QUILTOR_COOKIE_SECURE": "Session cookie Secure flag: auto (default), 0, or 1.",
-    "QUILTOR_AI_URL": "External OpenAI-compatible inference endpoint. Unset = spawn the bundled local runtime.",
+    "QUILTOR_AI_URL": (
+        "Inference endpoint: base URL without /v1. Unset = spawn the bundled local runtime. "
+        "With QUILTOR_AI_KEY it is an external OpenAI-compatible provider and must be https."
+    ),
+    "QUILTOR_AI_KEY": (
+        "API key of an external OpenAI-compatible provider at QUILTOR_AI_URL. Set = external mode, "
+        "no local runtime. Not together with QUILTOR_AI_KEY_FILE."
+    ),
+    "QUILTOR_AI_KEY_FILE": "File holding that API key instead (e.g. a Docker secret).",
+    "QUILTOR_AI_MODEL_NAME": "The request's model field for the endpoint, e.g. gpt-4o-mini. Default: local.",
+    "QUILTOR_AI_JSON_MODE": (
+        "json_object for providers that ignore response_format json_schema (Anthropic); the "
+        "schema then goes into the prompt."
+    ),
+    "QUILTOR_TRUSTED_PROXIES": (
+        "Comma-separated IP addresses of the reverse proxies in front of Quiltor. Only their "
+        "X-Forwarded-For is believed, to tell clients apart when limiting open logins. "
+        "Unset = no per-client login limit."
+    ),
+    "QUILTOR_PREMIUM_ROLE": "Realm role an OIDC account needs for the AI assistant. Default: premium.",
+    "QUILTOR_ASSISTANT_MAX_OPEN_JOBS": "Open AI assistant jobs per OIDC account, 1-100. Default: 3.",
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM": (
+        "Seconds the browser has to answer one model call on the in-browser AI, 30-3600. "
+        "Default: 300."
+    ),
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD": (
+        "Seconds the browser has to answer one model call on a cloud provider, 10-600. "
+        "Default: 120."
+    ),
+    "QUILTOR_ASSISTANT_RELAY_JOB_MINUTES": (
+        "Minutes one assistant job on the user's own AI may take in all, 1-120. Default: 20."
+    ),
+    "QUILTOR_ASSISTANT_CLIENT_AI": (
+        "Whether assistant jobs may run on the user's own AI (in-browser or cloud engine): 1 or "
+        "unset = yes, 0 = no. Default: 1."
+    ),
+    "QUILTOR_ASSISTANT_CLIENT_JOBS": (
+        "How many assistant jobs on the user's own AI run at once on this server, 1-64. Default: 8."
+    ),
+    "QUILTOR_CSP": (
+        "Content-Security-Policy mode: enforce, report-only or off. Default: enforce, "
+        "report-only on the desktop app."
+    ),
+    "QUILTOR_CSP_CONNECT_EXTRA": (
+        "Extra https:// origins the page may connect to, space-separated, no path, no wildcard "
+        "(e.g. a changed model host)."
+    ),
+    "QUILTOR_OIDC_ALLOW_INSECURE_LOOPBACK": (
+        "Set to 1 to accept an http:// loopback OIDC issuer. For local development only."
+    ),
+    "QUILTOR_OIDC_TRUSTED_ENDPOINT_ORIGINS": (
+        "Comma-separated origins the OIDC discovery document may point its endpoints at, "
+        "in addition to the issuer's own."
+    ),
+    "QUILTOR_BACKUP_OIDC_ALLOW_INSECURE_LOOPBACK": (
+        "Set to 1 to accept an http:// loopback OIDC issuer for cloud backup sign-in. "
+        "For local development only."
+    ),
+    "QUILTOR_MAX_WORLDS_PER_ACCOUNT": "Hosted instances: worlds one account may own, trash included. Default: 50.",
+    "QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT": (
+        "Hosted instances: bytes all worlds of one account may take on disk, backups and history included. "
+        "Default: 2 GiB."
+    ),
+    "QUILTOR_MAX_HANDLER_THREADS": "Most request-handler threads at once; further connections get 503. Default: 128.",
+    "QUILTOR_GRAMMAR_MAX_CONCURRENT": "Grammar checks one account may run at once. Default: 2.",
+    "QUILTOR_GRAMMAR_MAX_PER_MINUTE": "Grammar checks one account may start per minute. Default: 30.",
+    "QUILTOR_AI_TIMEOUT": "Seconds one chat request to the AI endpoint may take, at least 30.",
+    "QUILTOR_PDF_RENDERER": "PDF renderer override, e.g. system_browser to drive an installed Chrome/Edge.",
+    "QUILTOR_PDF_SANDBOX": (
+        "Set to off to run the PDF export's Chromium without its sandbox, for hosts that grant no "
+        "user namespaces. Logs a warning at every start. Default: sandbox on."
+    ),
+    "QUILTOR_CREDENTIAL_BACKEND": (
+        "Where stored credentials live: auto (default), file or memory. file is for containers "
+        "and sessions without a keychain."
+    ),
     "QUILTOR_AI_MODEL": "Path to a specific model file, overriding the bundled default.",
     "QUILTOR_AI_BINARY": "Path to a specific llama-server/MLX binary, overriding the bundled default.",
     "QUILTOR_AI_RUNTIME": "Force a specific local runtime: llamacpp or mlx.",

@@ -41,17 +41,30 @@ const SAVE_STATUS_LABEL_KEYS: Record<SavePhase, MessageKey> = {
 // all, so a tick at that resolution is enough -- and it runs only while there is a time to be
 // seen in the first place.
 //
-// The clock is an external store read in whole ticks: the snapshot is the current tick number,
-// so it is stable between ticks (as useSyncExternalStore requires) and a render that happens
-// long after the last tick still sees the right time, without an effect to catch up. The timer
-// is armed for the next tick boundary and runs only while `active`.
+// The clock is an external store read in whole ticks: the snapshot is the time it was first read
+// in the current tick, so it is stable between ticks (as useSyncExternalStore requires) and a
+// render that happens long after the last tick still sees the right time, without an effect to
+// catch up. The timer is armed for the next tick boundary and runs only while `active`.
+//
+// The snapshot is that real time, not the tick boundary: from the boundary it would lag up to
+// 30 s, and since relativeTime rounds down the bar would show a minute too little for that
+// long. The reader starts afresh whenever the clock is switched on, so a saved state that
+// appears mid-tick is measured from the moment it appears.
 const TICK_MS = 30_000;
-const readTick = () => Math.floor(Date.now() / TICK_MS);
+let clock = { tick: Number.NaN, now: 0 };
+const readNow = () => {
+  const now = Date.now();
+  const tick = Math.floor(now / TICK_MS);
+  if (tick !== clock.tick) clock = { tick, now };
+  return clock.now;
+};
 
 function useMinuteTick(active: boolean) {
   const subscribe = useCallback(
     (onTick: () => void) => {
       if (!active) return () => undefined;
+      // React reads the snapshot again right after subscribing and renders the fresh time.
+      clock = { tick: Number.NaN, now: 0 };
       let timer = 0;
       const arm = () => {
         timer = window.setTimeout(
@@ -67,7 +80,7 @@ function useMinuteTick(active: boolean) {
     },
     [active],
   );
-  return useSyncExternalStore(subscribe, readTick) * TICK_MS;
+  return useSyncExternalStore(subscribe, readNow);
 }
 
 export function AppShell({
@@ -83,6 +96,8 @@ export function AppShell({
   errorId,
   warning,
   retry,
+  signInRequired = false,
+  onSignIn,
   onRecover,
   theme,
   onTheme,
@@ -96,6 +111,7 @@ export function AppShell({
   onLogout,
   version,
   summary,
+  notice,
   children,
 }: {
   title: string;
@@ -108,6 +124,9 @@ export function AppShell({
   errorId?: string;
   warning?: string;
   retry: () => void;
+  /** The last save failed because the session ended (T-58 P7b). */
+  signInRequired?: boolean;
+  onSignIn?: () => void;
   onRecover?: () => void;
   theme: Theme;
   onTheme: () => void;
@@ -115,7 +134,8 @@ export function AppShell({
   navigationOpen?: boolean;
   onNavigation?: () => void;
   onSearch: () => void;
-  onVersions: () => void;
+  /** Left out while the open world is an example preview: it is neither synced nor versioned. */
+  onVersions?: () => void;
   onExportProject?: () => void;
   onGettingStarted?: () => void;
   onAssistant: () => void;
@@ -125,6 +145,8 @@ export function AppShell({
   version?: string;
   /** What is open in the active workspace: counts and position for the status bar. */
   summary?: React.ReactNode;
+  /** A row between the bar and the workspace, such as the example-world preview notice. */
+  notice?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { t, locale } = useI18n();
@@ -138,7 +160,7 @@ export function AppShell({
   const savedAgo = showSavedAgo && savedAt ? relativeTime(locale, savedAt, now) : null;
   const saveLabel = savedAgo ? t("savedAgo", { ago: savedAgo }) : t(SAVE_STATUS_LABEL_KEYS[phase]);
   return (
-    <div className="app-frame" data-workspace={workspace}>
+    <div className="app-frame" data-workspace={workspace} data-notice={notice ? "" : undefined}>
       <header className={`app-bar${phase === "error" ? " app-bar--save-error" : ""}`}>
         <div className="app-bar__leading">
           {navigationAvailable && (
@@ -223,7 +245,9 @@ export function AppShell({
               onSelect={onExitWorld}
             />
             <MenuSeparator />
-            <MenuItem icon={<History />} label={t("versionsAndBackups")} onSelect={onVersions} />
+            {onVersions && (
+              <MenuItem icon={<History />} label={t("versionsAndBackups")} onSelect={onVersions} />
+            )}
             {onExportProject && (
               <MenuItem
                 icon={<Download />}
@@ -255,11 +279,13 @@ export function AppShell({
             className="app-save-status"
             phase={phase}
             label={saveLabel}
-            error={error || warning}
+            error={signInRequired ? t("saveSessionEnded") : error || warning}
             errorId={phase === "error" ? errorId : undefined}
             errorIdLabel={errorId ? t("saveErrorId", { id: errorId }) : undefined}
             retryLabel={t("retry")}
             onRetry={retry}
+            signInLabel={signInRequired ? t("saveSignInNewTab") : undefined}
+            onSignIn={signInRequired ? onSignIn : undefined}
           />
           {phase === "error" && onRecover && (
             <Button
@@ -275,6 +301,7 @@ export function AppShell({
           )}
         </div>
       </header>
+      {notice && <div className="app-notice">{notice}</div>}
       <main className="app-workspace">{children}</main>
       <StatusBar label={t("statusBar")} start={summary} />
     </div>

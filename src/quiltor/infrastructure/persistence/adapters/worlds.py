@@ -2,12 +2,49 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from quiltor.application.documents import DocumentLocation
 from quiltor.application.worlds import OpenedWorld, WorldPaths, WorldSummary
-from quiltor.infrastructure.persistence.sqlite import config, revisions, schema, world_catalog
+from quiltor.domain.manuscript import flatten_tree, structure_or_flat
+from quiltor.infrastructure.persistence import mirror
+from quiltor.infrastructure.persistence.sqlite import (
+    config,
+    revisions,
+    schema,
+    story_world,
+    world_catalog,
+)
+from quiltor.infrastructure.persistence.sqlite import manuscript as manuscript_store
 from quiltor.infrastructure.persistence.sqlite.connection import connection
+
+_log = logging.getLogger(__name__)
+
+
+def _refresh_mirrors(location: DocumentLocation) -> None:
+    """Rewrite the Markdown mirrors from the migrated database.
+
+    A migration can change notes (schema 15 appends card texts to their elements' notes), and
+    the mirrors are otherwise only written when a document is saved. They are derived files: a
+    failure here is logged and never keeps the world from opening.
+    """
+
+    try:
+        state = manuscript_store.load(location.database)
+        chapters = {chapter["id"]: chapter for chapter in state["chapters"]}
+        structure = structure_or_flat(chapters, state.get("structure"))
+        mirror.mirror_text(
+            [chapters[chapter_id] for chapter_id in flatten_tree(chapters, structure)],
+            manuscript_dir=location.manuscript_mirrors,
+        )
+        mirror.mirror_profiles(
+            story_world.load(location.database), profile_dir=location.story_world_mirrors
+        )
+    except Exception:  # noqa: BLE001 - derived files must not block opening a migrated world
+        _log.warning(
+            "The Markdown mirrors could not be refreshed after a migration.", exc_info=True
+        )
 
 
 def _summary(record: dict[str, str]) -> WorldSummary:
@@ -17,6 +54,8 @@ def _summary(record: dict[str, str]) -> WorldSummary:
         backup_url=record.get("backupUrl", ""),
         updated=record.get("updated", ""),
         deleted_at=record.get("deletedAt", ""),
+        origin=record.get("origin", ""),
+        preview=bool(record.get("previewCreatedAt")),
     )
 
 
@@ -37,6 +76,8 @@ class SQLiteWorldRepository:
         self.paths.backups.mkdir(parents=True, exist_ok=True)
         self.paths.worlds.mkdir(parents=True, exist_ok=True)
         schema.initialize(self.paths.database)
+        # Previews nobody changed or discarded: a crash, a closed laptop, a lost beacon.
+        world_catalog.discard_expired_previews(paths=self.paths)
 
     def is_valid_id(self, world_id: str) -> bool:
         return world_catalog.WORLD_ID_RE.fullmatch(world_id or "") is not None
@@ -60,6 +101,22 @@ class SQLiteWorldRepository:
             world_catalog.create_world(title, backup_url, owner_sub=owner_sub, paths=self.paths)
         )
 
+    def create_preview(self, title: str, owner_sub: str) -> WorldSummary:
+        return _summary(
+            world_catalog.create_world(
+                title, "", owner_sub=owner_sub, paths=self.paths, preview=True
+            )
+        )
+
+    def discard_preview(self, world_id: str, owner_sub: str | None) -> None:
+        world_catalog.discard_preview_world(world_id, owner_sub=owner_sub, paths=self.paths)
+
+    def discard_expired_previews(self) -> list[str]:
+        return world_catalog.discard_expired_previews(paths=self.paths)
+
+    def finish_promotion(self, world_id: str) -> WorldSummary:
+        return _summary(world_catalog.finish_promotion(world_id, paths=self.paths))
+
     def set_backup_url(self, world_id: str, backup_url: str) -> str:
         return world_catalog.set_backup_url(world_id, backup_url, paths=self.paths)
 
@@ -72,11 +129,15 @@ class SQLiteWorldRepository:
         if owner_sub is not None and owner != owner_sub:
             raise PermissionError("This world belongs to a different account.")
         paths = self.paths_for(world_id)
-        schema.initialize(paths.documents.database)
+        if schema.initialize(paths.documents.database):
+            _refresh_mirrors(paths.documents)
         record = next(
             (
                 world
-                for world in world_catalog.list_worlds(owner_sub=owner_sub, paths=self.paths)
+                # None: a preview of the example world is opened by its id too, and says so.
+                for world in world_catalog.list_worlds(
+                    owner_sub=owner_sub, paths=self.paths, preview=None
+                )
                 if world["id"] == world_id
             ),
             None,

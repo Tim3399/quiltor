@@ -191,13 +191,16 @@ describe("storyboard canvas model", () => {
   });
 
   it("maps world and board candidates onto their lossless node kinds", () => {
-    expect(candidateNode("main", { x: 0, y: 0 }, [], entity)).toMatchObject({
+    const reference = candidateNode("main", { x: 0, y: 0 }, [], entity);
+    expect(reference).toMatchObject({
       kind: "reference",
       target: entity.target,
       label: "Ada",
-      text: "",
-      noteReferences: [],
     });
+    // A reference card shows its element's note and carries none of its own (T-177).
+    expect(reference).not.toHaveProperty("text");
+    expect(reference).not.toHaveProperty("noteReferences");
+    expect(reference).not.toHaveProperty("noteMarks");
     expect(candidateNode("main", { x: 0, y: 0 }, [], board)).toMatchObject({
       kind: "storyboard",
       target: board.target,

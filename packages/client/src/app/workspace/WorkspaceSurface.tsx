@@ -4,6 +4,7 @@ import {
   type Manuscript,
   type ManuscriptEditorSessionState,
 } from "../../modules/manuscript";
+import { type ElementNoteTarget, isChapterInTrash, resolveElementNote } from "../../modules/notes";
 import {
   type FigureState,
   loadFigureWorkspace,
@@ -73,6 +74,7 @@ export function WorkspaceSurface({
   storyboardHistory,
   referenceCandidates,
   onFiguresChange,
+  onElementNoteChange,
   target,
   onNavigate,
   focus,
@@ -83,7 +85,10 @@ export function WorkspaceSurface({
   openChapterTrashToken,
   chapterFilter,
   onChapterFilter,
+  versionsAvailable = true,
 }: {
+  /** False in the example world's preview: it keeps no versions (T-214). */
+  versionsAvailable?: boolean;
   worldId: string;
   worldTitle: string;
   /** False while the world's documents are still loading; the text editor waits for it. */
@@ -98,6 +103,8 @@ export function WorkspaceSurface({
   storyboardHistory: HistoryActions<StoryboardState>;
   referenceCandidates: readonly WorldReferenceCandidate[];
   onFiguresChange: (value: FigureState) => void;
+  /** Writes an element's one note into its own document (T-177). */
+  onElementNoteChange?: ComponentProps<typeof StoryboardWorkspace>["onElementNoteChange"];
   target: WorkspaceNavigationRequest | null;
   onNavigate: (target: WorkspaceTarget) => void;
   focus: boolean;
@@ -109,6 +116,15 @@ export function WorkspaceSurface({
   chapterFilter?: "all" | "in-book" | "set-aside";
   onChapterFilter?: (filter: "all" | "in-book" | "set-aside") => void;
 }) {
+  // Identity changes with the documents only, so Storyboard cards re-derive when a note does.
+  const elementNote = useCallback(
+    (noteTarget: ElementNoteTarget) => resolveElementNote(noteTarget, manuscript, figures),
+    [figures, manuscript],
+  );
+  const elementInTrash = useCallback(
+    (noteTarget: ElementNoteTarget) => isChapterInTrash(noteTarget, manuscript),
+    [manuscript],
+  );
   const layout = useWorkspaceLayout(worldId, workspace);
   const manuscriptSession = useRef<StoredSession | null>(null);
   const captureManuscriptSession = useCallback(
@@ -145,6 +161,7 @@ export function WorkspaceSurface({
         openChapterTrashToken={openChapterTrashToken}
         chapterFilter={chapterFilter}
         onChapterFilter={onChapterFilter}
+        versionsAvailable={versionsAvailable}
         onUndo={manuscriptHistory.undo}
         onRedo={manuscriptHistory.redo}
         canUndo={manuscriptHistory.canUndo}
@@ -165,7 +182,9 @@ export function WorkspaceSurface({
     return (
       <FigureWorkspace
         state={figures}
+        worldId={worldId}
         onChange={onFiguresChange}
+        manuscript={manuscript}
         targetId={target?.workspace === "figures" ? target.id : undefined}
         targetRequestId={target?.workspace === "figures" ? target.requestId : undefined}
         onUndo={figureHistory.undo}
@@ -205,10 +224,14 @@ export function WorkspaceSurface({
     );
   return (
     <StoryboardWorkspace
+      worldId={worldId}
       state={storyboards}
       onChange={storyboardHistory.change}
       candidates={referenceCandidates}
       onOpenReference={openStoryboardReference}
+      elementNote={elementNote}
+      elementInTrash={elementInTrash}
+      onElementNoteChange={onElementNoteChange}
       targetId={target?.workspace === "storyboard" ? target.id : undefined}
       targetRequestId={target?.workspace === "storyboard" ? target.requestId : undefined}
       onUndo={storyboardHistory.undo}

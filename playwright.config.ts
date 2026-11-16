@@ -16,6 +16,16 @@ const singleViewportSpecs = [
   // Every block sets its own viewport and isMobile through test.use, so the three projects
   // ran the very same test three times.
   "**/mobile-workspace-tabs.spec.ts",
+  // The example-world preview is a server-side flow (open, promote, discard) seen through the
+  // world list and one bar; no viewport changes what is sent or kept. The narrow layouts of
+  // the world list are covered by world-gate-responsive.spec.ts.
+  "**/example-world-preview.spec.ts",
+  // Sync against a real endpoint is a flow between processes (browser, a second Quiltor, the
+  // backup server); no viewport changes what is sent. Each project would start all three again.
+  "**/cloud-sync-real-endpoint.spec.ts",
+  // A browser engine's job runs against a Quiltor of its own with QUILTOR_TEST_HOOKS=1 (T-61
+  // part 8a); the relay and the slot limit are the same at every viewport.
+  "**/assistant-client-relay.spec.ts",
 ];
 
 export default defineConfig({

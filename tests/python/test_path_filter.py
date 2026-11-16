@@ -6,7 +6,6 @@ import io
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,6 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "distribution" / "tooling"))
 
 import path_filter  # noqa: E402
+
+from tests.python.git_bash import find_bash  # noqa: E402
 
 GROUPS = {"checks": "lint", "python": "backend", "browser": "browser suites"}
 
@@ -307,20 +308,7 @@ class GitTests(unittest.TestCase):
         self.assertIn("base.txt falls in no group", stderr.getvalue())
 
 
-def _bash():
-    """
-    Git for Windows' bash.exe if there is one, else the bash on PATH.
-
-    On Windows the first bash on PATH can be System32's, which is WSL. Git's own lies next to
-    git: Git\\cmd\\git.exe, or Git\\mingw64\\bin\\git.exe when started from Git Bash. Elsewhere no
-    bash.exe sits there, and PATH decides.
-    """
-
-    git = shutil.which("git")
-    parents = list(Path(git).resolve().parents)[1:3] if git else []
-    candidates = [parent / "bin" / "bash.exe" for parent in parents]
-    found = next((str(path) for path in candidates if path.exists()), None)
-    return found or shutil.which("bash")
+_bash = find_bash
 
 
 def _filter_step_script():

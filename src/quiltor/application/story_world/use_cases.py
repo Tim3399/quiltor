@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
-from typing import Any
+from typing import Any, Literal, TypedDict
 
-from quiltor.domain.story_world.entity_resolution import resolve_entity
-from quiltor.domain.story_world.integrity import validate_world
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
+from quiltor.domain.story_world.entity_resolution import ResolutionStatus, resolve_entity
+from quiltor.domain.story_world.integrity import WorldValidation, validate_world
+from quiltor.domain.story_world.knowledge import PublicKnowledgeChunk, build_knowledge, retrieve
 from quiltor.domain.story_world.resolve_before_create import (
     EnsureDecision,
+    EnsureOperation,
+    EnsureOutcome,
+    ResolutionProofStatus,
     build_resolution_context,
 )
 from quiltor.domain.story_world.resolve_before_create import (
@@ -30,7 +33,48 @@ from quiltor.domain.story_world.resolve_before_create import (
 )
 
 
-def _public_decision(decision: EnsureDecision) -> dict[str, Any]:
+class PublicResolutionProof(TypedDict):
+    checked: Literal[True]
+    status: ResolutionProofStatus
+    mention: str
+    candidateIds: list[str]
+    worldRevision: int
+
+
+class PublicEnsureDecision(TypedDict):
+    """An ensure receipt as the assistant and the tools receive it."""
+
+    operation: EnsureOperation
+    outcome: EnsureOutcome
+    operationSatisfied: bool
+    resolvedId: str | None
+    canonical: dict[str, Any] | None
+    proof: PublicResolutionProof
+
+
+class PublicResolutionCandidate(TypedDict):
+    elementId: str
+    score: float
+    reasons: list[str]
+
+
+class PublicEntityResolution(TypedDict):
+    status: ResolutionStatus
+    mention: str
+    resolvedId: str | None
+    candidates: list[PublicResolutionCandidate]
+
+
+class StoryWorldStructure(TypedDict):
+    """The four collections of the story world, as stored; each defaults to an empty list."""
+
+    nodes: object
+    edges: object
+    timeline: object
+    presence: object
+
+
+def _public_decision(decision: EnsureDecision) -> PublicEnsureDecision:
     """Serialize a receipt without turning it into reusable server authority."""
 
     proof = decision.proof
@@ -61,7 +105,7 @@ class StoryWorldUseCases:
         story_world: dict[str, Any],
         query: str,
         limit: int = 14,
-    ) -> list[dict[str, Any]]:
+    ) -> list[PublicKnowledgeChunk]:
         return [
             chunk.public()
             for chunk in retrieve(build_knowledge(manuscript, story_world), query, limit)
@@ -75,7 +119,7 @@ class StoryWorldUseCases:
         entity_type: str | None = None,
         context_ids: Sequence[str] = (),
         vocabulary: Sequence[str] = (),
-    ) -> dict[str, Any]:
+    ) -> PublicEntityResolution:
         """Expose the shared resolver as a transport-neutral application operation."""
 
         result = resolve_entity(
@@ -108,7 +152,7 @@ class StoryWorldUseCases:
         staged_elements: Sequence[Mapping[str, Any]] = (),
         context_ids: Sequence[str] = (),
         vocabulary: Sequence[str] = (),
-    ) -> dict[str, Any]:
+    ) -> PublicEnsureDecision:
         context = build_resolution_context(
             story_world,
             world_revision,
@@ -133,7 +177,7 @@ class StoryWorldUseCases:
         staged_relationships: Sequence[Mapping[str, Any]] = (),
         context_ids: Sequence[str] = (),
         vocabulary: Sequence[str] = (),
-    ) -> dict[str, Any]:
+    ) -> PublicEnsureDecision:
         context = build_resolution_context(
             story_world,
             world_revision,
@@ -156,7 +200,7 @@ class StoryWorldUseCases:
         *,
         world_revision: int,
         staged_moments: Sequence[Mapping[str, Any]] = (),
-    ) -> dict[str, Any]:
+    ) -> PublicEnsureDecision:
         context = build_resolution_context(
             story_world,
             world_revision,
@@ -175,7 +219,7 @@ class StoryWorldUseCases:
         staged_presence: Sequence[Mapping[str, Any]] = (),
         context_ids: Sequence[str] = (),
         vocabulary: Sequence[str] = (),
-    ) -> dict[str, Any]:
+    ) -> PublicEnsureDecision:
         context = build_resolution_context(
             story_world,
             world_revision,
@@ -201,7 +245,7 @@ class StoryWorldUseCases:
         staged_elements: Sequence[Mapping[str, Any]] = (),
         context_ids: Sequence[str] = (),
         vocabulary: Sequence[str] = (),
-    ) -> dict[str, Any]:
+    ) -> PublicEnsureDecision:
         context = build_resolution_context(
             story_world,
             world_revision,
@@ -217,7 +261,7 @@ class StoryWorldUseCases:
         )
 
     @staticmethod
-    def structure(story_world: dict[str, Any]) -> dict[str, Any]:
+    def structure(story_world: dict[str, Any]) -> StoryWorldStructure:
         return {
             "nodes": story_world.get("nodes", []),
             "edges": story_world.get("edges", []),
@@ -226,7 +270,7 @@ class StoryWorldUseCases:
         }
 
     @staticmethod
-    def validate(story_world: dict[str, Any]) -> dict[str, Any]:
+    def validate(story_world: dict[str, Any]) -> WorldValidation:
         return validate_world(story_world)
 
 

@@ -1,11 +1,13 @@
 import { expect, type Page } from "@playwright/test";
 import type { FigureState } from "../../../packages/client/src/modules/story-world/model";
 import { decodeStoryWorldV1 } from "../../../packages/client/src/platform/contracts/v1/storyWorld";
+import { WORLD } from "../../world/ids.generated";
 import {
   fulfillDocumentSave,
   fulfillStoryWorld,
   mockRequiredWorldDocuments,
 } from "./application-api";
+import { exampleWorldDocuments } from "./example-world";
 
 const mapImage = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="680" viewBox="0 0 1000 680">
   <rect width="1000" height="680" fill="#d4e1e3"/>
@@ -16,6 +18,16 @@ const mapImage = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="6
   <g fill="#97aa99" opacity=".6"><path d="M95 90l20-34 20 34zM130 102l24-40 24 40zM172 82l20-34 20 34zM470 87l22-38 22 38zM510 105l28-48 28 48zM560 84l20-34 20 34z"/></g>
 </svg>`;
 
+/** The ids of the test world's opened-out maps and the places standing on them. */
+const MAP = WORLD.figures.xWeltkarte;
+const ISLAND = WORLD.figures.xInselkarte;
+
+/**
+ * The opened-out map of the test world's check part, on its own: the world map with its three
+ * places and, on request, the island map beside it. Nothing else of the world comes along, so
+ * the canvas fits the same picture as before the world existed. The variants fold the map,
+ * drop its scale or add the second map, as the map specs need them.
+ */
 export function expandedMapState({
   expanded = true,
   scale = true,
@@ -25,71 +37,34 @@ export function expandedMapState({
   scale?: boolean;
   secondMap?: boolean;
 } = {}): FigureState {
-  return {
-    nodes: [
-      {
-        id: "weltkarte",
-        type: "ort",
-        name: "Weltkarte",
-        label: "Karte",
-        sub: "Die Küsten des Nordens.",
-        x: 0,
-        y: 0,
-        mapImageId: "nordkueste",
-        mapExpanded: expanded,
-        mapWidth: secondMap ? 600 : 1000,
-        mapHeight: secondMap ? 500 : 680,
-        pinned: true,
-        ...(scale ? { mapScale: { unitsPer100px: 25, unitLabel: "km" } } : {}),
-      },
-      ...[
-        { id: "graufurth", name: "Graufurth", mapU: 0.3, mapV: 0.4 },
-        { id: "nordhafen", name: "Nordhafen", mapU: 0.7, mapV: 0.4 },
-        { id: "tannenhain", name: "Tannenhain", mapU: 0.48, mapV: 0.7 },
-      ].map((place) => ({
-        ...place,
-        type: "ort" as const,
-        x: 0,
-        y: 0,
-        label: "Ort",
-        sub: "An der nördlichen Küste.",
-        parentPlaceId: "weltkarte",
-      })),
-      ...(secondMap
-        ? [
-            {
-              id: "inselkarte",
-              type: "ort" as const,
-              name: "Inselkarte",
-              label: "Karte",
-              sub: "Die vorgelagerten Inseln.",
-              x: 700,
-              y: 0,
-              mapImageId: "inseln",
-              mapExpanded: true,
-              mapWidth: 600,
-              mapHeight: 500,
-              pinned: true,
-            },
-            {
-              id: "inselhafen",
-              type: "ort" as const,
-              name: "Inselhafen",
-              label: "Ort",
-              sub: "Auf der vorgelagerten Insel.",
-              x: 0,
-              y: 0,
-              parentPlaceId: "inselkarte",
-              mapU: 0.5,
-              mapV: 0.5,
-            },
-          ]
-        : []),
-    ],
-    edges: [],
-    timeline: [],
-    presence: [],
-  };
+  const { storyWorld } = exampleWorldDocuments({ include: ["base", "edge"] });
+  const maps = new Set<string>(secondMap ? [MAP, ISLAND] : [MAP]);
+  const nodes = structuredClone(
+    storyWorld.nodes.filter(
+      (node) =>
+        maps.has(node.id) || (node.parentPlaceId !== undefined && maps.has(node.parentPlaceId)),
+    ),
+  );
+  const map = nodes.find((node) => node.id === MAP);
+  if (!map) throw new Error("The test world has lost its opened-out map.");
+  // The specs measure the maps from the canvas origin and without a stored map position, the
+  // way the fixture placed them before the world existed: a resize then writes a position of
+  // its own, which the grip specs read. The cards carry no accent either, which the places
+  // baseline photographs.
+  for (const node of nodes) {
+    delete node.accent;
+    if (node.id === MAP) Object.assign(node, { x: 0, y: 0 });
+    if (node.id === ISLAND) Object.assign(node, { x: 700, y: 0 });
+    if (node.id === MAP || node.id === ISLAND) {
+      delete node.mapX;
+      delete node.mapY;
+    }
+  }
+  map.mapExpanded = expanded;
+  if (!scale) delete map.mapScale;
+  // Beside the island map the world map is shown smaller, as the two-map specs expect.
+  if (secondMap) Object.assign(map, { mapWidth: 600, mapHeight: 500 });
+  return { nodes, edges: [], timeline: [], presence: [] };
 }
 
 /** All document reads and writes stay in this browser context, using the real wire codec. */
@@ -111,11 +86,7 @@ export async function mockExpandedMapWorld(page: Page, initialState = expandedMa
   );
   await page.route("**/api/worlds/open", (route) => route.fulfill({ json: { ok: true, world } }));
   await mockRequiredWorldDocuments(page, {
-    manuscript: {
-      chapters: [{ id: "ankunft", title: "Ankunft", body: "Mara erreicht den Hafen.", note: "" }],
-      words: [],
-      activeSymbols: [],
-    },
+    manuscript: exampleWorldDocuments().manuscript,
     storyWorld: state,
   });
   await page.route("**/api/state*", (route) => {
@@ -164,8 +135,22 @@ export async function closePlaceSheet(page: Page) {
   }
 }
 
+/**
+ * A command of a place card, where the user reaches it. Up to 820px the places workspace is
+ * compact: selecting a card opens the inspector as a sheet over the canvas, so the card carries
+ * no commands and the sheet offers them (D-T-219-F2). Wider, they are the card's own.
+ */
+export async function placeCardCommand(page: Page, nodeId: string, name: string) {
+  const node = page.locator(`.react-flow__node[data-id="${nodeId}"]`);
+  if ((page.viewportSize()?.width ?? 0) > 820) return node.getByRole("button", { name });
+  const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
+  if (!(await sheet.isVisible())) await node.click();
+  await expect(sheet).toBeVisible();
+  return sheet.getByRole("button", { name, exact: true });
+}
+
 export async function selectMapChild(page: Page) {
-  const child = page.locator('.react-flow__node[data-id="graufurth"]');
+  const child = page.locator('.react-flow__node[data-id="x-graufurth"]');
   await child.click();
   await expect(page.locator(".places-inspector-header strong")).toHaveText("Graufurth");
   await closePlaceSheet(page);

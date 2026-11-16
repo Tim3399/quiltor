@@ -1,4 +1,5 @@
 import type {
+  AssistantEngineWire,
   AssistantHistoryMessage,
   AssistantJobState,
   AssistantReply,
@@ -66,6 +67,7 @@ async function createJob(
   chapterIds: string[] | undefined,
   batch: AssistantBatchRequest | undefined,
   idempotencyKey: string,
+  engine: AssistantEngineWire | undefined,
 ): Promise<AssistantJobCreateResult> {
   const request = async () => {
     const wire = await requestJson<AssistantJobCreateWireV1>(JOBS_PATH, {
@@ -83,6 +85,8 @@ async function createJob(
           progressId: batch?.progressId,
           mode: batch?.mode,
           language: currentUiLocale(),
+          // Absent for the server's own model, so older servers see the request they know.
+          ...(engine ? { engine } : {}),
         }),
       ),
       signal,
@@ -130,6 +134,9 @@ function terminalReply(job: AssistantJobState): AssistantReply {
     throw new ApplicationGatewayError(
       job.error || "Assistant request failed.",
       job.failureCode || "unavailable",
+      // The conversation words a client engine's code itself; job.error is the browser's
+      // own detail then, never meant for it (D-T-61-30).
+      job.engineError ? { params: { engineError: { ...job.engineError } } } : {},
     );
   }
   throw new Error(`Assistant job ${job.id} is not terminal.`);
@@ -178,6 +185,7 @@ export function createAssistantJobsHttpGateway(state: HttpApplicationState): Ass
       batch,
       idempotencyKey = crypto.randomUUID(),
       onJobCreated,
+      engine,
     ) => {
       const created = await createJob(
         state,
@@ -187,6 +195,7 @@ export function createAssistantJobsHttpGateway(state: HttpApplicationState): Ass
         chapterIds,
         batch,
         idempotencyKey,
+        engine,
       );
       onJobCreated?.(created.job);
       if (

@@ -8,16 +8,24 @@ import {
   nearestMapDistances,
 } from "./placeMap";
 
-export type PlaceMeasurementPoint = IdentifiedMapPoint & { name: string };
+export type PlaceMeasurementPoint = IdentifiedMapPoint & {
+  name: string;
+  /** A point the author set by clicking, not a place: it only ever ends the targeted line. */
+  free?: boolean;
+};
 
 export function createPlaceMeasurementEdges({
   points,
   selection,
   scaleFor,
+  nearest = true,
   t,
+  locale,
 }: {
   points: PlaceMeasurementPoint[];
   selection: string[];
+  /** The three nearest lines per place; off while a stretch is being drawn for a scale. */
+  nearest?: boolean;
   /**
    * What a distance between these two means, which is not one answer.
    *
@@ -28,8 +36,10 @@ export function createPlaceMeasurementEdges({
    */
   scaleFor: (from: string, to: string) => FigureState["mapScale"];
   t: Translate;
+  locale: string;
 }): Edge[] {
-  const pairs = new Map(nearestMapDistances(points).map((pair) => [pair.id, pair]));
+  const places = points.filter((point) => !point.free);
+  const pairs = new Map(nearest ? nearestMapDistances(places).map((pair) => [pair.id, pair]) : []);
   const from = points.find((point) => point.id === selection[0]);
   const to = points.find((point) => point.id === selection[1]);
   const targeted = from && to ? mapDistancePair(from, to) : null;
@@ -37,7 +47,7 @@ export function createPlaceMeasurementEdges({
 
   const names = new Map(points.map((point) => [point.id, point.name]));
   return [...pairs.values()].map((pair) => {
-    const distance = formatDistance(pair.distance, t, scaleFor(pair.from, pair.to));
+    const distance = formatDistance(pair.distance, t, scaleFor(pair.from, pair.to), locale);
     return {
       id: pair.id,
       source: pair.from,

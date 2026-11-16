@@ -43,6 +43,7 @@ describe("HTTP application composition", () => {
       [
         "assistant",
         "backup",
+        "capabilities",
         "documents",
         "history",
         "identity",

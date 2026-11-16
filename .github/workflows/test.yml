@@ -21,6 +21,16 @@ on:
         description: "Run the full Windows and macOS matrix"
         type: boolean
         default: true
+      # Optional, on request only (T-179, D-167): starts llama-conformance.yml beside the run.
+      # Dispatch only -- a caller such as release.yml cannot ask for it.
+      llama_conformance:
+        description: "Also run the llama-server conformance (downloads a runtime and a model)"
+        type: boolean
+        default: false
+      llama_spike:
+        description: "llama conformance: allow a model with no pinned sha256 and print its digest"
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       full_matrix:
@@ -71,6 +81,7 @@ jobs:
       run_client: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_client == 'false' && 'false' || 'true') }}
       run_browser: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_browser == 'false' && 'false' || 'true') }}
       run_lint: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_lint == 'false' && 'false' || 'true') }}
+      run_oidc: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_oidc == 'false' && 'false' || 'true') }}
     steps:
       - id: decide
         env:
@@ -110,7 +121,7 @@ jobs:
             # itself stays green; later lines of $GITHUB_OUTPUT win over earlier ones.
             python "$base/distribution/tooling/path_filter.py" plan --repository . --merge HEAD --output "$GITHUB_OUTPUT" || {
               echo "::warning::the path filter failed, running everything"
-              for group in checks python rust client browser lint; do
+              for group in checks python rust client browser lint oidc; do
                 echo "run_$group=true" >> "$GITHUB_OUTPUT"
               done
             }
@@ -318,24 +329,24 @@ jobs:
       - name: Known vulnerabilities in dependencies
         run: npm run lint:osv
 
-  # Product and design suites share four runners, so npm/Chromium setup is paid four times.
+  # Product and design suites share six runners, so npm/Chromium setup is paid six times.
   # Every slot runs a part of both, cut by measured duration (test-shards.mjs in the dev tools,
   # and tests/playwright/durations.json): `--shard` cut by count, and since many product tests skip
   # themselves for a project, slot 1 ran 10.3 minutes of product tests and slot 2 4.2.
-  # Slot 4 also runs the layout audit rules, about 9 s, which the assignment counts as offset.
+  # Slot 6 also runs the layout audit rules, about 9 s, which the assignment counts as offset.
   #
   # The browser jobs need only the plan, not frontend: they serve the committed dist/, take no
   # artifact and no output from frontend, and its result reaches the run through the browser-e2e
   # gate below. A red frontend still turns the run red; it no longer delays the browsers by 3.5 min.
   browser-e2e-shards:
-    name: Browser E2E / slot ${{ matrix.slot }} of 4
+    name: Browser E2E / slot ${{ matrix.slot }} of 6
     needs: plan
     if: needs.plan.outputs.run_browser == 'true'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        slot: [1, 2, 3, 4]
+        slot: [1, 2, 3, 4, 5, 6]
     env:
       PYTHONPATH: src
     steps:
@@ -355,6 +366,14 @@ jobs:
         run: bash tools/dev/playwright-linux.sh
       - name: Install the application
         run: python -m pip install --quiet -e .
+      # Ubuntu 24.04 refuses unprivileged user namespaces to programs without an AppArmor profile
+      # (kernel.apparmor_restrict_unprivileged_userns=1), so Chromium got no sandbox here and the
+      # slot's PDF export ended in pdf.render_failed / sandbox_unavailable (run 43611856985).
+      # D-210: lift the restriction on this throwaway runner so the suite exercises the export
+      # WITH the sandbox that T-269 F makes mandatory. QUILTOR_PDF_SANDBOX=off stays out of CI on
+      # purpose; operators get the narrower options in docs/operations/installation.md.
+      - name: Allow user namespaces for Chromium's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Start the application
         run: |
           # The structured log goes to a file the product suite reads: save-error-id.spec.ts
@@ -372,9 +391,9 @@ jobs:
       # The rules project needs only Chromium, which this job installed above. One slot is
       # enough: the run is deterministic.
       - name: Layout audit rule tests
-        if: matrix.slot == 4
+        if: matrix.slot == 6
         run: npm run test:audit-rules -- --reporter=line
-      # select lists both suites, assigns all four slots, refuses unless every test lands in
+      # select lists both suites, assigns all six slots, refuses unless every test lands in
       # exactly one, and has Playwright confirm that this slot's lists select exactly its tests.
       # A failed selection fails the slot; nothing runs on a list that was not confirmed.
       - name: Run product and design shards
@@ -383,7 +402,7 @@ jobs:
         run: |
           set +e
           lists="$RUNNER_TEMP/test-lists"
-          node tools/dev/test-shards.mjs select --os linux --slots 4 --slot "$SLOT" --offset 4=9000 --out-dir "$lists"
+          node tools/dev/test-shards.mjs select --os linux --slots 6 --slot "$SLOT" --offset 6=9000 --out-dir "$lists"
           select_status=$?
           product_status=1
           design_status=1
@@ -410,7 +429,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: browser-durations-linux-slot-${{ matrix.slot }}-of-4
+          name: browser-durations-linux-slot-${{ matrix.slot }}-of-6
           if-no-files-found: ignore
           retention-days: 7
           path: test-results/reports/*.json
@@ -418,11 +437,49 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics
+          name: browser-e2e-slot-${{ matrix.slot }}-of-6-diagnostics
           if-no-files-found: ignore
           path: |
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
+
+  # The OIDC browser suite (T-58 P7b, D-103): tests/e2e-oidc/support/oidc_stack.py starts a fake
+  # Keycloak and the real server against it, and the tests end sessions on purpose. Linux only;
+  # its own group, so on a pull request only sign-in, session and autosave changes run it, and
+  # the full matrix always does. The stack picks its own ports (8035/8036) and data directory.
+  browser-e2e-oidc:
+    name: Browser E2E / OIDC sessions
+    needs: plan
+    if: needs.plan.outputs.run_oidc == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.23.2"
+          cache: npm
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12.10"
+      - run: npm ci
+      # apt with a time limit and one mirror switch; red if both attempts fail.
+      - name: Install Chromium
+        run: bash tools/dev/playwright-linux.sh
+      - name: Install the application
+        run: python -m pip install --quiet -e .
+      - name: Run the OIDC browser suite
+        run: npx playwright test --config playwright.oidc.config.ts --output=test-results/oidc --reporter=line
+      - name: Upload OIDC browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: browser-e2e-oidc-diagnostics
+          if-no-files-found: ignore
+          path: test-results/oidc/**
 
   # Keep this job ID stable: branch protection requires `browser-e2e`, while
   # the matrix above may grow or rebalance without changing the required check.
@@ -443,6 +500,7 @@ jobs:
       - cross-platform-native
       - cross-platform-browser
       - cross-platform-smoke
+      - browser-e2e-oidc
     if: always()
     runs-on: ubuntu-24.04
     permissions: {}
@@ -475,6 +533,8 @@ jobs:
           SELECTED_CROSS_PLATFORM_BROWSER: ${{ needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser != 'false' }}
           RESULT_CROSS_PLATFORM_SMOKE: ${{ needs['cross-platform-smoke'].result }}
           SELECTED_CROSS_PLATFORM_SMOKE: ${{ needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser != 'false' }}
+          RESULT_BROWSER_E2E_OIDC: ${{ needs['browser-e2e-oidc'].result }}
+          SELECTED_BROWSER_E2E_OIDC: ${{ needs.plan.outputs.run_oidc != 'false' }}
         run: |
           status=0
           require() {
@@ -497,6 +557,7 @@ jobs:
           require cross-platform-native "$RESULT_CROSS_PLATFORM_NATIVE" "$SELECTED_CROSS_PLATFORM_NATIVE"
           require cross-platform-browser "$RESULT_CROSS_PLATFORM_BROWSER" "$SELECTED_CROSS_PLATFORM_BROWSER"
           require cross-platform-smoke "$RESULT_CROSS_PLATFORM_SMOKE" "$SELECTED_CROSS_PLATFORM_SMOKE"
+          require browser-e2e-oidc "$RESULT_BROWSER_E2E_OIDC" "$SELECTED_BROWSER_E2E_OIDC"
           # Full mode only: every job is selected except the reduced-only smoke test, which must
           # not be. A selection that turns false in full mode would be a skip the release
           # inherits; the plan already prevents it, and this keeps it from passing if it did.
@@ -515,6 +576,7 @@ jobs:
           full_mode cross-platform-native "$SELECTED_CROSS_PLATFORM_NATIVE" true
           full_mode cross-platform-browser "$SELECTED_CROSS_PLATFORM_BROWSER" true
           full_mode cross-platform-smoke "$SELECTED_CROSS_PLATFORM_SMOKE" false
+          full_mode browser-e2e-oidc "$SELECTED_BROWSER_E2E_OIDC" true
           if [ "$status" -ne 0 ]; then
             exit 1
           fi
@@ -596,9 +658,11 @@ jobs:
   # tests run once per system, in slot 1, which the assignment counts as offset: 3.1 minutes on
   # Windows and 2.5 on macOS, measured in the run on 15e0b43.
   #
-  # Windows keeps eight slots and at most 100 product tests per slot: Chromium exhausted the
+  # Windows runs nine slots and at most 100 product tests per slot (eight slots hold at most 800 tests, and
+  # the suite reached 803 with T-220's drag spec): Chromium exhausted the
   # runner's network buffers after more than 115 product tests even with serialized browser
-  # contexts. macOS runs three slots; with two its first slot took 13.5 minutes.
+  # contexts. macOS runs four slots, the most the free plan's five concurrent macOS jobs allow next to
+  # Core on macos-15 (T-160); with two its first slot took 13.5 minutes, with three 9 to 10.7.
   cross-platform-browser:
     name: Browser on ${{ matrix.label }}
     needs: plan
@@ -610,70 +674,88 @@ jobs:
         include:
           - os: macos-15
             system: macos
-            label: macos-15 / slot 1 of 3
+            label: macos-15 / slot 1 of 4
             slot: 1
-            slots: 3
-            diagnostics: macos-15-1-of-3
+            slots: 4
+            diagnostics: macos-15-1-of-4
           - os: macos-15
             system: macos
-            label: macos-15 / slot 2 of 3
+            label: macos-15 / slot 2 of 4
             slot: 2
-            slots: 3
-            diagnostics: macos-15-2-of-3
+            slots: 4
+            diagnostics: macos-15-2-of-4
           - os: macos-15
             system: macos
-            label: macos-15 / slot 3 of 3
+            label: macos-15 / slot 3 of 4
             slot: 3
-            slots: 3
-            diagnostics: macos-15-3-of-3
-          - os: windows-2025
-            system: windows
-            label: windows-2025 / slot 1 of 8
-            slot: 1
-            slots: 8
-            diagnostics: windows-2025-1-of-8
-          - os: windows-2025
-            system: windows
-            label: windows-2025 / slot 2 of 8
-            slot: 2
-            slots: 8
-            diagnostics: windows-2025-2-of-8
-          - os: windows-2025
-            system: windows
-            label: windows-2025 / slot 3 of 8
-            slot: 3
-            slots: 8
-            diagnostics: windows-2025-3-of-8
-          - os: windows-2025
-            system: windows
-            label: windows-2025 / slot 4 of 8
+            slots: 4
+            diagnostics: macos-15-3-of-4
+          - os: macos-15
+            system: macos
+            label: macos-15 / slot 4 of 4
             slot: 4
-            slots: 8
-            diagnostics: windows-2025-4-of-8
+            slots: 4
+            diagnostics: macos-15-4-of-4
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 5 of 8
+            label: windows-2025 / slot 1 of 10
+            slot: 1
+            slots: 10
+            diagnostics: windows-2025-1-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 2 of 10
+            slot: 2
+            slots: 10
+            diagnostics: windows-2025-2-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 3 of 10
+            slot: 3
+            slots: 10
+            diagnostics: windows-2025-3-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 4 of 10
+            slot: 4
+            slots: 10
+            diagnostics: windows-2025-4-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 5 of 10
             slot: 5
-            slots: 8
-            diagnostics: windows-2025-5-of-8
+            slots: 10
+            diagnostics: windows-2025-5-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 6 of 8
+            label: windows-2025 / slot 6 of 10
             slot: 6
-            slots: 8
-            diagnostics: windows-2025-6-of-8
+            slots: 10
+            diagnostics: windows-2025-6-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 7 of 8
+            label: windows-2025 / slot 7 of 10
             slot: 7
-            slots: 8
-            diagnostics: windows-2025-7-of-8
+            slots: 10
+            diagnostics: windows-2025-7-of-10
           - os: windows-2025
             system: windows
-            label: windows-2025 / slot 8 of 8
+            label: windows-2025 / slot 8 of 10
             slot: 8
-            slots: 8
-            diagnostics: windows-2025-8-of-8
+            slots: 10
+            diagnostics: windows-2025-8-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 9 of 10
+            slot: 9
+            slots: 10
+            diagnostics: windows-2025-9-of-10
+          - os: windows-2025
+            system: windows
+            label: windows-2025 / slot 10 of 10
+            slot: 10
+            slots: 10
+            diagnostics: windows-2025-10-of-10
     env:
       PYTHONPATH: src
     steps:
@@ -905,3 +987,15 @@ jobs:
           path: |
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
+
+  # The llama-server conformance, on request only (T-179, D-167). It is not a required check:
+  # browser-e2e does not need it, so a run that does not ask for it skips it on purpose and the
+  # gate never sees it. Its verdict is the called workflow's own. The called file grants
+  # contents: read; this job grants nothing beyond that.
+  llama-conformance:
+    if: inputs.llama_conformance == true
+    permissions:
+      contents: read
+    uses: ./.github/workflows/llama-conformance.yml
+    with:
+      spike: ${{ inputs.llama_spike == true }}

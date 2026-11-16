@@ -135,6 +135,9 @@ export interface AssistantReply {
   };
 }
 
+/** Why a job on the user's own engine failed: a code to word, never text to show. */
+export type AssistantEngineError = { code: string; detail?: string };
+
 export type AssistantJobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export interface AssistantJobState {
@@ -144,6 +147,8 @@ export interface AssistantJobState {
   result?: AssistantReply | null;
   error: string;
   errorType: string;
+  /** A client engine's failure as a code and the browser's own detail (D-T-61-30). */
+  engineError?: AssistantEngineError;
   failureCode?: ApplicationErrorCategory;
   interactionId?: string | null;
   cancelRequested: boolean;

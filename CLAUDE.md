@@ -19,14 +19,17 @@ The German half, in full:
 
 - `locales/de/*` — the interface itself.
 - Strings that assert German interface text.
-- Fixture prose (`"Der Morgen lag still über dem Hafen."`), fixture ids, and the German
-  manuscripts in `tools/documentation/` and `tools/evaluation/` — those are a German
-  author's material, used as input.
+- Fixture prose (`"Der Morgen lag still über dem Hafen."`), fixture ids, the German texts
+  of the test world (`tests/world/texts/*.de.mjs`) and the German manuscripts in
+  `tools/evaluation/` — those are a German author's material, used as input.
 - Skip reasons and assertion strings that quote a German view by name.
 
 Test titles are English in all three suites — unit, design and product. The product suite
 was the last holdout at 70 of 74; a title is read by whoever is debugging a red run, so it
 belongs on the developer's side however German the interface it describes.
+
+The test world is kept in both languages; the German text leads, the English one is its
+translation, and both change in the same commit.
 
 An English comment may quote a German product string — a macOS menu item, an error message,
 a prompt. That is a quotation, not a leftover.
@@ -120,6 +123,33 @@ one pip installed into.
 `tools/quality/check_visual_baseline_reach.mjs` fails when a platform's set is incomplete.
 The run right after a deletion is red until the images land — that is the intended path,
 not a broken build.
+
+## The test world grows, it does not change
+
+`tests/world/` is the one world every suite, the README pictures and the shipped example
+world are built from. Any agent may extend it without asking. Three rules keep it usable:
+
+- **Append, do not change.** Existing ids, positions and texts stay as they are. A test that
+  needs something new adds it to the world instead of inventing it inline.
+- **Changing what exists is allowed only together with everything it breaks** — every
+  affected test and baseline in the same change. `tests/world/world.lock.json` freezes the
+  world; its diff shows exactly what changed, and that diff is what a reviewer reads.
+- **German first, English in the same change.** `texts/*.de.mjs` is the source,
+  `texts/*.en.mjs` its translation. When a German text changes and its English one does not,
+  the world test fails until the English is updated or confirmed:
+  `npm run world:update -- --confirm-translation <key>`.
+
+New content goes into the check part (`parts/edge.mjs`, ids `x-…`) unless it is meant to be
+seen. The base world (`parts/base.mjs`) is what the README shows and what ships as the example
+world in the wheel, the Docker image and the desktop app; the check part never ships. Growing
+the base world means taking the README pictures again (`npm run screenshots:readme`).
+
+Specs seed it with `seedExampleWorld` or mock it with `mockExampleWorld`
+(`tests/e2e/support/example-world.ts`) and name its ids through `world.ids`.
+`tests/world/CATALOG.md` lists what is there and why.
+
+After any change run `npm run world:update`. It rewrites the shipped JSON, the typed ids, the
+lock and the catalog; `npm run check` fails while any of them is stale.
 
 ## Contracts are machine-checked
 

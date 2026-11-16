@@ -67,7 +67,7 @@ test("The map shares one compact frame with its header and footer through pan an
       const top = surface.querySelector(".place-map-chrome__header")!.getBoundingClientRect();
       const bottom = surface.querySelector(".place-map-chrome__footer")!.getBoundingClientRect();
       const rect = surface.getBoundingClientRect();
-      const map = surface.querySelector('.react-flow__node[data-id="weltkarte"]')!;
+      const map = surface.querySelector('.react-flow__node[data-id="x-weltkarte"]')!;
       const samples = [
         { x: top.left - 4, y: (top.bottom + bottom.top) / 2 },
         { x: top.right + 4, y: (top.bottom + bottom.top) / 2 },
@@ -93,14 +93,14 @@ test("The map shares one compact frame with its header and footer through pan an
       animations: "disabled",
     });
   }
-  expect(fixture.savedState().nodes.find((place) => place.id === "weltkarte")).toMatchObject({
+  expect(fixture.savedState().nodes.find((place) => place.id === "x-weltkarte")).toMatchObject({
     mapWidth: 1000,
     mapHeight: 680,
     x: 0,
     y: 0,
   });
-  expect(fixture.savedState().nodes.find((place) => place.id === "graufurth")).toMatchObject({
-    parentPlaceId: "weltkarte",
+  expect(fixture.savedState().nodes.find((place) => place.id === "x-graufurth")).toMatchObject({
+    parentPlaceId: "x-weltkarte",
     mapU: 0.3,
     mapV: 0.4,
   });

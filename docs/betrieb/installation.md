@@ -1,0 +1,444 @@
+# Installation und Betrieb
+
+Wie Quiltor gestartet, installiert und betrieben wird: aus dem Quellcode, als Python-Paket, als Desktop-App, mit Docker und über die CLI.
+
+## Schnellstart
+
+Ohne technische Vorkenntnisse: [Installation und erste Schreibaufgaben](../ERSTE-SCHRITTE.md).
+Die folgenden Befehle beschreiben den Start aus dem Quellcode.
+
+Voraussetzung: **Python 3.12+**.
+
+```bash
+git clone https://github.com/Tim3399/quiltor.git
+cd quiltor
+python3 apps/web/server.py
+```
+
+Unter Windows mit installiertem Python-Launcher: `py -3.12 apps/web/server.py`.
+
+Quiltor öffnet standardmäßig `http://localhost:8000`. Lege in der Weltauswahl mit **Neue Welt** dein erstes Projekt an. Der Start wartet nicht auf eine KI-Einrichtung und lädt kein Modell herunter. Den optionalen Assistenten richtest du später ausdrücklich in dessen Seitenleiste ein.
+
+Öffne die Welt, wähle im Manuskript ein Kapitel oder lege eines an und beginne zu schreiben.
+Den optionalen Backup-Endpunkt kannst du leer lassen. Modelldownload und Einrichtung des
+Assistenten sind für diesen Weg nicht erforderlich. Die gemeinsame Suche findet Kapitel
+und Weltelemente; die Analyse lässt sich später für das aktive Kapitel oder eine ausdrücklich
+ausgewählte Kapitelmenge starten.
+
+Alternativ stehen CLI/Python-Pakete, Desktop-Builds und Docker-Betrieb zur Verfügung. Details folgen unten.
+
+## Plattformstand
+
+Build-Profile beschreiben den Stand der Umsetzung. Sie versprechen nicht, dass es für jedes Release ein Artefakt gibt.
+
+| Ziel                              | Stand                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Browser / selbst gehostetes Web   | Python-HTTP-Host, eingecheckter Web-Client, Docker/OCI-Build und optionales OIDC implementiert                       |
+| Python-Paket / CLI / MCP          | Wheel, Source-Archiv und CLI implementiert; das Basis-Paket hat keinen PDF-Renderer, `browser-pdf` gibt es als Extra |
+| macOS direkt, Apple Silicon       | Lokale Desktop-App und DMG-Build implementiert; der gehostete Release-Job ist derzeit inaktiv                        |
+| Windows direkt, x86_64            | Lokale Desktop-App und Installer-Build implementiert; der gehostete Release-Job ist derzeit inaktiv                  |
+| Linux AppImage                    | Distributionsprofil (`scaffold`); keine fertige AppImage-Pipeline                                                    |
+| macOS App Store / Microsoft Store | Distributions- und Metadatenprofile (`scaffold`); keine fertigen Store-Builds                                        |
+| iOS / Android                     | Native Host-, Bridge- und Distributionsprofile vorbereitet; noch keine ausführbare mobile App                        |
+
+Die gehosteten Jobs für macOS und Windows brauchen eigene Aktivierungsmarker unter
+[`distribution/release-targets/`](../../distribution/release-targets/). Beide Marker fehlen derzeit.
+Der Python-Web-Host läuft auch unter Linux; das ist unabhängig vom unfertigen nativen AppImage-Ziel.
+
+Ein Distributionsprofil allein bedeutet keine veröffentlichte App. Maßgeblich sind die [Zielmatrix](../../distribution/README.md), die [Release-Aktivierung](../../distribution/release-targets/README.md) und die tatsächlich vorhandenen Release-Artefakte.
+
+## Installationswege
+
+### Direkt aus dem Repository
+
+Der gebaute Web-Client liegt bereits in `dist/`. Für Editor und lokale Speicherung sind keine Node-Abhängigkeiten erforderlich.
+
+```bash
+git clone https://github.com/Tim3399/quiltor.git
+cd quiltor
+python3 apps/web/server.py
+```
+
+Weitere Startoptionen:
+
+```bash
+python3 apps/web/server.py 8080            # anderer Port
+python3 apps/web/server.py 8080 --no-open  # Browser nicht automatisch öffnen
+python3 apps/web/server.py --print-token   # Zugriffstoken dieses Starts anzeigen
+```
+
+### Python-Wheel / pip / pipx
+
+Die Release-Pipeline baut ein Python-Wheel und ein Source-Archiv für [GitHub Releases](https://github.com/Tim3399/quiltor/releases). Das gewünschte Paket aus den tatsächlich vorhandenen Release-Artefakten installieren; eine Veröffentlichung auf PyPI ist derzeit nicht eingerichtet.
+
+```bash
+pip install quiltor-<version>-py3-none-any.whl
+quiltor
+```
+
+Das Paket benötigt Python 3.12 oder neuer. Die Kernabhängigkeiten enthalten `typer` für die CLI und `PyJWT[crypto]` für die OIDC-Prüfung.
+
+Der Basis-Wheel meldet PDF-Export bewusst als nicht verfügbar, statt heimlich
+eine Browser-Runtime nachzuladen. Für PDF-Export aus dem **installierten Wheel**
+das geprüfte Extra installieren (URL und Version entsprechend dem Release):
+
+```bash
+python -m pip install "quiltor[browser-pdf] @ https://github.com/Tim3399/quiltor/releases/download/v<version>/quiltor-<version>-py3-none-any.whl"
+```
+
+Das Extra pinnt die auf PyPI verfügbare Python-Bibliothek Playwright 1.61.0 und
+steuert einen bereits installierten Google Chrome oder Microsoft Edge; ein
+System-Node.js und ein separater
+Chromium-Download sind dafür nicht nötig. Fehlen Extra oder Browser, bleibt der
+Export mit einer klaren Verfügbarkeitsmeldung deaktiviert.
+Der selbst gehostete OCI-Host ist ein getrennter Artefaktpfad: Er verwendet die
+npm-/Browser-Runtime Playwright 1.61.1 aus dem digest-gebundenen Basis-Image.
+Beide Pins sind getrennt in `distribution/toolchains.json` festgeschrieben und
+werden im Release-Gate gegen die tatsächlich installierten Artefakte geprüft.
+Der Wheel-Host löst Web-Assets und das mitgelieferte Render-Skript ausschließlich
+aus den Paketressourcen auf; er fällt nicht auf einen zufällig vorhandenen
+Quellbaum zurück. Die Capability-Auswahl bleibt davon getrennt: ohne Extra wird
+deterministisch der typisierte Nicht-verfügbar-Renderer verwendet.
+
+### Entwicklung
+
+Ein Start direkt aus dem **Quellbaum** nutzt dagegen das mitgelieferte
+JavaScript-Render-Skript. Für Frontend-Entwicklung und diesen PDF-Pfad werden
+Node.js, die Projektabhängigkeiten und der geprüfte Chromium benötigt:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e . ruff==0.16.4
+npm ci
+npx playwright install chromium
+npm start
+```
+
+Unter Windows die Umgebung mit `py -3.12 -m venv .venv` anlegen und mit `.\.venv\Scripts\Activate.ps1` aktivieren. Danach dieselben Installations- und npm-Befehle verwenden. Die editable Installation stellt auch die CLI-/MCP-Einstiegspunkte und die Abhängigkeiten der Backend-Tests bereit.
+
+`npm start` fährt beide Hälften hoch – den API-Server auf 8010 und Vite auf 5173 –,
+wartet, bis beide antworten, und beendet beide gemeinsam mit Strg+C. Vite leitet
+API-Anfragen an Port 8010 weiter; ohne den Server lädt die Seite und meldet nur, sie sei
+nicht erreichbar. Der normale Anwendungs- und Docker-Port bleibt **8000**.
+
+Wer die Hälften einzeln braucht, startet sie weiterhin selbst:
+
+```bash
+npm run dev
+```
+
+```bash
+python3 apps/web/server.py 8010 --no-open
+```
+
+Unter Windows `py -3.12 apps/web/server.py 8010 --no-open` verwenden.
+`QUILTOR_API_PORT` und `QUILTOR_DEV_PORT` übersteuern die Ports des Entwicklungsstarts;
+`PLAYWRIGHT_BASE_URL` übersteuert das Ziel der Produkttests.
+
+## Desktop-App
+
+Quiltor kann unter macOS und Windows als eigenständige Fensteranwendung gebaut werden – ohne Browser-Tab und ohne separate Python-Installation auf dem Zielsystem. Die direkten Profile unterstützen derzeit macOS auf Apple Silicon und Windows x86_64.
+
+Den Desktop-Host für die Entwicklung direkt aus den Quellen starten:
+
+```bash
+python3.12 -m venv .venv-desktop
+source .venv-desktop/bin/activate
+python -m pip install -e ".[desktop]"
+quiltor-desktop
+```
+
+Unter Windows die Umgebung mit `py -3.12` erstellen und mit `.\.venv-desktop\Scripts\Activate.ps1` aktivieren. Für PDF-Export dort zusätzlich `python -m pip install -e ".[desktop,browser-pdf]"` ausführen.
+
+Installer-Builds benötigen eine separate saubere Umgebung mit der exakten CPython-Version und den Build-Werkzeugen aus [`distribution/toolchains.json`](../../distribution/toolchains.json). Den Bootstrap-Lock und anschließend genau den Lock für das jeweilige Ziel installieren; die Paketierung verarbeitet `src/` direkt und benötigt keine editable Installation:
+
+```bash
+python -m pip install --require-hashes -r distribution/python-build-bootstrap.lock
+```
+
+Für macOS arm64:
+
+```bash
+python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/macos/direct/requirements.lock
+```
+
+Für Windows x86_64:
+
+```powershell
+python -m pip install --require-hashes --no-build-isolation -r distribution/desktop/windows/direct/requirements.lock
+```
+
+Nach `npm ci` den passenden Build ausführen:
+
+```bash
+./distribution/desktop/macos/direct/build.sh
+powershell -File distribution/desktop/windows/direct/build.ps1
+```
+
+Ergebnis:
+
+```text
+macOS   distribution/artifacts/macos-direct/Quiltor-<version>.dmg
+Windows distribution/artifacts/windows-direct/Quiltor-Setup-<version>.exe
+```
+
+Standardmäßig sind lokale Builds unsigniert. Der Windows-Installer benötigt Inno Setup; ohne dieses Werkzeug erzeugt das Skript nur das unverpackte Anwendungsverzeichnis.
+
+Die direkten Desktop-Jobs sind in der gehosteten Release-Pipeline erst nach der jeweiligen [Aktivierung](../../distribution/release-targets/README.md) verfügbar. Die beiden Aktivierungsmarker fehlen derzeit.
+
+macOS signiert und notarisiert automatisch, wenn gesetzt:
+
+```text
+QUILTOR_SIGN_IDENTITY
+QUILTOR_NOTARY_PROFILE
+```
+
+PDF-Export nutzt einen vorhandenen Systembrowser bzw. die jeweilige Plattformimplementierung, statt unnötig einen vollständigen Browser mit jedem Desktop-Build auszuliefern.
+
+Weitere Details und die vollständige Zielmatrix: [`distribution/README.md`](../../distribution/README.md)
+
+## Docker und Web-Demo
+
+Quiltor kann als kleine Mehrbenutzer-Instanz hinter einem Reverse Proxy betrieben werden. In diesem Modus authentifiziert eine bestehende Keycloak-Instanz die Nutzer; jede Person sieht nur ihre eigenen Welten.
+
+Quiltor bringt **kein eigenes Keycloak** mit.
+
+### Keycloak-Client für die Web-Instanz
+
+Empfohlene Einstellungen:
+
+- Client authentication: **on**
+- Standard Flow: **on**
+- Direct Access Grants: **off**
+- Redirect URI: `https://<deine-domain>/auth/callback`
+- PKCE: `S256`
+
+Realm, Rollen und Sitzung:
+
+- Realm `quiltor` mit dem Client-Scope `quiltor-roles`. Der Scope legt die Realm-Rollen in den flachen Claim `roles` des ID-Tokens; nur dieser Claim zählt, `realm_access` und `resource_access` liest Quiltor nicht.
+- Den KI-Assistenten nutzen nur Konten mit der Rolle `premium` (einstellbar über `QUILTOR_PREMIUM_ROLE`). Ohne sie antwortet der Server `403 assistant.premium_required`, und die Oberfläche zeigt einen Hinweis.
+- Rollen werden bei jedem Token-Refresh neu gelesen. Eine vergebene oder entzogene Rolle wirkt ohne neue Anmeldung. Gelesen werden sie aus dem ID-Token der Refresh-Antwort: Schickt Keycloak beim Refresh kein ID-Token mit, bleiben die bisherigen Rollen stehen, und ein Entzug wirkt erst bei der nächsten Anmeldung. Mit dem Scope `openid` liefert Keycloak das ID-Token standardmäßig mit; der Mapper des Scopes `quiltor-roles` braucht „Add to ID token“.
+- Die Sitzungsdauer bestimmt das Realm (Leerlauf und Höchstdauer). Beendet Keycloak die Sitzung, antwortet Quiltor beim nächsten Refresh `401`. Ungespeicherter Text bleibt im Editor und als Entwurf auf dem Gerät, bis man sich in einem neuen Tab wieder anmeldet.
+
+Umgebungsvariablen:
+
+| Variable                          | Zweck                                                       |
+| --------------------------------- | ----------------------------------------------------------- |
+| `QUILTOR_OIDC_ISSUER`             | Realm-Issuer, z. B. `https://kc.example.com/realms/quiltor` |
+| `QUILTOR_OIDC_CLIENT_ID`          | Client-ID                                                   |
+| `QUILTOR_OIDC_CLIENT_SECRET`      | Client-Secret                                               |
+| `QUILTOR_PUBLIC_URL`              | Öffentliche Quiltor-URL                                     |
+| `QUILTOR_COOKIE_SECURE`           | `auto` / `0` / `1`                                          |
+| `QUILTOR_HOST`                    | Bind-Adresse                                                |
+| `QUILTOR_MASTER_TOKEN`            | Nur ohne OIDC relevant                                      |
+| `QUILTOR_DATA_DIR`                | Datenverzeichnis im Container                               |
+| `QUILTOR_PREMIUM_ROLE`            | Rolle für den KI-Assistenten; Standard `premium`            |
+| `QUILTOR_ASSISTANT_MAX_OPEN_JOBS` | Offene Assistenten-Aufträge je Konto (1–100); Standard `3`  |
+
+### Reverse Proxy und Grenzen je Konto (ab 3.26)
+
+| Variable                              | Zweck                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `QUILTOR_TRUSTED_PROXIES`             | IP-Adressen der Reverse Proxies vor Quiltor, durch Kommas getrennt; Standard: keiner     |
+| `QUILTOR_MAX_WORLDS_PER_ACCOUNT`      | Welten je Konto, der Papierkorb zählt mit; Standard `50`                                 |
+| `QUILTOR_MAX_WORLD_BYTES_PER_ACCOUNT` | Speicher aller Welten eines Kontos in Byte; Standard 2 GiB                               |
+| `QUILTOR_GRAMMAR_MAX_CONCURRENT`      | Gleichzeitige Grammatikprüfungen je Konto; Standard `2`                                  |
+| `QUILTOR_GRAMMAR_MAX_PER_MINUTE`      | Grammatikprüfungen je Konto und Minute; Standard `30`                                    |
+| `QUILTOR_MAX_HANDLER_THREADS`         | Anfrage-Threads des Web-Servers; Standard `128`                                          |
+| `QUILTOR_ASSISTANT_CLIENT_JOBS`       | Gleichzeitige Assistenten-Aufträge mit Browser-KI; Standard `8`, höchstens `16` sinnvoll |
+
+- **`QUILTOR_TRUSTED_PROXIES` gehört zu jedem Betrieb hinter einem Proxy.** Nur diesen
+  Adressen glaubt Quiltor das `X-Forwarded-For`. Ohne sie zählt jede Anfrage als Anfrage des
+  Proxys, und die Grenze für Anmeldeversuche je Client-Adresse greift nicht. Netze und Namen
+  sind nicht erlaubt. Das mitgelieferte Caddy hat im Docker-Netz eine wechselnde Adresse; gib
+  dem Container eine feste oder trag die Adresse deines Proxys ein.
+- **`QUILTOR_ASSISTANT_CLIENT_JOBS` über 16:** Der Server hat 16 Plätze für das Relay der
+  Browser-KI. Mehr gleichzeitige Aufträge bekommen am Relay `503`, fragen erneut und drehen
+  sich im Kreis.
+
+Die Grenzen je Konto gelten nur für eine gehostete Instanz. Gezählt werden für jede Welt des
+Kontos, auch im Papierkorb, die Welt-Datenbank, ihre automatischen Sicherungen, die
+Spiegel-Ordner und die gespeicherten Versionen (`data/history`). Ist ein Konto an der Grenze,
+lehnt Quiltor Anlegen, Importieren, Speichern, „Version sichern“, Kartenbilder und
+Wiederherstellen mit `403 world.quota` ab. Ungespeicherter Text bleibt als Entwurf auf dem
+Gerät. Lesen und Löschen bleiben erlaubt. Platz schafft nur eines: Welt löschen und Papierkorb
+leeren (im Papierkorb „Endgültig löschen“). Eine gelöschte Welt zählt im Papierkorb weiter mit; erst das Leeren entfernt sie
+endgültig, und mit ihr ihre Sicherungen, Spiegel-Ordner und alle gespeicherten Versionen.
+Einzelne alte Versionen lassen sich nicht entfernen.
+
+### Content Security Policy (ab 3.26)
+
+Jede Seite trägt eine Content Security Policy und `X-Frame-Options: DENY`. Den Modus wählt
+`QUILTOR_CSP`:
+
+| Betriebsart                                 | Standard      | Ausweg                                                 |
+| ------------------------------------------- | ------------- | ------------------------------------------------------ |
+| Gehostet (mit Keycloak)                     | `enforce`     | `QUILTOR_CSP=report-only`, `QUILTOR_CSP_CONNECT_EXTRA` |
+| Web ohne Keycloak (lokal, selbst betrieben) | `enforce`     | `QUILTOR_CSP=report-only`, `QUILTOR_CSP_CONNECT_EXTRA` |
+| Desktop-App                                 | `report-only` | –                                                      |
+
+- `enforce` blockiert, was die Policy nicht erlaubt. `report-only` meldet es nur in der
+  Browser-Konsole. Das ist ein Ausweg, solange du ein Problem meldest, keine Einstellung auf
+  Dauer. `off` schickt keine Policy.
+- `QUILTOR_CSP_CONNECT_EXTRA` erweitert `connect-src` um weitere Adressen, durch Leerzeichen
+  getrennt, nur genaue `https://`-Origins ohne Pfad und ohne Platzhalter.
+- **Hugging Face wechselt seine Download-Hosts gelegentlich.** Lädt der Assistent im Browser
+  sein Modell nicht mehr und die Konsole zeigt einen CSP-Fehler, trag die blockierte Adresse
+  aus der Konsole in `QUILTOR_CSP_CONNECT_EXTRA` ein.
+- Unabhängig vom Modus lässt sich Quiltor nicht in eine fremde Seite einbetten.
+
+Start:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+Der Compose-Dienst bindet standardmäßig lokal; ein bestehender Reverse Proxy kann auf Quiltor zeigen. Beispiele für Caddy und nginx liegen unter [`distribution/web/self-hosted/proxy/`](../../distribution/web/self-hosted/proxy/).
+
+Optional kann der Stack Caddy selbst starten:
+
+```bash
+docker compose --profile with-caddy up -d
+```
+
+Caddy übernimmt dann TLS und leitet intern an `quiltor:8000` weiter.
+
+Ohne Compose:
+
+```bash
+docker build ...
+docker run ...
+```
+
+siehe [`Dockerfile`](../../Dockerfile).
+
+Das Docker-Image enthält für den Buch-PDF-Export ausschließlich den zu
+Playwright passenden Chromium Headless Shell. Firefox, WebKit, ein vollständiger
+Chromium, das separate ffmpeg-Payload und die Entwicklungswerkzeuge bleiben
+bewusst außerhalb des Runtime-Images. Der extrahierte Browser wird beim Build
+zusätzlich gegen die festgeschriebene SHA-256-Prüfsumme geprüft.
+
+Der Buch-PDF-Export startet Chromium **mit** dessen Sandbox, denn die Seite ist das
+Buch eines anderen Nutzers. Verweigert der Host die dafür nötigen User-Namespaces
+(`No usable sandbox`), antwortet der Server mit `pdf.sandbox_unavailable`, und der
+Client sagt es der Autorin bzw. dem Autor auf Deutsch. Das passiert zum Beispiel unter
+Ubuntu 24.04 ohne Container: Dort ist `kernel.apparmor_restrict_unprivileged_userns=1`
+gesetzt, und Programme ohne eigenes AppArmor-Profil bekommen keine User-Namespaces.
+Die Auswege sind bewusst Sache der Betreiberin bzw. des Betreibers; probiere sie in
+dieser Reihenfolge, vom engsten zum weitesten:
+
+1. **Container mit dem mitgelieferten Seccomp-Profil.** Das Profil
+   [`distribution/containers/seccomp-chromium.json`](../../distribution/containers/seccomp-chromium.json)
+   erlaubt Chromium die Namespaces, die es braucht; `docker-compose.yml` bindet es
+   bereits ein. Bei `docker run` gibt man es mit
+   `--security-opt seccomp=distribution/containers/seccomp-chromium.json` an.
+2. **Ein AppArmor-Profil nur für das Chromium des PDF-Sidecars.** Es erlaubt genau diesem
+   einen Programm `userns`, alle anderen bleiben beschränkt. Der Pfad ist der von
+   Playwrights Chromium Headless Shell; `~/.cache/ms-playwright/` zeigt ihn. Beispiel
+   `/etc/apparmor.d/quiltor-chromium` (Pfad und Benutzername anpassen):
+
+   ```text
+   abi <abi/4.0>,
+   include <tunables/global>
+
+   profile quiltor-chromium /home/quiltor/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell flags=(unconfined) {
+     userns,
+
+     include if exists <local/quiltor-chromium>
+   }
+   ```
+
+   Der Pfad gilt für x64. Auf arm64 legt Playwright die Shell unter
+   `chromium_headless_shell-*/chrome-linux/headless_shell` ab; dort diesen Pfad
+   eintragen. Im Zweifel den echten Pfad aus der Fehlermeldung oder aus
+   `~/.cache/ms-playwright/` übernehmen.
+
+   Laden: `sudo apparmor_parser -r /etc/apparmor.d/quiltor-chromium`. Das Profil bleibt
+   über Neustarts erhalten. Ändert sich die Chromium-Version, ändert sich nur die Nummer
+   im Verzeichnisnamen `chromium_headless_shell-…`; das `*` deckt das ab.
+
+   Bestätigt ist bisher nur der Pfad aus Playwright. Auf einem echten Ubuntu 24.04 x64 ist
+   das Profil noch nicht ausprobiert; dieser Nachweis folgt (T-303). Greift das Profil nicht
+   und der Export endet weiter mit `pdf.sandbox_unavailable`, ist `QUILTOR_PDF_SANDBOX=off`
+   (Option 3) der verlässliche Rückfall, mit der Warnung, die dort steht.
+
+3. **`QUILTOR_PDF_SANDBOX=off` als letzter Ausweg.** Das startet Chromium ohne Sandbox.
+   Eine Seite, die der Renderer lädt, kann dann bei einem Fehler in Chromium aus dem
+   Prozess ausbrechen. Der Server schreibt bei **jedem Start** die Warnung
+   `pdf.sandbox_disabled` ins Log.
+
+Den Schalter `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` kann man
+auch setzen; er nimmt die Einschränkung aber **für alle Programme auf dem Rechner**
+zurück, nicht nur für Quiltor. Die CI tut das auf ihren Wegwerf-Runnern; auf einem
+Server, der mehr tut, ist Option 2 die bessere Wahl.
+
+Einen stillen Rückfall auf „ohne Sandbox“ gibt es nicht. Jeder fehlgeschlagene Export
+schreibt das Ereignis `pdf.render_failed` mit einer Kategorie (`sandbox_unavailable`,
+`browser_launch_failed`, `timeout`, `page_error`, `unknown`) und dem Exit-Code ins Log,
+nie den Text des Renderers, denn der kann die Render-URL samt Token enthalten.
+`quiltor config` listet `QUILTOR_PDF_SANDBOX`.
+
+Sitzungen liegen im Prozessspeicher. Ein Container-Neustart meldet Web-Nutzer daher ab.
+
+Wo das Server-Log liegt, wie man eine Fehler-ID darin findet und wie man Log-Level und Logdatei setzt, steht in [`docs/operations/logging.md`](../operations/logging.md) (englisch).
+
+### Fertige Container-Images
+
+Ein Versions-Bump in `VERSION` auf `main` löst die Release-Pipeline aus. Images werden unter:
+
+```text
+ghcr.io/tim3399/quiltor:<version>
+ghcr.io/tim3399/quiltor:latest
+```
+
+veröffentlicht. Welche Version tatsächlich verfügbar ist, zeigen die Release-Assets und die abgeschlossenen Workflow-Läufe.
+
+## CLI
+
+Das `quiltor`-CLI ist bei pip/pipx-Installationen verfügbar.
+
+Standardpfad für Daten, Runtime und Modell:
+
+```text
+~/.quiltor/
+```
+
+Übersteuerbar mit:
+
+```text
+QUILTOR_HOME
+```
+
+Modelle lassen sich getrennt davon ablegen, etwa um sie mit anderen Werkzeugen zu teilen:
+
+```text
+QUILTOR_MODELS_DIR
+```
+
+Der Ordner muss existieren (Quiltor legt ihn nicht an) und enthält `gguf/*.gguf` für llama.cpp
+sowie `mlx/<modell>/` mit `config.json` für MLX. Ohne die Variable bleibt alles unter
+`QUILTOR_HOME/models`. Runtime und llama-server bleiben in jedem Fall unter `QUILTOR_HOME`;
+vorhandene Modelle werden nicht verschoben.
+
+Wichtige Befehle:
+
+```bash
+quiltor install
+quiltor
+quiltor run 8080
+quiltor run --print-token
+
+quiltor config set <KEY> <VALUE>
+quiltor config get <KEY>
+quiltor config list
+quiltor config unset <KEY>
+quiltor config path
+
+quiltor --version
+```
+
+`quiltor install` führt durch die lokale Einrichtung. Keycloak ist standardmäßig optional; deutsche Schreibwerkzeuge und lokaler Assistent können direkt mit installiert werden.
+
+Für Docker bleiben Umgebungsvariablen der primäre Konfigurationsweg.

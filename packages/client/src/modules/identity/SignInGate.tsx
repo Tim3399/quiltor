@@ -1,7 +1,8 @@
-import { PRODUCT_MARK } from "../../config/branding";
+import { BrandMark } from "../../config/BrandMark";
 import { Alert, Button, PageState } from "../../design";
 import type { MessageKey } from "../../i18n";
 import { useI18n } from "../../i18n";
+import { loginUrl } from "./loginUrl";
 
 // Keys handle_auth_callback's four failure branches redirect here with
 // (server.py, "?authError="); anything else -- including no code at all --
@@ -14,17 +15,17 @@ const REASON_KEYS: Record<string, MessageKey> = {
 };
 
 export function SignInGate({ authError }: { authError: string | null }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   return (
     <PageState
       kind={authError ? "error" : "empty"}
-      mark={PRODUCT_MARK}
+      mark={<BrandMark />}
       title={t("signInHeading")}
       actions={
         <Button
           appearance="primary"
           onClick={() => {
-            location.href = "/login";
+            location.href = loginUrl(locale);
           }}
         >
           {t("signInButton")}

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import sys
 import threading
-from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import NoReturn, cast
+from typing import Any, NoReturn, cast
 
 from quiltor import resources
 from quiltor.application.assistant import AssistantAuditUseCases
@@ -25,6 +26,7 @@ from quiltor.application.story_world import StoryWorldReadTools, StoryWorldUseCa
 from quiltor.application.synchronization import SynchronizationUseCases
 from quiltor.application.telemetry import UseCaseObserver
 from quiltor.application.worlds import WorldUseCases
+from quiltor.application.worlds.example import ExampleWorldSource, ExampleWorldUseCases
 from quiltor.infrastructure.backup import SnapshotStore
 from quiltor.infrastructure.backup.adapters import (
     HttpRemoteBackupGateway,
@@ -43,6 +45,7 @@ from quiltor.infrastructure.identity import (
 )
 from quiltor.infrastructure.inference.engine import LocalInferenceEngine
 from quiltor.infrastructure.inference.installation import LocalAssistantInstallation
+from quiltor.infrastructure.inference.relay import RelayInferenceEngine, RelayTicketStore
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
 from quiltor.infrastructure.observability import (
     InMemoryMetrics,
@@ -77,12 +80,21 @@ from quiltor.infrastructure.platform.runtime_target import (
 )
 from quiltor.infrastructure.writing_assistance import build_writing_assistance
 from quiltor.modules.assistant import AssistantRuntime
-from quiltor.modules.assistant.jobs import AssistantJobRunner
+from quiltor.modules.assistant.jobs import (
+    DEFAULT_CLIENT_JOB_SLOTS,
+    MAX_CLIENT_JOB_SLOTS,
+    AssistantJobRunner,
+)
 from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngine
 from quiltor.modules.commerce.contract import EntitlementProvider
 from quiltor.modules.identity.auth import IdentityConfiguration, validate_master_token
 from quiltor.modules.identity.ports import IdentityGateway, RenderTokenStore
-from quiltor.modules.identity.service import Identity, LocalIdentity, OidcIdentity
+from quiltor.modules.identity.service import (
+    DEFAULT_PREMIUM_ROLE,
+    Identity,
+    LocalIdentity,
+    OidcIdentity,
+)
 from quiltor.modules.writing_assistance import WritingAssistanceService
 
 
@@ -97,6 +109,8 @@ class ObservabilityServices:
 class AssistantServices:
     runtime: AssistantRuntime
     jobs: AssistantJobRunner
+    # Hands the model calls of client-engine jobs to the browser (T-61).
+    relay_tickets: RelayTicketStore = field(default_factory=RelayTicketStore)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +120,7 @@ class ApplicationServices:
     worlds: WorldUseCases
     documents: DocumentUseCases
     place_maps: PlaceMapUseCases
+    example_worlds: ExampleWorldUseCases
     project_transfer: ProjectTransferUseCases
     manuscript_import: ManuscriptImportUseCases
     manuscript_export: ManuscriptExportUseCases
@@ -135,7 +150,7 @@ def build_mcp_application_services(
     observer = UseCaseObserver(observability.logger, observability.metrics)
     return McpApplicationServices(
         worlds=WorldUseCases(worlds, observer),
-        documents=DocumentUseCases(documents, local_backups, observer),
+        documents=DocumentUseCases(documents, local_backups, observer, SQLitePlaceMapRepository()),
         story_world=StoryWorldUseCases(),
     )
 
@@ -163,7 +178,11 @@ def build_application_services(
             os.environ.get("QUILTOR_BACKUP_OIDC_ALLOW_INSECURE_LOOPBACK", "") == "1"
         ),
     )
-    history = SnapshotStore(lambda: worlds.data_directory / "history", remote_backups)
+    history = SnapshotStore(
+        lambda: worlds.data_directory / "history",
+        remote_backups,
+        structured_logger=observability.logger,
+    )
     synchronization = SynchronizationUseCases(
         worlds,
         documents,
@@ -171,10 +190,18 @@ def build_application_services(
         remote_backups,
         JsonSyncStateStore(lambda: worlds.data_directory / "synchronization"),
     )
+    world_use_cases = WorldUseCases(worlds, observer)
+    document_use_cases = DocumentUseCases(
+        documents, local_backups, observer, SQLitePlaceMapRepository()
+    )
+    place_map_use_cases = PlaceMapUseCases(SQLitePlaceMapRepository())
     return ApplicationServices(
-        worlds=WorldUseCases(worlds, observer),
-        documents=DocumentUseCases(documents, local_backups, observer),
-        place_maps=PlaceMapUseCases(SQLitePlaceMapRepository()),
+        worlds=world_use_cases,
+        documents=document_use_cases,
+        place_maps=place_map_use_cases,
+        example_worlds=ExampleWorldUseCases(
+            world_use_cases, document_use_cases, place_map_use_cases, load_example_world
+        ),
         project_transfer=ProjectTransferUseCases(
             SQLiteProjectTransferRepository(selected_paths), observer
         ),
@@ -210,16 +237,19 @@ def build_application_services(
     )
 
 
-def build_backup_authorizer(
-    backups: BackupUseCases,
-    *,
-    expected_hosted_issuer: str = "",
-) -> EndpointBoundBackupAuthorizer:
+def load_example_world(lang: str) -> ExampleWorldSource:
+    """One language of the example world as the package ships it (T-214-4)."""
+
+    document = json.loads(resources.example_world_document(lang).read_text(encoding="utf-8"))
+    image = resources.example_world_file(str(document["mapImage"]["file"]))
+    return ExampleWorldSource(document, image.read_bytes())
+
+
+def build_backup_authorizer(backups: BackupUseCases) -> EndpointBoundBackupAuthorizer:
     return EndpointBoundBackupAuthorizer(
         default_endpoint=backups.default_endpoint,
         environment_token=lambda: os.environ.get("QUILTOR_BACKUP_TOKEN", ""),
         endpoint_token=backups.access_token,
-        expected_hosted_issuer=expected_hosted_issuer,
     )
 
 
@@ -301,6 +331,15 @@ def build_feature_availability(
     )
 
 
+def _premium_role(configured: str) -> str:
+    """QUILTOR_PREMIUM_ROLE, or the default when unset or empty."""
+    if not configured:
+        return DEFAULT_PREMIUM_ROLE
+    if len(configured) > 255 or any(character.isspace() for character in configured):
+        raise RuntimeError("QUILTOR_PREMIUM_ROLE must be 1-255 characters without whitespace.")
+    return configured
+
+
 def build_identity(
     oidc_enabled: bool | None = None,
     *,
@@ -310,6 +349,7 @@ def build_identity(
     client_secret: str | None = None,
     master_token: str | None = None,
     render_tokens: RenderTokenStore | None = None,
+    premium_role: str | None = None,
 ) -> Identity:
     selected_gateway = gateway or StdlibIdentityGateway(
         IdentityConfiguration(
@@ -335,7 +375,15 @@ def build_identity(
     selected_render_tokens = render_tokens or InMemoryRenderTokenStore()
     enabled = selected_gateway.enabled if oidc_enabled is None else oidc_enabled
     if enabled:
-        return OidcIdentity(selected_gateway, selected_render_tokens)
+        return OidcIdentity(
+            selected_gateway,
+            selected_render_tokens,
+            premium_role=_premium_role(
+                premium_role
+                if premium_role is not None
+                else os.environ.get("QUILTOR_PREMIUM_ROLE", "")
+            ),
+        )
     configured_token = (
         master_token if master_token is not None else os.environ.get("QUILTOR_MASTER_TOKEN")
     )
@@ -357,6 +405,114 @@ def build_assistant_installation(
     return LocalAssistantInstallation(capabilities, home=selected_home)
 
 
+def assistant_client_job_slots(configured: str) -> int:
+    """QUILTOR_ASSISTANT_CLIENT_JOBS: how many client-engine jobs run at once (T-61)."""
+    configured = configured.strip()
+    if not configured:
+        return DEFAULT_CLIENT_JOB_SLOTS
+    if not (configured.isascii() and configured.isdigit()) or not (
+        1 <= int(configured) <= MAX_CLIENT_JOB_SLOTS
+    ):
+        raise RuntimeError(
+            f"QUILTOR_ASSISTANT_CLIENT_JOBS must be a whole number from 1 to {MAX_CLIENT_JOB_SLOTS}."
+        )
+    return int(configured)
+
+
+@dataclass(frozen=True, slots=True)
+class RelayDeadlines:
+    """How long a browser may take, per answer and per job (T-61 part 9)."""
+
+    answer_seconds: dict[str, float]
+    job_seconds: float
+
+
+#: name, default, lower and upper bound, unit factor to seconds.
+RELAY_DEADLINE_LIMITS = {
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM": (300, 30, 3600, 1.0),
+    "QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD": (120, 10, 600, 1.0),
+    "QUILTOR_ASSISTANT_RELAY_JOB_MINUTES": (20, 1, 120, 60.0),
+}
+
+
+def _relay_deadline(name: str, configured: str) -> float:
+    default, lowest, highest, factor = RELAY_DEADLINE_LIMITS[name]
+    configured = configured.strip()
+    if not configured:
+        return default * factor
+    if not (configured.isascii() and configured.isdigit()) or not (
+        lowest <= int(configured) <= highest
+    ):
+        raise RuntimeError(f"{name} must be a whole number from {lowest} to {highest}.")
+    return int(configured) * factor
+
+
+def relay_deadlines(environment: Mapping[str, str]) -> RelayDeadlines:
+    """The relay deadlines from the environment; a value out of bounds stops the start."""
+
+    def read(name: str) -> float:
+        return _relay_deadline(name, environment.get(name, ""))
+
+    return RelayDeadlines(
+        answer_seconds={
+            "webllm": read("QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_WEBLLM"),
+            "cloud": read("QUILTOR_ASSISTANT_RELAY_ANSWER_SECONDS_CLOUD"),
+        },
+        job_seconds=read("QUILTOR_ASSISTANT_RELAY_JOB_MINUTES"),
+    )
+
+
+#: A client runtime estimates tokens without a tokenizer, so its cache stays small.
+CLIENT_TOKEN_CACHE_BYTES = 256 * 1024
+
+
+def client_runtime_factory(
+    *,
+    base: Path,
+    data: Path,
+    progress: Any,
+    read_tools: Any,
+    tickets: RelayTicketStore,
+    debug_enabled: bool,
+    token_cache: Callable[[], Any],
+    deadlines: RelayDeadlines | None = None,
+) -> Callable[[dict[str, Any], dict[str, Any]], AssistantRuntime]:
+    """Build a runtime of its own for each client-engine job (T-61, F6).
+
+    Its own token cache too (F-61-1): the shared cache keeps one identity and empties
+    itself on every change, so a client job running beside the server would otherwise
+    throw away the server's counts, and race them.
+    """
+
+    def build(job: dict[str, Any], request: dict[str, Any]) -> AssistantRuntime:
+        engine = request.get("engine")
+        if not isinstance(engine, dict):
+            engine = {"kind": job.get("engine"), "grammar": False}
+        return AssistantRuntime(
+            base,
+            data,
+            RelayInferenceEngine(
+                tickets,
+                str(job["id"]),
+                engine,
+                **(
+                    {}
+                    if deadlines is None
+                    else {
+                        "answer_seconds": deadlines.answer_seconds,
+                        "job_seconds": deadlines.job_seconds,
+                    }
+                ),
+            ),
+            progress=progress,
+            read_tools=read_tools,
+            token_cache=token_cache(),
+            debug_enabled=debug_enabled,
+        )
+
+    return build
+
+
 def build_assistant_services(
     *,
     base: Path,
@@ -366,16 +522,21 @@ def build_assistant_services(
     observability: ObservabilityServices,
     capabilities: FeatureAvailability,
     inference: InferenceEngine | None = None,
+    server_job_gate: Callable[[str], bool] | None = None,
 ) -> AssistantServices:
+    progress = SQLiteAssistantProgressStore(data / "assistant-progress.sqlite3")
+    read_tools = StoryWorldReadTools()
+    debug_enabled = bool(os.environ.get("QUILTOR_AI_DEBUG"))
     runtime = AssistantRuntime(
         base,
         data,
         inference or LocalInferenceEngine(base, data, capabilities),
-        progress=SQLiteAssistantProgressStore(data / "assistant-progress.sqlite3"),
-        read_tools=StoryWorldReadTools(),
+        progress=progress,
+        read_tools=read_tools,
         token_cache=BoundedTokenCountCache(),
-        debug_enabled=bool(os.environ.get("QUILTOR_AI_DEBUG")),
+        debug_enabled=debug_enabled,
     )
+    tickets = RelayTicketStore()
     interactions = LockedAssistantInteractionLogger(assistant, lock)
     jobs = AssistantJobRunner(
         runtime,
@@ -384,8 +545,23 @@ def build_assistant_services(
         world_access=ApplicationAssistantWorldAccess(assistant),
         structured_logger=observability.logger,
         metrics=observability.metrics,
+        client_runtime_factory=client_runtime_factory(
+            base=base,
+            data=data,
+            progress=progress,
+            read_tools=read_tools,
+            tickets=tickets,
+            debug_enabled=debug_enabled,
+            # A fresh cache per job, never the server runtime's (F-61-1).
+            token_cache=lambda: BoundedTokenCountCache(max_bytes=CLIENT_TOKEN_CACHE_BYTES),
+            deadlines=relay_deadlines(os.environ),
+        ),
+        client_slots=assistant_client_job_slots(
+            os.environ.get("QUILTOR_ASSISTANT_CLIENT_JOBS", "")
+        ),
+        server_job_gate=server_job_gate,
     )
-    return AssistantServices(runtime, jobs)
+    return AssistantServices(runtime, jobs, tickets)
 
 
 def build_writing_assistance_service(

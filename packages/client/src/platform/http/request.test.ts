@@ -210,12 +210,33 @@ describe("HTTP application errors", () => {
     expect((error as { requestId?: string }).requestId).toBeUndefined();
   });
 
+  it("carries a 429's Retry-After as params.retryAfter", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: { code: "writing_assistance.rate_limited", retryable: true } }),
+            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "3" } },
+          ),
+        ),
+    );
+
+    await expect(requestJson("/api/writing-assistance/check")).rejects.toMatchObject({
+      code: "writing_assistance.rate_limited",
+      params: { retryAfter: 3 },
+    });
+  });
+
   it.each([
     ["storage.read_only", "Speicher ist schreibgeschützt."],
     ["storage.full", "Nicht genug Speicherplatz."],
     ["storage.locked", "Das Projekt ist gerade für Schreibzugriffe gesperrt."],
+    ["storage.schema_newer", "Diese Daten stammen aus einer neueren Quiltor-Version."],
     ["backup.preview_failed", "Die Sicherung konnte nicht für die Vorschau geöffnet werden."],
     ["sync.forbidden_hosted", "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten."],
+    ["install.forbidden_hosted", "Auf diesem Server richtet der Betreiber Erweiterungen ein."],
     ["project_transfer.invalid_archive", "Die Projektdatei ist ungültig oder beschädigt."],
     [
       "project_transfer.unsupported_version",
@@ -224,6 +245,8 @@ describe("HTTP application errors", () => {
     ["project_transfer.limit_exceeded", "Die Projektdatei überschreitet"],
     ["project_transfer.invalid_asset", "Die Projektdatei enthält eine ungültige"],
     ["project_transfer.publication_failed", "Das neue Projekt konnte nicht veröffentlicht"],
+    ["world.quota", "Lösche eine Welt und leere den Papierkorb"],
+    ["server.busy", "Der Server ist gerade ausgelastet. Versuche es gleich erneut."],
   ])("gives %s a concrete recovery message", async (code, messageStart) => {
     vi.stubGlobal(
       "fetch",
@@ -263,5 +286,54 @@ describe("HTTP application errors", () => {
       message: expect.stringContaining(messageStart),
       retryable: false,
     });
+  });
+
+  function failingWith(status: number, error: Record<string, unknown>) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error }), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    return requestJson("/api/assistant/jobs");
+  }
+
+  it("tells a user without the premium role why the assistant does not work", async () => {
+    await expect(
+      failingWith(403, { code: "assistant.premium_required", retryable: false }),
+    ).rejects.toMatchObject({
+      code: "assistant.premium_required",
+      message:
+        "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+    });
+  });
+
+  it("names the server's own limit when too many jobs are open", async () => {
+    await expect(
+      failingWith(429, {
+        code: "assistant.too_many_jobs",
+        params: { limit: 3 },
+        retryable: true,
+      }),
+    ).rejects.toMatchObject({
+      code: "assistant.too_many_jobs",
+      message: "Du hast schon 3 offene Aufträge. Warte, bis einer fertig ist.",
+      retryable: true,
+    });
+  });
+
+  it("falls back to the generic message when the job limit is missing or not a number", async () => {
+    for (const params of [{}, { limit: "3" }, { limit: 0 }]) {
+      const error = (await failingWith(429, {
+        code: "assistant.too_many_jobs",
+        params,
+        retryable: true,
+      }).catch((caught: unknown) => caught)) as Error;
+      expect(error.message).not.toContain("{limit}");
+      expect(error.message).not.toContain("offene Aufträge");
+    }
   });
 });

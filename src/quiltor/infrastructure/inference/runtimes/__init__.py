@@ -9,9 +9,11 @@ subprocess with its output captured to a log file instead of discarded.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import urllib.parse
+from collections.abc import Mapping
 from pathlib import Path
 
 from quiltor.infrastructure.platform import process_supervisor
@@ -39,14 +41,23 @@ def bundled_runtime_dir() -> Path | None:
     return candidate if candidate.is_dir() else None
 
 
-def spawn_logged(argv: list[str], data: Path, log_name: str) -> tuple[subprocess.Popen[str], Path]:
+def spawn_logged(
+    argv: list[str], data: Path, log_name: str, env: Mapping[str, str] | None = None
+) -> tuple[subprocess.Popen[str], Path]:
     """Spawn argv with stdout/stderr captured to data/log_name. Returns the process and the log path.
 
     bind_child_lifetime() is what stops a force-killed Quiltor from leaving the
     model loaded in an orphaned runtime process; see src/quiltor/infrastructure/platform/adapters/windows.py
     for why that needs doing at all.
+
+    `env` is added to this process's own environment for the child. It is how a secret such as
+    the sidecar key reaches the runtime: argv is readable by every local user in a process
+    list, the environment is not (T-58 P4).
     """
     log_path = data / log_name
     log = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 - the child writes into it while it runs
-    process = process_supervisor().spawn(argv, stdout=log, stderr=subprocess.STDOUT, text=True)
+    child_env = {**os.environ, **env} if env else None
+    process = process_supervisor().spawn(
+        argv, stdout=log, stderr=subprocess.STDOUT, text=True, env=child_env
+    )
     return process, log_path

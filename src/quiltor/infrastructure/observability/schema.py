@@ -113,9 +113,12 @@ FIELD_RULES: dict[str, Callable[[Any], Any | None]] = {
     "sqlite_name": _matching(_IDENTIFIER_RE, 128),
     "errno": _integer,
     "errno_name": _matching(_IDENTIFIER_RE, 128),
+    "category": _matching(_IDENTIFIER_RE, 64),
+    "exit_code": _integer,
     "log_level": _level,
     "file": _text(),
     "transfer_encoding_present": _boolean,
+    "roles_claim_present": _boolean,
 }
 
 _REQUEST = frozenset({"request_id", "method", "route"})
@@ -143,6 +146,11 @@ EVENTS: dict[str, frozenset[str]] = {
     "storage.failed": frozenset(
         {"request_id", "code", "sqlite_code", "sqlite_name", "errno", "errno_name"}
     ),
+    # routes/documents.py, when the PDF renderer fails: a category the renderer chose and
+    # its exit code. Never its stderr, which can carry the render URL and its token.
+    "pdf.render_failed": frozenset({"request_id", "category", "exit_code"}),
+    # apps/web/server.py, at every start with QUILTOR_PDF_SANDBOX=off.
+    "pdf.sandbox_disabled": frozenset(),
     "logging.configured": frozenset({"log_level", "file"}),
     "install.forbidden_hosted": frozenset({"request_id", "route"}),
     "sync.forbidden_hosted": frozenset({"request_id", "route"}),
@@ -166,6 +174,17 @@ EVENTS: dict[str, frozenset[str]] = {
     # call and the exception's type. The endpoint, the credentials and the exception's
     # text stay out (T-123).
     "backup.remote_request_failed": frozenset({"request_id", "operation", "error_type"}),
+    # infrastructure/backup/snapshots.py, when the kind of a snapshot that was written
+    # could not be recorded: the exception's type only, never its text or path (T-165).
+    "backup.label_failed": frozenset({"request_id", "error_type"}),
+    # Never email or name: `sub` is the one identifier an operator needs (D-49).
+    # hosts/web/server.py, when /login finds the identity provider away: the exception's
+    # type only (T-253).
+    "identity.login_unavailable": frozenset({"request_id", "error_type"}),
+    "identity.login_without_roles": frozenset({"request_id", "sub", "roles_claim_present"}),
+    # modules/assistant/jobs.py, when the job queue itself fails under a worker: which
+    # worker (server or client) and the exception's type; the worker keeps running (T-61).
+    "assistant.claim_failed": frozenset({"operation", "error_type"}),
 }
 
 # Events written before the schema existed. Their fields are not filtered, so their
@@ -182,8 +201,11 @@ LEGACY_EVENTS: frozenset[str] = frozenset(
 )
 
 # Routes a client polls. Their successful access lines are DEBUG, so the INFO log is
-# not a list of polls; their errors are logged like any other.
-QUIET_ROUTES: frozenset[str] = frozenset({"/api/assistant/progress", "/api/assistant/status"})
+# not a list of polls; their errors are logged like any other. /api/capabilities is
+# re-read while the assistant drawer is open (T-102, F-102-7).
+QUIET_ROUTES: frozenset[str] = frozenset(
+    {"/api/assistant/progress", "/api/assistant/status", "/api/capabilities"}
+)
 
 for _event, _fields in EVENTS.items():
     _unknown = _fields - FIELD_RULES.keys()

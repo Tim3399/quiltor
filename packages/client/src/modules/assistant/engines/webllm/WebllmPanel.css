@@ -1,0 +1,32 @@
+/* The in-browser engine's panel in the assistant status view (T-61 part 7). */
+.webllm-panel {
+  margin: var(--space-10) var(--space-12) 0;
+}
+.webllm-panel p {
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-metadata);
+  line-height: 1.4;
+}
+.webllm-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-7);
+  margin-top: var(--space-7);
+}
+/* A loaded model is a quiet status line, not a box (T-275-F6). */
+.webllm-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  padding: var(--space-3) var(--space-12);
+  color: var(--muted);
+  font-size: var(--font-size-metadata);
+}
+.webllm-status > svg {
+  width: 14px;
+  flex: none;
+}
+.webllm-status > span {
+  flex: 1;
+  min-width: 0;
+}

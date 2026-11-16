@@ -31,7 +31,12 @@ def resolve_binary(base: Path) -> Path:
 
 
 def start(
-    base: Path, data: Path, url: str, binary_override: str | None, model_override: str | None
+    base: Path,
+    data: Path,
+    url: str,
+    binary_override: str | None,
+    model_override: str | None,
+    key: str | None = None,
 ) -> tuple[subprocess.Popen[str], Path] | None:
     """Spawn the bundled llama-server if a matching binary and model are present.
 
@@ -60,4 +65,7 @@ def start(
         "8192",
         "--jinja",
     ]
-    return spawn_logged(argv, data, "llama-server.log")
+    # The key goes into the environment, which llama-server reads as --api-key (b10218,
+    # common/arg.cpp: set_env("LLAMA_API_KEY")). Never into argv (T-58 P4).
+    env = {"LLAMA_API_KEY": key} if key else None
+    return spawn_logged(argv, data, "llama-server.log", env=env)

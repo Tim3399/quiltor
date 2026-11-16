@@ -11,17 +11,19 @@ import {
   Toast,
 } from "../../../design";
 import { useI18n } from "../../../i18n";
-import { uid } from "../../../shared/id";
 import { useLatest } from "../../../shared/hooks/useLatest";
+import { uid } from "../../../shared/id";
 import { GraphEdgeInspector, graphEdgeLineStyle, graphRelationshipKind } from "../../graph";
 import type { FigureEdge, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";
+import type { Manuscript } from "../../manuscript";
+import { timelineMomentUsageText } from "../timeline/MomentHeader";
 import { insertTimelineMoment, removeTimelineMoment } from "../timeline/order";
+import { chaptersUsingTimelineMoment } from "../timeline/TimelineWorkspace";
 import { FigureCanvas } from "./FigureCanvas";
 import { FigureInspector } from "./FigureInspector";
 import { FigureNodeContextMenu, type FigureNodeMenuState } from "./FigureNodeContextMenu";
 import { FigureToolbar } from "./FigureToolbar";
-import { WorldOverviewPanel } from "./WorldOverviewPanel";
 import { prunePresence } from "./presence";
 import {
   patchRelationship,
@@ -31,12 +33,14 @@ import {
 } from "./relationships";
 import { TimelineStrip } from "./TimelineStrip";
 import { useFigureCanvas } from "./useFigureCanvas";
+import { WorldOverviewPanel } from "./WorldOverviewPanel";
 
 const EMPTY_TIMELINE: TimelineMoment[] = [];
 const EMPTY_PRESENCE: PresenceEntry[] = [];
 
 export type FigureWorkspaceProps = {
   state: FigureState;
+  worldId?: string;
   onChange: (value: FigureState) => void;
   targetId?: string;
   targetRequestId?: number;
@@ -44,6 +48,8 @@ export type FigureWorkspaceProps = {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  /** Chapters anchor their story time on moments; a moment in use must not be deleted here. */
+  manuscript?: Readonly<Manuscript>;
 };
 
 export function FigureWorkspace(props: FigureWorkspaceProps) {
@@ -56,6 +62,7 @@ export function FigureWorkspace(props: FigureWorkspaceProps) {
 
 function FigureWorkspaceInner({
   state,
+  worldId,
   onChange,
   targetId,
   targetRequestId,
@@ -63,6 +70,7 @@ function FigureWorkspaceInner({
   onRedo,
   canUndo = false,
   canRedo = false,
+  manuscript,
 }: FigureWorkspaceProps) {
   const { locale, t } = useI18n();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,6 +101,9 @@ function FigureWorkspaceInner({
     ? relationshipLabelEditor(selectedEdge, timeline, activeMomentId)
     : null;
   const inspectorOpen = Boolean(selected || visibleSelectedEdge);
+  const chaptersUsingMoment = (momentId: string) =>
+    manuscript ? chaptersUsingTimelineMoment(manuscript, momentId) : [];
+  const activeMomentChapters = activeMomentId ? chaptersUsingMoment(activeMomentId) : [];
   const selectNode = useCallback((id: string) => {
     setSelectedId(id);
     setSelectedEdgeId(null);
@@ -158,11 +169,16 @@ function FigureWorkspaceInner({
     return () => window.clearTimeout(timer);
   }, [playing, playbackAtEnd, playbackIndex, timeline]);
 
-  const patchNode = (id: string, patch: Partial<FigureNode>) =>
-    onChange({
-      ...state,
-      nodes: state.nodes.map((node) => (node.id === id ? { ...node, ...patch } : node)),
-    });
+  // From the latest state, not the render-time prop: two patches in one batch must both land.
+  const patchNode = (id: string, patch: Partial<FigureNode>) => {
+    const current = latestStateRef.current;
+    const next = {
+      ...current,
+      nodes: current.nodes.map((node) => (node.id === id ? { ...node, ...patch } : node)),
+    };
+    latestStateRef.current = next;
+    onChange(next);
+  };
   const patchSelectedEdge = (patch: Partial<FigureEdge>) => {
     if (!selectedEdge) return;
     const current = latestStateRef.current;
@@ -239,6 +255,7 @@ function FigureWorkspaceInner({
       <div className={`figure-layout${inspectorOpen ? "" : " layout-without-inspector"}`}>
         <WorldOverviewPanel
           state={state}
+          worldId={worldId}
           selectedId={selectedId}
           onSelect={selectNode}
           onReveal={canvas.centerOnNode}
@@ -374,7 +391,14 @@ function FigureWorkspaceInner({
                   ),
                 })
               }
-              onDelete={setDeleteMoment}
+              onDelete={(moment) => {
+                if (!chaptersUsingMoment(moment.id).length) setDeleteMoment(moment);
+              }}
+              deleteBlockedReason={
+                activeMomentChapters.length
+                  ? timelineMomentUsageText(t, activeMomentChapters)
+                  : undefined
+              }
             />
           )}
         </FigureCanvas>
@@ -472,6 +496,10 @@ function FigureWorkspaceInner({
           cancelLabel={t("cancel")}
           confirmLabel={t("deleteMoment")}
           onConfirm={() => {
+            if (chaptersUsingMoment(deleteMoment.id).length) {
+              setDeleteMoment(null);
+              return;
+            }
             onChange({
               ...state,
               timeline: removeTimelineMoment(timeline, deleteMoment.id),

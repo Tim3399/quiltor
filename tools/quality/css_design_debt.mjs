@@ -8,6 +8,7 @@ export const cssDesignOwnerClassesByComponent = Object.freeze({
   Button: Object.freeze(["ui-button"]),
   Checkbox: Object.freeze(["ui-checkbox"]),
   Chip: Object.freeze(["design-chip", "design-chip-item", "design-chip-list"]),
+  CollapsibleGroup: Object.freeze(["collapsible-group"]),
   CommandPalette: Object.freeze(["ui-command-palette"]),
   ConfirmDialog: Object.freeze(["ui-confirm-dialog"]),
   Dialog: Object.freeze(["ui-dialog", "ui-dialog-backdrop"]),
@@ -36,6 +37,7 @@ export const cssDesignOwnerClassesByComponent = Object.freeze({
   TextField: Object.freeze(["ui-text-field"]),
   Toast: Object.freeze(["design-toast", "design-toast-region"]),
   ToolbarButton: Object.freeze(["ui-toolbar-button"]),
+  Tooltip: Object.freeze(["ui-tooltip"]),
   UndoRedoControls: Object.freeze(["undo-redo-controls"]),
   WorkspaceToolbar: Object.freeze(["workspace-toolbar"]),
 });

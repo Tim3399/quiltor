@@ -20,15 +20,18 @@ const pkg = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
 );
 
-// The chain `check` was before it became a runner: v3.22.1, 17 links; check:readme-screenshots joined in v3.25.0.
+// The chain `check` was before it became a runner: v3.22.1, 17 links; check:readme-screenshots joined
+// in v3.25.0, check:markdown-links in v3.26.0 (T-173), check:keycloak-tokens in v3.26.0 (T-175).
 const FORMER_CHAIN = [
   "check:contracts",
   "check:architecture",
   "check:design",
   "check:design-system",
+  "check:keycloak-tokens",
   "check:i18n",
   "check:readme-screenshots",
   "check:platform",
+  "check:icons",
   "lint:biome",
   "lint:eslint",
   "check:format",
@@ -37,6 +40,7 @@ const FORMER_CHAIN = [
   "lint:zizmor",
   "lint:stylelint",
   "lint:markdown",
+  "check:markdown-links",
   "lint:knip",
   "lint:typos",
   "test:tools",

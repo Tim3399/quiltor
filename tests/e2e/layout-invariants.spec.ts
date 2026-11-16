@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { toolbarRowFindings } from "../audit/support/toolbar-row";
-import { mockWorkshop as mockWorkshopRoutes } from "./support/application-api";
+import { mockExampleWorld } from "./support/example-world";
 import {
   closePlaceSheet,
   mockExpandedMapWorld,
@@ -10,6 +10,8 @@ import {
 } from "./support/expanded-map-fixture";
 import { waitForSettledLayout } from "./support/layout-settled";
 import { expect, test } from "./support/transient-network";
+import { WORLD } from "../world/ids.generated";
+import type { WorldPart } from "../world/index.mjs";
 
 /*
  * Geometry invariants.
@@ -26,161 +28,38 @@ import { expect, test } from "./support/transient-network";
 
 const TOLERANCE = 1.5;
 
-const manuscript = {
-  chapters: [
-    {
-      id: "c1",
-      title: "Die Ankunft",
-      body: "Der Morgen lag still über dem Hafen. Zwischen den Masten schimmerte das Archiv.",
-      note: "Die Unruhe der Stadt nur andeuten.",
-    },
-    { id: "c2", title: "Das Archiv", body: "Acht Wörter stehen hier schon bereit.", note: "" },
-  ],
-  words: [],
-  activeSymbols: [],
-};
+/**
+ * The test world, mocked, in the chosen theme and open in the Werkstatt. The base part is the
+ * README world; the edge part adds the check cases, among them the two opened-out maps that
+ * the Places tests measure against. A test that only needs a workspace takes the base part.
+ */
+async function openWorld(
+  page: Page,
+  { theme = "light", include }: { theme?: "light" | "dark"; include?: readonly WorldPart[] } = {},
+) {
+  await page.addInitScript((chosen) => {
+    localStorage.setItem("quiltor-theme", chosen);
+    localStorage.setItem("quiltor-interface-language", "de");
+  }, theme);
+  await mockExampleWorld(page, include ? { include } : {});
+  await page.goto("/?world=example-world");
+  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+}
 
-const figures = {
-  nodes: [
-    {
-      id: "mara",
-      x: 120,
-      y: 120,
-      type: "person" as const,
-      name: "Mara Venn",
-      label: "Kartographin",
-      sub: "Liest lebende Karten.",
-    },
-    {
-      id: "archiv",
-      x: 460,
-      y: 300,
-      type: "ort" as const,
-      name: "Gezeitenarchiv",
-      label: "Ort",
-      sub: "Ein gläserner Bau am Hafen.",
-      mapX: 35,
-      mapY: 45,
-    },
-    {
-      id: "gilde",
-      x: 460,
-      y: 120,
-      type: "organisation" as const,
-      name: "Kartographengilde",
-      label: "Organisation",
-      sub: "Kontrolliert die Seewege.",
-    },
-    {
-      id: "hafenkarte",
-      x: 120,
-      y: 300,
-      type: "ort" as const,
-      name: "Nordhafen",
-      label: "Ort",
-      sub: "Eine begehbare Karte.",
-      mapImageId: "karte-1",
-      mapExpanded: true,
-      mapWidth: 800,
-      mapHeight: 600,
-    },
-    // A folded-up map. It is here because an opened-out map is no longer a card but ground:
-    // it is drawn as a surface, never as a little card, and so it does not shrink to a circle
-    // when zoomed out either. Measuring a map's monogram needs one that is still folded.
-    {
-      id: "werftplan",
-      x: 700,
-      y: 300,
-      type: "ort" as const,
-      name: "Werftplan",
-      label: "Ort",
-      sub: "Eine gefaltete Karte.",
-      mapImageId: "karte-2",
-    },
-    // Two places that stand on the map rather than on the level: they appear only once the
-    // map is opened out, and are then derived from it rather than stored.
-    {
-      id: "steg",
-      x: 0,
-      y: 0,
-      type: "ort" as const,
-      name: "Steg",
-      label: "Ort",
-      sub: "Auf der Karte.",
-      parentPlaceId: "hafenkarte",
-      mapU: 0.3,
-      mapV: 0.4,
-    },
-    {
-      id: "kran",
-      x: 0,
-      y: 0,
-      type: "ort" as const,
-      name: "Kran",
-      label: "Ort",
-      sub: "Auch auf der Karte.",
-      parentPlaceId: "hafenkarte",
-      mapU: 0.7,
-      mapV: 0.6,
-    },
-  ],
-  edges: [{ id: "e1", from: "mara", to: "archiv", label: "hütet", directed: true }],
-  timeline: [{ id: "t1", title: "Ankunft", date: "1847-09-03", note: "Mara erreicht den Hafen." }],
-  presence: [],
-};
-
-const storyboards = {
-  boards: [{ id: "main-storyboard", title: "Erster Entwurf" }],
-  nodes: [
-    {
-      id: "gruppe",
-      boardId: "main-storyboard",
-      kind: "group" as const,
-      x: 0,
-      y: 0,
-      width: 620,
-      height: 420,
-      label: "Erster Akt",
-    },
-    {
-      id: "karte-a",
-      boardId: "main-storyboard",
-      kind: "note" as const,
-      x: 60,
-      y: 80,
-      text: "Ankunft im Hafen.",
-    },
-    {
-      id: "karte-b",
-      boardId: "main-storyboard",
-      kind: "note" as const,
-      x: 380,
-      y: 80,
-      text: "Aufbruch ins Archiv.",
-    },
-  ],
-  edges: [
-    {
-      id: "kante-1",
-      boardId: "main-storyboard",
-      sourceNodeId: "karte-a",
-      targetNodeId: "karte-b",
-      directed: true,
-    },
-  ],
-};
-
-function mockWorkshop(page: Page) {
-  return mockWorkshopRoutes(page, {
-    version: "layout",
-    world: {
-      id: "layout",
-      title: "Der gläserne Atlas",
-      backupUrl: "",
-      updated: "2026-09-03T12:00:00Z",
-    },
-    documents: { manuscript, storyWorld: figures, storyboards },
-  });
+/**
+ * Zooms out until the cards are drawn as circles. The canvas offers no shortcut for getting
+ * there: the figure canvas opens closer in than the place canvas, so this steps until a circle
+ * shows, at least six times, and stops at the canvas's own minimum zoom.
+ */
+async function zoomOutToCircles(page: Page) {
+  const zoomOut = page.locator(".react-flow__controls-zoomout");
+  const circles = page.locator(".story-node.zoom-overview:not(.is-important)");
+  for (let step = 0; step < 12 && (step < 6 || (await circles.count()) === 0); step += 1) {
+    if (await zoomOut.isDisabled()) break;
+    await zoomOut.click();
+    await page.waitForTimeout(120);
+  }
+  return circles;
 }
 
 /** Every violation as one readable line; an empty list is the pass. */
@@ -230,13 +109,38 @@ async function violations(page: Page, tolerance: number): Promise<string[]> {
 
     // 2. What sits on a card sits on it. A button outside is not merely ugly, it is out of
     //    reach.
+    //
+    //    Only the part of a control that can be seen counts. A card clips its text area, and
+    //    a note's reference buttons lie below that area's edge until the note is scrolled --
+    //    nobody sees them there, and whether they lie above or below the card's own edge
+    //    depends on how far the editor has rendered by the time this runs (fonts, loading).
+    //    A control is measured through the boxes that clip it between it and its card; one
+    //    wholly outside them is not on the card at all.
+    const clipped = (control: Element, card: Element) => {
+      let inner = box(control);
+      for (let up = control.parentElement; up && up !== card; up = up.parentElement) {
+        const style = getComputedStyle(up);
+        if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+        const edge = box(up);
+        const left = style.overflowX === "visible" ? inner.left : Math.max(inner.left, edge.left);
+        const right =
+          style.overflowX === "visible" ? inner.right : Math.min(inner.right, edge.right);
+        const top = style.overflowY === "visible" ? inner.top : Math.max(inner.top, edge.top);
+        const bottom =
+          style.overflowY === "visible" ? inner.bottom : Math.min(inner.bottom, edge.bottom);
+        if (left >= right || top >= bottom) return null;
+        inner = new DOMRect(left, top, right - left, bottom - top);
+      }
+      return inner;
+    };
     for (const card of document.querySelectorAll(
       ".story-node, .place-map-node, .storyboard-node",
     )) {
       const outer = box(card);
       for (const control of card.querySelectorAll("button")) {
         if (!visible(control)) continue;
-        const inner = box(control);
+        const inner = clipped(control, card);
+        if (!inner) continue;
         const escapes =
           inner.left < outer.left - tol ||
           inner.right > outer.right + tol ||
@@ -346,6 +250,8 @@ const workspaces = ["Text", "Figuren", "Timeline", "Orte", "Storyboard"] as cons
 
 // From the project's own width down: each project walks the widths below it, so the compact
 // project stays at the phone and the wide one covers every breakpoint in between.
+const WIDER_FONT = '[role="toolbar"], [role="toolbar"] * { letter-spacing: 0.08em !important; }';
+
 const TOOLBAR_WIDTHS = [
   1440, 1280, 1180, 1100, 1024, 960, 900, 860, 820, 768, 719, 640, 560, 500, 430, 390, 360, 320,
 ];
@@ -401,7 +307,7 @@ for (const viewport of [
         });
       }
 
-      await page.locator('.react-flow__node[data-id="graufurth"]').click();
+      await page.locator('.react-flow__node[data-id="x-graufurth"]').click();
       if (viewport.width <= 820) {
         const sheet = page.getByRole("dialog", { name: "Orte-Inspector" });
         await expect(sheet).toBeVisible();
@@ -469,14 +375,7 @@ for (const viewport of [
 
 for (const workspace of workspaces) {
   test(`${workspace}: nothing lies outside its place`, async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("quiltor-theme", "light");
-      localStorage.setItem("quiltor-interface-language", "de");
-    });
-    await mockWorkshop(page);
-    await page.goto("/");
-    await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-    await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+    await openWorld(page);
 
     if (workspace !== "Text") {
       await page.getByRole("button", { name: workspace, exact: true }).click();
@@ -486,12 +385,12 @@ for (const workspace of workspaces) {
     // test would check precisely the state in which the interesting panels are missing.
     // Below the column width the controls are a sheet, not a panel; there is nothing to
     // align there, so the step falls away.
-    const spalten = (page.viewportSize()?.width ?? 0) > 820;
-    if (spalten && workspace === "Figuren") {
+    const twoColumns = (page.viewportSize()?.width ?? 0) > 820;
+    if (twoColumns && workspace === "Figuren") {
       await page.locator(".world-overview__item").first().click();
       await expect(page.locator(".figure-inspector")).toBeVisible();
     }
-    if (spalten && workspace === "Orte") {
+    if (twoColumns && workspace === "Orte") {
       await page.locator(".story-node").first().click();
       await expect(page.locator(".places-inspector")).toBeVisible();
     }
@@ -513,14 +412,7 @@ for (const workspace of workspaces) {
     test(`${workspace}: every toolbar is one row with nothing hidden (${theme})`, async ({
       page,
     }) => {
-      await page.addInitScript((chosen) => {
-        localStorage.setItem("quiltor-theme", chosen);
-        localStorage.setItem("quiltor-interface-language", "de");
-      }, theme);
-      await mockWorkshop(page);
-      await page.goto("/");
-      await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-      await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+      await openWorld(page, { theme });
       if (workspace !== "Text") {
         await page.getByRole("button", { name: workspace, exact: true }).click();
       }
@@ -537,28 +429,53 @@ for (const workspace of workspaces) {
       expect(messages).toEqual([]);
     });
   }
+
+  /*
+   * T-150: the same rule with text wider than macOS's system font (see T-148 below). A toolbar
+   * that only fits Segoe UI or the Linux fonts would wrap or clip on a Mac, where no CI run
+   * photographs it.
+   */
+  test(`${workspace}: every toolbar stays one row with a wider font`, async ({ page }) => {
+    await openWorld(page);
+    if (workspace !== "Text") {
+      await page.getByRole("button", { name: workspace, exact: true }).click();
+    }
+    // Test-only: roughly 15 percent wider text than Segoe UI, more than the macOS difference.
+    await page.addStyleTag({ content: WIDER_FONT });
+    await waitForSettledLayout(page);
+    const start = page.viewportSize() ?? { width: 1440, height: 900 };
+    const messages: string[] = [];
+    for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
+      await page.setViewportSize({ width, height: start.height });
+      await waitForSettledLayout(page);
+      for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
+        messages.push(`${width}px: ${finding.message}`);
+      }
+    }
+    expect(messages).toEqual([]);
+  });
 }
 
 /*
  * T-148: the timeline toolbar was one row at 768px on Windows and Linux and two on macOS,
  * whose system font runs wider. A fix tuned to one font's widths breaks on the next, so this
  * forces text wider than macOS's onto the toolbar and asks for one row all the same.
+ *
+ * The toolbar carries the test world's own calendar (T-218). Its name, "Gezeitenrechnung", is
+ * far longer than the label of relative time, and at 900 and 860px the strip used to scroll
+ * its create buttons over undo and redo. Each width therefore checks the row rules and then
+ * asks the page what is actually under undo and redo.
  */
-test("Timeline: the toolbar stays one row with a wider font", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+test("Timeline: the toolbar with a custom calendar keeps undo and redo in view with a wider font", async ({
+  page,
+}) => {
+  await openWorld(page);
   await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await expect(page.locator(".timeline-toolbar")).toContainText("Gezeitenrechnung");
   // Test-only: roughly 15 percent wider text than Segoe UI, more than the macOS difference.
   await page.addStyleTag({
     content: ".timeline-toolbar, .timeline-toolbar * { letter-spacing: 0.08em !important; }",
   });
-  await waitForSettledLayout(page);
   const start = page.viewportSize() ?? { width: 1440, height: 900 };
   const messages: string[] = [];
   for (const width of TOOLBAR_WIDTHS.filter((candidate) => candidate <= start.width)) {
@@ -566,6 +483,21 @@ test("Timeline: the toolbar stays one row with a wider font", async ({ page }) =
     await waitForSettledLayout(page);
     for (const finding of await page.evaluate(toolbarRowFindings, TOLERANCE)) {
       messages.push(`${width}px: ${finding.message}`);
+    }
+    for (const name of ["Timeline rückgängig", "Timeline wiederholen"]) {
+      const covered = await page.getByRole("button", { name, exact: true }).evaluate((button) => {
+        const box = button.getBoundingClientRect();
+        const toolbar = button.closest(".timeline-toolbar")?.getBoundingClientRect();
+        if (!toolbar || box.width === 0) return "not rendered";
+        if (box.left < toolbar.left - 0.5 || box.right > toolbar.right + 0.5) {
+          return `outside the toolbar (${Math.round(box.left)}-${Math.round(box.right)})`;
+        }
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return hit && button.contains(hit)
+          ? ""
+          : `covered by ${hit?.closest("[class]")?.className}`;
+      });
+      if (covered) messages.push(`${width}px: ${name} is ${covered}`);
     }
   }
   expect(messages).toEqual([]);
@@ -581,14 +513,7 @@ test("Timeline: the toolbar stays one row with a wider font", async ({ page }) =
  * question "what is actually at this point?" finds it.
  */
 test("Menus lie above the opened drawer", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await openWorld(page);
 
   test.skip(
     (page.viewportSize()?.width ?? 0) <= 820,
@@ -673,24 +598,10 @@ async function monogramOffsets(page: Page): Promise<string[]> {
 for (const theme of ["light", "dark"] as const) {
   for (const workspace of ["Orte", "Figuren"] as const) {
     test(`${workspace} (${theme}): monograms sit centred in the circle`, async ({ page }) => {
-      await page.addInitScript((chosen) => {
-        localStorage.setItem("quiltor-theme", chosen);
-        localStorage.setItem("quiltor-interface-language", "de");
-      }, theme);
-      await mockWorkshop(page);
-      await page.goto("/");
-      await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-      await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+      await openWorld(page, { theme });
       await page.getByRole("button", { name: workspace, exact: true }).click();
 
-      // The circle appears only far out; the canvas offers no shortcut for getting there.
-      // The figure canvas opens closer in than the place canvas, so step until it shows.
-      const zoomOut = page.locator(".react-flow__controls-zoomout");
-      const circles = page.locator(".story-node.zoom-overview:not(.is-important)");
-      for (let step = 0; step < 12 && (step < 6 || (await circles.count()) === 0); step += 1) {
-        await zoomOut.click();
-        await page.waitForTimeout(120);
-      }
+      const circles = await zoomOutToCircles(page);
       if (workspace === "Orte") {
         await expect(page.locator(".story-node.zoom-overview.is-map")).toHaveCount(1);
       }
@@ -700,6 +611,53 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+/*
+ * In the overview a figure shows no connection handles until the pointer is on it.
+ *
+ * StoryGraph.css hides them there, but on the figure board a rule of the same weight from
+ * FigureCanvas.css came later and left them at a fifth of their colour. Small, translucent and
+ * on fractional positions, they lay across the seams of overlapping circles, and the runners did
+ * not draw them the same way twice: the favourites baseline moved by 27 pixels from one run to
+ * the next (T-129 F3). The place overview draws no handles at all.
+ */
+test("Figures: the overview shows no connection handles until a marker is pointed at", async ({
+  page,
+}) => {
+  await openWorld(page);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+
+  const circles = await zoomOutToCircles(page);
+  await expect(circles.first()).toBeVisible();
+  const handles = page.locator(".story-node.zoom-overview .react-flow__handle");
+  // Otherwise an empty list below would prove nothing.
+  expect(await handles.count()).toBeGreaterThan(0);
+
+  const shown = () =>
+    handles.evaluateAll((all) =>
+      all
+        .filter((handle) => getComputedStyle(handle).opacity !== "0")
+        .map((handle) => handle.closest(".react-flow__node")?.getAttribute("data-id") ?? "?"),
+    );
+  await expect.poll(shown).toEqual([]);
+
+  // The counter-check needs a circle the pointer can reach. On the narrow screen the open
+  // timeline strip covers the whole cluster, so it runs in the wider projects only.
+  if (test.info().project.name === "compact") return;
+  const free = await circles.evaluateAll((all) =>
+    all.findIndex((circle) => {
+      const box = circle.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit !== null && circle.contains(hit);
+    }),
+  );
+  expect(free).toBeGreaterThanOrEqual(0);
+  await circles.nth(free).hover();
+  const pointedAt = page.locator(".story-node:hover .directed-handle").first();
+  await expect
+    .poll(() => pointedAt.evaluate((handle) => getComputedStyle(handle).opacity))
+    .toBe("1");
+});
 
 /*
  * The minimap shows what stands on the canvas.
@@ -714,14 +672,7 @@ for (const theme of ["light", "dark"] as const) {
  * stands there belongs in the overview too.
  */
 test("Places: the minimap also shows what stands on a map", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await openWorld(page, { include: ["base", "edge"] });
   await page.getByRole("button", { name: "Orte", exact: true }).click();
 
   // Below the column width the canvas hides its minimap; there is then
@@ -729,8 +680,9 @@ test("Places: the minimap also shows what stands on a map", async ({ page }) => 
   test.skip((page.viewportSize()?.width ?? 0) <= 719, "The compact layout has no minimap.");
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
 
-  // Only once it is opened out are there any places standing on a map.
-  await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
+  // Only once it is opened out are there any places standing on a map; the check part of the
+  // world opens two out.
+  await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(2);
   await waitForSettledLayout(page);
 
   const counts = await page.evaluate(() => ({
@@ -754,20 +706,20 @@ test("Places: the minimap also shows what stands on a map", async ({ page }) => 
  * would have been red, but for the wrong reason.
  */
 test("Storyboard: a connection inside a group can be reached", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await openWorld(page);
   await page.getByRole("button", { name: "Storyboard", exact: true }).click();
-  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  // The connection from the turning point to its chapter: inside the second act's group, and
+  // without a label, which would otherwise sit on the very point this measures. The world
+  // types no ids for board connections, so this one is named by hand.
+  const edgeId = "board-edge-four";
+  const edge = page.locator(`.react-flow__edge[data-id="${edgeId}"]`);
+  await expect(edge).toHaveCount(1);
   await waitForSettledLayout(page);
 
-  const spot = await page.evaluate(() => {
-    const path = document.querySelector<SVGPathElement>(".react-flow__edge-interaction");
+  const spot = await page.evaluate((id) => {
+    const path = document.querySelector<SVGPathElement>(
+      `.react-flow__edge[data-id="${id}"] .react-flow__edge-interaction`,
+    );
     if (!path) return null;
     const point = path.getPointAtLength(path.getTotalLength() / 2);
     const screen = path.getScreenCTM();
@@ -784,7 +736,7 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
       // note the test would be red, but for a different reason.
       overTheCanvas: Boolean(hit?.closest(".react-flow")),
     };
-  });
+  }, edgeId);
 
   expect(spot).not.toBeNull();
   test.skip(
@@ -800,13 +752,13 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
   await expect(page.locator(".graph-edge-inspector-panel")).toBeVisible();
 
   // The edge still lies behind the cards -- it should run underneath them, not across.
-  const overTheCard = await page.evaluate(() => {
-    const card = document.querySelector<HTMLElement>('.react-flow__node[data-id="karte-a"]');
+  const overTheCard = await page.evaluate((id) => {
+    const card = document.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"]`);
     if (!card) return "no card";
     const box = card.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
     return hit?.closest(".react-flow__edge") ? "edge overlaps the card" : "";
-  });
+  }, WORLD.cards.noteTurn);
   expect(overTheCard).toBe("");
 });
 
@@ -822,35 +774,34 @@ test("Storyboard: a connection inside a group can be reached", async ({ page }) 
  * test starts on that visible part and requires the card's centre to land on the release point.
  */
 test("Places: a place on a map follows the pointer", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await openWorld(page, { include: ["base", "edge"] });
   await page.getByRole("button", { name: "Orte", exact: true }).click();
-  await expect(page.locator(".react-flow__node-placeMap")).toHaveCount(1);
+  const map = page.locator(`.react-flow__node-placeMap[data-id="${WORLD.figures.xWeltkarte}"]`);
+  await expect(map).toBeVisible();
   await waitForSettledLayout(page);
 
-  // The map frame clips the part of the sheet that falls below the canvas. At the initial
-  // fit, Steg's centre is behind the frame footer, so a pointer aimed there correctly hits
-  // the chrome instead of the card. One zoom step reveals the card before testing its drag.
+  // The map frame clips the part of the sheet that falls below the canvas, and at the initial
+  // fit a card's centre can sit behind the frame footer, where a pointer aimed at it correctly
+  // hits the chrome instead of the card. One zoom step reveals the card before testing its drag.
   await page.locator(".react-flow__controls-zoomout").click();
 
   // The drag has to stay on the map, or the test measures a reparent to another level
   // rather than the movement. On narrow windows the map is too small for that.
-  const map = await page.locator(".react-flow__node-placeMap").boundingBox();
+  const mapBox = await map.boundingBox();
   test.skip(
-    !map || map.width < 240 || map.height < 240,
+    !mapBox || mapBox.width < 240 || mapBox.height < 240,
     "Die aufgeklappte Karte ist hier zu klein, um darauf zu ziehen.",
   );
 
-  const steg = page.locator('.react-flow__node[data-id="steg"]');
+  const steg = page.locator(`.react-flow__node[data-id="${WORLD.figures.xGraufurth}"]`);
+  // The grab point lies on the card's top edge, halfway across, measured from the card itself:
+  // a fixed pixel offset lands beside the card once a smaller fit zoom shrinks it (T-220).
+  await expect(steg).toBeVisible();
+  const before = await steg.boundingBox();
+  expect(before).not.toBeNull();
+  const grab = { x: before!.width / 2, y: 4 };
   // This waits for the zoom animation and proves that the exact grab point is not covered by
   // either the map or its frame. Capture screen geometry only after that stable point exists.
-  const grab = { x: 100, y: 4 };
   await steg.click({ position: grab, trial: true });
   const box = await steg.boundingBox();
   expect(box).not.toBeNull();
@@ -892,14 +843,7 @@ test("Places: a place on a map follows the pointer", async ({ page }) => {
  * sat eight pixels too low and looked as if it were hanging out.
  */
 test("Text: the writing aid's search button sits on the line of its field", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("quiltor-theme", "light");
-    localStorage.setItem("quiltor-interface-language", "de");
-  });
-  await mockWorkshop(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
-  await expect(page.getByRole("contentinfo", { name: "Arbeitsstand" })).toBeVisible();
+  await openWorld(page);
 
   await waitForSettledLayout(page);
   const schreibhilfe = page.getByRole("radio", { name: "Schreibhilfe" });
@@ -922,4 +866,34 @@ test("Text: the writing aid's search button sits on the line of its field", asyn
   });
 
   expect(offset).toBe("");
+});
+
+/*
+ * The card check measures what can be seen of a control. A button outside its card is found,
+ * wherever it lies; one that a clipping box between it and the card hides is not on the card,
+ * and one only partly hidden is measured by the part that shows.
+ */
+test("Cards: a button outside its card is found, one clipped away is not", async ({ page }) => {
+  const card = (inside: string) => `
+    <article class="story-node" style="position:relative;overflow:hidden;width:200px;height:100px;margin:40px">
+      ${inside}
+    </article>`;
+  const button = (style: string) =>
+    `<button style="position:absolute;width:40px;height:20px;${style}">x</button>`;
+  const clip = (inside: string) =>
+    `<div style="position:absolute;left:0;top:0;width:200px;height:60px;overflow:hidden">${inside}</div>`;
+  const findings = async (html: string) => {
+    await page.setContent(`<!doctype html><body>${html}</body>`);
+    return violations(page, TOLERANCE);
+  };
+
+  expect(await findings(card(button("left:10px;top:10px;")))).toEqual([]);
+  expect(await findings(card(button("left:10px;top:130px;")))).toHaveLength(1);
+  expect(await findings(card(clip(button("left:10px;top:70px;"))))).toEqual([]);
+  expect(await findings(card(clip(button("left:10px;top:50px;"))))).toEqual([]);
+  expect(await findings(card(clip(button("left:180px;top:10px;"))))).toHaveLength(0);
+  expect(await findings(card(clip(button("left:10px;top:-30px;"))))).toEqual([]);
+  // A clipping box wider than the card hides nothing that lies past the card's edge.
+  const wide = `<div style="position:absolute;left:0;top:0;width:400px;height:100px;overflow:hidden">${button("left:230px;top:10px;")}</div>`;
+  expect(await findings(card(wide))).toHaveLength(1);
 });

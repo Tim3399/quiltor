@@ -73,14 +73,17 @@
 .panel-edge-toggle--right.is-open {
   right: calc(var(--workspace-inspector-width) - var(--control-compact) - var(--space-8));
 }
+/* A closed panel's toggle stands in the margin beside the sheet, never on it: the same
+   var(--space-12) outside the sheet's edge as the focus mode's margin tabs (FocusPanels.css,
+   --focus-rail-inset). It used to add var(--space-24) and so reached into the sheet (T-242). */
 .text-layout.no-binder:not(.no-inspector) .panel-edge-toggle--left:not(.is-open) {
   left: max(
     var(--space-8),
     calc(
       (100% - var(--workspace-inspector-width) - var(--measure-prose)) /
       2 -
-      var(--control-compact) +
-      var(--space-24) +
+      var(--control-compact) -
+      var(--space-12) +
       var(--editor-balance-offset)
     )
   );
@@ -88,7 +91,7 @@
 .text-layout.no-binder.no-inspector .panel-edge-toggle--left:not(.is-open) {
   left: max(
     var(--space-8),
-    calc((100% - var(--measure-prose)) / 2 - var(--control-compact) + var(--space-24))
+    calc((100% - var(--measure-prose)) / 2 - var(--control-compact) - var(--space-12))
   );
 }
 .text-layout.no-inspector:not(.no-binder) .panel-edge-toggle--right:not(.is-open) {
@@ -97,8 +100,8 @@
     calc(
       (100% - var(--workspace-sidebar-width) - var(--measure-prose)) /
       2 -
-      var(--control-compact) +
-      var(--space-24) -
+      var(--control-compact) -
+      var(--space-12) -
       var(--editor-balance-offset)
     )
   );
@@ -106,7 +109,7 @@
 .text-layout.no-binder.no-inspector .panel-edge-toggle--right:not(.is-open) {
   right: max(
     var(--space-8),
-    calc((100% - var(--measure-prose)) / 2 - var(--control-compact) + var(--space-24))
+    calc((100% - var(--measure-prose)) / 2 - var(--control-compact) - var(--space-12))
   );
 }
 .panel-resize-handle--end {

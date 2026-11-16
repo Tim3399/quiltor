@@ -686,6 +686,11 @@ class SynchronizationUseCases:
                 entry,
                 fetch=fetch,
             )
+            # Migrate before reading, as a local restore does (sqlite/restore.py). The pull
+            # compares this fingerprint with the world after finalize_restore, which
+            # migrates too; a snapshot from an older version would otherwise never match
+            # once a step changes document content (F-177-1).
+            self._documents.migrate(temporary.database)
             kinds: tuple[DocumentKind, ...] = ("manuscript", "figures", "storyboards")
             documents: dict[str, dict[str, Any]] = {
                 kind: self._documents.load(kind, temporary.database) for kind in kinds

@@ -3,35 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      const savedTheme = localStorage.getItem("quiltor-theme") || "system";
-      document.documentElement.dataset.theme =
-        savedTheme === "system"
-          ? matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light"
-          : savedTheme;
-    </script>
+    <!-- Classic and synchronous, so the theme is set before the first paint; a file and
+         not inline, so the Content-Security-Policy needs no 'unsafe-inline' (T-61). -->
+    <script src="./theme-boot.js"></script>
     <link rel="icon" href="./favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>Quiltor · Autorenwerkstatt</title>
-    <script type="module" crossorigin src="/assets/index-DFohRKZs.js"></script>
+    <script type="module" crossorigin src="/assets/index-JzkO9zmI.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-CNC7AqOf.js">
-    <link rel="modulepreload" crossorigin href="/assets/manuscript-DK_AYSW6.js">
-    <link rel="modulepreload" crossorigin href="/assets/story-world-B_jyk91_.js">
-    <link rel="modulepreload" crossorigin href="/assets/world-references-ChHHu3Aj.js">
-    <link rel="modulepreload" crossorigin href="/assets/notes-Za4Pvw-4.js">
-    <link rel="modulepreload" crossorigin href="/assets/map-pin-1xLFfXsx.js">
-    <link rel="modulepreload" crossorigin href="/assets/history-DbTtoQNm.js">
-    <link rel="modulepreload" crossorigin href="/assets/panels-top-left-BoiQV-ux.js">
-    <link rel="modulepreload" crossorigin href="/assets/users-Bhj3kGe7.js">
+    <link rel="modulepreload" crossorigin href="/assets/manuscript-JJuVnqsD.js">
+    <link rel="modulepreload" crossorigin href="/assets/story-world-DvefMFID.js">
+    <link rel="modulepreload" crossorigin href="/assets/world-references-TzThQ5dB.js">
+    <link rel="modulepreload" crossorigin href="/assets/notes-CKsFPUh2.js">
+    <link rel="modulepreload" crossorigin href="/assets/ellipsis-Bkcnp6JK.js">
+    <link rel="modulepreload" crossorigin href="/assets/map-pin-vntZJGJy.js">
+    <link rel="modulepreload" crossorigin href="/assets/history-C_R6U9Pv.js">
+    <link rel="modulepreload" crossorigin href="/assets/panels-top-left-BPRvbX3I.js">
+    <link rel="modulepreload" crossorigin href="/assets/users-ByzX7-bs.js">
     <link rel="modulepreload" crossorigin href="/assets/fileSave-DXofgPA_.js">
+    <link rel="modulepreload" crossorigin href="/assets/elementNotes-DrWIm4sM.js">
     <link rel="modulepreload" crossorigin href="/assets/order-D0KRH7yf.js">
-    <link rel="stylesheet" crossorigin href="/assets/manuscript-4Uzhei_m.css">
-    <link rel="stylesheet" crossorigin href="/assets/story-world-CNSjBatt.css">
+    <link rel="stylesheet" crossorigin href="/assets/manuscript-CVFYtWIl.css">
+    <link rel="stylesheet" crossorigin href="/assets/story-world-zDcPzW6d.css">
     <link rel="stylesheet" crossorigin href="/assets/notes-CP33QcxS.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-DANSqTyt.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-DXHyAIwF.css">
   </head>
   <body>
     <div id="root"></div>

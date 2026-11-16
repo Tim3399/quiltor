@@ -7,6 +7,13 @@ export const worlds = {
   existingWorlds: "Bestehende Welten",
   newWorld: "Neue Welt",
   noWorld: "Noch keine Welt vorhanden.",
+  help: "Hilfe",
+  openExampleWorld: "Beispielwelt öffnen",
+  exampleWorldHint:
+    "Eine fertige Welt zum Ausprobieren. Sie wird erst zu deiner, wenn du etwas änderst.",
+  examplePreviewBar: "Beispielwelt – sobald du etwas änderst, wird sie zu deiner Welt.",
+  examplePreviewExpired: "Diese Vorschau ist abgelaufen.",
+  exampleWorldLabel: "Beispielwelt",
   lastChanged: "Zuletzt geändert",
   deleteWorld: "Welt löschen",
   deleteWorldTitle: "Welt in Papierkorb verschieben",

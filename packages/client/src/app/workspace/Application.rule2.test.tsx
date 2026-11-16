@@ -2,10 +2,10 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
-import type { FigureState } from "../../modules/story-world";
 import type { Manuscript } from "../../modules/manuscript";
+import type { FigureState } from "../../modules/story-world";
 import type { StoryboardState } from "../../modules/storyboard";
-import { quiltorClient } from "../../platform";
+import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { App } from "../Application";
 import type { LoadedWorldDocuments, WorldBinding } from "../world/useWorldSession";
 import type { useHistoryState } from "./useHistoryState";
@@ -52,6 +52,7 @@ vi.mock("./WorkspaceSurface", () => ({
     storyboards,
     storyboardHistory,
     documentsReady,
+    onElementNoteChange,
   }: {
     manuscript: Manuscript;
     manuscriptHistory: ReturnType<typeof useHistoryState<Manuscript>>;
@@ -60,8 +61,24 @@ vi.mock("./WorkspaceSurface", () => ({
     storyboards: StoryboardState;
     storyboardHistory: ReturnType<typeof useHistoryState<StoryboardState>>;
     documentsReady: boolean;
+    onElementNoteChange: (
+      target: { kind: "chapter"; id: string },
+      text: string,
+      noteReferences: [],
+      noteMarks: [],
+    ) => void;
   }) => (
     <>
+      {/* A Storyboard reference card showing the chapter's note (T-177). */}
+      <output aria-label="chapter note">{manuscript.chapters[0]?.note}</output>
+      <button
+        type="button"
+        onClick={() =>
+          onElementNoteChange({ kind: "chapter", id: "chapter-1" }, "Von der Karte", [], [])
+        }
+      >
+        card note
+      </button>
       <output aria-label="figure count">{figures.nodes.length}</output>
       <output aria-label="storyboard count">{storyboards.boards.length}</output>
       <button
@@ -366,5 +383,45 @@ describe("a load over unsaved figure or storyboard changes (rule 2, T-73)", () =
     expect(storyWorldSaveExpected.mock.calls[0][1]).toBe(5);
     expect(await screen.findByRole("button", { name: "Serverstand" })).toBeVisible();
     expect(refused(warn)).toBe(false);
+  });
+});
+
+describe("the same chapter note edited on a Storyboard card and elsewhere (T-177, plan test 18)", () => {
+  it("holds the card's draft against another tab's version and asks", async () => {
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "card note" }));
+    expect(screen.getByLabelText("chapter note")).toHaveTextContent("Von der Karte");
+    // Another tab saved the chapter meanwhile; this one loads it before its draft is saved.
+    session.selected = { worldId: "world-a", generation: 2 };
+    act(() => session.load?.(documents("Serverstand"), { ...session.selected, source: "open" }));
+
+    expect(await screen.findByRole("heading", { name: "Konflikt vergleichen" })).toBeVisible();
+    expect(screen.getByLabelText("chapter note")).toHaveTextContent("Von der Karte");
+    await wait(1000);
+    expect(save).not.toHaveBeenCalled();
+    expect(loadOverUnsaved(warn)).toHaveLength(1);
+  });
+
+  it("shows a refused save of the card's note as a conflict and keeps the draft", async () => {
+    vi.spyOn(quiltorClient.application.manuscript, "save").mockRejectedValue(
+      new ApplicationGatewayError("Konflikt", "document.revision_conflict", {
+        category: "conflict",
+      }),
+    );
+    render(
+      <I18nProvider>
+        <App />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "card note" }));
+    await wait(1000);
+
+    expect(await screen.findByText("Konflikt")).toBeVisible();
+    expect(screen.getByLabelText("chapter note")).toHaveTextContent("Von der Karte");
+    expect(saveExpected).not.toHaveBeenCalled();
   });
 });

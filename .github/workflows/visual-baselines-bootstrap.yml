@@ -78,13 +78,20 @@ jobs:
     permissions:
       contents: write
     runs-on: ${{ matrix.os }}
+    # A bootstrap takes 3 to 7 minutes. This bounds a run that hangs once it has started; it
+    # cannot shorten the wait for a runner, which GitHub does not count against it.
+    timeout-minutes: 30
     strategy:
-      # One after another: all three jobs write to the same branch, and pushing in parallel
-      # would be a race for the same ref.
+      # Meant one after another: all three jobs write to the same branch. It is not strict --
+      # in runs 41862696026, 41868308165, 41870500032 and 41870510335 ubuntu ran while macOS
+      # waited for a runner -- so the push below never forces and fails on a moved branch.
       max-parallel: 1
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15, windows-2025]
+        # macOS last. Its arm64 runners are sometimes not assigned at all; GitHub cancels the
+        # job after 18 to 20 minutes, and with macOS in the middle windows waited all of that
+        # time in each of those runs before it started (T-231).
+        os: [ubuntu-24.04, windows-2025, macos-15]
     steps:
       # Keeps the checkout token: "Check the new images in" pushes with it. The diagnostics
       # upload below takes only test-results/** and the Vite log, never .git/.
@@ -158,6 +165,16 @@ jobs:
             echo "::error::Bootstrap did not produce the platform sentinel $sentinel."
             exit 1
           fi
+
+          # Every image this run created is taken a second time from a fresh page load and
+          # must come out byte for byte the same. A baseline that does not is a coin toss for
+          # every later comparison and must not be checked in (T-231). The tool starts the CLI
+          # without a shell, where npx would be npx.cmd on windows, so it is named by path.
+          # Both takes of a differing image land in test-results/capture-twice, which the
+          # diagnostics upload below carries.
+          QUILTOR_BASELINE_BOOTSTRAP=1 node tools/dev/capture-twice.mjs "$snapshots" -- \
+            node node_modules/@playwright/test/cli.js test tests/e2e/visual-baseline.spec.ts \
+            --update-snapshots=missing --output=test-results/second-take --reporter=line
 
           echo "Running strict verification without snapshot updates."
           QUILTOR_BASELINE_BOOTSTRAP=0 npx playwright test \

@@ -20,8 +20,10 @@ otherwise sit far from the route they govern are stated with it:
   - **`operator_only=True`** means the route installs software on the server
     (a runtime, a model, a dictionary). In the `hosted` operation profile that
     is the operator's job, not a user's: the dispatch answers
-    `403 install.forbidden_hosted` before the route runs. Every route whose path
-    contains `install` carries it; tests/python/test_operator_only_routes.py
+    `403 install.forbidden_hosted` before the route runs. Every route that
+    installs carries it. `GET /api/assistant/install/status` contains `install`
+    in its path but only reads progress, so it is not `operator_only`: a hosted
+    client may still show "Bereit". tests/python/test_operator_only_routes.py
     holds the table.
   - **`device_sync=True`** means the route syncs worlds with another device
     through a backup endpoint: the sync itself, the endpoint's remote worlds and
@@ -31,6 +33,10 @@ otherwise sit far from the route they govern are stated with it:
     runs. Two routes decide it from their body instead: `POST /api/backup` with
     `push` and `POST /api/worlds/create` with a `backupUrl`.
     tests/python/test_device_sync_routes.py holds the table.
+  - There is no premium option. The assistant's job route decides from its
+    body which engine computes the job, and only the server engine needs the
+    role (T-61), so `POST /api/assistant/jobs` checks it itself, before the
+    world. The other job routes are bound to the caller's own jobs.
 
 The `app` argument is the concrete WebApplication owned by the HTTP server
 instance. Routes never import a composition root or process-global store.
@@ -106,7 +112,9 @@ def load() -> None:
     """
     from quiltor.delivery.http.routes import (  # noqa: F401
         assistant,
+        assistant_relay,
         backup,
+        capabilities,
         documents,
         history,
         identity,

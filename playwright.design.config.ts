@@ -14,6 +14,8 @@ export default defineConfig({
   // The gallery is read-only and every story runs in an isolated browser context, so four local
   // workers cut the dominant audit block substantially. CI shards stay conservative at two.
   workers: resolvePlaywrightWorkers(4),
+  // Warms the gallery started below before the first test (CI only; see the file).
+  globalSetup: "./tests/design/warm-gallery.setup.mjs",
   timeout: 45_000,
   use: {
     baseURL: designUrl,

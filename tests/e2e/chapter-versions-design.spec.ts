@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
+import { seedExampleWorldWithHistory } from "./support/example-world";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
@@ -60,5 +61,45 @@ for (const theme of ["light", "dark"] as const) {
     expect(geometry.scroll).toBeLessThanOrEqual(geometry.width + 1);
     expect(geometry.right).toBeLessThanOrEqual(geometry.viewport + 1);
     await panel.screenshot({ path: testInfo.outputPath(`chapter-versions-${theme}.png`) });
+  });
+}
+
+// T-86: the timeline in the same panel, both themes, over the seeded history.
+for (const theme of ["light", "dark"] as const) {
+  test(`The chapter timeline lists its versions without overflow in ${theme} mode`, async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name === "compact",
+      "The binder is a sheet there; checked in chapter-timeline.spec.ts.",
+    );
+    const world = await seedExampleWorldWithHistory(page);
+    await page
+      .locator("html")
+      .evaluate((root, selected) => root.setAttribute("data-theme", selected), theme);
+    const title = world.text("ch.x-chronicle.title");
+    await page
+      .getByRole("complementary", { name: "Kapitel" })
+      .getByRole("button", { name: new RegExp(title) })
+      .first()
+      .click();
+    await openToolbarOverflow(page, "Manuskript", "Versionen");
+    const panel = page.getByRole("complementary", { name: "Versionen" });
+    await panel.getByRole("radio", { name: "Timeline" }).click();
+    const rows = panel
+      .getByRole("region", { name: "Versionen, die dieses Kapitel geändert haben" })
+      .getByRole("button");
+    await expect(rows).toHaveCount(3);
+    await expect(panel).not.toContainText("Fassung");
+
+    const geometry = await panel.evaluate((element) => ({
+      width: element.clientWidth,
+      scroll: element.scrollWidth,
+      right: element.getBoundingClientRect().right,
+      viewport: window.innerWidth,
+    }));
+    expect(geometry.scroll).toBeLessThanOrEqual(geometry.width + 1);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewport + 1);
+    await panel.screenshot({ path: testInfo.outputPath(`chapter-timeline-${theme}.png`) });
   });
 }

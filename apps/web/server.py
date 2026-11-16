@@ -14,14 +14,14 @@ if str(SOURCE_ROOT) not in sys.path:
 from quiltor import resources  # noqa: E402
 from quiltor.bootstrap.web import build_web_application  # noqa: E402
 from quiltor.hosts.web.server import main  # noqa: E402
-from quiltor.infrastructure.pdf import server_renderer  # noqa: E402
+from quiltor.infrastructure.pdf import server_renderer, warn_if_sandbox_disabled  # noqa: E402
 
 if __name__ == "__main__":
-    main(
-        application=build_web_application(
-            render_pdf=server_renderer(
-                resources.sidecar_asset("pdf/render-book-pdf.mjs"),
-                REPOSITORY_ROOT,
-            )
+    application = build_web_application(
+        render_pdf=server_renderer(
+            resources.sidecar_asset("pdf/render-book-pdf.mjs"),
+            REPOSITORY_ROOT,
         )
     )
+    warn_if_sandbox_disabled(application.observability.logger)
+    main(application=application)

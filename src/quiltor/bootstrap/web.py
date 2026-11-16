@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import ipaddress
+import json
 import os
+import re
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,7 +15,7 @@ from urllib.parse import urlparse
 
 from quiltor import resources
 from quiltor.application.backups import BackupAuthorization, WorldBackupContext
-from quiltor.application.capabilities import FeatureAvailability
+from quiltor.application.capabilities import Feature, FeatureAvailability
 from quiltor.application.documents import DocumentLocation
 from quiltor.bootstrap.application import (
     ApplicationServices,
@@ -34,11 +37,10 @@ from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.infrastructure.platform.runtime_target import ProcessRole, current_target
 from quiltor.modules.assistant.ports import AssistantInstallation, InferenceEngine
 from quiltor.modules.identity.auth import SessionData
-from quiltor.modules.identity.service import Identity
+from quiltor.modules.identity.service import Identity, LocalIdentity
 from quiltor.modules.writing_assistance import WritingAssistanceService
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
-TOKEN_LEEWAY = 30
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +48,9 @@ class WebWorldContext:
     id: str
     document_location: DocumentLocation
     backup: WorldBackupContext
+    # An unchanged preview of the example world (T-214-5a). The first change a route writes
+    # makes it real; sync and backups refuse it until then.
+    preview: bool = False
 
     @property
     def db_path(self) -> Path:
@@ -69,6 +74,7 @@ class WorldRouteServices:
     worlds: Any
     lock: threading.Lock
     syncable: bool = True
+    example_worlds: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +83,10 @@ class DocumentRouteServices:
     lock: threading.Lock
     render_pdf: Callable[[str], bytes]
     issue_render_token: Callable[[str], str]
+    # A preview's first saved change makes it a real world with a title of its own.
+    finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
+    # The PDF route logs its failure category (F-269-13).
+    observability: ObservabilityServices | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +104,14 @@ class AssistantRouteServices:
     assistant_jobs: Any
     assistant_installation: AssistantInstallation
     lock: threading.Lock
+    identity: Identity
+    # None where one person owns the server: the limit only protects a shared one.
+    max_open_jobs: int | None
     installable: bool = True
+    # Whether jobs may name a client engine (T-61, QUILTOR_ASSISTANT_CLIENT_AI).
+    client_ai: bool = True
+    # Hands the model calls of client-engine jobs to the browser (T-61).
+    relay_tickets: Any = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,18 +139,23 @@ class PlaceMapRouteServices:
     place_maps: Any
     observability: ObservabilityServices
     lock: threading.Lock
+    finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
 class ProjectTransferRouteServices:
     project_transfer: Any
     lock: threading.Lock
+    worlds: Any = None  # the world limit of a hosted account (S268-9)
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class ManuscriptImportRouteServices:
     manuscript_import: Any
     lock: threading.Lock
+    worlds: Any = None  # the world limit of a hosted account (S268-9)
+    syncable: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +165,7 @@ class HistoryRouteServices:
     # The one write the history routes have (T-87 B): putting a version back. Only
     # that bound use case, not the whole backups slice, so the routes stay narrow.
     restore_version: Any = None
+    finish_promotion: Callable[[str], Mapping[str, Any]] = lambda _world_id: {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +180,126 @@ class IdentityRouteServices:
 class WritingAssistanceRouteServices:
     writing_assistance: WritingAssistanceService
     installable: bool = True
+    grammar_installable: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class CapabilitiesRouteServices:
+    """The facts GET /api/capabilities reports, already decided (T-102)."""
+
+    multi_user: bool
+    syncable: bool
+    assistant_install: bool
+    writing_data_install: bool
+    grammar_install: bool
+    # Per session: may this account use the server-side assistant (T-58).
+    is_premium: Callable[[SessionData], bool] = lambda session: True
+    # May a job run on the user's own engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
+    client_ai: bool = False
+    # QUILTOR_TEST_HOOKS=1 only: the client may offer its test profile (T-61 part 6/8).
+    test_hooks: bool = False
+
+
+DEFAULT_ASSISTANT_MAX_OPEN_JOBS = 3
+MAX_ASSISTANT_MAX_OPEN_JOBS = 100
+
+
+def assistant_client_ai(configured: str) -> bool:
+    """QUILTOR_ASSISTANT_CLIENT_AI: `1` or unset lets users run jobs on their own engine,
+    `0` does not. On by default since the relay routes exist (T-61 Teil 3)."""
+    configured = configured.strip()
+    if configured == "0":
+        return False
+    if configured in {"", "1"}:
+        return True
+    raise RuntimeError("QUILTOR_ASSISTANT_CLIENT_AI must be 0 or 1.")
+
+
+def assistant_max_open_jobs(configured: str) -> int:
+    """QUILTOR_ASSISTANT_MAX_OPEN_JOBS, or the default when unset or empty."""
+    configured = configured.strip()
+    if not configured:
+        return DEFAULT_ASSISTANT_MAX_OPEN_JOBS
+    if not (configured.isascii() and configured.isdigit()) or not (
+        1 <= int(configured) <= MAX_ASSISTANT_MAX_OPEN_JOBS
+    ):
+        raise RuntimeError(
+            "QUILTOR_ASSISTANT_MAX_OPEN_JOBS must be a whole number from 1 to "
+            f"{MAX_ASSISTANT_MAX_OPEN_JOBS}."
+        )
+    return int(configured)
+
+
+def trusted_proxies(configured: str) -> frozenset[str]:
+    """QUILTOR_TRUSTED_PROXIES: comma-separated IP addresses (no networks, no names) of the
+    reverse proxies in front of this server. Unset or empty = none. Entries are normalised."""
+    if not configured.strip():
+        return frozenset()
+    found: set[str] = set()
+    for entry in configured.split(","):
+        try:
+            found.add(str(ipaddress.ip_address(entry.strip())))
+        except ValueError:
+            raise RuntimeError(
+                "QUILTOR_TRUSTED_PROXIES must be a comma-separated list of IP addresses."
+            ) from None
+    return frozenset(found)
+
+
+CSP_POLICY_FILE = Path(__file__).with_name("csp-policy.json")
+CSP_MODES = ("report-only", "enforce", "off")
+_CSP_ORIGIN = re.compile(r"https://[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*(?::[0-9]{1,5})?")
+
+
+def csp_mode(configured: str, profile: str = "local") -> str:
+    """QUILTOR_CSP: `enforce`, `report-only` or `off`, with a default per operation profile.
+
+    D-198 (S269-1). The default comes from the profile, so an instance enforces without anyone
+    setting a variable: hosted and every web instance without identity (local, self-hosted).
+    An operator may step back to `report-only` while a blocked resource is reported, or widen
+    connect-src with QUILTOR_CSP_CONNECT_EXTRA when a model host changes (D-197); both are the
+    documented ways out (docker-compose.yml). The desktop window stays on `report-only` until an
+    export under `enforce` has been proven in WebView2 and WKWebView: pywebview builds its
+    bridge with `new Function`.
+    """
+    configured = configured.strip()
+    if configured and configured not in CSP_MODES:
+        raise RuntimeError("QUILTOR_CSP must be report-only, enforce or off.")
+    if configured:
+        return configured
+    return "report-only" if profile == DESKTOP else "enforce"
+
+
+def csp_connect_extra(configured: str) -> tuple[str, ...]:
+    """QUILTOR_CSP_CONNECT_EXTRA: space-separated https:// origins, no path, no wildcard."""
+    origins = tuple(configured.split())
+    for origin in origins:
+        if not _CSP_ORIGIN.fullmatch(origin):
+            raise RuntimeError(
+                "QUILTOR_CSP_CONNECT_EXTRA must list https:// origins separated by spaces, "
+                f"without path or wildcard: {origin!r}"
+            )
+    return origins
+
+
+def content_security_policy(
+    mode: str, *, connect_extra: tuple[str, ...] = (), test_hooks: bool = False
+) -> tuple[str, str] | None:
+    """The header name and value every HTML answer carries, or None when switched off.
+
+    No report-uri: violations are seen in the browser console and by the product suite.
+    """
+    if mode == "off":
+        return None
+    policy = json.loads(CSP_POLICY_FILE.read_text(encoding="utf-8"))
+    directives = {name: list(values) for name, values in policy["directives"].items()}
+    directives["connect-src"] += policy["webllmHosts"]
+    if test_hooks:
+        directives["connect-src"].append(policy["testHooksOrigin"])
+    directives["connect-src"] += list(connect_extra)
+    value = "; ".join(f"{name} {' '.join(values)}" for name, values in directives.items())
+    name = "Content-Security-Policy" if mode == "enforce" else "Content-Security-Policy-Report-Only"
+    return name, value
 
 
 HOSTED = "hosted"
@@ -179,6 +322,34 @@ def operation_profile_for(*, multi_user: bool, process_role: ProcessRole | None)
     return LOCAL
 
 
+def assistant_installable(app: WebApplication) -> bool:
+    """Whether a request may install the assistant runtime and model (T-101).
+
+    The status route and GET /api/capabilities both report this, so the two
+    answers cannot drift apart (T-102).
+
+    Both axes count as well (T-102 D2, D-105 F7): without them the install
+    route starts nothing (`LocalAssistantInstallation.start_async` answers
+    False), so offering the button would be a promise the server cannot keep.
+    The Docker profile `web-self-hosted` is such a server (A-5 2.1).
+    """
+    return (
+        app.installable
+        and app.capabilities.is_available(Feature.LOCAL_INFERENCE)
+        and app.capabilities.is_available(Feature.CODE_DOWNLOAD)
+    )
+
+
+def writing_data_installable(app: WebApplication) -> bool:
+    """Whether a request may install the dictionary data (T-101, T-102)."""
+    return app.installable
+
+
+def grammar_installable(app: WebApplication) -> bool:
+    """Whether a request may install LanguageTool (T-101, T-102)."""
+    return app.installable
+
+
 @dataclass(slots=True)
 class WebApplication:
     """All state owned by one HTTP server instance, never by a module import."""
@@ -198,6 +369,16 @@ class WebApplication:
     bound_to_loopback: bool
     lock: threading.Lock
     operation_profile: str = LOCAL
+    # How many queued or running assistant jobs one account may have (OIDC only).
+    assistant_max_open_jobs: int = DEFAULT_ASSISTANT_MAX_OPEN_JOBS
+    # Whether a job may name a client engine (QUILTOR_ASSISTANT_CLIENT_AI, T-61).
+    assistant_client_ai: bool = True
+    # Reverse proxies whose X-Forwarded-For is believed (QUILTOR_TRUSTED_PROXIES, S268-2).
+    trusted_proxies: frozenset[str] = frozenset()
+    # Header for every text/html answer (QUILTOR_CSP, T-61); None sends none.
+    content_security_policy: tuple[str, str] | None = None
+    # QUILTOR_TEST_HOOKS=1, read from the environment only, never from a request (T-61).
+    test_hooks: bool = False
 
     @property
     def installable(self) -> bool:
@@ -241,7 +422,7 @@ class WebApplication:
             location,
             title=opened.summary.title,
         )
-        return WebWorldContext(world_id, location, context)
+        return WebWorldContext(world_id, location, context, preview=opened.summary.preview)
 
     def issue_render_token(self, subject: str) -> str:
         return self.identity.issue_render_token(subject)
@@ -249,18 +430,14 @@ class WebApplication:
     def redeem_render_token(self, token: str) -> str | None:
         return self.identity.redeem_render_token(token)
 
-    def session_backup_token(self, session: SessionData | None) -> str:
-        if session is None:
-            return ""
-        return self.identity.auth.session_access_token(session.session_id, leeway=TOKEN_LEEWAY)
-
     def backup_authorization(
         self, base_url: str, session: SessionData | None
     ) -> BackupAuthorization:
+        # A hosted server offers no device sync (D-61), so no route reaches this there
+        # (T-87 S). Refuse rather than fall back to the local login: that credential
+        # belongs to whoever runs the process, not to the person asking (T-157).
         if self.identity.multi_user:
-            return self.backup_authorizer.authorize_hosted(
-                base_url, self.session_backup_token(session)
-            )
+            raise PermissionError("Device sync is not offered on a hosted server.")
         return self.backup_authorizer.authorize_local(base_url)
 
     def close(self) -> None:
@@ -272,13 +449,20 @@ class WebApplication:
         """Expose only the capabilities owned by the selected route context."""
 
         if path.startswith("/api/worlds"):
-            return WorldRouteServices(self.application.worlds, self.lock, self.syncable)
+            return WorldRouteServices(
+                self.application.worlds,
+                self.lock,
+                self.syncable,
+                self.application.example_worlds,
+            )
         if path in {"/api/state", "/api/manuscript", "/api/storyboards", "/api/book.pdf"}:
             return DocumentRouteServices(
                 self.application.documents,
                 self.lock,
                 self.render_pdf,
                 self.issue_render_token,
+                self.application.worlds.finish_promotion,
+                self.observability,
             )
         if path.startswith("/api/assistant"):
             return AssistantRouteServices(
@@ -289,7 +473,11 @@ class WebApplication:
                 self.assistant_jobs,
                 self.assistant_installation,
                 self.lock,
-                self.installable,
+                self.identity,
+                self.assistant_max_open_jobs if self.identity.multi_user else None,
+                assistant_installable(self),
+                self.assistant_client_ai,
+                self.assistant_services.relay_tickets,
             )
         if path.startswith("/api/sync"):
             return SynchronizationRouteServices(
@@ -310,11 +498,26 @@ class WebApplication:
                 self.syncable,
             )
         if path.startswith("/api/place-map"):
-            return PlaceMapRouteServices(self.application.place_maps, self.observability, self.lock)
+            return PlaceMapRouteServices(
+                self.application.place_maps,
+                self.observability,
+                self.lock,
+                self.application.worlds.finish_promotion,
+            )
         if path.startswith("/api/project-transfer"):
-            return ProjectTransferRouteServices(self.application.project_transfer, self.lock)
+            return ProjectTransferRouteServices(
+                self.application.project_transfer,
+                self.lock,
+                self.application.worlds,
+                self.syncable,
+            )
         if path.startswith("/api/manuscript-import"):
-            return ManuscriptImportRouteServices(self.application.manuscript_import, self.lock)
+            return ManuscriptImportRouteServices(
+                self.application.manuscript_import,
+                self.lock,
+                self.application.worlds,
+                self.syncable,
+            )
         if path.startswith("/api/manuscript-export"):
             return ManuscriptExportRouteServices(self.application.manuscript_export, self.lock)
         if path.startswith("/api/history"):
@@ -322,9 +525,25 @@ class WebApplication:
                 self.application.history,
                 self.lock,
                 self.application.backups.restore_version,
+                self.application.worlds.finish_promotion,
             )
         if path.startswith("/api/writing-assistance"):
-            return WritingAssistanceRouteServices(self.writing_assistance, self.installable)
+            return WritingAssistanceRouteServices(
+                self.writing_assistance,
+                writing_data_installable(self),
+                grammar_installable(self),
+            )
+        if path == "/api/capabilities":
+            return CapabilitiesRouteServices(
+                self.identity.multi_user,
+                self.syncable,
+                assistant_installable(self),
+                writing_data_installable(self),
+                grammar_installable(self),
+                self.identity.is_premium,
+                client_ai=self.assistant_client_ai,
+                test_hooks=self.test_hooks,
+            )
         return IdentityRouteServices(self.identity, self.observability, self.version, self.syncable)
 
 
@@ -376,6 +595,14 @@ def build_web_application(
         capabilities, observability, persistence_paths=persistence_paths
     )
     selected_identity = identity or build_identity()
+    # S269-4: the desktop window and `quiltor run` open the app with the process token in the
+    # URL, so the loopback port alone no longer names the owner -- another OS account on the
+    # same machine reaches that port too. The source-checkout server keeps loopback trust.
+    if isinstance(selected_identity, LocalIdentity) and current_target().process_role in (
+        ProcessRole.DESKTOP,
+        ProcessRole.CLI,
+    ):
+        selected_identity.require_token()
     public_url = _validated_public_url(selected_identity)
     lock = threading.Lock()
     runtime_home = (
@@ -394,15 +621,25 @@ def build_web_application(
         observability=observability,
         capabilities=capabilities,
         inference=inference,
-    )
-    backup_authorizer = build_backup_authorizer(
-        application.backups,
-        expected_hosted_issuer=(
-            selected_identity.auth.issuer if selected_identity.multi_user else ""
+        # Hosted accounts only; a single local owner has no role to lose (S268-100).
+        server_job_gate=(
+            (
+                lambda sub: selected_identity.auth.premium_confirmed(
+                    sub, selected_identity.premium_role
+                )
+            )
+            if selected_identity.multi_user
+            else None
         ),
     )
+    backup_authorizer = build_backup_authorizer(application.backups)
     version_file = resources.version_file()
     version = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else "dev"
+    test_hooks = os.environ.get("QUILTOR_TEST_HOOKS", "") == "1"
+    operation_profile = operation_profile_for(
+        multi_user=selected_identity.multi_user,
+        process_role=current_target().process_role,
+    )
     return WebApplication(
         application=application,
         capabilities=capabilities,
@@ -420,10 +657,18 @@ def build_web_application(
         public_url=public_url,
         bound_to_loopback=(os.environ.get("QUILTOR_HOST", "127.0.0.1") in LOOPBACK_HOSTS),
         lock=lock,
-        operation_profile=operation_profile_for(
-            multi_user=selected_identity.multi_user,
-            process_role=current_target().process_role,
+        operation_profile=operation_profile,
+        assistant_max_open_jobs=assistant_max_open_jobs(
+            os.environ.get("QUILTOR_ASSISTANT_MAX_OPEN_JOBS", "")
         ),
+        assistant_client_ai=assistant_client_ai(os.environ.get("QUILTOR_ASSISTANT_CLIENT_AI", "")),
+        trusted_proxies=trusted_proxies(os.environ.get("QUILTOR_TRUSTED_PROXIES", "")),
+        content_security_policy=content_security_policy(
+            csp_mode(os.environ.get("QUILTOR_CSP", ""), operation_profile),
+            connect_extra=csp_connect_extra(os.environ.get("QUILTOR_CSP_CONNECT_EXTRA", "")),
+            test_hooks=test_hooks,
+        ),
+        test_hooks=test_hooks,
     )
 
 

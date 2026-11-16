@@ -37,6 +37,7 @@ export const writing = {
   grammarChecksumMismatch:
     "The downloaded LanguageTool file is not the expected one, so it was not installed.",
   grammarStartFailed: "LanguageTool is installed but could not be started.",
+  writingRateLimited: "The writing aid is busy right now. Try again in a moment.",
   grammarServerUnavailable: "The grammar check is not responding right now. Try again shortly.",
   grammarExternalOptInRequired: "An external grammar service is configured but not enabled.",
   grammarIssueCount: "{count} issues found.",

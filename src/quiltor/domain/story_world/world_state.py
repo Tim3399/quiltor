@@ -10,14 +10,60 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
-from typing import Any, Literal, NamedTuple
+from typing import Literal, NamedTuple, TypedDict
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.validation import valid_figures
 
 UNKNOWN = "unknown"
 Phase = Literal["before", "at", "after"]
-WorldState = dict[str, Any]
+
+
+class EntityState(TypedDict):
+    """An element at one point in time: alive (or "unknown") and where it is."""
+
+    alive: bool | str
+    # A place id from the aggregate, or "unknown".
+    location: object
+
+
+# Functional form: "from" is a keyword. Values are copied from the aggregate as they are.
+RelationshipState = TypedDict(
+    "RelationshipState",
+    {
+        "active": object,
+        "from": object,
+        "to": object,
+        "label": object,
+        "directed": object,
+        "style": object,
+    },
+)
+
+
+class WorldState(TypedDict):
+    momentId: str | None
+    phase: Phase
+    entities: dict[str, EntityState]
+    relationships: dict[str, RelationshipState]
+
+
+FieldChange = TypedDict("FieldChange", {"from": object, "to": object})
+
+
+class StateDiff(TypedDict):
+    fromMomentId: str
+    toMomentId: str
+    # Per object id, per field that differs.
+    entities: dict[str, dict[str, FieldChange]]
+    relationships: dict[str, dict[str, FieldChange]]
+
+
+class HistoryEntry(TypedDict):
+    momentId: str
+    time: int
+    position: int
+    changes: dict[str, FieldChange]
 
 
 class WorldStateError(ValueError):
@@ -101,7 +147,7 @@ def _project(
             return False
         return candidate.key <= through if inclusive else candidate.key < through
 
-    entities: dict[str, dict[str, Any]] = {}
+    entities: dict[str, EntityState] = {}
     for node in _rows(figures.get("nodes")):
         death_id = _moment_ref(node.get("diedMomentId"))
         alive: bool | str = UNKNOWN
@@ -118,9 +164,9 @@ def _project(
         if applies(_moment_ref(entry.get("momentId"))):
             entities[_text(entry, "elementId")]["location"] = entry["placeId"]
 
-    relationships: dict[str, dict[str, Any]] = {}
+    relationships: dict[str, RelationshipState] = {}
     for edge in _rows(figures.get("edges")):
-        resolved: dict[str, Any] = {
+        resolved: RelationshipState = {
             "active": edge.get("active", True) is not False,
             "from": edge["from"],
             "to": edge["to"],
@@ -136,15 +182,9 @@ def _project(
             if not applies(_text(version, "momentId")):
                 continue
             resolved["active"] = version["active"]
-            for source, target in (
-                ("from", "from"),
-                ("to", "to"),
-                ("label", "label"),
-                ("directed", "directed"),
-                ("style", "style"),
-            ):
-                if source in version:
-                    resolved[target] = version[source]
+            for field in ("from", "to", "label", "directed", "style"):
+                if field in version:
+                    resolved[field] = version[field]
         relationships[_text(edge, "id")] = resolved
 
     return {
@@ -198,32 +238,39 @@ def state_after(figures: Mapping[str, object], moment_id: str) -> WorldState:
     )
 
 
-def state_diff(figures: Mapping[str, object], moment_a: str, moment_b: str) -> dict[str, Any]:
+def _changes(
+    before: Mapping[str, Mapping[str, object]], after: Mapping[str, Mapping[str, object]]
+) -> dict[str, dict[str, FieldChange]]:
+    """Per object id, the fields whose values differ between two projections."""
+
+    result: dict[str, dict[str, FieldChange]] = {}
+    for object_id in sorted(set(before) | set(after)):
+        left = before.get(object_id, {})
+        right = after.get(object_id, {})
+        changes: dict[str, FieldChange] = {
+            field: {"from": deepcopy(left.get(field)), "to": deepcopy(right.get(field))}
+            for field in sorted(set(left) | set(right))
+            if left.get(field) != right.get(field)
+        }
+        if changes:
+            result[object_id] = changes
+    return result
+
+
+def state_diff(figures: Mapping[str, object], moment_a: str, moment_b: str) -> StateDiff:
     before = state_at(figures, moment_a)
     after = state_at(figures, moment_b)
-    result: dict[str, Any] = {
+    return {
         "fromMomentId": moment_a,
         "toMomentId": moment_b,
-        "entities": {},
-        "relationships": {},
+        "entities": _changes(before["entities"], after["entities"]),
+        "relationships": _changes(before["relationships"], after["relationships"]),
     }
-    for section in ("entities", "relationships"):
-        for object_id in sorted(set(before[section]) | set(after[section])):
-            left = before[section].get(object_id, {})
-            right = after[section].get(object_id, {})
-            changes = {
-                field: {"from": deepcopy(left.get(field)), "to": deepcopy(right.get(field))}
-                for field in sorted(set(left) | set(right))
-                if left.get(field) != right.get(field)
-            }
-            if changes:
-                result[section][object_id] = changes
-    return result
 
 
 def history_for(
     figures: Mapping[str, object], entity_id: str, predicate: str | None = None
-) -> list[dict[str, Any]]:
+) -> list[HistoryEntry]:
     aggregate, timeline = _validated(figures)
     if entity_id not in {_text(node, "id") for node in _rows(aggregate.get("nodes"))}:
         raise WorldStateError(f"Unknown entity: {entity_id!r}.")
@@ -233,11 +280,11 @@ def history_for(
     base = _project(aggregate, timeline, None, moment_id=None, phase="before", inclusive=False)[
         "entities"
     ][entity_id]
-    entries: list[dict[str, Any]] = []
+    entries: list[HistoryEntry] = []
     previous = base
     for moment in timeline:
         current = state_at(aggregate, moment.id)["entities"][entity_id]
-        changes = {
+        changes: dict[str, FieldChange] = {
             field: {"from": deepcopy(previous[field]), "to": deepcopy(current[field])}
             for field in ("alive", "location")
             if previous[field] != current[field] and (predicate is None or predicate == field)

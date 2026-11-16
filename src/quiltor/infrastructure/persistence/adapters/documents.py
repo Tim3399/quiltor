@@ -12,6 +12,7 @@ from quiltor.infrastructure.persistence.sqlite import (
     manuscript,
     place_map_images,
     revisions,
+    schema,
     story_world,
     storyboards,
 )
@@ -20,6 +21,9 @@ from quiltor.infrastructure.persistence.sqlite import (
 class SQLiteDocumentRepository:
     def exists(self, database: Path) -> bool:
         return database.is_file()
+
+    def migrate(self, database: Path) -> None:
+        schema.initialize(database)
 
     def revision_checkpoint(self, database: Path) -> dict[str, int]:
         if not database.is_file():
@@ -55,9 +59,13 @@ class SQLiteDocumentRepository:
         state: dict[str, Any],
         expected_revision: int | None,
         database: Path,
+        *,
+        promote: bool = True,
     ) -> int:
         try:
-            return revisions.save_with_revision(kind, state, expected_revision, db_path=database)
+            return revisions.save_with_revision(
+                kind, state, expected_revision, db_path=database, promote=promote
+            )
         except revisions.ConflictError as exc:
             raise RevisionConflict(kind, exc.expected, exc.actual, str(exc)) from exc
         except revisions.StoryTimeConflictError as exc:
@@ -76,8 +84,11 @@ class SQLiteDocumentRepository:
         response: dict[str, Any] | None,
         error: str,
         database: Path | None,
+        engine: str = "server",
     ) -> str:
-        return assistant_history.log_interaction(question, response, error=error, db_path=database)
+        return assistant_history.log_interaction(
+            question, response, error=error, db_path=database, engine=engine
+        )
 
     def list_assistant_interactions(self, database: Path, limit: int = 50) -> list[dict[str, Any]]:
         return assistant_history.list_interactions(limit=limit, db_path=database)

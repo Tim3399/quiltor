@@ -21,13 +21,14 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.platform.ports import AppDirectories
+from quiltor.modules.identity.service import LocalIdentity
 from tests.python import late_body
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
@@ -382,6 +383,142 @@ class ProxiedDeploymentTests(_LiveLocalServerTestCase):
     def test_a_cross_origin_request_is_not_blocked_when_not_bound_to_loopback(self):
         status, _ = self._request("GET", "/api/version", headers={"Origin": "https://evil.example"})
         self.assertEqual(status, 200)
+
+
+class PublicOriginTests(_LiveLocalServerTestCase):
+    """Behind a proxy with QUILTOR_PUBLIC_URL set, a browser write must come from that
+    origin (T-58 P3). The reads and the requests without an Origin stay open."""
+
+    PUBLIC = "https://quiltor.example.test"
+
+    def setUp(self):
+        super().setUp()
+        self.application.bound_to_loopback = False
+        self.application.public_url = self.PUBLIC
+
+    def _write(self, origin: str | None):
+        """A world creation; the master token stands in for the session the proxy's
+        OIDC would have, since a hosted server is not 'loopback' for the local login."""
+        token = cast(LocalIdentity, self.application.identity).token
+        headers = {"Authorization": f"Bearer {token}"}
+        if origin is not None:
+            headers["Origin"] = origin
+        return self._create_world(headers=headers)
+
+    def test_a_foreign_origin_is_refused_on_a_write(self):
+        status, body = self._write("https://evil.example")
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+        self.assertFalse(body["error"]["retryable"])
+
+    def test_the_public_origin_passes(self):
+        status, body = self._write(self.PUBLIC)
+        self.assertEqual(status, 200, body)
+
+    def test_the_public_origin_with_its_default_port_passes(self):
+        status, body = self._write("https://quiltor.example.test:443")
+        self.assertEqual(status, 200, body)
+
+    def test_the_spelling_of_scheme_and_host_does_not_matter(self):
+        status, body = self._write("HTTPS://Quiltor.Example.TEST")
+        self.assertEqual(status, 200, body)
+
+    def test_a_write_without_an_origin_passes(self):
+        status, body = self._write(None)
+        self.assertEqual(status, 200, body)
+
+    def test_a_null_origin_is_refused(self):
+        status, body = self._write("null")
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+
+    def test_near_misses_of_the_public_origin_are_refused(self):
+        for origin in (
+            "http://quiltor.example.test",
+            "https://quiltor.example.test:8443",
+            "https://quiltor.example.test.evil.example",
+            "https://evil.example/quiltor.example.test",
+            "https://quiltor.example.test/",
+            "https://quiltor.example.test/path",
+            "https://user@quiltor.example.test",
+            "https://",
+            "quiltor.example.test",
+        ):
+            with self.subTest(origin=origin):
+                status, body = self._write(origin)
+                self.assertEqual(status, 403)
+                self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+
+    def test_a_read_with_a_foreign_origin_passes(self):
+        status, _ = self._request("GET", "/api/version", headers={"Origin": "https://evil.example"})
+        self.assertEqual(status, 200)
+        status, _ = self._request("GET", "/api/version", headers={"Origin": "null"})
+        self.assertEqual(status, 200)
+
+    def test_every_method_the_server_dispatches_besides_get_counts_as_a_write(self):
+        # HEAD, PATCH and DELETE never get this far: http.server answers them 501 itself.
+        for method in ("POST", "PUT"):
+            with self.subTest(method=method):
+                status, body = self._request(
+                    method, "/api/worlds/create", headers={"Origin": "https://evil.example"}
+                )
+                self.assertEqual(status, 403)
+                self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+
+    def test_without_a_public_url_nothing_is_compared(self):
+        self.application.public_url = ""
+        status, body = self._write("https://evil.example")
+        self.assertEqual(status, 200, body)
+
+    def test_a_public_url_with_a_path_compares_only_the_origin(self):
+        self.application.public_url = self.PUBLIC + "/quiltor"
+        status, body = self._write(self.PUBLIC)
+        self.assertEqual(status, 200, body)
+
+    def test_a_loopback_server_is_unchanged(self):
+        self.application.bound_to_loopback = True
+        status, _ = self._create_world(headers={"Origin": self.PUBLIC})
+        self.assertEqual(status, 403)
+        status, body = self._create_world(headers={"Origin": f"http://127.0.0.1:{self.port}"})
+        self.assertEqual(status, 200, body)
+
+
+class RefusedPublicOriginBodyTests(_LiveLocalServerTestCase):
+    """The refusal of a foreign public origin answers whole, like every early refusal (D-38).
+
+    See tests/python/late_body.py for why the body is sent after the headers.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.application.bound_to_loopback = False
+        self.application.public_url = "https://quiltor.example.test"
+
+    def test_a_foreign_origin_gets_its_whole_403(self):
+        body = b'{"title": "Testwelt", "backupUrl": ""}'
+        for attempt in range(30):
+            with self.subTest(attempt=attempt):
+                answer = late_body.send(
+                    self.port,
+                    "POST",
+                    "/api/worlds/create",
+                    headers={"Content-Type": "application/json", "Origin": "https://evil.example"},
+                    body=body,
+                )
+                self.assertEqual(answer.status, 403, answer.body[:200])
+                self.assertEqual(answer.json()["error"]["code"], "request.untrusted_origin")
+
+    def test_an_oversized_content_length_does_not_wait(self):
+        answer = late_body.send(
+            self.port,
+            "POST",
+            "/api/worlds/create",
+            headers={"Content-Type": "application/json", "Origin": "null"},
+            length=str(server.REFUSED_BODY_DISCARD_LIMIT + 1),
+            pause=0,
+        )
+        self.assertEqual(answer.status, 403, answer.body[:200])
+        self.assertLess(answer.elapsed, 1.0)
 
 
 if __name__ == "__main__":

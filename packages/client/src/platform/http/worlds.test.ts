@@ -279,4 +279,44 @@ describe("worlds HTTP port", () => {
       "Invalid world wire value",
     );
   });
+
+  it("opens a fresh example-world preview in the given language and keeps its marks", async () => {
+    const preview = { ...world, origin: "example", preview: true };
+    const fetchMock = vi.fn().mockResolvedValue(response({ ok: true, world: preview }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createWorldsHttpGateway(createHttpApplicationState()).openExample("en");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/worlds/open-example");
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe('{"lang":"en"}');
+    expect(result.world).toMatchObject({ origin: "example", preview: true });
+  });
+
+  it("discards a preview with a JSON request that survives the page being left", () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({ ok: true, discarded: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    createWorldsHttpGateway(createHttpApplicationState()).discardPreview(WORLD_ID);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("/api/worlds/discard-preview");
+    expect(init).toMatchObject({
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: `{"id":"${WORLD_ID}"}`,
+    });
+  });
+
+  it("refuses an origin or a preview mark it does not know", async () => {
+    for (const marks of [{ origin: "imported" }, { preview: false }, { preview: "yes" }]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(response({ ok: true, worlds: [{ ...world, ...marks }] })),
+      );
+      await expect(createWorldsHttpGateway(createHttpApplicationState()).list()).rejects.toThrow(
+        TypeError,
+      );
+    }
+  });
 });

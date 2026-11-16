@@ -135,7 +135,10 @@
                     "properties": { "kind": { "enum": ["entity", "place", "timeline", "chapter"] } }
                   }
                 ]
-              }
+              },
+              "text": { "maxLength": 0 },
+              "noteReferences": { "maxItems": 0 },
+              "noteMarks": { "maxItems": 0 }
             }
           }
         },

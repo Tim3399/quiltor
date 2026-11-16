@@ -203,6 +203,15 @@ function storyboardsPayload(value: unknown, path: string): StoryboardsPayloadWir
     } else if (kind === "reference") {
       decodedTarget = target(node.target, `${nodePath}.target`);
       wireEnum(decodedTarget.kind, REFERENCE_TARGET_KINDS, `${nodePath}.target.kind`);
+      // A reference card shows its element's note and keeps none of its own (T-177). Empty
+      // values stay valid: nothing can be lost in them, and older clients still send them.
+      if (decodedText) throw new WireContractError(`${nodePath}.text`);
+      for (const key of ["noteReferences", "noteMarks"] as const) {
+        const ranges = node[key];
+        if (Array.isArray(ranges) && ranges.length > 0) {
+          throw new WireContractError(`${nodePath}.${key}`);
+        }
+      }
     } else if (kind === "storyboard") {
       decodedTarget = target(node.target, `${nodePath}.target`);
       if (decodedTarget.kind !== "storyboard" || !boardIds.has(decodedTarget.id)) {

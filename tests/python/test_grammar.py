@@ -537,7 +537,9 @@ class ProfileGrammarBackendTests(unittest.TestCase):
 
         # The routes are called directly, past the dispatch that refuses operator-only routes
         # on a server where nothing is installable (T-101); that gate has its own tests.
-        app = SimpleNamespace(writing_assistance=service, installable=True)
+        app = SimpleNamespace(
+            writing_assistance=service, installable=True, grammar_installable=True
+        )
         getattr(routes, name)(Handler(), Request(path=f"/api/writing-assistance/{name}"), app)
         return sent[0]
 

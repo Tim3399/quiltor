@@ -11,8 +11,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from typing import Any, ClassVar, cast
 from unittest.mock import MagicMock, patch
@@ -21,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOLING = REPO_ROOT / "distribution" / "tooling"
 sys.path.insert(0, str(TOOLING))
 
+import artifact_profile  # noqa: E402
 import dependency_lock_contract  # noqa: E402
 import path_filter  # noqa: E402
 import previous_release  # noqa: E402
@@ -29,6 +32,8 @@ import release_manifest  # noqa: E402
 import release_preflight  # noqa: E402
 import set_version  # noqa: E402
 import workflow_contract  # noqa: E402
+
+from tests.python.git_bash import find_bash  # noqa: E402
 
 BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
@@ -356,6 +361,41 @@ class ApplyVersionTests(VersionRepoTestCase):
         self.assertEqual(seen["version"], expected)
         self.assertEqual(seen["versions"], before)
         self.assertEqual(set(self.versions().values()), {seen["version"]})
+
+    def test_a_failed_version_update_puts_the_retaken_screenshots_back(self):
+        pictures = self.repo / "docs" / "screenshots" / "de"
+        pictures.mkdir(parents=True)
+        (pictures / "manifest.json").write_text('{"version": "old"}\n', encoding="utf-8")
+        self._git("add", "-A")
+        self._git(
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "user.name=t",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "pictures",
+        )
+
+        def retake(repo_root, version):
+            (pictures / "manifest.json").write_text(f'{{"version": "{version}"}}\n', "utf-8")
+            (pictures / "new-view.png").write_bytes(b"png")
+
+        stderr = io.StringIO()
+        with (
+            patch.object(set_version, "REPO_ROOT", self.repo),
+            patch.object(set_version, "run_preflight"),
+            patch.object(set_version, "refresh_readme_screenshots", side_effect=retake),
+            patch.object(set_version, "apply_version", side_effect=OSError("disk full")),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(stderr),
+        ):
+            self.assertEqual(set_version.main(["minor"]), 1)
+
+        self.assertEqual(self._git("status", "--porcelain").strip(), "")
+        self.assertIn("docs/screenshots is back at the last commit", stderr.getvalue())
 
     def test_failed_screenshots_write_no_version(self):
         before = self.versions()
@@ -1407,6 +1447,41 @@ class WorkflowBoundaryTests(unittest.TestCase):
                         sources, script.replace(evidence, "", 1)
                     )
 
+    def test_linux_product_suite_lifts_the_userns_restriction_before_playwright(self):
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_linux_pdf_sandbox(sources)
+        source = sources[TEST_WORKFLOW]
+        step_start = source.index("      - name: Allow user namespaces for Chromium's sandbox")
+        step_end = source.index("      - name: Start the application", step_start)
+        step = source[step_start:step_end]
+
+        def check(mutated_source, message):
+            mutated = dict(sources)
+            mutated[TEST_WORKFLOW] = mutated_source
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, message):
+                workflow_contract.validate_linux_pdf_sandbox(mutated)
+
+        with self.subTest(name="step removed"):
+            check(source.replace(step, "", 1), "without lifting")
+        with self.subTest(name="step after Playwright"):
+            moved = source.replace(step, "", 1)
+            at = moved.index("      - name: Upload test durations")
+            check(moved[:at] + step + moved[at:], "without lifting")
+        with self.subTest(name="failure swallowed"):
+            check(
+                source.replace(
+                    workflow_contract.USERNS_SYSCTL, workflow_contract.USERNS_SYSCTL + " || true", 1
+                ),
+                "must fail",
+            )
+        with self.subTest(name="sandbox switched off"):
+            check(
+                source.replace(
+                    "PYTHONPATH: src", "PYTHONPATH: src\n      QUILTOR_PDF_SANDBOX: off", 1
+                ),
+                "switches the PDF sandbox off",
+            )
+
     def test_windows_playwright_jobs_widen_the_port_range_before_playwright(self):
         sources = workflow_contract._workflow_sources()
         workflow_contract.validate_windows_port_range(sources)
@@ -1458,7 +1533,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
             "run: npx vitest run",
             "run: npm run check",
             "run: npx tsc -b && npx vite build",
-            "node tools/dev/test-shards.mjs select --os linux --slots 4",
+            "node tools/dev/test-shards.mjs select --os linux --slots 6",
             'npx playwright test --test-list "$lists/product.txt"',
             "npx playwright test --config playwright.design.config.ts",
             'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1',
@@ -1481,20 +1556,20 @@ class WorkflowBoundaryTests(unittest.TestCase):
         mutations = (
             (
                 "a slot fewer",
-                "slot: [1, 2, 3, 4]",
-                "slot: [1, 2, 3]",
-                "exactly four browser matrix slots",
+                "slot: [1, 2, 3, 4, 5, 6]",
+                "slot: [1, 2, 3, 4, 5]",
+                "exactly six browser matrix slots",
             ),
             (
                 "assignment for another slot count",
-                "--slots 4 --slot",
-                "--slots 3 --slot",
+                "--slots 6 --slot",
+                "--slots 5 --slot",
                 "missing fail-closed shard evidence",
             ),
             (
                 "back to cutting by count",
                 '--test-list "$lists/product.txt"',
-                '--shard="$SLOT/4"',
+                '--shard="$SLOT/6"',
                 "duration-assigned part of both suites",
             ),
             (
@@ -1568,21 +1643,21 @@ class WorkflowBoundaryTests(unittest.TestCase):
 
         mutations = (
             (
-                "final Windows slot repeats the seventh",
-                "slot: 8\n            slots: 8",
-                "slot: 7\n            slots: 8",
+                "final Windows slot repeats the ninth",
+                "slot: 10\n            slots: 10",
+                "slot: 9\n            slots: 10",
                 "one entry per slot",
             ),
             (
                 "macOS back to two slots",
-                "label: macos-15 / slot 3 of 3\n            slot: 3\n            slots: 3",
-                "label: macos-15 / slot 3 of 3\n            slot: 3\n            slots: 2",
+                "label: macos-15 / slot 4 of 4\n            slot: 4\n            slots: 4",
+                "label: macos-15 / slot 4 of 4\n            slot: 4\n            slots: 3",
                 "one entry per slot",
             ),
             (
                 "reused diagnostics name",
-                "diagnostics: windows-2025-8-of-8",
-                "diagnostics: windows-2025-7-of-8",
+                "diagnostics: windows-2025-10-of-10",
+                "diagnostics: windows-2025-9-of-10",
                 "one entry per slot",
             ),
             (
@@ -2522,6 +2597,7 @@ FULL_JOBS = {
     "visual-baseline-reach",
     "cross-platform-native",
     "cross-platform-browser",
+    "browser-e2e-oidc",
 }
 REDUCED_ALL_JOBS = (FULL_JOBS - {"cross-platform-browser"}) | {"cross-platform-smoke"}
 
@@ -2728,6 +2804,27 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
+                # Sign-in, sessions and autosave also run the OIDC browser suite (D-103).
+                "pull request, autosave",
+                pr,
+                ["packages/client/src/app/workspace/useAutosave.ts"],
+                {
+                    "frontend",
+                    "browser-e2e-shards",
+                    "visual-baseline-reach",
+                    "cross-platform-smoke",
+                    "browser-e2e-oidc",
+                },
+                True,
+            ),
+            (
+                "pull request, the OIDC browser suite",
+                pr,
+                ["tests/e2e-oidc/session-ended-autosave.spec.ts"],
+                {"frontend", "browser-e2e-oidc"},
+                False,
+            ),
+            (
                 "pull request, workflows only",
                 pr,
                 [".github/workflows/release.yml"],
@@ -2763,7 +2860,7 @@ class PathFilterContractTests(unittest.TestCase):
             (
                 "pull request, a README screenshot only (check:readme-screenshots hashes it)",
                 pr,
-                ["docs/screenshots/places.png"],
+                ["docs/screenshots/de/places.png"],
                 {"backend", "frontend", "cross-platform-native"},
                 False,
             ),
@@ -2791,7 +2888,7 @@ class PathFilterContractTests(unittest.TestCase):
         outputs.update(
             {
                 f"needs.plan.outputs.run_{group}": "false"
-                for group in ("checks", "python", "rust", "client", "lint")
+                for group in ("checks", "python", "rust", "client", "lint", "oidc")
             }
         )
         outputs["needs.plan.outputs.run_browser"] = "true"
@@ -2892,8 +2989,8 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the crash fallback forgets a group",
+                "for group in checks python rust client browser lint oidc; do",
                 "for group in checks python rust client browser lint; do",
-                "for group in checks python rust client browser; do",
                 "path filter step is missing",
             ),
             (
@@ -2946,7 +3043,7 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the gate forgets a job",
-                "      - cross-platform-smoke\n    if: always()",
+                "      - browser-e2e-oidc\n    if: always()",
                 "    if: always()",
                 "must need the plan and every filtered job",
             ),
@@ -3008,6 +3105,71 @@ class PathFilterContractTests(unittest.TestCase):
             ),
         ):
             workflow_contract.validate_path_filter(workflow_contract._workflow_sources())
+
+    def test_llama_conformance_runs_only_on_request_and_outside_the_gate(self):
+        """T-179, D-167: test.yml offers the llama conformance by dispatch, never as a gate."""
+        sources = workflow_contract._workflow_sources()
+        workflow = sources[TEST_WORKFLOW]
+        jobs = dict(workflow_contract._job_blocks(workflow))
+        self.assertIn("    if: inputs.llama_conformance == true\n", jobs["llama-conformance"])
+        self.assertNotIn("llama", jobs["browser-e2e"])
+        # Not asked for, the job is skipped and the gate never sees it: the gate script
+        # concludes green with exactly the results it has always had.
+        code, output, _ = run_gate_script(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        mutations = (
+            (
+                "runs on every event",
+                "    if: inputs.llama_conformance == true\n",
+                "    if: always()\n",
+                "test.yml:llama-conformance must be exactly an on-request call",
+            ),
+            (
+                "grants more than contents: read",
+                "    permissions:\n      contents: read\n    uses: ./.github/workflows/llama",
+                "    permissions:\n      contents: write\n    uses: ./.github/workflows/llama",
+                "test.yml:llama-conformance must be exactly an on-request call",
+            ),
+            (
+                "requested by default",
+                "      llama_conformance:\n"
+                '        description: "Also run the llama-server conformance (downloads a runtime '
+                'and a model)"\n'
+                "        type: boolean\n        default: false\n",
+                "      llama_conformance:\n"
+                '        description: "Also run the llama-server conformance (downloads a runtime '
+                'and a model)"\n'
+                "        type: boolean\n        default: true\n",
+                "must declare the boolean input llama_conformance, default false",
+            ),
+            (
+                "offered to a caller",
+                "  workflow_call:\n    inputs:\n",
+                "  workflow_call:\n    inputs:\n      llama_conformance:\n        type: boolean\n",
+                "workflow_call may not offer llama_conformance",
+            ),
+            (
+                "made a need of the gate",
+                "      - browser-e2e-oidc\n    if: always()\n",
+                "      - browser-e2e-oidc\n      - llama-conformance\n    if: always()\n",
+                "browser-e2e may not need the optional job llama-conformance",
+            ),
+            (
+                "an unlisted extra job",
+                "  llama-conformance:\n",
+                "  llama-conformance-extra:\n",
+                "test.yml jobs without a path-filter group: llama-conformance-extra",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, workflow)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = workflow.replace(original, replacement, 1)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(error)
+                ):
+                    workflow_contract.validate_path_filter(mutated)
 
     def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
         """T-46: the browsers no longer wait for frontend; the real gate script still fails."""
@@ -3247,9 +3409,9 @@ def run_gate_script(workflow, values):
     sees it, so the values go in as assignments ahead of the script, and the script on stdin.
     """
 
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
-        raise unittest.SkipTest("bash is not installed")
+        raise unittest.SkipTest("needs bash (Git Bash on Windows; WSL's bash is not usable here)")
     aggregator = workflow_contract._job_body(workflow, "browser-e2e")
     script = re.search(r"^        run: \|\n((?:          .*\n|\n)*)", aggregator, re.MULTILINE)
     assert script is not None, "browser-e2e has no run block"
@@ -3327,8 +3489,15 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         self.assertLessEqual(workflow_contract.REDUCED_ONLY, set(workflow_contract.FILTERED_JOBS))
         self.assertEqual(
             workflow_contract.FULL_MATRIX_EXPANSIONS,
-            {"browser-e2e-shards": 4, "cross-platform-native": 2, "cross-platform-browser": 11},
+            {"browser-e2e-shards": 6, "cross-platform-native": 2, "cross-platform-browser": 14},
         )
+
+    def test_full_mode_never_starts_more_macos_jobs_than_the_plan_runs(self):
+        validate = workflow_contract.validate_full_matrix_coverage
+        validate(self.sources)
+        with patch.object(workflow_contract, "MACOS_CONCURRENT_LIMIT", 4):
+            with self.assertRaisesRegex(workflow_contract.WorkflowContractError, "5 macOS jobs"):
+                validate(self.sources)
 
     def test_c1_coverage_mutations(self):
         validate = workflow_contract.validate_full_matrix_coverage
@@ -3349,21 +3518,21 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             ),
             (
                 "a Linux slot dropped",
-                "        slot: [1, 2, 3, 4]\n",
-                "        slot: [1, 2, 3]\n",
-                "browser-e2e-shards expands to 3 jobs",
+                "        slot: [1, 2, 3, 4, 5, 6]\n",
+                "        slot: [1, 2, 3, 4, 5]\n",
+                "browser-e2e-shards expands to 5 jobs",
             ),
             (
                 "an include row of the cross-platform matrix dropped",
                 "          - os: macos-15\n            system: macos\n"
-                "            label: macos-15 / slot 3 of 3\n            slot: 3\n"
-                "            slots: 3\n            diagnostics: macos-15-3-of-3\n",
+                "            label: macos-15 / slot 4 of 4\n            slot: 4\n"
+                "            slots: 4\n            diagnostics: macos-15-4-of-4\n",
                 "",
-                "cross-platform-browser expands to 10 jobs",
+                "cross-platform-browser expands to 13 jobs",
             ),
             (
                 "a matrix the contract cannot count",
-                "        slot: [1, 2, 3, 4]\n",
+                "        slot: [1, 2, 3, 4, 5, 6]\n",
                 "        slot: ${{ fromJSON(needs.plan.outputs.slots) }}\n",
                 "has a matrix the contract cannot count",
             ),
@@ -3603,7 +3772,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             ),
             (
                 "a status function on a test step",
-                "      - name: Layout audit rule tests\n        if: matrix.slot == 4\n",
+                "      - name: Layout audit rule tests\n        if: matrix.slot == 6\n",
                 "      - name: Layout audit rule tests\n        if: ${{ !cancelled() }}\n",
                 1,
             ),
@@ -3640,9 +3809,9 @@ def run_step_script(workflow, job, step_name, preamble, cwd=None):
     Returns (exit code, output).
     """
 
-    bash = shutil.which("bash")
+    bash = find_bash()
     if bash is None:
-        raise unittest.SkipTest("bash is not installed")
+        raise unittest.SkipTest("needs bash (Git Bash on Windows; WSL's bash is not usable here)")
     body = workflow_contract._job_body(workflow, job)
     start = body.find(f"      - name: {step_name}\n")
     if start < 0:  # the name is not the step's first key (`- id: x` comes first)
@@ -4584,9 +4753,18 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
         }
 
     def run_check(self, data, responses) -> str:
+        # The HEAD and the download draw from the same queue, in the order the check asks.
+        queue = iter(responses) if isinstance(responses, list) else None
+
+        def answer(*_args, **_kwargs):
+            if queue is None:
+                raise cast(BaseException, responses)
+            return next(queue)
+
         output = io.StringIO()
         with (
-            patch.object(release_preflight.urllib.request, "urlopen", side_effect=responses),
+            patch.object(release_preflight, "_open_head", side_effect=answer),
+            patch.object(release_preflight.urllib.request, "urlopen", side_effect=answer),
             contextlib.redirect_stdout(output),
         ):
             release_preflight._check_pinned_writing_data(data)
@@ -4616,6 +4794,47 @@ class PinnedWritingDataPreflightTests(unittest.TestCase):
                 self.assertRaisesRegex(release_preflight.PreflightError, "Pinned writing data"),
             ):
                 self.run_check(self.pin(), responses)
+
+    def test_head_stays_head_behind_a_redirect(self):
+        # GitHub answers a release asset with a 302 to its storage; urllib would follow it with
+        # a GET and start the download the HEAD is there to avoid.
+        import http.server
+        import threading
+
+        methods: list[tuple[str, str]] = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def _answer(self):
+                methods.append((self.command, self.path))
+                if self.path == "/asset":
+                    self.send_response(302)
+                    self.send_header("Location", "/storage")
+                    self.send_header("Content-Length", "0")
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Length", "6")
+                self.end_headers()
+                if self.command == "GET" and self.path == "/storage":
+                    self.wfile.write(b"sqlite")
+
+            do_HEAD = _answer
+            do_GET = _answer
+
+            def log_message(self, format: str, *args: Any) -> None:
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/asset"
+            with release_preflight._open_head(url, 10) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get("Content-Length"), "6")
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(methods, [("HEAD", "/asset"), ("HEAD", "/storage")])
 
     def test_check_is_not_part_of_the_matrix_coverage(self):
         self.assertNotIn(release_preflight.WRITING_DATA_LABEL, release_preflight.COVERAGE)
@@ -4663,6 +4882,199 @@ class ReleaseNotesStartTests(unittest.TestCase):
         self.assertIn('[ -z "$START" ] || NOTES+=(--notes-start-tag "$START")', publish)
         self.assertIn('--notes-start-tag --current-version "$VERSION")"', publish)
         self.assertIn('--title "v$VERSION" "${NOTES[@]}" --draft "${ASSETS[@]}"', publish)
+
+
+EXAMPLE_WORLD_SOURCE = REPO_ROOT / "src/quiltor/resources/example_world"
+
+
+def _packaged_package_data() -> list[str]:
+    """Non-Python files under src/quiltor that the package configuration packs as they are.
+
+    `resources/` is covered by the fixed resource list and the pyproject `exclude` entries
+    are generated (build profile) or left out (the MCP README), so what remains is data that
+    ships just because it sits next to the code, such as the CSP policy.
+    """
+    import tomllib
+
+    source = REPO_ROOT / "src/quiltor"
+    config = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    excluded = {
+        name.removeprefix("src/quiltor/") for name in config["tool"]["hatch"]["build"]["exclude"]
+    }
+    return sorted(
+        name
+        for name in artifact_profile._source_files(source)
+        if not name.endswith((".py", ".pyi", ".pyc"))
+        and "__pycache__" not in name
+        and not name.startswith("resources/")
+        and name not in excluded
+    )
+
+
+def _wheel_names() -> dict[str, bytes]:
+    """Every member a built wheel holds, as the build would pack it.
+
+    The example world is taken from its directory, not from the allowlist, so a file that
+    lands there without an allowlist entry shows up the way it would in a real wheel. Its
+    documents carry their real bytes; everything else is empty, which the payload check
+    does not read.
+    """
+    source = REPO_ROOT / "src/quiltor"
+    members: dict[str, bytes] = {
+        f"quiltor/{name}": b""
+        for name in artifact_profile._source_files(source)
+        if name.endswith((".py", ".pyi"))
+    }
+    for name in _packaged_package_data():
+        members[f"quiltor/{name}"] = b""
+    for name in artifact_profile.FIXED_RESOURCE_SOURCES:
+        if not name.startswith("example_world/"):
+            members[f"quiltor/resources/{name}"] = b""
+    for item in sorted(EXAMPLE_WORLD_SOURCE.iterdir()):
+        members[f"quiltor/resources/example_world/{item.name}"] = item.read_bytes()
+    for name in artifact_profile._source_files(REPO_ROOT / "dist"):
+        members[f"quiltor/resources/web/{name}"] = b""
+    for name in artifact_profile._source_files(REPO_ROOT / "distribution/assets/icons"):
+        members[f"quiltor/resources/icons/{name}"] = b""
+    members["quiltor/VERSION"] = b""
+    members["quiltor/infrastructure/platform/quiltor-build-profile.json"] = b""
+    for name in ("METADATA", "WHEEL", "entry_points.txt", "licenses/LICENSE", "RECORD"):
+        members[f"quiltor-1.dist-info/{name}"] = b""
+    return members
+
+
+def _write_wheel(directory: str, members: dict[str, bytes]) -> Path:
+    wheel = Path(directory) / "quiltor-1-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        for name, data in members.items():
+            archive.writestr(name, data)
+    return wheel
+
+
+class ShippedExampleWorldTests(unittest.TestCase):
+    """The package carries the example world: both languages and the map, the base world
+    only, and nothing else from tests/world/ (T-214-4).
+
+    `artifact_profile.py pkg-dist` runs these checks on the built wheel and sdist in the
+    release workflow; here they run on an archive laid out the same way.
+    """
+
+    def test_the_wheel_carries_both_documents_and_the_map(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wheel = _write_wheel(directory, _wheel_names())
+            artifact_profile._verify_wheel_payload(wheel)
+            artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_package_data_is_allowed_in_the_wheel_and_the_sdist(self):
+        data = _packaged_package_data()
+        self.assertIn("bootstrap/csp-policy.json", data)
+        for name in data:
+            with self.subTest(file=name):
+                self.assertIn(f"src/quiltor/{name}", artifact_profile.SDIST_FIXED_SOURCES)
+
+    def test_the_shipped_documents_carry_no_id_of_the_check_part(self):
+        # The real files as they are checked in: a ship built with the check part fails here.
+        for name in ("de.json", "en.json"):
+            with self.subTest(document=name):
+                text = (EXAMPLE_WORLD_SOURCE / name).read_text(encoding="utf-8")
+                self.assertIsNone(artifact_profile.CHECK_PART_ID.search(text))
+
+    def test_a_check_part_id_in_the_wheel_is_refused(self):
+        for leaked in ('"x-cluster-1"', '"item-x-note"', '"chapter:x-long"'):
+            with self.subTest(id=leaked), tempfile.TemporaryDirectory() as directory:
+                members = _wheel_names()
+                document = "quiltor/resources/example_world/de.json"
+                members[document] = members[document].replace(b'"nordhafen"', leaked.encode(), 1)
+                self.assertIn(leaked.encode(), members[document])
+                wheel = _write_wheel(directory, members)
+                with self.assertRaisesRegex(artifact_profile.ProfileError, "check part"):
+                    artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_a_test_world_file_in_the_wheel_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            members = _wheel_names()
+            members["quiltor/resources/example_world/ids.generated.ts"] = b"export {};"
+            wheel = _write_wheel(directory, members)
+            with self.assertRaisesRegex(artifact_profile.ProfileError, "allowlist drift"):
+                artifact_profile._verify_wheel_payload(wheel)
+
+    def test_a_missing_or_foreign_document_is_refused(self):
+        cases = {
+            "does not ship": lambda members: members.pop("quiltor/resources/example_world/en.json"),
+            "unreadable": lambda members: members.update(
+                {"quiltor/resources/example_world/en.json": b"{"}
+            ),
+            "format": lambda members: members.update(
+                {"quiltor/resources/example_world/en.json": b'{"format": "other"}'}
+            ),
+        }
+        for message, change in cases.items():
+            with self.subTest(case=message), tempfile.TemporaryDirectory() as directory:
+                members = _wheel_names()
+                change(members)
+                wheel = _write_wheel(directory, members)
+                with self.assertRaisesRegex(artifact_profile.ProfileError, message):
+                    artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_the_release_check_runs_the_rule_on_wheel_and_sdist(self):
+        """`verify_archive` is what `pkg-dist` calls; the other checks are stood in for."""
+        leaked = (
+            (EXAMPLE_WORLD_SOURCE / "de.json").read_bytes().replace(b'"nordhafen"', b'"x-leak"', 1)
+        )
+        clean = (EXAMPLE_WORLD_SOURCE / "en.json").read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            wheel = Path(directory) / "quiltor-1-py3-none-any.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("quiltor/resources/example_world/de.json", leaked)
+                archive.writestr("quiltor/resources/example_world/en.json", clean)
+            sdist = Path(directory) / "quiltor-1.tar.gz"
+            with tarfile.open(sdist, "w:gz") as archive:
+                for name, data in (("de.json", leaked), ("en.json", clean)):
+                    info = tarfile.TarInfo(f"quiltor-1/src/quiltor/resources/example_world/{name}")
+                    info.size = len(data)
+                    archive.addfile(info, io.BytesIO(data))
+            stand_ins = (
+                patch.object(artifact_profile, "_archive_document", return_value={}),
+                patch.object(artifact_profile, "expected_document", return_value={}),
+                patch.object(artifact_profile, "_archive_mcp_contract", return_value={}),
+                patch.object(artifact_profile, "expected_mcp_contract", return_value={}),
+                patch.object(artifact_profile, "_verify_wheel_payload"),
+                patch.object(artifact_profile, "_verify_sdist_payload"),
+                patch.object(artifact_profile, "_verify_wheel_oidc_dependency"),
+            )
+            with contextlib.ExitStack() as stack:
+                for stand_in in stand_ins:
+                    stack.enter_context(stand_in)
+                for artifact in (wheel, sdist):
+                    with (
+                        self.subTest(artifact=artifact.name),
+                        self.assertRaisesRegex(artifact_profile.ProfileError, "check part"),
+                    ):
+                        artifact_profile.verify_archive(artifact)
+
+    def test_the_sdist_is_held_to_the_same_rule(self):
+        for leak in (False, True):
+            with self.subTest(leak=leak), tempfile.TemporaryDirectory() as directory:
+                sdist = Path(directory) / "quiltor-1.tar.gz"
+                with tarfile.open(sdist, "w:gz") as archive:
+                    for name in ("de.json", "en.json"):
+                        data = (EXAMPLE_WORLD_SOURCE / name).read_bytes()
+                        if leak and name == "en.json":
+                            data = data.replace(b'"nordhafen"', b'"x-leak"', 1)
+                        info = tarfile.TarInfo(
+                            f"quiltor-1/src/quiltor/resources/example_world/{name}"
+                        )
+                        info.size = len(data)
+                        archive.addfile(info, io.BytesIO(data))
+                if leak:
+                    with self.assertRaisesRegex(artifact_profile.ProfileError, "check part"):
+                        artifact_profile._verify_example_world(
+                            sdist, "quiltor-1/src/quiltor/resources/"
+                        )
+                else:
+                    artifact_profile._verify_example_world(
+                        sdist, "quiltor-1/src/quiltor/resources/"
+                    )
 
 
 if __name__ == "__main__":

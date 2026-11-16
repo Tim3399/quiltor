@@ -244,10 +244,10 @@ test.yml with GitHub's comparison rules for these cases:
 | ------------------------------------------------------------------- | --------------------------- | ---------------------- |
 | plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
 | Core on macOS and Windows                                           | 2                           | 2                      |
-| Linux browser slots + `browser-e2e` aggregator                      | 4 + 1                       | 4 + 1                  |
-| Browser on Windows (8 slots) and macOS (3 slots)                    | 11                          | --                     |
+| Linux browser slots + `browser-e2e` aggregator                      | 6 + 1                       | 6 + 1                  |
+| Browser on Windows (10 slots) and macOS (4 slots)                   | 14                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
-| **Total**                                                           | **24** (was 23)             | **15** (was 23)        |
+| **Total**                                                           | **26** (was 23)             | **15** (was 23)        |
 
 Why this cut:
 
@@ -259,7 +259,7 @@ Why this cut:
   with slots 2 and 3 (6.5). Windows has run the whole product suite that way for a long time, so
   the tests do not depend on each other's order there. **Should the first CI run show
   order-dependent failures on Linux anyway, they belong to T-34 (flakes), not back into T-33.**
-- **Windows keeps eight slots.** Chromium exhausted the Windows runner's network buffers after
+- **Windows has ten slots since T-266, after nine (T-220) and eight.** Chromium exhausted the Windows runner's network buffers after
   more than 115 product tests, even with serialized contexts. Eight runners keep each product
   process at about 66 of the current 531 tests, as before; the design shard runs as its own
   process afterwards.
@@ -299,16 +299,63 @@ path`), plus a wall factor per suite and system: wall time of the slots over the
   still lands in exactly one slot. An entry no test matches is ignored. A slot that its other
   work already fills still gets one test, so no list is empty.
 - **Other work** counts as offset: the unit tests in slot 1 of Windows (3.1 min) and macOS
-  (2.5 min), the audit rules in Linux slot 4 (9 s), measured in the run on 15e0b43.
+  (2.5 min), the audit rules in Linux slot 6 (9 s), measured in the run on 15e0b43.
 - **Windows** keeps its cap: at most 100 product tests per slot (the network buffers ran out
-  above 115). With durations the busiest slot gets 78.
-- **macOS** runs three slots instead of two; with two, slot 1 took 13.5 minutes.
+  above 115). Eight slots hold at most 800 and the product suite reached 803 tests with T-220's drag spec, so Windows got nine slots. Nine hold at most 900 and the suites reached 917 tests with T-61, so
+  Windows has ten slots since T-266 (D-188); the cap stays at 100, because it is measured, not
+  chosen. macOS has no cap and stays at four. With eight slots the busiest slot got 78.
+- **macOS** runs four slots (T-160); with two, slot 1 took 13.5 minutes, with three 9 to 10.7.
 
 Contracts: `tools/dev/test-shards.test.mjs` (in `npm run check` through `test:tools`)
 reads the slot shapes from test.yml, lists the current suites and checks for every system that
 every test is assigned exactly once and selected by exactly one slot's list under Playwright's
 own matching rule. `workflow_contract.py` holds the slot topology, the fail-closed shell and the
 uploads, and requires the browser group for every program a browser job runs.
+
+#### More slots for the free plan's parallelism (T-160)
+
+Run 41799087265 took 13 minutes. No job waited longer than 24 s for a runner, so the queue was
+not the limit; the longest jobs were: macOS browser slots 9 to 10.7 minutes, Linux E2E slots 9.6
+to 10 (target: about 10 minutes per full run). The free plan allows more concurrent jobs than the
+matrix used, so the slots grew and the same duration table (`tests/playwright/durations.json`)
+cuts the suites finer:
+
+| System  | Slots before | Slots now | Expected tests per slot (`plan`) | Concurrent jobs of that system in full mode |
+| ------- | ------------ | --------- | -------------------------------- | ------------------------------------------- |
+| Linux   | 4            | 6         | 6.3 min (audit rules in slot 6)  | 6 + aggregator                              |
+| macOS   | 3            | 4         | 6.2 min (unit tests in slot 1)   | 4 + Core on macos-15 = **5**, the limit     |
+| Windows | 8            | 9 (T-220) | 5.4 min with eight slots         | 9 + Core on windows-2025                    |
+
+- **macOS stays at the limit of five concurrent jobs.** `workflow_contract.py` counts Core on
+  macos-15 plus every macOS browser slot (`MACOS_CONCURRENT_LIMIT`) and fails above five.
+  Release Build's `macos-direct` needs the tests, so it never overlaps.
+- **Contracts that moved with it** (C-1 and the slot checks): `slot: [1, 2, 3, 4, 5, 6]`,
+  `--slots 6 --offset 6=9000`, the `-of-6` artifact names, 6 + 12 matrix expansions, the audit
+  step on `matrix.slot == 6`, and `release_preflight.py`'s coverage line.
+- **Every test exactly once** still holds per system: `test-shards.mjs plan` refuses an
+  assignment that loses or repeats one, and `select` has Playwright confirm each slot's lists.
+- **The OIDC group** (`browser-e2e-oidc`, T-58 P7b, D-103) is one more Linux job, not a slot of
+  the matrix: it runs only when the plan sets `run_oidc`, uses no macOS runner and so leaves the
+  macOS limit at five. In full mode Linux runs 6 browser slots, the aggregator and this job.
+
+#### Duration and wait per job (run 42394051139)
+
+Expected = `test-shards.mjs plan` (tests only; a job adds about 3 to 4 minutes of setup).
+Measured = the first full run after the merge, 42394051139 (`full_matrix`, d9b13502,
+2026-11-07): whole job including setup, and the time it waited for a runner.
+
+| Job                                     | Expected tests (min) | Measured job (min)                          | Wait for a runner (s)              |
+| --------------------------------------- | -------------------- | ------------------------------------------- | ---------------------------------- |
+| Browser E2E / slot 1–6                  | 6.3 each             | 7.7–8.8 (7.9, 7.7, 8.8, 8.3, 8.3, 8.5)      | 1–77 (2, 2, 1, 27, 1, 77)          |
+| Browser E2E / OIDC sessions             | --                   | 1.2                                         | 1                                  |
+| Browser on macos-15 / slot 1 of 4       | 6.2 (incl. 2.5 unit) | 9.6                                         | 3                                  |
+| Browser on macos-15 / slot 2–4 of 4     | 6.2 each             | 8.2–8.8 (8.2, 8.6, 8.8)                     | 2 each                             |
+| Browser on windows-2025 / slot 1 of 8   | 5.4 (incl. 3.1 unit) | 8.9                                         | 2                                  |
+| Browser on windows-2025 / slot 2–8 of 8 | 5.4 each             | 6.3–8.4 (7.2, 6.3, 8.3, 8.0, 7.3, 8.4, 6.5) | 1–284 (223, 284, 14, 24, 1, 1, 10) |
+| Wall clock of the run                   | --                   | 11.3 (13 before, run 41799087265)           | --                                 |
+
+Windows slots 2 and 3 waited 223 s and 284 s for a free runner and so ended at about 11
+minutes; those two waits, not the longest job (macOS slot 1, 9.6 min), set the run's wall clock.
 
 #### Updating the table
 
@@ -397,7 +444,7 @@ the measured ones follow from the first full-matrix run.
 ### The pull-request smoke test
 
 **Linux stays complete on every pull request that runs browser suites at all** -- every product
-and design test, assigned to the four slots by duration, and the layout audit rules. That is the condition for running only a
+and design test, assigned to the six slots by duration, and the layout audit rules. That is the condition for running only a
 smoke test on Windows and macOS. `workflow_contract.py` fails if the Linux slots read the matrix
 plan or get any job-level `if:` other than the path filter's browser group (see "Path filter",
 "The one exception to Linux complete").
@@ -435,12 +482,12 @@ Every check that ran for a commit on main still runs for it, in the same or a me
 | actionlint, hadolint, shellcheck, osv-scanner    | workflow-docker-shell-lint         | unchanged                                                                        | all                  |
 | Visual-baseline reach                            | visual-baseline-reach              | unchanged                                                                        | all                  |
 | Backend and Rust tests on macOS, Windows         | Core on …                          | unchanged                                                                        | all                  |
-| Product and design suites, audit rules (Linux)   | Browser E2E slots 1–4              | unchanged, both suites assigned by duration (T-38)                               | all                  |
+| Product and design suites, audit rules (Linux)   | Browser E2E slots 1–6              | unchanged, both suites assigned by duration (T-38)                               | all                  |
 | Unit tests on macOS, Windows                     | 9 Product jobs, each               | Browser slot 1 per system (main); Smoke (PR)                                     | main: all; PR: smoke |
-| Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–3                                                    | main                 |
-| Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–3                                                    | main                 |
-| Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–8                                                | main                 |
-| Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–8                                                | main                 |
+| Product suite on macOS                           | Product on macos-15 (whole)        | Browser on macos-15 slots 1–4                                                    | main                 |
+| Design suite on macOS                            | Design on macos-15                 | Browser on macos-15 slots 1–4                                                    | main                 |
+| Product suite on Windows                         | Product on windows-2025 shards 1–8 | Browser on windows-2025 slots 1–10                                               | main                 |
+| Design suite on Windows                          | Design on windows-2025             | Browser on windows-2025 slots 1–10                                               | main                 |
 | Product and design suites on macOS, Windows      | the same jobs as on main           | Smoke: visual baseline, world gate, chapter navigation, manuscript import/export | PR                   |
 
 On pull requests the product and design suites on macOS and Windows shrink to the smoke specs.
@@ -473,7 +520,7 @@ together. `server`, `workflows` and `docker` are rules, not groups -- they selec
 | server                   | `src/quiltor/**` except `hosts/cli`, `hosts/desktop`, `hosts/mcp`; `apps/web/server.py` | checks, python, client, browser | the product browser suite talks to this Python on :8010                               |
 | python                   | the other hosts, `tests/python/**`, `distribution/**`, `contracts/**`                   | checks, python                  | Python outside the web server, and what the backend suite reads                       |
 | client                   | `packages/client/**`, `apps/web` front end, `locales/**`, `dist/**`, build configs      | checks, client, browser         | the client, its build and the committed dist/                                         |
-| browser                  | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 4 runs                                    |
+| browser                  | `tests/e2e/**`, `tests/design/**`, Playwright configs, `tools/audit/**`                 | checks, browser                 | the browser suites and the audit rules slot 6 runs                                    |
 | rust                     | `crates/**`, `rust-toolchain.toml`, `deny.toml`                                         | checks, rust, lint              | the portable core; osv-scanner reads `Cargo.lock`'s crates                            |
 | workflows                | `.github/**` other than the above                                                       | checks, python, lint            | actionlint, zizmor (in check) and `workflow_contract.py` (in the backend suite)       |
 | docker                   | `Dockerfile`, `.dockerignore`, `docker-compose.yml`                                     | checks, python, lint            | hadolint and the image contracts in the backend suite                                 |
@@ -631,8 +678,8 @@ that a full-mode run skips nothing.
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `docs/plans/x.md` (documentation)             | plan, frontend (`npm run check` only), browser-e2e                                                                      |
 | `tests/python/…`, `src/quiltor/hosts/cli/…`   | plan, backend, frontend (check only), Core on macOS/Windows, browser-e2e                                                |
-| `src/quiltor/delivery/http/…` (server Python) | plan, backend, frontend (all steps), Core on …, Linux browser slots 1–4, visual-baseline-reach, Smoke on …, browser-e2e |
-| `packages/client/src/…` (client)              | plan, frontend (all steps), Linux browser slots 1–4, visual-baseline-reach, Smoke on …, browser-e2e                     |
+| `src/quiltor/delivery/http/…` (server Python) | plan, backend, frontend (all steps), Core on …, Linux browser slots 1–6, visual-baseline-reach, Smoke on …, browser-e2e |
+| `packages/client/src/…` (client)              | plan, frontend (all steps), Linux browser slots 1–6, visual-baseline-reach, Smoke on …, browser-e2e                     |
 | `.github/workflows/release.yml`               | plan, backend, frontend (check only), workflow-docker-shell-lint, Core on …, browser-e2e                                |
 | an unknown path, or `test.yml`                | everything of the reduced matrix                                                                                        |
 
@@ -835,3 +882,86 @@ What changed, and what did not:
 Most of the product suite's time is what the tests check -- persistence reloads, theme and
 viewport loops, axe scans, screenshots -- not duplicated setup. The brief expected minutes;
 locally it is about 11 % on the product suite and 44 % on the backend.
+
+## Generate visual baselines: why runs go red (T-231)
+
+Of the last 130 runs of the workflow, 16 are red (state of 2026-11-08, `gh run list`). Every red run
+falls into one of four groups; none is a fault of the workflow's logic.
+
+| Group                         | Runs                                                                                      | Job and line                                                                                                                                                       | Cause                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale expanded-map references | 41324415522, 41327443566, 41328675806, 41418131871                                        | `bootstrap (ubuntu/macos)`, "Generate the missing baselines": `Snapshot: light-expanded-map.png`, 64 px, `dark-expanded-map.png`, 60 px, every run, every platform | a committed reference differed from the current design by the same pixel count each time: T-97 and T-104 changed the map chrome (see 4bb96a39). A constant count is a changed design, not noise                                                                                                                                       |
+| Same, dark only               | 41487628680, 41503967136, 41504186728                                                     | strict verification, `dark-expanded-map-regular`, 25 px on ubuntu and macos                                                                                        | the "A snapshot doesn't exist" lines in these logs belong to the bootstrap pass, which expects them. The failing line is the 25 px dark reference, committed before T-124, again a constant count                                                                                                                                     |
+| Windows stuck on loading      | 41859545842                                                                               | `bootstrap (windows-2025)`: `Locator: getByLabel('Kapiteltext')`, `Timeout: 5000ms`, four tests                                                                    | the first browser request waited 30.8 s on a cold Vite; fixed by `tools/dev/warm-vite.mjs` (5d434031). No Windows run since has failed for this reason                                                                                                                                                                                |
+| Windows favourites            | 42390857160, 42392346266                                                                  | `bootstrap (windows-2025)`: `light-overview-favourites.png`, 27 px                                                                                                 | connection handles drawn in the overview (T-129 F3, 02bdb87e), fixed on 2026-11-07                                                                                                                                                                                                                                                    |
+| Red without a failed job      | 41420682381, 41859545842 (macos part), 41862696026, 41868308165, 41870500032, 41870510335 | `bootstrap (macos-15)` is `cancelled`, 0 steps; check-run annotation "The job was not acquired by Runner of type hosted even after multiple attempts"              | GitHub had no macOS arm64 runner (annotation: "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times"). GitHub cancels the job after 18 to 20 minutes, and Windows, behind it in the matrix, waited all of that time. The capacity is not solvable here; the wait is: macOS now runs last |
+
+### The compact noise: stale raster, not moving layout
+
+The `expanded-map` noise that remained was on the compact viewport only. A probe takes the
+test's steps and saves each capture as a file, then compares them byte for byte against the
+first one (win32, `--repeat-each`). Wide and regular were identical from the start. Compact
+differed in two places:
+
+- **The canvas**, around Graufurth at the left edge and Tannenhain with the coast beside it.
+  The first round added a wait for two identical readings of the viewport transform and every
+  card's rectangle. With it, that geometry was byte-identical in every run, and the captures
+  still came out in two or three states, each one whole raster tile. Chromium keeps the tiles
+  it rastered while the fit was still changing the scale and re-rasters them at the final scale
+  later, sometimes not before the capture. Waiting 1.5 s fixed light but not dark.
+- **The toolbar's overflow button** "Ortsaktionen", in 1 of 10 real `toHaveScreenshot`
+  captures per theme. Only its four rounded corners differed. Its rectangle, colours,
+  opacity and outline were the same in all 20 runs, and so were the element under the mouse
+  and the focused element. It sits in the toolbar's `scroll-area`, a composited scroller
+  whose raster goes stale the same way.
+
+`waitForPlacesCanvasToStandStill` (`tests/e2e/support/places-canvas.ts`) waits for the
+geometry to stand still. Then it takes both layers out of the layout for one frame, which
+drops their tiles, and puts their scroll positions back. The capture then sees one raster of
+the final state.
+
+| Probe, compact, light and dark (win32)                | Captures | Differing               |
+| ----------------------------------------------------- | -------- | ----------------------- |
+| with the full wait                                    | 6 + 6    | 0                       |
+| with the full wait, real `toHaveScreenshot` before it | 40 + 40  | 0                       |
+| mutation: no re-raster at all                         | 10 + 10  | 10 (canvas)             |
+| mutation: canvas re-rastered, toolbar not             | 20 + 20  | 4 (toolbar button)      |
+| mutation: no wait at all                              | 10 + 10  | 10 (canvas and toolbar) |
+
+The stale references themselves were deleted for linux and darwin (all six `*-expanded-map-*`
+images of each), so that the bootstrap takes them again. The win32 set was current: the test
+passed against it 18 of 18 times.
+
+### Every new baseline is taken twice
+
+A baseline that comes out differently from one page load to the next turns every later
+comparison into a coin toss. So the bootstrap job now takes each image it created a second
+time. `tools/dev/capture-twice.mjs` sets aside the images that are untracked in the snapshot
+directory, runs the bootstrap pass again, and fails unless every image comes out byte for byte
+the same. Both takes of a differing image are kept in `test-results/capture-twice/`
+(`<name>.first-take.png`, `<name>.second-take.png`), which the diagnostics artifact carries, and
+the job stops before anything is checked in.
+
+The check repeats the whole test rather than taking two screenshots of one page.
+`toHaveScreenshot` already does that by itself, and every difference above came from a fresh
+page load.
+
+Locally, with the win32 compact expanded-map images taken away: two runs were green, and the
+run without the wait was red (`1 of 2 new baseline(s) are not reproducible`).
+`tools/dev/capture-twice.test.mjs` covers the verdicts: identical, differing, not written
+again, and a tracked image never taken again. Two mutations of the comparison make it red.
+
+### macOS runners
+
+`timeout-minutes: 30` bounds a bootstrap that hangs once it has started (a run takes 3 to 7
+minutes). It cannot shorten the wait for a runner, because GitHub does not count queue time
+against the timeout. That wait is what blocked Windows.
+
+`max-parallel: 1` does not serialize the jobs strictly. In runs 41862696026, 41868308165,
+41870500032 and 41870510335, ubuntu ran while macOS waited for a runner, and Windows started
+only when GitHub cancelled macOS, 18 to 20 minutes in. macOS is now last in the matrix, so
+its wait holds up no other platform. The push never forces, so a branch that moved in between
+makes it fail rather than overwrite.
+
+Still open: the regenerated linux and darwin images, and five repeats per platform in CI on
+int/T-231.

@@ -1,7 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { type ButtonHTMLAttributes, type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
+import type { Manuscript } from "../../manuscript";
 import type { FigureState } from "../model";
 import { FigureWorkspace } from "./FigureWorkspace";
 
@@ -485,5 +487,89 @@ describe("FigureWorkspace relationships", () => {
 
     const saved = JSON.parse(screen.getByLabelText("Beziehungszustand").textContent ?? "[]");
     expect(saved[0]).toMatchObject({ from: "b", to: "a", directed: false });
+  });
+});
+
+function ProfileHarness() {
+  const [state, setState] = useState(initialState);
+  return (
+    <I18nProvider>
+      <output aria-label="Figurenstand">{JSON.stringify(state.nodes[0])}</output>
+      <FigureWorkspace state={state} onChange={setState} />
+    </I18nProvider>
+  );
+}
+
+describe("figure patches against the latest state (T-180)", () => {
+  it("keeps a renamed figure and its note when both land in one batch", () => {
+    const { container } = render(<ProfileHarness />);
+    fireEvent.click(screen.getByRole("button", { name: "Testauswahl a" }));
+    const name = screen.getByDisplayValue("Ada");
+    fireEvent.change(name, { target: { value: "Adele" } });
+    const root = container.querySelector<HTMLElement>('[data-note-owner="entity:a"] .cm-editor');
+    if (!root) throw new Error("figure note editor missing");
+    const note = EditorView.findFromDOM(root);
+    if (!note) throw new Error("figure note view missing");
+    act(() => {
+      fireEvent.blur(name);
+      note.dispatch({ changes: { from: 0, insert: "Hafen" }, userEvent: "input" });
+    });
+    const stored = JSON.parse(screen.getByLabelText("Figurenstand").textContent || "{}");
+    expect(stored).toMatchObject({
+      name: "Adele",
+      profile: expect.objectContaining({ notes: "Hafen" }),
+    });
+  });
+});
+
+describe("deleting a moment on the figure board (T-259)", () => {
+  const manuscript: Manuscript = {
+    chapters: [
+      { id: "harbor", title: "Hafen", body: "", note: "", storyTime: { startMomentId: "used" } },
+    ],
+  };
+  const renderBoard = (onChange: (value: FigureState) => void) =>
+    render(
+      <I18nProvider>
+        <FigureWorkspace
+          state={{
+            ...initialState,
+            timeline: [
+              { id: "used", title: "Ankunft" },
+              { id: "free", title: "Abreise" },
+            ],
+          }}
+          manuscript={manuscript}
+          onChange={onChange}
+        />
+      </I18nProvider>,
+    );
+
+  it("blocks a moment that a chapter uses and names the chapter", () => {
+    const onChange = vi.fn();
+    renderBoard(onChange);
+    fireEvent.click(screen.getByRole("button", { name: /Ankunft/ }));
+
+    const remove = screen.getByRole("button", { name: "Zeitpunkt löschen" });
+    expect(remove).toBeDisabled();
+    expect(screen.getByText(/von Kapitel „Hafen“ verwendet/)).toBeInTheDocument();
+    fireEvent.click(remove);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("still deletes a moment that no chapter uses", () => {
+    const onChange = vi.fn();
+    renderBoard(onChange);
+    fireEvent.click(screen.getByRole("button", { name: /Abreise/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitpunkt löschen" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Zeitpunkt löschen" }),
+    );
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].timeline.map((moment: { id: string }) => moment.id)).toEqual([
+      "used",
+    ]);
   });
 });

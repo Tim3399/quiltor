@@ -226,6 +226,28 @@ class StructureHelpersTests(unittest.TestCase):
                     str(caught.exception), "manuscript structure needs folder and item lists"
                 )
 
+    def test_normalize_positions_rejects_an_unvalidated_structure_instead_of_repairing_it(
+        self,
+    ) -> None:
+        # Both callers hand over a validated structure; the function itself does not repair
+        # what validate_tree would have refused (T-19, Critic F-19-5).
+        bad_position = nested_structure()
+        _item(bad_position, "i-c3")["position"] = False
+        with self.assertRaises(ManuscriptTreeError) as caught:
+            normalize_positions(bad_position)
+        self.assertEqual(str(caught.exception), "tree item identity or position is invalid")
+        bad_folder = nested_structure()
+        bad_folder["folders"].append(True)
+        with self.assertRaises(ManuscriptTreeError) as caught:
+            normalize_positions(bad_folder)
+        self.assertEqual(str(caught.exception), "folder must be an object")
+        missing_id = nested_structure()
+        del _item(missing_id, "i-c3")["id"]
+        normalized = normalize_positions(missing_id)
+        nameless = [item for item in normalized["items"] if "id" not in item]
+        self.assertEqual(len(nameless), 1)
+        self.assertEqual(nameless[0]["position"], 1)
+
     def test_normalize_positions_closes_gaps_per_parent(self) -> None:
         structure = nested_structure()
         _item(structure, "i-c3")["position"] = 7

@@ -84,6 +84,7 @@ export function TextWorkspace({
   onSidebarWidth,
   inspectorWidth = 294,
   onInspectorWidth,
+  versionsAvailable = true,
 }: TextWorkspaceProps) {
   const { t, locale } = useI18n();
   const [localCurrentId, setLocalCurrentId] = useState(
@@ -107,6 +108,7 @@ export function TextWorkspace({
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
+  const [pdfSandboxRefused, setPdfSandboxRefused] = useState(false);
   const [exportError, setExportError] = useState("");
   const [exportPreset, setExportPreset] = useState<ManuscriptExportPreset | null>(null);
   const [preview, setPreview] = useState(false);
@@ -160,12 +162,16 @@ export function TextWorkspace({
     onChange({ ...manuscript, chapters: ordered, structure: nextStructure });
   };
   const setChapters = (nextChapters: Chapter[]) => commitManuscript(nextChapters);
-  const updateCurrent = (patch: Partial<Chapter>) =>
+  const patchCurrent = (patch: Partial<Chapter>) =>
     current &&
-    !history.open &&
     setChapters(
       chapters.map((chapter) => (chapter.id === current.id ? { ...chapter, ...patch } : chapter)),
     );
+  // While the versions panel is open the editor shows a historical text, so only the writing
+  // paths (body, title, writing aid) are held back. The chapter's metadata -- note, story time,
+  // "in the book" -- is not part of that comparison and stays editable; dropping it here would
+  // lose what the author typed without a word (T-180).
+  const updateCurrent = (patch: Partial<Chapter>) => !history.open && patchCurrent(patch);
   const writing = useWritingAssistance({
     selectionKey: currentId,
     current,
@@ -285,11 +291,15 @@ export function TextWorkspace({
     );
   const printBook = async () => {
     setPdfState("loading");
+    setPdfSandboxRefused(false);
     try {
       await onSave?.();
       await quiltorClient.application.documents.bookPdf();
       setPdfState("idle");
-    } catch {
+    } catch (error) {
+      setPdfSandboxRefused(
+        (error as { code?: unknown } | null)?.code === "pdf.sandbox_unavailable",
+      );
       setPdfState("error");
     }
   };
@@ -325,7 +335,7 @@ ${markdownBody(current.body, current.marks)}
         },
         onExport: exportCurrent,
         inBook: isChapterInBook(current),
-        onToggleInBook: () => updateCurrent({ inBook: !isChapterInBook(current) }),
+        onToggleInBook: () => patchCurrent({ inBook: !isChapterInBook(current) }),
         onDelete: () => setDeleteOpen(true),
       }
     : undefined;
@@ -425,7 +435,7 @@ ${markdownBody(current.body, current.marks)}
           timeline={figures.timeline}
           timeSystem={figures.timeSystem}
           actions={chapterActions}
-          onUpdateCurrent={updateCurrent}
+          onUpdateCurrent={patchCurrent}
         />
       }
       writingAid={writingAid}
@@ -440,6 +450,7 @@ ${markdownBody(current.body, current.marks)}
         binderOpen={binderOpen}
         inspectorOpen={inspectorOpen}
         historyOpen={history.open}
+        versionsAvailable={versionsAvailable}
         canUndo={!history.open && canUndo}
         canRedo={!history.open && canRedo}
         pdfState={pdfState}
@@ -653,7 +664,7 @@ ${markdownBody(current.body, current.marks)}
               onDismiss={() => setPdfState("idle")}
               dismissLabel={t("closeMessage")}
             >
-              {t("bookPdfError")}
+              {t(pdfSandboxRefused ? "bookPdfSandboxError" : "bookPdfError")}
             </Toast>
           )}
           {!!exportError && (

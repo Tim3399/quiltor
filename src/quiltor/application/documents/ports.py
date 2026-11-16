@@ -35,6 +35,10 @@ class RevisionConflict(ApplicationConflict):
 class DocumentRepository(Protocol):
     def load(self, kind: DocumentKind, database: Path) -> dict[str, Any]: ...
 
+    def migrate(self, database: Path) -> None:
+        """Bring a staged world database to the current schema before it is read."""
+        ...
+
     def exists(self, database: Path) -> bool: ...
 
     def revision_checkpoint(self, database: Path) -> dict[str, int]: ...
@@ -49,7 +53,11 @@ class DocumentRepository(Protocol):
         state: dict[str, Any],
         expected_revision: int | None,
         database: Path,
-    ) -> int: ...
+        *,
+        promote: bool = True,
+    ) -> int:
+        """`promote=False` keeps a preview of the example world a preview (T-214-5a)."""
+        ...
 
     def log_assistant_interaction(
         self,
@@ -57,6 +65,7 @@ class DocumentRepository(Protocol):
         response: dict[str, Any] | None,
         error: str,
         database: Path | None,
+        engine: str = "server",
     ) -> str: ...
 
     def list_assistant_interactions(

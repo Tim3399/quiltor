@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from quiltor.domain.manuscript import StoryTimeAnchorIssue, story_time_anchor_issue
-from quiltor.infrastructure.persistence.sqlite import manuscript, story_world, storyboards
+from quiltor.infrastructure.persistence.sqlite import config, manuscript, story_world, storyboards
 from quiltor.infrastructure.persistence.sqlite.connection import connect, connection
 
 
@@ -48,7 +48,15 @@ def save_with_revision(
     state: dict[str, Any],
     expected: int | None,
     db_path: Path | None = None,
+    *,
+    promote: bool = True,
 ) -> int:
+    """Save one document and advance its revision, in one transaction.
+
+    With `promote` (every write a route makes) a preview of the example world becomes a real
+    world in the same transaction: a write that fails or conflicts leaves it a preview. Only
+    the server filling a fresh preview passes False.
+    """
     with connection(db_path) as database:
         database.execute("BEGIN IMMEDIATE")
         current = revision(kind, database)
@@ -79,6 +87,8 @@ def save_with_revision(
             "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
             (f"{kind}_revision", str(updated)),
         )
+        if promote:
+            database.execute("DELETE FROM meta WHERE key=?", (config.PREVIEW_KEY,))
         return updated
 
 

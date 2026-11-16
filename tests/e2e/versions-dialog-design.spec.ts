@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts/v1/manuscript";
+import { syncAvailability } from "./support/device-sync";
 import { createTestWorld, expect, test } from "./support/world-fixture";
 
 // Each tab of "Versionen & Sicherungen" in both themes, plus the versions tab of an installation
@@ -31,11 +32,7 @@ const tabs = [
 ] as const;
 
 async function openDialog(page: Page, theme: "light" | "dark", syncAvailable: boolean) {
-  await page.route("**/api/whoami", async (route) => {
-    const response = await route.fetch();
-    const body = await response.json().catch(() => ({ ok: false }));
-    await route.fulfill({ response, json: { ...body, syncAvailable } });
-  });
+  await syncAvailability(page, syncAvailable);
   const world = await createTestWorld(page, `Versionen gestalten ${crypto.randomUUID()}`);
   const saved = await page.request.put(`/api/manuscript?world=${world.id}`, {
     headers: { "If-Match": '"0"' },

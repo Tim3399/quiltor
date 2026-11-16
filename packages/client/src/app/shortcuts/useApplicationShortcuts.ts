@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { VersionsOpenOptions } from "../../modules/history";
+import { noteOwnerFamily } from "../../modules/notes";
 import type { Workspace } from "../../shared";
 
 export function useApplicationShortcuts({
@@ -14,6 +15,7 @@ export function useApplicationShortcuts({
   redoFigures,
   undoStoryboards,
   redoStoryboards,
+  versionsAvailable = true,
 }: {
   focus: boolean;
   setFocus: (focus: boolean) => void;
@@ -26,6 +28,8 @@ export function useApplicationShortcuts({
   redoFigures: () => void;
   undoStoryboards: () => void;
   redoStoryboards: () => void;
+  /** False while the open world is an example preview: the shortcut opens no versions. */
+  versionsAvailable?: boolean;
 }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -37,7 +41,7 @@ export function useApplicationShortcuts({
       }
       if (modifier && event.shiftKey && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        openOverlay("versions", { tab: "versions", focusNote: true });
+        if (versionsAvailable) openOverlay("versions", { tab: "versions", focusNote: true });
         return;
       }
       if (modifier && event.key.toLowerCase() === "s") {
@@ -52,7 +56,17 @@ export function useApplicationShortcuts({
       const inField = /input|textarea|select/i.test((event.target as HTMLElement)?.tagName || "");
       if (modifier && !inField && event.key.toLowerCase() === "z") {
         event.preventDefault();
-        if (workspace === "text") event.shiftKey ? redoManuscript() : undoManuscript();
+        // In a note editor, undo belongs to the family that holds the note, not to the
+        // workspace that shows it: a Storyboard card showing a chapter's note undoes in the
+        // manuscript (T-177). The editor names its owner in data-note-owner.
+        const owner = (event.target as Element | null)
+          ?.closest?.("[data-note-owner]")
+          ?.getAttribute("data-note-owner");
+        const family = owner ? noteOwnerFamily(owner) : null;
+        if (family === "manuscript") event.shiftKey ? redoManuscript() : undoManuscript();
+        else if (family === "figures") event.shiftKey ? redoFigures() : undoFigures();
+        else if (family === "storyboards") event.shiftKey ? redoStoryboards() : undoStoryboards();
+        else if (workspace === "text") event.shiftKey ? redoManuscript() : undoManuscript();
         else if (workspace === "storyboard") event.shiftKey ? redoStoryboards() : undoStoryboards();
         else event.shiftKey ? redoFigures() : undoFigures();
       }
@@ -70,6 +84,7 @@ export function useApplicationShortcuts({
     undoFigures,
     undoManuscript,
     undoStoryboards,
+    versionsAvailable,
     workspace,
   ]);
 }

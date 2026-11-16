@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 from quiltor.domain.story_world.profile import normalize_profile
 from quiltor.domain.text_offsets import utf16_length, utf16_offsets_to_indices
@@ -190,7 +191,8 @@ def mirror_profiles(state, profile_dir: Path) -> None:
         if n.get("sub"):
             lines += [n["sub"], ""]
 
-        prof = normalize_profile(n.get("profile"), str(n.get("id", "")))
+        # infrastructure is not strict: the profile is read untyped below.
+        prof: dict[str, Any] = normalize_profile(n.get("profile"), str(n.get("id", "")))
         notes = note_markdown(
             prof.get("notes") or "", prof.get("noteMarks") or [], heading_offset=2
         ).strip()

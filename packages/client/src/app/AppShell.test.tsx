@@ -88,6 +88,36 @@ describe("AppShell", () => {
     expect(more).toHaveFocus();
   });
 
+  it("offers no versions, backups or sync while the world is an example preview", () => {
+    const shell = (onVersions?: () => void) => (
+      <I18nProvider>
+        <AppShell
+          title="Welt"
+          workspace="text"
+          onWorkspace={() => undefined}
+          phase="idle"
+          retry={() => undefined}
+          theme="light"
+          onTheme={() => undefined}
+          onSearch={() => undefined}
+          onVersions={onVersions}
+          onAssistant={() => undefined}
+          onExitWorld={() => undefined}
+        >
+          <div />
+        </AppShell>
+      </I18nProvider>
+    );
+    const { rerender } = render(shell());
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Versionen & Sicherungen" }),
+    ).not.toBeInTheDocument();
+    // Once the preview has become real, the entry is back.
+    rerender(shell(() => undefined));
+    expect(screen.getByRole("menuitem", { name: "Versionen & Sicherungen" })).toBeInTheDocument();
+  });
+
   it("says how old a saved state is, but only once it has an age", () => {
     const now = Date.UTC(2026, 8, 3, 12, 0, 0);
     vi.spyOn(Date, "now").mockReturnValue(now);
@@ -158,6 +188,43 @@ describe("AppShell", () => {
 
       act(() => vi.advanceTimersByTime(120_000));
       expect(screen.getByRole("status")).toHaveTextContent("vor 7 Min.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not show a minute too little while the clock sits between two ticks", () => {
+    vi.useFakeTimers();
+    try {
+      // The bar is first drawn 1 s past a tick boundary, while there is nothing to age; the
+      // saved state appears 29 s past it, saved exactly five minutes before that.
+      const boundary = Date.UTC(2026, 8, 3, 12, 0, 0);
+      const now = boundary + 29_000;
+      const shell = (phase: "dirty" | "saved") => (
+        <I18nProvider>
+          <AppShell
+            title="Welt"
+            workspace="text"
+            onWorkspace={() => undefined}
+            phase={phase}
+            savedAt={now - 5 * 60_000}
+            retry={() => undefined}
+            theme="light"
+            onTheme={() => undefined}
+            onSearch={() => undefined}
+            onVersions={() => undefined}
+            onAssistant={() => undefined}
+            onExitWorld={() => undefined}
+          >
+            <div />
+          </AppShell>
+        </I18nProvider>
+      );
+      vi.setSystemTime(boundary + 1_000);
+      const view = render(shell("dirty"));
+      act(() => vi.setSystemTime(now));
+      view.rerender(shell("saved"));
+      expect(screen.getByRole("status")).toHaveTextContent("vor 5 Min.");
     } finally {
       vi.useRealTimers();
     }

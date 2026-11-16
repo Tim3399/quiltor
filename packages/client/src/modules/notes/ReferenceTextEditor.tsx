@@ -22,6 +22,7 @@ import { Button, DropdownMenu, Field, IconButton, MenuItem, Popover } from "../.
 import { useI18n } from "../../i18n";
 import type { NoteHeadingLevel, NoteMark, NoteReference } from "../../shared";
 import { useLatest } from "../../shared/hooks/useLatest";
+import { pendingSelection, withPendingSelection } from "../../shared/pendingSelection";
 import {
   searchWorldReferences,
   type WorldReferenceCandidate,
@@ -194,6 +195,37 @@ type CompletionState = {
   candidates: WorldReferenceCandidate[];
   activeIndex: number;
 };
+
+/**
+ * The smallest single change that turns `current` into `next`: the text between their common
+ * prefix and suffix. The same note can be open in two places (T-177); replacing the whole
+ * document moved the cursor of the editor that did not type to its start, while a narrow change
+ * lets CodeMirror map every selection outside the edited range.
+ */
+export function minimalChange(current: string, next: string) {
+  let start = 0;
+  const shorter = Math.min(current.length, next.length);
+  while (start < shorter && current.charCodeAt(start) === next.charCodeAt(start)) start += 1;
+  let end = 0;
+  while (
+    end < shorter - start &&
+    current.charCodeAt(current.length - 1 - end) === next.charCodeAt(next.length - 1 - end)
+  ) {
+    end += 1;
+  }
+  // Never cut a surrogate pair in half: widen the range over a split pair on either side.
+  const isLow = (text: string, index: number) => {
+    const code = text.charCodeAt(index);
+    return code >= 0xdc00 && code <= 0xdfff;
+  };
+  if (start > 0 && isLow(current, start)) start -= 1;
+  if (end > 0 && isLow(current, current.length - end)) end -= 1;
+  return {
+    from: start,
+    to: current.length - end,
+    insert: next.slice(start, next.length - end),
+  };
+}
 
 export function ReferenceTextEditor({
   label,
@@ -373,6 +405,7 @@ export function ReferenceTextEditor({
       state: EditorState.create({
         doc: value,
         extensions: [
+          pendingSelection,
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             "aria-label": ariaLabel,
@@ -514,13 +547,14 @@ export function ReferenceTextEditor({
     const nextReferences = reconcileNoteReferences(value, references);
     const currentText = view.state.doc.toString();
     setRenderedReferences(nextReferences);
-    view.dispatch({
-      ...(currentText === value
-        ? {}
-        : { changes: { from: 0, to: currentText.length, insert: value } }),
-      effects: [setReferences.of(nextReferences), setNoteMarks.of(marks)],
-      annotations: controlledUpdate.of(true),
-    });
+    // Carries a native selection the view has not read yet when only decorations change (T-161).
+    view.dispatch(
+      withPendingSelection(view, {
+        ...(currentText === value ? {} : { changes: minimalChange(currentText, value) }),
+        effects: [setReferences.of(nextReferences), setNoteMarks.of(marks)],
+        annotations: controlledUpdate.of(true),
+      }),
+    );
   }, [marks, references, value]);
 
   useEffect(() => {

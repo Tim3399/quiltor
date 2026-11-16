@@ -42,7 +42,13 @@ class IdentityGateway(Protocol):
     def discover(self, issuer: str | None = None) -> dict[str, Any]: ...
 
     def start_login(
-        self, redirect_uri: str, *, issuer: str | None = None, client_id: str | None = None
+        self,
+        redirect_uri: str,
+        *,
+        issuer: str | None = None,
+        client_id: str | None = None,
+        ui_locales: str | None = None,
+        client: str = "",
     ) -> tuple[str, str]: ...
 
     def consume_pending_login(self, state: str) -> dict[str, Any] | None: ...
@@ -92,11 +98,20 @@ class IdentityGateway(Protocol):
         tokens: dict[str, Any],
         *,
         verified_id_token: str | None = None,
+        verified_claims: dict[str, Any] | None = None,
     ) -> SessionData | None: ...
+
+    def refresh_session(self, session_id: str, *, leeway: float = 30) -> SessionData | None: ...
 
     def session_access_token(self, session_id: str, *, leeway: float = 30) -> str: ...
 
     def destroy_session(self, session_id: str | None) -> None: ...
+
+    def premium_confirmed(self, sub: str, role: str) -> bool:
+        """True only while a session of `sub` holds `role`, confirmed by the provider
+        within the last ROLE_FRESH_SECONDS. A stale confirmation is refreshed first, so a
+        healthy provider never costs a premium account its role. No session, logout, expiry or restart: False."""
+        ...
 
     def owner_session(self, sub: str) -> tuple[str, SessionData]: ...
 

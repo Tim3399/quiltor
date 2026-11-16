@@ -244,6 +244,21 @@ describe("assistant job API", () => {
     });
   });
 
+  it("hands a client engine's failure on as its code, not as the error text", async () => {
+    const failed = {
+      ...queuedJob(),
+      status: "failed" as const,
+      error: "model not loaded",
+      errorType: "engine_unavailable",
+      engineError: { code: "engine_unavailable", detail: "model not loaded" },
+      httpStatus: 503,
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ ok: true, job: failed })));
+    await expect(application.assistant.wait("job-1")).rejects.toMatchObject({
+      params: { engineError: { code: "engine_unavailable", detail: "model not loaded" } },
+    });
+  });
+
   it("scopes assistant progress to the selected world", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ ok: true, progress: null }));
     vi.stubGlobal("fetch", fetchMock);

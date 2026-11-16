@@ -34,7 +34,7 @@ describe("backup HTTP port", () => {
         name: "save snapshot",
         invoke: (gateway: ReturnType<typeof createBackupHttpGateway>) =>
           gateway.saveSnapshot("Neue Fassung", true),
-        response: { ok: true, log: ["saved"], status: savedStatus },
+        response: { ok: true, created: true, log: ["saved"], status: savedStatus },
         url: "/api/backup",
         body: (worldId: string) =>
           worldId
@@ -146,7 +146,9 @@ describe("backup HTTP port", () => {
   it("puts world ownership into snapshot and restore command bodies", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(response({ ok: true, log: ["saved"], status: savedStatus }))
+      .mockResolvedValueOnce(
+        response({ ok: true, created: true, log: ["saved"], status: savedStatus }),
+      )
       .mockResolvedValueOnce(response({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
     const state = createHttpApplicationState();
@@ -155,6 +157,7 @@ describe("backup HTTP port", () => {
 
     await expect(backup.saveSnapshot("Neue Fassung", true)).resolves.toEqual({
       ok: true,
+      created: true,
       log: ["saved"],
       status: savedStatus,
     });
@@ -190,6 +193,7 @@ describe("backup HTTP port", () => {
       .mockResolvedValueOnce(
         response({
           ok: true,
+          created: true,
           log: ["upload confirmed"],
           status: savedStatus,
           warnings: ["backup.transfer_status_failed"],
@@ -198,6 +202,7 @@ describe("backup HTTP port", () => {
       .mockResolvedValueOnce(
         response({
           ok: true,
+          created: true,
           log: ["upload confirmed"],
           status: savedStatus,
           warnings: ["unknown"],
@@ -208,11 +213,25 @@ describe("backup HTTP port", () => {
 
     await expect(backup.saveSnapshot("Sicherung", true)).resolves.toEqual({
       ok: true,
+      created: true,
       log: ["upload confirmed"],
       status: savedStatus,
       warnings: ["backup.transfer_status_failed"],
     });
     await expect(backup.saveSnapshot("Sicherung", true)).rejects.toMatchObject({
+      code: "invalid_response",
+    });
+  });
+
+  // T-167: the panel decides on `created`, so an answer without it is not trusted.
+  it("rejects a snapshot answer that does not say whether a version was created", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response({ ok: true, log: ["saved"], status: savedStatus })),
+    );
+    const backup = createBackupHttpGateway(createHttpApplicationState());
+
+    await expect(backup.saveSnapshot("Sicherung", false)).rejects.toMatchObject({
       code: "invalid_response",
     });
   });

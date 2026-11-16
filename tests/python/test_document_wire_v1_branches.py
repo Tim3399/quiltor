@@ -773,6 +773,19 @@ REJECTIONS: dict[str, tuple[DocumentKind, Envelope, str, str | None]] = {
         "payload_invalid",
         "/payload/nodes",
     ),
+    # T-142: an unhashable value must be refused, not raise TypeError in the set lookup.
+    "node accent unhashable": (
+        "figures",
+        envelope("figures", _set(*NODE, "accent", value={})),
+        "payload_invalid",
+        "/payload/nodes",
+    ),
+    "node type unhashable": (
+        "figures",
+        envelope("figures", _set(*NODE, "type", value=[])),
+        "payload_invalid",
+        "/payload/nodes",
+    ),
     "node label not a string": (
         "figures",
         envelope("figures", _set(*NODE, "label", value=1)),

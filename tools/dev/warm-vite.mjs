@@ -90,6 +90,32 @@ async function main(args) {
   const timeoutMs = Number(option(args, "--timeout-ms", "120000"));
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
     throw new Error("--timeout-ms must be positive");
+  await warmViteServer({ url, timeoutMs });
+}
+
+const RELOADS_PER_MODULE = 3;
+
+/**
+ * Runs `load` again after the page reloaded under it, at most RELOADS_PER_MODULE times.
+ *
+ * An import that finds a dependency Vite has not optimised yet makes Vite optimise it and
+ * reload the page, which destroys the context the import ran in. That reload is the cold start
+ * this script pays for; once the page has loaded again, the import goes through.
+ */
+export async function importAcrossReloads(load, waitForLoad) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await load();
+    } catch (error) {
+      const reloaded = /Execution context was destroyed/.test(String(error?.message ?? error));
+      if (!reloaded || attempt >= RELOADS_PER_MODULE) throw error;
+      await waitForLoad();
+    }
+  }
+}
+
+/** Loads `url` in a headless Chromium and imports every lazy client module through it. */
+export async function warmViteServer({ url, timeoutMs }) {
   const modules = lazyModules();
   if (modules.length === 0) throw new Error("found no lazily imported client module to warm");
 
@@ -106,9 +132,13 @@ async function main(args) {
         if (!response?.ok()) throw new Error(`${url} answered ${response?.status()}`);
       },
       importModule: (path) =>
-        page.evaluate(async (specifier) => {
-          await import(specifier);
-        }, viteFsUrl(path)),
+        importAcrossReloads(
+          () =>
+            page.evaluate(async (specifier) => {
+              await import(specifier);
+            }, viteFsUrl(path)),
+          () => page.waitForLoadState("load"),
+        ),
     });
     console.log(
       `Vite is warm: page and ${modules.length} lazy modules in ${Date.now() - started} ms.`,

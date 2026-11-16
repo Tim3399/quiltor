@@ -31,6 +31,8 @@ export interface BackupGateway {
     upload: boolean,
   ): Promise<{
     ok: true;
+    /** Whether this request wrote a version; false when nothing had changed. */
+    created: boolean;
     log: string[];
     status: BackupStatus;
     warnings?: Array<"backup.transfer_status_failed">;

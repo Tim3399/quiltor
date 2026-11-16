@@ -2,6 +2,7 @@ import type {
   ApplicationGateway,
   AssistantGateway,
   BackupGateway,
+  CapabilitiesGateway,
   DocumentsGateway,
   HistoryGateway,
   IdentityGateway,
@@ -21,6 +22,7 @@ export type ApplicationGatewayOverrides = {
   metadata?: Partial<MetadataGateway>;
   worlds?: Partial<WorldsGateway>;
   identity?: Partial<IdentityGateway>;
+  capabilities?: Partial<CapabilitiesGateway>;
   storyWorld?: Partial<StoryWorldGateway>;
   storyboards?: Partial<StoryboardsGateway>;
   manuscript?: Partial<ManuscriptGateway>;
@@ -57,6 +59,8 @@ export function createApplicationGatewayStub(
       delete: () => notStubbed("worlds.delete"),
       restore: () => notStubbed("worlds.restore"),
       purge: () => notStubbed("worlds.purge"),
+      openExample: () => notStubbed("worlds.openExample"),
+      discardPreview: () => {},
       ...overrides.worlds,
     },
     identity: {
@@ -64,12 +68,17 @@ export function createApplicationGatewayStub(
       logout: () => notStubbed("identity.logout"),
       ...overrides.identity,
     },
+    capabilities: {
+      current: () => notStubbed("capabilities.current"),
+      ...overrides.capabilities,
+    },
     storyWorld: {
       load: () => notStubbed("storyWorld.load"),
       peek: () => notStubbed("storyWorld.peek"),
       adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("storyWorld.save"),
       saveExpected: () => notStubbed("storyWorld.saveExpected"),
+      revision: () => undefined,
       ...overrides.storyWorld,
     },
     storyboards: {
@@ -78,6 +87,7 @@ export function createApplicationGatewayStub(
       adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("storyboards.save"),
       saveExpected: () => notStubbed("storyboards.saveExpected"),
+      revision: () => undefined,
       ...overrides.storyboards,
     },
     manuscript: {
@@ -86,6 +96,7 @@ export function createApplicationGatewayStub(
       adoptPersisted: (versioned) => versioned.document,
       save: () => notStubbed("manuscript.save"),
       saveExpected: () => notStubbed("manuscript.saveExpected"),
+      revision: () => undefined,
       ...overrides.manuscript,
     },
     manuscriptImport: {
@@ -111,6 +122,7 @@ export function createApplicationGatewayStub(
       diff: () => notStubbed("history.diff"),
       textVersion: () => notStubbed("history.textVersion"),
       chapterComparison: () => notStubbed("history.chapterComparison"),
+      chapterTimeline: () => notStubbed("history.chapterTimeline"),
       restore: () => notStubbed("history.restore"),
       ...overrides.history,
     },
@@ -123,6 +135,9 @@ export function createApplicationGatewayStub(
       wait: () => notStubbed("assistant.wait"),
       chat: () => notStubbed("assistant.chat"),
       progress: () => notStubbed("assistant.progress"),
+      relayNext: () => notStubbed("assistant.relayNext"),
+      relayAnswer: () => notStubbed("assistant.relayAnswer"),
+      callProvider: () => notStubbed("assistant.callProvider"),
       ...overrides.assistant,
     },
     writingAssistance: {

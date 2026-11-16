@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { WritingAssistanceStatus } from "../../platform";
+import { CapabilitiesProvider } from "../../shared/capabilities";
 import { TestProviders } from "./TextWorkspace.testSupport";
 import { WritingLookupPanel } from "./WritingLookupPanel";
-import type { WritingAssistanceStatus } from "../../platform";
 
 describe("WritingLookupPanel", () => {
   afterEach(cleanup);
@@ -363,4 +364,44 @@ describe("WritingLookupPanel", () => {
 
     expect(screen.getByRole("progressbar", { name: /Suche/ })).toBeVisible();
   });
+
+  it.each([
+    [false, "Wird vom Betreiber eingerichtet", "Sprachdaten installieren"],
+    [true, "Sprachdaten installieren", "Wird vom Betreiber eingerichtet"],
+  ])(
+    "with writingDataInstall %s shows %s, whatever the status says (T-102)",
+    (flag, shown, hidden) => {
+      render(
+        <TestProviders>
+          <CapabilitiesProvider
+            value={{ multiUser: false, signOut: false, deviceSync: true, writingDataInstall: flag }}
+          >
+            <WritingLookupPanel
+              selectionTool="lookup"
+              writingLocale="de-DE"
+              writingQuery="gehen"
+              status={{
+                ok: true,
+                installed: false,
+                installable: !flag,
+                stale: false,
+                version: null,
+              }}
+              results={[]}
+              phase="idle"
+              replaceTarget={false}
+              onWritingQuery={vi.fn()}
+              onRunLookup={vi.fn()}
+              onChooseTool={vi.fn()}
+              onLocale={vi.fn()}
+              onInstallData={vi.fn()}
+              onApplyValue={vi.fn()}
+            />
+          </CapabilitiesProvider>
+        </TestProviders>,
+      );
+      expect(screen.getByText(shown)).toBeVisible();
+      expect(screen.queryByText(hidden)).not.toBeInTheDocument();
+    },
+  );
 });

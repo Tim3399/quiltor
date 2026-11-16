@@ -37,6 +37,7 @@ export const writing = {
   grammarChecksumMismatch:
     "Die heruntergeladene LanguageTool-Datei ist nicht die erwartete. Sie wurde deshalb nicht installiert.",
   grammarStartFailed: "LanguageTool ist installiert, ließ sich aber nicht starten.",
+  writingRateLimited: "Die Schreibhilfe ist gerade ausgelastet. Versuche es gleich erneut.",
   grammarServerUnavailable:
     "Die Grammatikprüfung antwortet gerade nicht. Versuche es gleich erneut.",
   grammarExternalOptInRequired:

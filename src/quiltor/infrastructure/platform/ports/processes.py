@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import IO, Any, Protocol, runtime_checkable
 
@@ -18,7 +18,10 @@ class ProcessSupervisor(Protocol):
         stdout: int | IO[Any] | None = None,
         stderr: int | IO[Any] | None = None,
         text: bool = False,
-    ) -> subprocess.Popen: ...
+        env: Mapping[str, str] | None = None,
+    ) -> subprocess.Popen:
+        """`env` is the child's whole environment when given; None inherits this process's."""
+        ...
 
     def remove_download_quarantine(self, path: Path) -> None: ...
 

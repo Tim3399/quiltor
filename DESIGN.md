@@ -20,7 +20,7 @@ er ist kein Auftrag für weitere Layoutumbauten.
 
 Zwei konkrete Referenzen innerhalb des Produkts:
 
-- [Manuskriptansicht](docs/screenshots/manuscript.png): links strukturieren, in der Mitte
+- [Manuskriptansicht](docs/screenshots/de/manuscript.png): links strukturieren, in der Mitte
   schreiben, rechts begleiten; eigenständige Flächen machen die drei Aufgaben lesbar.
 - [Kapitelverlauf](packages/client/src/modules/manuscript/ChapterHistoryPanel.css): Lesetext
   bleibt Arbeitsinhalt; Wortänderungen verbinden lesbare Textrollen mit einer Markierung,

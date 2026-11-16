@@ -12,6 +12,12 @@ from quiltor.application.story_world import (
     execute_read_tools,
     read_tool_catalog,
 )
+from quiltor.application.story_world.read_tools import (
+    ReadToolEnvelope,
+    ReadToolFailure,
+    ReadToolSuccess,
+)
+from quiltor.domain.json_values import as_object
 from quiltor.domain.story_world.integrity import validate_world as domain_validate_world
 from quiltor.modules.assistant.audit import validate_world as assistant_validate_world
 from quiltor.modules.assistant.ports import AssistantReadToolExecutor
@@ -111,6 +117,16 @@ def _manuscript():
     }
 
 
+def success(envelope: ReadToolEnvelope) -> ReadToolSuccess:
+    assert envelope["ok"] is True, envelope
+    return envelope
+
+
+def failure(envelope: ReadToolEnvelope) -> ReadToolFailure:
+    assert envelope["ok"] is False, envelope
+    return envelope
+
+
 class ReadToolCatalogTests(unittest.TestCase):
     def test_catalog_is_exact_strict_and_read_only(self):
         catalog = read_tool_catalog()
@@ -141,9 +157,11 @@ class ReadToolCatalogTests(unittest.TestCase):
 
     def test_catalog_returns_fresh_schemas_and_service_satisfies_the_port(self):
         first = read_tool_catalog()
-        first[0]["inputSchema"]["properties"].clear()
+        properties = as_object(first[0]["inputSchema"]["properties"])
+        assert properties is not None
+        properties.clear()
         second = read_tool_catalog()
-        self.assertIn("mention", second[0]["inputSchema"]["properties"])
+        self.assertIn("mention", as_object(second[0]["inputSchema"]["properties"]) or {})
         self.assertIsInstance(StoryWorldReadTools(), AssistantReadToolExecutor)
 
 
@@ -152,13 +170,16 @@ class ReadToolExecutionTests(unittest.TestCase):
         self.figures = _world()
         self.manuscript = _manuscript()
 
-    def execute(self, name, arguments):
-        return execute_read_tool(
-            name,
-            arguments,
-            manuscript=self.manuscript,
-            figures=self.figures,
-            world_revision=17,
+    def execute(self, name, arguments) -> dict[str, Any]:
+        # The envelope read untyped: these tests look at success and failure alike.
+        return dict(
+            execute_read_tool(
+                name,
+                arguments,
+                manuscript=self.manuscript,
+                figures=self.figures,
+                world_revision=17,
+            )
         )
 
     def test_resolve_and_exact_entity_read_use_the_canonical_resolver(self):
@@ -273,8 +294,8 @@ class ReadToolExecutionTests(unittest.TestCase):
             world_revision=17,
         )
         self.assertEqual(len(too_many), 1)
-        self.assertEqual(too_many[0]["error"]["code"], "too_many_calls")
-        self.assertEqual(invalid[0]["error"]["code"], "invalid_snapshot")
+        self.assertEqual(failure(too_many[0])["error"]["code"], "too_many_calls")
+        self.assertEqual(failure(invalid[0])["error"]["code"], "invalid_snapshot")
 
         large = copy.deepcopy(self.figures)
         large["nodes"][0]["profile"] = {
@@ -290,7 +311,7 @@ class ReadToolExecutionTests(unittest.TestCase):
         )
         encoded = json.dumps(bounded, ensure_ascii=False).encode("utf-8")
         self.assertLessEqual(len(encoded), MAX_READ_TOOL_OUTPUT_BYTES)
-        self.assertTrue(bounded["result"]["truncated"])
+        self.assertTrue(success(bounded)["result"]["truncated"])
 
     def test_world_projection_errors_are_static_and_do_not_expose_exception_details(self):
         broken = copy.deepcopy(self.figures)
@@ -302,7 +323,7 @@ class ReadToolExecutionTests(unittest.TestCase):
             figures=broken,
             world_revision=17,
         )
-        self.assertEqual(result["error"]["code"], "unavailable")
+        self.assertEqual(failure(result)["error"]["code"], "unavailable")
         self.assertNotIn("canonical integer time", json.dumps(result))
 
 

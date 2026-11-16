@@ -21,6 +21,10 @@
   box-shadow: var(--elevation-1) var(--shadow-color);
 }
 
+.selection-card--dashed {
+  border-style: dashed;
+}
+
 .selection-card--selected {
   border-color: var(--gold-border);
   background: var(--selection-surface);

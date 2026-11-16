@@ -42,6 +42,7 @@ Development-only test and build packages are not shipped in `dist/`.
 | `@fontsource-variable/source-serif-4` | 5.3.0   | OFL-1.1      |
 | `@fontsource/libre-baskerville`       | 5.3.0   | OFL-1.1      |
 | `@marijn/find-cluster-break`          | 1.0.3   | MIT          |
+| `@mlc-ai/web-llm`                     | 0.2.86  | Apache-2.0   |
 | `@types/d3-color`                     | 3.1.3   | MIT          |
 | `@types/d3-drag`                      | 3.0.7   | MIT          |
 | `@types/d3-interpolate`               | 3.0.4   | MIT          |
@@ -72,6 +73,7 @@ Development-only test and build packages are not shipped in `dist/`.
 | `esniff`                              | 2.0.1   | ISC          |
 | `event-emitter`                       | 0.3.5   | MIT          |
 | `ext`                                 | 1.7.0   | ISC          |
+| `loglevel`                            | 1.9.2   | MIT          |
 | `lucide-react`                        | 1.27.0  | ISC          |
 | `mdn-data`                            | 2.0.14  | CC0-1.0      |
 | `mdn-data`                            | 2.27.1  | CC0-1.0      |

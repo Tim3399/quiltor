@@ -37,5 +37,23 @@ export function createWorldsHttpGateway(state: HttpApplicationState): WorldsGate
     delete: (id: string) => postJson<{ ok: boolean }>("/api/worlds/delete", { id }),
     restore: (id: string) => postJson<{ ok: boolean }>("/api/worlds/restore", { id }),
     purge: (id: string) => postJson<{ ok: boolean }>("/api/worlds/purge", { id }),
+    openExample: async (lang: string) => {
+      const wire = await postJson<{ ok: boolean; world: WorldInfoWireV1 }>(
+        "/api/worlds/open-example",
+        { lang },
+      );
+      return { ...wire, world: decodeWorldInfoV1(wire.world) };
+    },
+    discardPreview: (id: string) => {
+      // keepalive, so it still goes out while the page is being left. JSON, because the
+      // server refuses every other content type on a write (F-214-11).
+      void fetch("/api/worlds/discard-preview", {
+        method: "POST",
+        keepalive: true,
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch(() => undefined);
+    },
   };
 }

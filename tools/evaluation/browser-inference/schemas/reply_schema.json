@@ -8,7 +8,6 @@
     },
     "citations": {
       "type": "array",
-      "uniqueItems": true,
       "items": {
         "type": "string"
       }
@@ -17,14 +16,14 @@
       "type": "array",
       "maxItems": 20,
       "items": {
-        "oneOf": [
+        "anyOf": [
           {
             "type": "object",
             "required": ["kind", "tempId", "element"],
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "create_element"
+                "enum": ["create_element"]
               },
               "tempId": {
                 "type": "string",
@@ -39,17 +38,13 @@
                     "enum": ["person", "tier", "ort", "organisation", "objekt", "konzept"]
                   },
                   "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "label": {
-                    "type": "string",
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "sub": {
-                    "type": "string",
-                    "maxLength": 1000
+                    "type": "string"
                   },
                   "profile": {
                     "type": "object",
@@ -57,39 +52,30 @@
                     "additionalProperties": false,
                     "properties": {
                       "alter": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "rolle": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "aussehen": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "herkunft": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "stimme": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "notes": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       }
                     }
                   },
                   "aliases": {
                     "type": "array",
                     "maxItems": 16,
-                    "uniqueItems": true,
                     "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 160
+                      "type": "string"
                     }
                   }
                 }
@@ -102,7 +88,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "update_element"
+                "enum": ["update_element"]
               },
               "elementId": {
                 "type": "string"
@@ -113,16 +99,13 @@
                 "additionalProperties": false,
                 "properties": {
                   "name": {
-                    "type": "string",
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "label": {
-                    "type": "string",
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "sub": {
-                    "type": "string",
-                    "maxLength": 1000
+                    "type": "string"
                   },
                   "profile": {
                     "type": "object",
@@ -130,39 +113,30 @@
                     "additionalProperties": false,
                     "properties": {
                       "alter": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "rolle": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "aussehen": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "herkunft": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "stimme": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       },
                       "notes": {
-                        "type": "string",
-                        "maxLength": 1000
+                        "type": "string"
                       }
                     }
                   },
                   "aliases": {
                     "type": "array",
                     "maxItems": 16,
-                    "uniqueItems": true,
                     "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 160
+                      "type": "string"
                     }
                   }
                 }
@@ -175,7 +149,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "create_timeline_moment"
+                "enum": ["create_timeline_moment"]
               },
               "tempId": {
                 "type": "string",
@@ -187,17 +161,13 @@
                 "additionalProperties": false,
                 "properties": {
                   "title": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "date": {
-                    "type": "string",
-                    "maxLength": 20
+                    "type": "string"
                   },
                   "note": {
-                    "type": "string",
-                    "maxLength": 1000
+                    "type": "string"
                   }
                 }
               }
@@ -209,7 +179,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "create_relationship"
+                "enum": ["create_relationship"]
               },
               "relationship": {
                 "type": "object",
@@ -231,8 +201,7 @@
                     "type": "string"
                   },
                   "label": {
-                    "type": "string",
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "directed": {
                     "type": "boolean"
@@ -256,7 +225,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "set_relationship_at_moment"
+                "enum": ["set_relationship_at_moment"]
               },
               "relationshipId": {
                 "type": "string"
@@ -270,8 +239,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "label": {
-                    "type": "string",
-                    "maxLength": 160
+                    "type": "string"
                   },
                   "active": {
                     "type": "boolean"
@@ -298,7 +266,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "mark_deceased"
+                "enum": ["mark_deceased"]
               },
               "elementId": {
                 "type": "string"
@@ -314,7 +282,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "arrange_elements"
+                "enum": ["arrange_elements"]
               },
               "strategy": {
                 "enum": ["thematic", "grid"]
@@ -327,7 +295,7 @@
             "additionalProperties": false,
             "properties": {
               "kind": {
-                "const": "set_presence"
+                "enum": ["set_presence"]
               },
               "elementId": {
                 "type": "string"

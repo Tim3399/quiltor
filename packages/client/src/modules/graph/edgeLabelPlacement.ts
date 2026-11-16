@@ -12,6 +12,12 @@ export type GraphEdgeLabelRequest = {
   /** Preferred center returned by the edge path helper. */
   idealCenter: GraphPoint;
   size: GraphSize;
+  /**
+   * The area that takes the label's clicks, centred on the label, when it is larger than the
+   * visible label. Placement keeps this area, not just the visible card, off the nodes and the
+   * other labels: an invisible part of a label must not take the clicks of a card's controls.
+   */
+  hitTarget?: GraphSize;
   /** Exact M/L/Q SVG path rendered for this edge. */
   pathData?: string;
   /** Sampled compatibility form of the rendered path. */
@@ -397,6 +403,10 @@ export function placeGraphEdgeLabels(
       width: nonNegative(request.size.width, 0),
       height: nonNegative(request.size.height, 0),
     };
+    const hitSize = {
+      width: Math.max(size.width, nonNegative(request.hitTarget?.width ?? 0, 0)),
+      height: Math.max(size.height, nonNegative(request.hitTarget?.height ?? 0, 0)),
+    };
     const fallbackPath = `M${source.x} ${source.y}L${target.x} ${target.y}`;
     const geometry =
       parsePath(request.pathData ?? pathDataFromPoints(request.pathPoints) ?? fallbackPath) ??
@@ -404,12 +414,14 @@ export function placeGraphEdgeLabels(
     if (!geometry) continue;
     const idealRatio = nearestPathRatio(geometry, idealCenter);
     let bestPlacement: GraphEdgeLabelPlacement | undefined;
+    let bestHitBounds: GraphRect | undefined;
     let bestScore: CandidateScore | undefined;
     candidateRatios(geometry, idealRatio, step).forEach((pathRatio, candidateIndex) => {
       const center = pathPointAt(geometry, pathRatio);
       const bounds = boundsAt(center, size);
+      const hitBounds = boundsAt(center, hitSize);
       const score = scoreCandidate(
-        bounds,
+        hitBounds,
         idealCenter,
         normalizedObstacles,
         placedBounds,
@@ -418,6 +430,7 @@ export function placeGraphEdgeLabels(
       );
       if (bestScore && !better(score, bestScore)) return;
       bestScore = score;
+      bestHitBounds = hitBounds;
       bestPlacement = {
         id: request.id,
         center,
@@ -427,9 +440,9 @@ export function placeGraphEdgeLabels(
         collides: score.collisions > 0,
       };
     });
-    if (!bestPlacement) continue;
+    if (!bestPlacement || !bestHitBounds) continue;
     placements.set(request.id, bestPlacement);
-    placedBounds.push(bestPlacement.bounds);
+    placedBounds.push(bestHitBounds);
   }
   return placements;
 }

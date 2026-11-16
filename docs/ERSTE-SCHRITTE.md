@@ -100,3 +100,15 @@ Lade den Browser nicht vorschnell neu.
 Lokales Schreiben und lokale Rettungswege benötigen kein Cloud-Abo. Ein Ausfall
 des Remote-Backups sperrt sie nicht. Automatische Synchronisation zwischen Geräten
 wird derzeit nicht angeboten.
+
+## Bedienung
+
+| Kürzel                             | Aktion                            |
+| ---------------------------------- | --------------------------------- |
+| `Cmd/Ctrl + S`                     | Sofort speichern                  |
+| `Cmd/Ctrl + Shift + S`             | Backup-Dialog                     |
+| `Cmd/Ctrl + F` oder `Cmd/Ctrl + K` | Suchen & Befehle                  |
+| `Cmd/Ctrl + Z`                     | Rückgängig                        |
+| `Cmd/Ctrl + Shift + Z`             | Wiederholen                       |
+| `Esc`                              | Fokus-/temporären Modus verlassen |
+| `Option/Alt` beim Ziehen           | Raster vorübergehend lösen        |

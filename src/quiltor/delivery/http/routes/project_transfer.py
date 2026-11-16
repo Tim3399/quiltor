@@ -6,6 +6,7 @@ from quiltor.application.project_transfer import (
     ProjectArchiveLimitExceeded,
 )
 from quiltor.delivery.http.routes import Request, get, save
+from quiltor.delivery.http.world_quota import refuse_over_quota
 
 
 @get("/api/project-transfer/export")
@@ -36,6 +37,8 @@ def preview_project(handler, request: Request, app) -> None:
 def import_project(handler, request: Request, app) -> None:
     archive = _read_archive(handler)
     with app.lock:
+        if refuse_over_quota(handler, app, request.session.sub):
+            return
         world = app.project_transfer.import_archive(archive, request.session.sub)
     handler.send_json({"ok": True, "world": world}, 201)
 

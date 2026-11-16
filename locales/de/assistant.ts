@@ -12,7 +12,8 @@ export const assistant = {
     "Eine Beziehung benötigt zwei verschiedene Elemente. Passe den Vorschlag an.",
   proposalApplyRelationshipExists:
     "Diese Beziehung besteht bereits. Prüfe die vorhandene Beziehung oder passe den Vorschlag an.",
-  localOnlySuggestions: "Lokal · nur Vorschläge",
+  assistantSuggestionsOnly: "nur Vorschläge",
+  assistantEngineSuggestionsOnly: "{engine} · nur Vorschläge",
   newChat: "Neuer Chat",
   closeAssistant: "Assistent schließen",
   sourcesIndexed: "{n} Quellen indexiert",
@@ -36,7 +37,7 @@ export const assistant = {
     "Lege aus meinen vorhandenen Notizen fehlende Figuren als Vorschläge an.",
   checkTimeline: "Timeline prüfen",
   checkTimelinePrompt: "Prüfe die Beziehungen und Timeline auf Lücken oder Widersprüche.",
-  updateWorldFromManuscript: "Weltmodell aus Manuskript aktualisieren",
+  updateWorldFromManuscript: "Welt aktualisieren",
   updateWorldFromManuscriptHint:
     "Erstellt prüfbare Vorschläge aus {scope}. Das Manuskript bleibt unverändert.",
   updateWorldFromManuscriptRequest: "Weltmodell aus Manuskript aktualisieren",
@@ -169,4 +170,7 @@ export const assistant = {
   chapterGroupLabel: "Kapitel {index}/{total}: {titles}",
   extractionEmpty:
     "In der gewählten Kapitelauswahl wurde kein neuer prüfbarer Weltzustand gefunden.",
+  errorAssistantPremiumRequired:
+    "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+  errorAssistantTooManyJobs: "Du hast schon {limit} offene Aufträge. Warte, bis einer fertig ist.",
 } as const;

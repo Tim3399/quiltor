@@ -13,6 +13,8 @@ from quiltor.modules.assistant import (
     required_proposal_kinds,
     task_contract,
 )
+from quiltor.modules.assistant.jobs import classify_assistant_error
+from quiltor.modules.assistant.ports import InferenceValidationError
 
 FIGURES = {
     "nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}],
@@ -210,9 +212,13 @@ class ConversationMessagesTests(unittest.TestCase):
 class FakeInference:
     identity = "http://mock"
 
-    def __init__(self, replies=None, tokens=0):
+    def __init__(self, replies=None, tokens=0, heavy=None):
         self.replies = list(replies or [])
         self.tokens = tokens
+        # With `heavy`, only those texts (chapter bodies) count as `tokens` and everything else
+        # by length: the batch tests need one chapter per batch, and since T-307 every prompt
+        # part has its own budget, which a constant count for every text cannot meet.
+        self.heavy = None if heavy is None else frozenset(heavy)
         self.calls = []
 
     def reload(self):
@@ -227,12 +233,14 @@ class FakeInference:
             raise AssertionError("unexpected inference call")
         reply = dict(self.replies.pop(0))
         schema_name = payload.get("response_format", {}).get("json_schema", {}).get("name")
-        if schema_name == "quiltor_read_tool_step" and "action" not in reply:
-            return {"action": "final", "final": reply}
+        if schema_name == "quiltor_read_tool_step":
+            return {"step": reply if "action" in reply else {"action": "final", "final": reply}}
         return reply
 
     def count_tokens(self, text):
-        return self.tokens
+        if self.heavy is None:
+            return self.tokens
+        return self.tokens if text in self.heavy else max(1, len(text) // 4)
 
     def close(self):
         pass
@@ -275,8 +283,8 @@ class CrossTurnReferenceResolutionCharacterizationTests(unittest.TestCase):
 
 class AssistantRuntimeCompleteTests(unittest.TestCase):
     # `Any`: the tests replace runtime members and read the fakes' recordings back.
-    def _runtime(self, *replies, tokens=0) -> tuple[Any, FakeInference]:
-        inference = FakeInference(replies, tokens)
+    def _runtime(self, *replies, tokens=0, heavy=None) -> tuple[Any, FakeInference]:
+        inference = FakeInference(replies, tokens, heavy)
         read_tools = _ReadTools()
         return (
             AssistantRuntime(
@@ -364,9 +372,10 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         )
 
     def test_read_tool_step_is_injected_before_final_reply_and_traced(self):
+        # The fake catalog's input schema admits no arguments; the reply must follow it.
         tool_step = {
             "action": "tool_calls",
-            "toolCalls": [{"name": "resolve_entity", "arguments": {"mention": "Tarek"}}],
+            "toolCalls": [{"name": "resolve_entity", "arguments": {}}],
         }
         final = {
             "action": "final",
@@ -464,34 +473,28 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         self.assertNotIn("Glocke klingt", explicit_results)
 
     def test_invalid_tool_name_fails_closed_without_proposal_fallback(self):
-        runtime, inference = self._runtime(
-            {
-                "action": "tool_calls",
-                "toolCalls": [{"name": "write_world", "arguments": {}}],
-            }
-        )
+        # T-61 part 4: a tool name outside the catalog breaks the step schema, so the
+        # reply now ends as validation_error before the tool loop sees it.
+        # Since D-219 (T-307) the step gets a hint and then a final-only call; the third
+        # invalid reply ends the request as before, with nothing read or written.
+        invalid = {
+            "action": "tool_calls",
+            "toolCalls": [{"name": "write_world", "arguments": {}}],
+        }
+        runtime, inference = self._runtime(invalid, invalid, invalid)
 
-        result = runtime.complete(
-            "Lege Igor als neue Figur an.",
-            {},
-            FIGURES,
-            history=None,
-            world_revision=9,
-        )
+        with self.assertRaises(InferenceValidationError) as raised:
+            runtime.complete(
+                "Lege Igor als neue Figur an.",
+                {},
+                FIGURES,
+                history=None,
+                world_revision=9,
+            )
 
-        self.assertEqual(len(inference.calls), 1)
+        self.assertEqual(classify_assistant_error(raised.exception), "validation_error")
+        self.assertEqual(len(inference.calls), 3)
         self.assertEqual(runtime.read_tools.calls, [])
-        self.assertEqual(result["proposals"], [])
-        failure = next(
-            item
-            for item in result["agentTrace"]
-            if item["step"] == "tool_loop" and item["complete"] is False
-        )
-        self.assertEqual(failure["reason"], "invalid_tool_calls")
-        self.assertNotIn(
-            "deterministic_fallback",
-            [item["step"] for item in result["agentTrace"]],
-        )
 
     def test_repair_keeps_tool_results_untrusted_without_requiring_more_tool_steps(self):
         tool_step = {
@@ -553,6 +556,80 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         )
         self.assertEqual([item["kind"] for item in result["proposals"]], ["create_element"])
 
+    def _repair_run(self, repaired):
+        incomplete_final = {"message": "", "citations": [], "proposals": []}
+        runtime, inference = self._runtime(incomplete_final, repaired)
+        runtime._forced_proposal = lambda *_args: None
+        complete = lambda: runtime.complete(  # noqa: E731
+            "Lege Igor als neue Figur an.", {}, FIGURES, history=None, world_revision=10
+        )
+        return complete, inference
+
+    def test_the_repair_retry_keeps_the_full_check_schema(self):
+        repaired = {
+            "message": "Vorbereitet.",
+            "citations": [],
+            "proposals": [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:igor",
+                    "element": {"type": "person", "name": "Igor"},
+                }
+            ],
+        }
+        complete, inference = self._repair_run(repaired)
+        complete()
+
+        retry_format = inference.calls[-1]["response_format"]
+        wire = retry_format["json_schema"]["schema"]
+        check = retry_format.check_schema
+        self.assertEqual(wire["properties"]["proposals"]["minItems"], 1)
+        self.assertEqual(check["properties"]["proposals"]["minItems"], 1)
+        self.assertTrue(check["properties"]["citations"]["uniqueItems"])
+        self.assertNotIn("uniqueItems", wire["properties"]["citations"])
+        name = check["properties"]["proposals"]["items"]["anyOf"][0]["properties"]["element"]
+        self.assertEqual(name["properties"]["name"]["maxLength"], 160)
+
+    def test_the_repair_retry_is_checked_against_lengths_and_uniqueness(self):
+        for label, repaired in (
+            (
+                "duplicate citations",
+                {
+                    "message": "Vorbereitet.",
+                    "citations": ["c1", "c1"],
+                    "proposals": [
+                        {
+                            "kind": "create_element",
+                            "tempId": "new:igor",
+                            "element": {"type": "person", "name": "Igor"},
+                        }
+                    ],
+                },
+            ),
+            (
+                "name with 161 characters",
+                {
+                    "message": "Vorbereitet.",
+                    "citations": [],
+                    "proposals": [
+                        {
+                            "kind": "create_element",
+                            "tempId": "new:igor",
+                            "element": {"type": "person", "name": "I" * 161},
+                        }
+                    ],
+                },
+            ),
+        ):
+            with self.subTest(label):
+                complete, inference = self._repair_run(repaired)
+                with self.assertRaises(InferenceValidationError):
+                    complete()
+                self.assertEqual(
+                    inference.calls[-1]["response_format"]["json_schema"]["name"], "quiltor_reply"
+                )
+                self.assertEqual(len(inference.calls), 2)
+
     def test_complex_planner_gets_a_deterministic_search_seed_when_model_returns_none(self):
         planner_reply = {"goal": "audit", "steps": [], "searchQueries": [], "requiredKinds": []}
         runtime, _ = self._runtime(planner_reply)
@@ -573,13 +650,11 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         reply = {
             "message": "Angelegt.",
             "citations": [],
-            "proof": {"checked": True, "worldRevision": 999},
             "proposals": [
                 {
                     "kind": "create_element",
                     "tempId": "new:falke",
                     "element": {"type": "person", "name": "Der Falke"},
-                    "resolution": {"outcome": "create"},
                 }
             ],
         }
@@ -782,7 +857,7 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             def finish(self, *args):
                 events.append(("finish", args))
 
-        runtime, _ = self._runtime(tokens=2000)
+        runtime, _ = self._runtime(tokens=2000, heavy=("a", "b"))
         runtime.progress = RecordingProgress()
         calls = []
 
@@ -849,7 +924,12 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(element_reply, moment_reply, tokens=2000)
+        runtime, inference = self._runtime(
+            element_reply,
+            moment_reply,
+            tokens=2000,
+            heavy=("Nova, die Botin, kommt.", "Nova erreicht den Hafen."),
+        )
 
         result = runtime.complete(
             "Dieser Text wird im Extraktionsmodus serverseitig ersetzt.",
@@ -882,15 +962,15 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
         )
         schema = inference.calls[0]["response_format"]["json_schema"]["schema"]
         proposal_kinds = {
-            branch["properties"]["kind"]["const"]
-            for branch in schema["oneOf"][1]["properties"]["final"]["properties"]["proposals"][
-                "items"
-            ]["oneOf"]
+            branch["properties"]["kind"]["enum"][0]
+            for branch in schema["properties"]["step"]["anyOf"][1]["properties"]["final"][
+                "properties"
+            ]["proposals"]["items"]["anyOf"]
         }
         self.assertNotIn("arrange_elements", proposal_kinds)
 
     def test_world_extraction_filters_batches_to_the_explicit_chapter_scope(self):
-        runtime, _ = self._runtime(tokens=2000)
+        runtime, _ = self._runtime(tokens=2000, heavy=("a", "b"))
         calls = []
 
         def complete(_question, _manuscript, _figures, _history, *, chapter_ids, mode, **_options):
@@ -930,7 +1010,7 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             def finish(self, *args):
                 events.append("finish")
 
-        runtime, _ = self._runtime(tokens=2000)
+        runtime, _ = self._runtime(tokens=2000, heavy=("a", "b"))
         runtime.progress = RecordingProgress()
         calls = []
 
@@ -982,7 +1062,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(duplicate, duplicate, tokens=2000)
+        runtime, inference = self._runtime(
+            duplicate, duplicate, tokens=2000, heavy=("Nova kommt.", "Nova bleibt.")
+        )
 
         result = runtime._run_batches(
             "Lege alle Figuren aus den Kapiteln an.",
@@ -1034,7 +1116,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(duplicate, duplicate, tokens=2000)
+        runtime, inference = self._runtime(
+            duplicate, duplicate, tokens=2000, heavy=("Tarek kommt an.", "Tarek bleibt dort.")
+        )
 
         result = runtime._run_batches(
             "Setze die Anwesenheit in allen Kapiteln.",
@@ -1079,7 +1163,9 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
                 }
             ],
         }
-        runtime, inference = self._runtime(duplicate, duplicate, tokens=2000)
+        runtime, inference = self._runtime(
+            duplicate, duplicate, tokens=2000, heavy=("Tarek kommt an.", "Tarek bleibt dort.")
+        )
 
         result = runtime._run_batches(
             "Lege die Figur in allen Kapiteln an.",

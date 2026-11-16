@@ -20,6 +20,10 @@ extend-exclude = [
   # The interface itself: German product text (CLAUDE.md, "Language").
   "locales/de/**",
 
+  # Raw answers a real llama-server gave (T-179): model output and random ids, recorded as they
+  # came and graded again from these files. Correcting them would change the evidence.
+  "tests/python/fixtures/llama-conformance/**",
+
   # Build output. Minified bundles contain the German interface text and every identifier
   # of the sources; the sources are the thing to check.
   "dist/**",
@@ -38,6 +42,10 @@ extend-exclude = [
   "README.md",
   "DESIGN.md",
   "docs/ERSTE-SCHRITTE.md",
+  "docs/funktionen.md",
+  "docs/assistent.md",
+  "docs/schreibwerkzeuge.md",
+  "docs/betrieb/**",
   "docs/design/FRONTEND_STYLEGUIDE.md",
   "docs/plans/**",
   "packages/client/src/design/README.md",
@@ -50,7 +58,10 @@ extend-exclude = [
   # German dictionary excerpts (Wiktionary records, an OpenThesaurus file, a word list) the
   # writing-data build reads as its sources.
   "tests/python/fixtures/writing-data/**",
-  "tools/documentation/readme_fixture.mjs",
+  "tests/world/texts/*.de.mjs",
+  "src/quiltor/resources/example_world/de.json",
+  "tests/world/world.lock.json",
+  "tests/world/CATALOG.md",
   "tools/evaluation/assistant/seed_synthetic_world.py",
 
   # The browser-inference test page is German interface text for testers, and its prompt
@@ -70,6 +81,9 @@ extend-ignore-re = [
   # ... and quotes German phrases and persisted field names that were once German.
   "`elementeVerborgen`",
   "mischt benannte und unbenannte Geometrie",
+
+  # The German search term the README "search" view types (tools/documentation/capture_readme.mjs).
+  "searchTerm: \"Archiv\"",
 
   # A SQL keyword in the plural: "UPDATEs" is split as UPDAT + Es.
   "\\bUPDATEs\\b",
@@ -98,6 +112,8 @@ extend-ignore-re = [
   "Art / Funktion",
   "vor 0 Sekunden",
   "Ohne Titel",
+  # The sign-in-unavailable page (T-253, src/quiltor/hosts/web/server.py).
+  "Die Anmeldung ist gerade kurz nicht erreichbar, gleich noch einmal versuchen",
   "Beziehung \\{edge_id\\} ist",
   "liegt vor dem",
   "Lokaler Modell-Prozess ist",
@@ -122,6 +138,10 @@ extend-ignore-re = [
   "\\(er\\|sie\\|",
   "Papyrus Autor",
   "KI-Suche",
+  # The questions of the T-307 real-model runs (tools/evaluation/assistant/run_t307.py).
+  "Wer kommt in dieser Welt vor",
+  "Wer ist die Hafenmeisterin",
+  "Kommt im Manuskript nicht vor",
   "`Ende entfernen`",
 
   # German phrases whose words are also plausible English typos. Each one is quoted from
@@ -243,6 +263,7 @@ ordner = "ordner"
 
 [type.germantest.extend-words]
 ist = "ist"
+deine = "deine"
 oder = "oder"
 als = "als"
 ein = "ein"

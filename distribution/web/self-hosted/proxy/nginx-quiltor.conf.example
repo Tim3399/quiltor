@@ -5,6 +5,10 @@
 # Forwarding Host and X-Forwarded-Proto is required: server.py uses them to
 # build the exact OIDC redirect_uri and to decide whether to mark cookies
 # Secure (see QUILTOR_PUBLIC_URL / QUILTOR_COOKIE_SECURE in the README).
+#
+# The assistant's own-AI relay holds a request open for up to 25 s
+# (/api/assistant/relay/next). nginx's default proxy_read_timeout of 60 s is
+# enough; if you set one, keep it at 30 s or more.
 
 server {
     listen 443 ssl;

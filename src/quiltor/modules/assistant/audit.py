@@ -5,6 +5,7 @@ model-generated proposal is ever surfaced to the user (validate_proposals)."""
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Any
 
 from quiltor.domain.story_world.entity_resolution import resolve_entity
@@ -19,7 +20,7 @@ from quiltor.modules.assistant.entity_references import resolved_entity_id
 from quiltor.modules.assistant.relationship_appearance import normalize_relationship_appearance
 
 
-def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
+def audit_message(audit: Mapping[str, Any], contract: dict[str, Any]) -> str:
     inspected = audit["inspected"]
     prefix = (
         f"Strukturell vollständig geprüft: {inspected['relationships']} Beziehungen mit "
@@ -37,7 +38,7 @@ def audit_message(audit: dict[str, Any], contract: dict[str, Any]) -> str:
     )
 
 
-def audit_reply(audit: dict[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
+def audit_reply(audit: Mapping[str, Any], contract: dict[str, Any]) -> dict[str, Any]:
     """Same content as audit_message(), plus the messageKey/messageParams/messageItems
     triple the frontend needs to render it in the interface language (see
     packages/client/src/modules/assistant/AssistantDrawer.tsx's resolveAssistantMessage)."""

@@ -97,6 +97,69 @@ describe("NoteEditor", () => {
     expect(editor).toHaveFocus();
   });
 
+  // T-161: new marks that arrive between a native selection and its `selectionchange` must not
+  // put the next keystroke in front of the text.
+  it("keeps a native selection it has not read yet when new marks arrive", () => {
+    const note = (marks: React.ComponentProps<typeof NoteEditor>["marks"]) => (
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          <NoteEditor
+            owner={{ kind: "chapter", id: "c1" }}
+            label="Notiz"
+            value="Anfang Ende"
+            marks={marks}
+            onChange={vi.fn()}
+          />
+        </NoteReferenceProvider>
+      </I18nProvider>
+    );
+    const { rerender } = render(note(undefined));
+    const view = viewFor(screen.getByRole("textbox", { name: "Notiz" }));
+    view.focus();
+    const text = view.contentDOM.querySelector(".cm-line")?.firstChild;
+    if (!text) throw new Error("text node missing");
+    document.getSelection()?.setBaseAndExtent(text, 0, text, 11);
+
+    rerender(note([{ from: 7, to: 11, kind: "bold" }]));
+    document.dispatchEvent(new Event("selectionchange"));
+    view.dispatch(view.state.replaceSelection("Neu"));
+
+    expect(view.state.doc.toString()).toBe("Neu");
+  });
+
+  // F-161: the note editor needs the same hold, or a held-back Android key is lost here.
+  it("leaves the selection alone while a held-back Backspace is unread", () => {
+    const note = (marks: React.ComponentProps<typeof NoteEditor>["marks"]) => (
+      <I18nProvider>
+        <NoteReferenceProvider candidates={[]} onOpenReference={vi.fn()}>
+          <NoteEditor
+            owner={{ kind: "chapter", id: "c1" }}
+            label="Notiz"
+            value="Anfang Ende"
+            marks={marks}
+            onChange={vi.fn()}
+          />
+        </NoteReferenceProvider>
+      </I18nProvider>
+    );
+    const { rerender } = render(note(undefined));
+    const view = viewFor(screen.getByRole("textbox", { name: "Notiz" }));
+    view.focus();
+    const text = view.contentDOM.querySelector(".cm-line")?.firstChild;
+    if (!text) throw new Error("text node missing");
+    view.contentDOM.dispatchEvent(
+      new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true }),
+    );
+    text.nodeValue = "AnfangEnde";
+    document.getSelection()?.setBaseAndExtent(text, 6, text, 6);
+    const update = vi.spyOn(view, "update");
+
+    rerender(note([{ from: 0, to: 6, kind: "bold" }]));
+
+    expect(update).toHaveBeenCalled();
+    expect(update.mock.calls.some(([trs]) => trs.some((tr) => tr.selection))).toBe(false);
+  });
+
   it("reports an edit to the newest onChange, not the one from the first render", () => {
     const first = vi.fn();
     const second = vi.fn();

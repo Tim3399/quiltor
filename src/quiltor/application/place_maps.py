@@ -14,6 +14,7 @@ ceiling.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -71,6 +72,10 @@ class PlaceMapRepository(Protocol):
     def store(self, payload: bytes, image_format: ImageFormat, database: Path) -> MapImage: ...
 
     def content(self, image_id: str, database: Path) -> MapImageContent | None: ...
+
+    def dimensions(self, ids: Iterable[str], database: Path) -> dict[str, tuple[int, int]]:
+        """The pixel size of each known image among `ids`; unknown ids are left out."""
+        ...
 
     def prune_unreferenced(
         self,

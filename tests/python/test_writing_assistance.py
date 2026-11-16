@@ -95,7 +95,7 @@ class WritingAssistanceServiceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.service.lookup(language, mode, query)
 
-    def test_outdated_database_requires_reinstallation(self):
+    def test_outdated_database_offers_an_update_and_keeps_answering(self):
         self.service.install()
 
         with closing(sqlite3.connect(self.repository.path)) as conn:
@@ -103,8 +103,9 @@ class WritingAssistanceServiceTests(unittest.TestCase):
                 conn.execute("UPDATE metadata SET value='old' WHERE key='version'")
         self.assertFalse(self.service.status()["installed"])
         self.assertTrue(self.service.status()["stale"])
-        with self.assertRaises(FileNotFoundError):
-            self.service.lookup("de-DE", "dictionary", "Haus")
+        found = self.service.lookup("de-DE", "dictionary", "Haus")
+        self.assertEqual(found["version"], "old")
+        self.assertTrue(found["results"])
 
     def test_provider_parsers_normalize_upstream_formats(self):
         thesaurus = list(parse_openthesaurus(["schnell;rasch;flink\n"]))

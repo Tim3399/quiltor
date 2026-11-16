@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/transient-network";
 import {
   fulfillDocumentSave,
   fulfillManuscript,
@@ -13,6 +12,8 @@ import {
   openExpandedMapWorld,
   selectMapChild,
 } from "./support/expanded-map-fixture";
+import { waitForPlacesCanvasToStandStill } from "./support/places-canvas";
+import { expect, test } from "./support/transient-network";
 
 const manuscript = {
   chapters: [
@@ -54,7 +55,30 @@ const figures = {
   presence: [],
 };
 
-function mockWorkshop(page: Page) {
+/**
+ * What a local Quiltor server answers on /api/capabilities today. The baseline workflow runs
+ * against Vite alone, where nothing answers, so the images would otherwise depend on whether a
+ * Python server stands behind the proxy: the assistant header names its engine only from these
+ * flags (D-T-275-F3).
+ */
+const LOCAL_CAPABILITIES = {
+  ok: true,
+  version: 1,
+  instance: {
+    multiUser: false,
+    signOut: false,
+    deviceSync: true,
+    assistantInstall: true,
+    writingDataInstall: true,
+    grammarInstall: true,
+    clientAi: true,
+    testHooks: false,
+  },
+  user: { serverAi: true },
+};
+
+async function mockWorkshop(page: Page) {
+  await page.route("**/api/capabilities", (route) => route.fulfill({ json: LOCAL_CAPABILITIES }));
   return mockWorkshopRoutes(page, {
     version: "baseline",
     world: {
@@ -103,7 +127,7 @@ const BOOTSTRAP = process.env.QUILTOR_BASELINE_BOOTSTRAP === "1";
  * rarer but did not remove it. A real design deviation moves thousands of pixels here, not
  * two -- the threshold separates them safely.
  */
-const LEINWAND_TOLERANZ = { maxDiffPixels: 24 } as const;
+const CANVAS_TOLERANCE = { maxDiffPixels: 24 } as const;
 
 /*
  * Wait until the canvas stands still.
@@ -113,7 +137,7 @@ const LEINWAND_TOLERANZ = { maxDiffPixels: 24 } as const;
  * elsewhere than in the reference. That looked like a design deviation and was a snapshot.
  * What is waited for is two identical transforms in a row.
  */
-async function stillstehendeLeinwand(page: Page) {
+async function waitForCanvasToSettle(page: Page) {
   const viewport = page.locator(".flow-area .react-flow__viewport").first();
   if ((await viewport.count()) === 0) return;
   let vorige: string | null = null;
@@ -146,7 +170,7 @@ async function fitUntilSettled(page: Page) {
   let previous: string | null = null;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await fitView.click();
-    await stillstehendeLeinwand(page);
+    await waitForCanvasToSettle(page);
     const current = await viewport.getAttribute("style");
     if (current !== null && current === previous) return;
     previous = current;
@@ -178,11 +202,12 @@ for (const theme of ["light", "dark"] as const) {
       .getByRole("button", { name: "Orte", exact: true })
       .evaluate((element) => element.scrollIntoView({ block: "nearest", inline: "center" }));
     await selectMapChild(page);
-    await expect(page.locator('.place-map-chrome[data-map-id="weltkarte"]')).toBeVisible();
+    await expect(page.locator('.place-map-chrome[data-map-id="x-weltkarte"]')).toBeVisible();
     await expect(page.locator(".place-map-chrome__footer")).toContainText("25 km");
+    await waitForPlacesCanvasToStandStill(page);
     await expect(page).toHaveScreenshot(`${theme}-expanded-map.png`, {
       animations: "disabled",
-      ...LEINWAND_TOLERANZ,
+      ...CANVAS_TOLERANCE,
     });
   });
 
@@ -230,7 +255,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
       await fitUntilSettled(page);
     }
-    await stillstehendeLeinwand(page);
+    await waitForCanvasToSettle(page);
     if ((page.viewportSize()?.width ?? 0) < 720) {
       await expect(
         page.locator('.figure-workspace .react-flow__node[data-id="mara"] .story-node'),
@@ -241,7 +266,7 @@ for (const theme of ["light", "dark"] as const) {
     }
     await screenshotExpectation.toHaveScreenshot(`${theme}-figures.png`, {
       animations: "disabled",
-      ...LEINWAND_TOLERANZ,
+      ...CANVAS_TOLERANCE,
     });
 
     await page.getByRole("button", { name: "Timeline", exact: true }).click();
@@ -252,10 +277,10 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.getByRole("button", { name: "Orte", exact: true }).click();
     await expect(page.locator(".places-workspace")).toBeVisible();
-    await stillstehendeLeinwand(page);
+    await waitForCanvasToSettle(page);
     await screenshotExpectation.toHaveScreenshot(`${theme}-places.png`, {
       animations: "disabled",
-      ...LEINWAND_TOLERANZ,
+      ...CANVAS_TOLERANCE,
     });
 
     await page.keyboard.press("Control+KeyF");
@@ -271,6 +296,9 @@ for (const theme of ["light", "dark"] as const) {
         ? page.getByRole("dialog", { name: "Lokaler Assistent" })
         : page.getByRole("complementary", { name: "Lokaler Assistent" });
     await expect(assistant).toBeVisible();
+    // The header names its engine only once the capabilities have arrived; before that it
+    // reads a bare "nur Vorschläge" (D-T-275-F3). The mocked capabilities are a local instance.
+    await expect(assistant.getByText("Auf diesem Rechner · nur Vorschläge")).toBeVisible();
     // The compact sheet slides up (ui-sheet-up) and is "visible" from its first frame, still
     // off screen. `animations: "disabled"` finishes the animation just before the capture,
     // but on a loaded macOS runner the capture once showed the sheet 526 px short of its
@@ -283,6 +311,125 @@ for (const theme of ["light", "dark"] as const) {
     await screenshotExpectation.toHaveScreenshot(`${theme}-assistant.png`, {
       animations: "disabled",
     });
+  });
+}
+
+/*
+ * The overview with favourites (T-129): round markers, two favourites -- one with a short name,
+ * one whose long name is cut off -- and a favourite lying over ordinary markers.
+ *
+ * The overview is the zoom tier below 0.34, and its markers keep their size while the world
+ * shrinks. So the positions are laid out in screen units and divided by OVERVIEW_ZOOM: two
+ * far-off corner anchors make the fit land close to that zoom in every project, and the
+ * cluster between them is spaced tighter than a marker is wide. Nothing is random; the
+ * screenshot is the same every run.
+ */
+const OVERVIEW_ZOOM = 0.25;
+const LONG_FAVOURITE = "Die nördliche Hafenmeisterei am äußersten Kai der Gezeitenbucht";
+const OVERVIEW_NAMES = [
+  "Anselm",
+  "Berit",
+  "Cornelius",
+  "Dorothea",
+  "Emil",
+  "Frieda",
+  "Gesine",
+  "Hilmar",
+  "Ingrid",
+  "Jasper",
+  "Kaspar",
+  "Lotte",
+  "Marthe",
+  "Nikolai",
+  "Ottilie",
+  "Pelle",
+  "Quirin",
+  "Rosalind",
+] as const;
+
+function overviewFavouritesWorld(canvas: { width: number; height: number }) {
+  const at = (screenX: number, screenY: number) => ({
+    x: Math.round(screenX / OVERVIEW_ZOOM),
+    y: Math.round(screenY / OVERVIEW_ZOOM),
+  });
+  const middle = { x: canvas.width / 2, y: canvas.height / 2 };
+  const nodes = [
+    // Favourites first in the array: without a z-index every later marker would cover them.
+    {
+      id: "fav-libelle",
+      name: "Libelle",
+      type: "ort" as const,
+      important: true,
+      ...at(middle.x - 40, middle.y - 10),
+    },
+    {
+      id: "fav-lang",
+      name: LONG_FAVOURITE,
+      type: "ort" as const,
+      important: true,
+      ...at(middle.x + 20, middle.y + 36),
+    },
+    { id: "anker-nw", name: "Nordwesten", type: "ort" as const, ...at(20, 20) },
+    {
+      id: "anker-so",
+      name: "Südosten",
+      type: "ort" as const,
+      ...at(canvas.width - 20, canvas.height - 20),
+    },
+    ...Array.from({ length: 18 }, (_, index) => ({
+      id: `ort-${index}`,
+      name: OVERVIEW_NAMES[index],
+      type: index % 5 === 0 ? ("person" as const) : ("ort" as const),
+      // A tight lattice with a deterministic wobble; the first rows sit under "Libelle".
+      ...at(
+        middle.x - 100 + (index % 6) * 26 + ((index * 7) % 5),
+        middle.y - 40 + Math.floor(index / 6) * 28 + ((index * 11) % 5),
+      ),
+    })),
+  ];
+  return { nodes, edges: [], timeline: [], presence: [] };
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`${theme}: the overview keeps favourites above ordinary markers`, async ({ page }) => {
+    test.skip(!BOOTSTRAP && !hasBaselines(), `No baseline set exists for ${process.platform}.`);
+    await page.addInitScript((selected) => {
+      localStorage.setItem("quiltor-theme", selected);
+      localStorage.setItem("quiltor-interface-language", "de");
+    }, theme);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const viewport = page.viewportSize() ?? { width: 1440, height: 900 };
+    await mockWorkshopRoutes(page, {
+      version: "baseline",
+      world: {
+        id: "baseline",
+        title: "Der gläserne Atlas",
+        backupUrl: "",
+        updated: "2026-08-09T12:00:00Z",
+      },
+      documents: {
+        manuscript,
+        storyWorld: overviewFavouritesWorld({
+          width: viewport.width * 0.8,
+          height: viewport.height * 0.6,
+        }),
+      },
+      assistant: { reason: "Baseline", chunks: 3 },
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Der gläserne Atlas – Welt öffnen" }).click();
+    await page.getByRole("button", { name: "Figuren", exact: true }).click();
+    await expect(page.getByLabel("Figuren und Beziehungen")).toBeVisible();
+    await fitUntilSettled(page);
+    await expect(page.locator(".figure-workspace .flow-area")).toHaveClass(/zoom-overview/);
+    await expect(page.locator(".figure-workspace .story-node.is-important")).toHaveCount(2);
+    await expect(page.locator(".figure-workspace .flow-area")).toHaveScreenshot(
+      `${theme}-overview-favourites.png`,
+      {
+        animations: "disabled",
+        ...CANVAS_TOLERANCE,
+      },
+    );
   });
 }
 

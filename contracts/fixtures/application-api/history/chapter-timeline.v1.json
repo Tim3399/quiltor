@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "entries": [
+    {
+      "hash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "shortHash": "44444444",
+      "date": "2026-11-07T18:16:00",
+      "subject": "Vor Kürzung",
+      "kind": "manual",
+      "change": "edited"
+    },
+    {
+      "hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "shortHash": "33333333",
+      "date": "2026-11-06T09:02:00",
+      "subject": "Before restore",
+      "kind": "before-restore",
+      "change": "unknown"
+    },
+    {
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "shortHash": "22222222",
+      "date": "2026-11-05T20:40:00",
+      "subject": "Kapitel gestrichen",
+      "kind": "manual",
+      "change": "deleted"
+    },
+    {
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "shortHash": "11111111",
+      "date": "2026-11-01T21:40:00",
+      "subject": "Chapter \"Ankunft\" edited",
+      "kind": "changes",
+      "change": "created"
+    }
+  ],
+  "skipped": 2,
+  "next": null
+}

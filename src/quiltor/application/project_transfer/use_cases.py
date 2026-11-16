@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
-
 from quiltor.application.project_transfer.ports import ProjectTransferRepository
+from quiltor.application.project_transfer.types import PublicProjectTransferPreview
 from quiltor.application.telemetry import UseCaseObserver
+from quiltor.application.worlds.types import PublicWorld
 
 
 class ProjectTransferUseCases:
@@ -15,11 +15,11 @@ class ProjectTransferUseCases:
         with self._observer.observe("persistence", "export_project"):
             return self._repository.export(world_id, owner_sub)
 
-    def preview(self, archive: bytes) -> dict[str, Any]:
+    def preview(self, archive: bytes) -> PublicProjectTransferPreview:
         with self._observer.observe("persistence", "preview_project_import"):
             return self._repository.preview(archive).public()
 
-    def import_archive(self, archive: bytes, owner_sub: str) -> dict[str, str]:
+    def import_archive(self, archive: bytes, owner_sub: str) -> PublicWorld:
         with self._observer.observe("persistence", "import_project"):
             return self._repository.import_archive(archive, owner_sub).public()
 

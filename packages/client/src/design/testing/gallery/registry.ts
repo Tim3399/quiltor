@@ -18,8 +18,10 @@ import * as StatusBarStories from "../../components/StatusBar/StatusBar.story";
 import * as TabsStories from "../../components/Tabs/Tabs.story";
 import * as ToastStories from "../../components/Toast/Toast.story";
 import * as ToolbarButtonStories from "../../components/ToolbarButton/ToolbarButton.story";
+import * as TooltipStories from "../../components/Tooltip/Tooltip.story";
 import * as UndoRedoControlsStories from "../../components/UndoRedoControls/UndoRedoControls.story";
 import * as WorkspaceToolbarStories from "../../components/WorkspaceToolbar/WorkspaceToolbar.story";
+import * as CollapsibleGroupStories from "../../patterns/CollapsibleGroup/CollapsibleGroup.story";
 import * as CommandPaletteStories from "../../patterns/CommandPalette/CommandPalette.story";
 import * as ConfirmDialogStories from "../../patterns/ConfirmDialog/ConfirmDialog.story";
 import * as DropdownMenuStories from "../../patterns/DropdownMenu/DropdownMenu.story";
@@ -82,6 +84,7 @@ export const designStories: readonly DesignStory[] = [
   ...collectStories("Feedback", "SaveStatus", SaveStatusStories),
   ...collectStories("Navigation", "ScrollArea", ScrollAreaStories),
   ...collectStories("Forms", "SegmentedControl", SegmentedControlStories),
+  ...collectStories("Navigation", "CollapsibleGroup", CollapsibleGroupStories),
   ...collectStories("Navigation", "SelectableRow", SelectableRowStories),
   ...collectStories("Navigation", "SelectionMenu", SelectionMenuStories),
   ...collectStories("Overlays", "Sheet", SheetStories),
@@ -90,6 +93,7 @@ export const designStories: readonly DesignStory[] = [
   ...collectStories("Navigation", "Tabs", TabsStories),
   ...collectStories("Feedback", "Toast", ToastStories),
   ...collectStories("Actions", "ToolbarButton", ToolbarButtonStories),
+  ...collectStories("Overlays", "Tooltip", TooltipStories),
   ...collectStories("Actions", "UndoRedoControls", UndoRedoControlsStories),
   ...collectStories("Navigation", "WorkspaceToolbar", WorkspaceToolbarStories),
   ...collectStories("Forms", "Checkbox", CheckboxStories),

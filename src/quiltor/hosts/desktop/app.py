@@ -19,6 +19,7 @@ import socket
 import sys
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 
 # Run as a script -- `python src/quiltor/hosts/desktop/app.py` -- Python puts
@@ -81,6 +82,18 @@ def _bundle_base() -> Path:
     if getattr(sys, "frozen", False):
         return Path(getattr(sys, "_MEIPASS", None) or Path(sys.executable).resolve().parent)
     return resources.source_root()
+
+
+def owner_url(port: int, identity) -> str:
+    """The address the window opens: loopback, carrying a one-time open code (F-269-11).
+
+    Not the process token: that stays in the process. The code is spent on the
+    window's first request and dead after a short TTL either way.
+    """
+    issue = getattr(identity, "issue_open_code", None)
+    code = str(issue()) if callable(issue) else ""
+    query = f"?code={urllib.parse.quote(code, safe='')}" if code else ""
+    return f"http://127.0.0.1:{port}/{query}"
 
 
 def _free_port(preferred: int = DEFAULT_PORT) -> int:
@@ -153,9 +166,12 @@ def main() -> None:
 
     # The page hands its exports to this instead of downloading them itself.
     native_bridge = NativeBridge(web_application.capabilities)
+    # A one-time open code in the first URL (S269-4, F-269-11): the server answers with
+    # its cookie and a redirect to the same path without the code. Nothing else on this
+    # machine knows it, so the loopback port alone no longer opens the worlds.
     window = webview.create_window(
         APP_NAME,
-        f"http://127.0.0.1:{port}/",
+        owner_url(port, web_application.identity),
         width=1280,
         height=860,
         min_size=(960, 640),

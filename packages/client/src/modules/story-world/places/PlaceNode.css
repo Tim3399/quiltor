@@ -293,16 +293,14 @@
    pushed the monogram ten pixels off the circle's centre. The same held quietly for every
    card whose image had not loaded yet. :has() binds the indent to what justifies it rather
    than to a zoom level, which would have no business here anyway. */
-.place-node-shell
-  .story-node.is-map:has(.place-node__preview)
-  > *:not(.place-node__preview):not(.place-node__enter) {
+.place-node-shell .story-node.is-map:has(.place-node__preview) > *:not(.place-node__preview) {
   position: relative;
   z-index: var(--z-local);
   margin-left: 38%;
   padding-left: var(--space-10);
 }
 
-.place-node-shell .story-node-card > *:not(.place-node__preview):not(.place-node__enter) {
+.place-node-shell .story-node-card > *:not(.place-node__preview) {
   position: relative;
   z-index: var(--z-local);
 }
@@ -333,35 +331,106 @@
 /* The two map commands -- open out and enter -- never had rules of their own. They
    therefore fell into the card's normal flow, stacked one under the other, and the second
    lay half outside the 96px-tall card. They now stand as a row in the bottom corner of the
-   text column, outside the image and outside the name. */
-.place-node-shell .story-node .place-node__enter {
+   text column, outside the image and outside the name.
+   The row is the card's sibling in the shell, not its child (D-T-219-F2): the card clips
+   whatever lies outside it, and on a touch screen the row hangs below it. The shell is the
+   card's outer box, so the corner offsets add the card's 1px border, which used to be the
+   edge they were measured from. Reading order is source order, as on the pin: the display
+   toggle first, "+" or enter last, so the last command stands in the corner. */
+.place-node-shell .place-node__commands {
   position: absolute;
   z-index: var(--z-local);
-  right: var(--space-4);
-  bottom: var(--space-4);
+  right: calc(var(--space-4) + 1px);
+  bottom: calc(var(--space-4) + 1px);
+  display: flex;
+  gap: var(--space-2);
+}
+
+.place-node-shell .place-node__enter {
+  position: relative;
   margin: 0;
   opacity: 0;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
-/* Reading order is source order, as on the pin: the display toggle first, "+" or enter last,
-   so the last command stands in the corner. Which of the two came first used to decide the
-   corner too, and put them in the opposite order of the pin's row. */
-.place-node-shell .story-node .place-node__enter:has(+ .place-node__enter) {
-  right: calc(var(--space-4) + var(--control-compact) + var(--space-2));
-}
-
 /* They speak up only once the card is meant: a surface full of places should not consist
    of nothing but buttons. */
-.place-node-shell .story-node:hover .place-node__enter,
-.place-node-shell .story-node.selected .place-node__enter,
-.place-node-shell .story-node:focus-within .place-node__enter {
+.place-node-shell:hover .place-node__enter,
+.place-node-shell:has(> .story-node.selected) .place-node__enter,
+.place-node-shell:focus-within .place-node__enter {
   opacity: 1;
 }
 
-@media (pointer: coarse) {
-  .place-node-shell .story-node .place-node__enter {
+/* On a fitted canvas the card is drawn zoomed out, and its commands shrink with it: a
+   button measured 19px on screen, under the 24px a pointer target needs (WCAG 2.2 AA 2.5.8).
+   The glyph stays as small as it is; the hit area does not. It is centred on the button and
+   as large as 24 screen px takes in card px -- never smaller than the button, so at full
+   zoom it adds nothing -- and it is out of the flow, so the card's layout is unchanged.
+   Two neighbours stand 8 card px apart; where their areas touch at a far-out zoom, the later
+   one takes the strip between. On a touch screen the button itself is larger (below), and
+   this area has nothing left to add. */
+.place-node-shell .place-node__enter::after {
+  --place-card-target: 24px;
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, calc(var(--place-card-target) / var(--place-card-zoom, 1)));
+  height: max(100%, calc(var(--place-card-target) / var(--place-card-zoom, 1)));
+  transform: translate(-50%, -50%);
+}
+
+/* On a touch screen and on a phone-wide window the product asks for 44px targets you can
+   see (tokens.css turns --control-compact into --control-touch there). The commands are
+   drawn inside the zoomed canvas, so 44 card px are only 44 * zoom on screen -- 20px on a
+   fitted 390px canvas. Each button therefore takes 44 screen px in card px, never less than
+   the design size.
+   At that size they no longer fit on the card: it is 98 x 45px there, and the tap that
+   selected it landed on a command that had just appeared under the finger and turned the
+   card into a pin. The row hangs below the card instead, as the pin's actions stand beside
+   the pin, and only the card that is meant shows it -- a tap selects, a second tap commands.
+   The gap is the row's own padding, so a mouse on a narrow window keeps hovering the shell
+   on its way down to the commands. */
+@media (max-width: 719px), (pointer: coarse) {
+  .place-node-shell .place-node__commands {
+    --place-card-command: max(
+      var(--control-compact),
+      calc(var(--control-touch) / var(--place-card-zoom, 1))
+    );
+    top: 100%;
+    right: 0;
+    bottom: auto;
+    padding-top: calc(var(--space-4) / var(--place-card-zoom, 1));
+    gap: calc(var(--space-4) / var(--place-card-zoom, 1));
+    visibility: hidden;
+  }
+
+  .place-node-shell .place-node__enter {
+    width: var(--place-card-command);
+    min-width: var(--place-card-command);
+    height: var(--place-card-command);
+  }
+
+  .place-node-shell:hover .place-node__commands,
+  .place-node-shell:has(> .story-node.selected) .place-node__commands,
+  .place-node-shell:focus-within .place-node__commands {
+    visibility: visible;
+  }
+
+  .place-node-shell:hover .place-node__enter,
+  .place-node-shell:has(> .story-node.selected) .place-node__enter,
+  .place-node-shell:focus-within .place-node__enter {
     opacity: 1;
+  }
+}
+
+/* Where the places workspace is compact (PLACE_COMPACT_MEDIA_QUERY in PlacesWorkspace.tsx,
+   820px), selecting a card opens the inspector as a sheet over the whole canvas: the row
+   below the card would lie under it. The inspector offers the same commands there instead,
+   so the card carries none. */
+@media (max-width: 820px) {
+  .place-node-shell .place-node__commands {
+    display: none;
   }
 }
 

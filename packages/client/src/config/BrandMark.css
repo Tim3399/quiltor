@@ -1,0 +1,13 @@
+.brand-mark {
+  display: block;
+  height: 62%;
+  width: auto;
+}
+
+.brand-mark__tail {
+  fill: var(--gold);
+}
+
+.brand-mark__body {
+  fill: currentColor;
+}

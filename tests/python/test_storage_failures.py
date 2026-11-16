@@ -75,7 +75,11 @@ class StorageFailureTests(unittest.TestCase):
                 )
 
     def test_filesystem_failures_are_not_misrepresented_as_authentication_errors(self):
-        for number, code in ((errno.ENOSPC, "storage.full"), (errno.EROFS, "storage.read_only")):
+        for number, code in (
+            (errno.ENOSPC, "storage.full"),
+            (errno.EROFS, "storage.read_only"),
+            (errno.EBUSY, "storage.locked"),
+        ):
             with self.subTest(number=number):
                 error = from_exception(OSError(number, "private filesystem detail"))
                 self.assertEqual(error.code, code)

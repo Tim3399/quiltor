@@ -6,7 +6,7 @@ import math
 from collections.abc import Mapping, Sequence
 from datetime import date
 from itertools import pairwise
-from typing import Any, NamedTuple
+from typing import NamedTuple, TypedDict
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.knowledge import moment_order
@@ -111,12 +111,30 @@ def presence_consistency_issues(figures: Mapping[str, object]) -> list[str]:
     return [issue.text for issue in _presence_issue_entries(figures)]
 
 
-def validate_world(figures: Mapping[str, object]) -> dict[str, Any]:
-    """Inspect references and duplicates without mutating or repairing the aggregate.
+class IssueItem(TypedDict):
+    """An issue as a locale key with its parameters, for the interface to word."""
 
-    The result stays `dict[str, Any]`: its callers in application and the assistant are not
-    strict yet and read it as such.
-    """
+    key: str
+    params: dict[str, object]
+
+
+class WorldInspection(TypedDict):
+    elements: int
+    relationships: int
+    timelineMoments: int
+    relationshipStates: int
+    presenceEntries: int
+
+
+class WorldValidation(TypedDict):
+    # The German texts, for the assistant and older readers; issueItems carries the same.
+    issues: list[str]
+    issueItems: list[IssueItem]
+    inspected: WorldInspection
+
+
+def validate_world(figures: Mapping[str, object]) -> WorldValidation:
+    """Inspect references and duplicates without mutating or repairing the aggregate."""
 
     nodes = {node.get("id") for node in _objects(figures.get("nodes"))}
     moments = {moment.get("id") for moment in _objects(figures.get("timeline"))}
@@ -182,4 +200,10 @@ def validate_world(figures: Mapping[str, object]) -> dict[str, Any]:
     }
 
 
-__all__ = ["presence_consistency_issues", "validate_world"]
+__all__ = [
+    "IssueItem",
+    "WorldInspection",
+    "WorldValidation",
+    "presence_consistency_issues",
+    "validate_world",
+]

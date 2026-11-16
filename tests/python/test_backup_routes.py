@@ -24,7 +24,6 @@ import json
 import os
 import tempfile
 import threading
-import time
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -43,7 +42,6 @@ from quiltor.infrastructure.platform.ports import AppDirectories
 from quiltor.modules.identity import service as identity
 from tests.python import late_body
 from tests.python.fake_issuer import FakeIssuer
-from tests.python.narrowing import present
 from tests.python.request_timeout import REQUEST_TIMEOUT
 from tests.python.test_backup_login import FakeBackupEndpoint
 
@@ -156,9 +154,12 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         started = self.json_of("POST", "/api/backup/login", body={})
         self.assertTrue(started["ok"], started)
         code, state = self.issuer.authorize(started["authorizeUrl"])
-        status, headers, _ = self.request("GET", f"/backup/callback?code={code}&state={state}")
-        self.assertEqual(status, 302)
-        self.assertEqual(headers["Location"], "/")
+        status, headers, raw = self.request("GET", f"/backup/callback?code={code}&state={state}")
+        # A page, not a redirect into the app: the desktop login returns in the system
+        # browser, which has no session to go back to (D-203).
+        self.assertEqual(status, 200, raw[:200])
+        self.assertTrue(headers["Content-Type"].startswith("text/html"))
+        self.assertIn("Anmeldung abgeschlossen", raw.decode("utf-8"))
         return started
 
     def create_world(self) -> str:
@@ -233,15 +234,17 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.assertNotIn(b"Traceback", raw)
         self.assertFalse(self.json_of("GET", "/api/backup/login")["signedIn"])
 
-    def test_a_callback_carrying_no_code_says_so_rather_than_failing_later(self):
+    def test_a_callback_carrying_no_code_gets_the_neutral_page(self):
+        # The callback is anonymous since D-203, so no failure tells a caller its reason.
         status, _, raw = self.request("GET", "/backup/callback")
         self.assertEqual(status, 400)
-        self.assertIn("Code", raw.decode("utf-8"))
+        self.assertIn("Bitte starte die Anmeldung in Quiltor noch einmal.", raw.decode("utf-8"))
 
-    def test_a_provider_that_refused_is_reported_as_such(self):
+    def test_a_provider_that_refused_gets_the_neutral_page(self):
         status, _, raw = self.request("GET", "/backup/callback?error=access_denied")
         self.assertEqual(status, 400)
-        self.assertIn("access_denied", raw.decode("utf-8"))
+        self.assertNotIn("access_denied", raw.decode("utf-8"))
+        self.assertIn("Bitte starte die Anmeldung in Quiltor noch einmal.", raw.decode("utf-8"))
 
     # ---------- what the token is for ----------
 
@@ -322,6 +325,27 @@ class LocalLoginRouteTests(BackupRouteTestCase):
         self.assertEqual(status, 400)
         self.assertEqual(json.loads(raw)["error"]["code"], "history.request_invalid")
 
+    def test_the_chapter_timeline_refuses_a_bad_page_request(self):
+        """(T-86 part 2, case 6) limit 1..50, a chapterId, a known before."""
+        world_id = self.create_world()
+        base = f"/api/history/chapter-timeline?world={world_id}"
+        for query in (
+            "&limit=5",
+            "&chapterId=c&limit=0",
+            "&chapterId=c&limit=51",
+            "&chapterId=c&limit=zwei",
+        ):
+            with self.subTest(query=query):
+                status, _, raw = self.request("GET", base + query)
+                self.assertEqual(status, 400)
+                self.assertEqual(json.loads(raw)["error"]["code"], "history.request_invalid")
+        status, _, raw = self.request("GET", base + "&chapterId=c&limit=50")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(raw), {"ok": True, "entries": [], "skipped": 0, "next": None})
+        status, _, raw = self.request("GET", base + "&chapterId=c&before=" + "0" * 64)
+        self.assertEqual(status, 404)
+        self.assertEqual(json.loads(raw)["error"]["code"], "history.revision_not_found")
+
 
 class HostedTokenTests(BackupRouteTestCase):
     """The hosted case: the session already carries a token from the very issuer
@@ -358,44 +382,6 @@ class HostedTokenTests(BackupRouteTestCase):
             "nothing was stored on disk",
         )
 
-    def test_a_lapsed_session_token_is_renewed_before_the_upload(self):
-        """A session lives 24h, its access token commonly five minutes. Handing
-        the stored string out regardless is why a hosted upload would start
-        failing a few minutes after signing in."""
-        # The renewal goes to the identity gateway's configured issuer -- in a hosted
-        # deployment that is the same realm the endpoint trusts, which is
-        # exactly why the session's token is usable there at all.
-        session_id = self.app.identity.auth.create_session("hosted-person", "", "")
-        session = present(self.app.identity.auth.get_session(session_id))
-        self.issuer.sign_in_as("hosted-person")
-        granted = self.issuer._grant("quiltor.backup")
-        self.app.identity.auth.store_session_tokens(
-            session.session_id, {**granted, "expires_in": 0}
-        )  # already lapsed
-        stale = present(self.app.identity.auth.get_session(session_id)).access_token
-
-        fresh = self.app.session_backup_token(session)
-        self.assertTrue(fresh)
-        self.assertNotEqual(fresh, stale, "the lapsed token was handed out unchanged")
-        self.assertGreater(
-            present(self.app.identity.auth.get_session(session_id)).access_expires_at,
-            time.time(),
-            "the renewed token was filed without an expiry, so it lapses instantly",
-        )
-
-    def test_a_dead_refresh_token_clears_the_session_rather_than_pretending(self):
-        session_id = self.app.identity.auth.create_session("hosted-person", "", "")
-        session = present(self.app.identity.auth.get_session(session_id))
-        self.app.identity.auth.store_session_tokens(
-            session.session_id,
-            {"access_token": "stale", "refresh_token": "no-such-thing", "expires_in": 0},
-        )
-        self.assertEqual(
-            self.app.session_backup_token(session),
-            "",
-            "a token known to be stale must not be sent anyway",
-        )
-
     def test_a_refusal_by_the_dispatch_arrives_whole(self):
         """A hosted server refuses the login route before reading the body (T-87 S);
         the server must still drain it, or closing the socket resets the connection
@@ -413,47 +399,16 @@ class HostedTokenTests(BackupRouteTestCase):
                 self.assertEqual(answer.status, 403, answer.body[:200])
                 self.assertEqual(answer.json()["error"]["code"], "sync.forbidden_hosted")
 
-    def test_a_request_carries_its_own_sessions_token_to_the_endpoint(self):
-        """The explicit request capability never inherits another session."""
-        alice = self.app.identity.auth.get_session(self.session_for("alice-token", "alice"))
-        bob = self.app.identity.auth.get_session(self.session_for("bob-token", "bob"))
-        self.assertEqual(
-            self.app.backup_authorization(self.base, alice).bearer_token, "alice-token"
-        )
-        self.assertEqual(
-            self.app.backup_authorization(self.base, bob).bearer_token,
-            "bob-token",
-            "the second request must not have inherited the first one's token",
-        )
-
-    def test_the_local_login_is_not_consulted_here(self):
-        """Even with a browser login stored on this machine, a hosted request
-        sends the session's token: the local one belongs to whoever runs the
-        process, not to the person whose request this is."""
+    def test_no_credential_is_handed_out_on_a_hosted_server(self):
+        """No route asks for one there (T-87 S); asked anyway, the answer is a refusal,
+        never the local login, which belongs to whoever runs the process (T-157)."""
         backup_login.complete(*self._local_login())
         self.assertTrue(backup_login.access_token(self.base))
-
         session = self.app.identity.auth.get_session(self.session_for("session-token"))
-        authorization = self.app.backup_authorization(self.base, session)
-        self.assertEqual(authorization.bearer_token, "session-token")
-        self.assertNotEqual(authorization.bearer_token, backup_login.access_token(self.base))
-
-    def test_a_request_without_a_session_gets_no_token_at_all(self):
-        """Rather than falling back to some other credential: the endpoint then
-        answers 401 and names the issuer it wants, which is the honest outcome
-        for a caller who never presented anything."""
-        authorization = self.app.backup_authorization(self.base, None)
-        self.assertEqual(authorization.bearer_token, "")
-
-    def test_session_token_is_never_authorized_for_an_unconfigured_origin(self):
-        evil = FakeBackupEndpoint(self.issuer.url)
-        self.addCleanup(evil.stop)
-        session = self.app.identity.auth.get_session(self.session_for("session-secret"))
-
-        with self.assertRaises(PermissionError):
-            self.app.backup_authorization(evil.url, session)
-
-        self.assertEqual(evil.seen, [], "an attacker-controlled endpoint was contacted")
+        for asking in (session, None):
+            with self.subTest(session=asking is not None):
+                with self.assertRaises(PermissionError):
+                    self.app.backup_authorization(self.base, asking)
 
     def _local_login(self):
         redirect = f"http://127.0.0.1:{self.port}/backup/callback"

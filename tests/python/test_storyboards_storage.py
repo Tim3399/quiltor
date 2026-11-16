@@ -69,17 +69,10 @@ def realistic_storyboards() -> dict:
                 "width": 240.0,
                 "height": 144.0,
                 "zIndex": 1,
-                "text": "@Anna begleitet die Szene.",
-                "noteReferences": [
-                    {
-                        "id": "reference-ref-anna",
-                        "target": {"kind": "entity", "id": "figure-anna"},
-                        "from": 0,
-                        "to": 5,
-                        "surface": "@Anna",
-                    }
-                ],
-                "noteMarks": [{"from": 0, "to": 5, "kind": "bold"}],
+                # A reference card shows the note of its element and keeps an empty one (T-177).
+                "text": "",
+                "noteReferences": [],
+                "noteMarks": [],
                 "target": {"kind": "entity", "id": "figure-anna"},
                 "extension": {"caption": "Protagonistin"},
             },
@@ -609,7 +602,7 @@ class StoryboardStorageAcceptanceTests(unittest.TestCase):
         )
 
         reference_without_text = copy.deepcopy(valid)
-        reference_without_text["nodes"][1].pop("text")
+        reference_without_text["nodes"][2].pop("text")
         self.assertFalse(
             valid_storyboard_document(reference_without_text),
             "references must still match the node's own text",

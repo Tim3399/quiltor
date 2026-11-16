@@ -535,10 +535,10 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
     shards = _job_body(workflow, "browser-e2e-shards")
     aggregator = _job_body(workflow, "browser-e2e")
 
-    if re.findall(r"^        slot: \[([^\]\n]*)\]$", shards, re.MULTILINE) != ["1, 2, 3, 4"]:
+    if re.findall(r"^        slot: \[([^\]\n]*)\]$", shards, re.MULTILINE) != ["1, 2, 3, 4, 5, 6"]:
         raise WorkflowContractError(
-            "normal CI must run the product and design suites across exactly four browser "
-            "matrix slots: slot: [1, 2, 3, 4]"
+            "normal CI must run the product and design suites across exactly six browser "
+            "matrix slots: slot: [1, 2, 3, 4, 5, 6]"
         )
     if "if: matrix.product_shard" in shards or "--shard=" in shards:
         raise WorkflowContractError(
@@ -550,16 +550,16 @@ def validate_browser_e2e_sharding(sources: dict[Path, str]) -> None:
         "fail-fast: false",
         "SLOT: ${{ matrix.slot }}",
         "set +e",
-        "node tools/dev/test-shards.mjs select --os linux --slots 4 "
-        '--slot "$SLOT" --offset 4=9000 --out-dir "$lists"',
+        "node tools/dev/test-shards.mjs select --os linux --slots 6 "
+        '--slot "$SLOT" --offset 6=9000 --out-dir "$lists"',
         *SLOT_RUN_EVIDENCE,
         'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 '
         "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json",
         'PLAYWRIGHT_WORKERS="$WORKERS_LINUX_DESIGN" '
         "PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/design.json",
         "if: failure()",
-        "name: browser-e2e-slot-${{ matrix.slot }}-of-4-diagnostics",
-        "name: browser-durations-linux-slot-${{ matrix.slot }}-of-4",
+        "name: browser-e2e-slot-${{ matrix.slot }}-of-6-diagnostics",
+        "name: browser-durations-linux-slot-${{ matrix.slot }}-of-6",
         "test-results/**",
     )
     for evidence in required_shard_evidence:
@@ -708,7 +708,7 @@ def validate_cross_platform_browser_sharding(sources: dict[Path, str]) -> None:
     }
     if len(entries) != len(expected) or set(entries) != expected:
         raise WorkflowContractError(
-            "the full cross-platform matrix must run slots 1..3 on macOS and 1..8 on Windows, "
+            "the full cross-platform matrix must run slots 1..4 on macOS and 1..9 on Windows, "
             "each with both suites, one entry per slot, with unique diagnostics"
         )
     if "--shard=" in browser:
@@ -811,6 +811,44 @@ def validate_linux_playwright_install(sources: dict[Path, str], script: str | No
         raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must try apt exactly twice")
     if re.search(r"\|\|\s*(true|:)\b", text) or "set +e" in text:
         raise WorkflowContractError(f"{PLAYWRIGHT_LINUX} must not swallow a failed attempt")
+
+
+USERNS_SYSCTL = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
+
+
+def validate_linux_pdf_sandbox(sources: dict[Path, str]) -> None:
+    """
+    Every Linux job of test.yml that serves the product suite lifts Ubuntu 24.04's userns limit.
+
+    Without it Chromium gets no sandbox, and the PDF export ends in `sandbox_unavailable` (D-210,
+    run 43611856985). The step must come before the first Playwright step and must fail the job
+    when sysctl refuses; CI never switches the sandbox off, because it has to test it.
+    """
+
+    for path, source in sources.items():
+        if path.name != "test.yml":
+            continue
+        if re.search(r"^[^#\n]*QUILTOR_PDF_SANDBOX\s*[:=]\s*[\"']?off", source, re.MULTILINE):
+            raise WorkflowContractError(
+                f"{path.name} switches the PDF sandbox off; CI must test it with the sandbox"
+            )
+        for name, job in _job_blocks(source):
+            runs_on = re.search(r"^    runs-on: ([^\n]+)$", job, re.MULTILINE)
+            if not runs_on or "ubuntu" not in runs_on.group(1) or "server.py 8010" not in job:
+                continue
+            steps = re.split(r"^      - ", job, flags=re.MULTILINE)[1:]
+            lift = [i for i, step in enumerate(steps) if USERNS_SYSCTL in step]
+            first = next((i for i, step in enumerate(steps) if "playwright test" in step), None)
+            if not lift or first is None or lift[0] > first:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} runs the product suite on Ubuntu without lifting the "
+                    f"user-namespace restriction first: {USERNS_SYSCTL}"
+                )
+            step = steps[lift[0]]
+            if re.search(r"\|\|\s*(true|:)\b", step) or "continue-on-error" in step:
+                raise WorkflowContractError(
+                    f"{path.name}:{name} must fail when the user-namespace restriction stays"
+                )
 
 
 WINDOWS_PORT_RANGE = "netsh int ipv4 set dynamicport tcp start=10000 num=55535"
@@ -949,7 +987,7 @@ SLOT_RUN_EVIDENCE = (
     "path: test-results/reports/*.json",
 )
 # (runner, the system name tools/dev/test-shards.mjs takes, slots)
-CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 3), ("windows-2025", "windows", 8))
+CROSS_PLATFORM_SLOTS = (("macos-15", "macos", 4), ("windows-2025", "windows", 10))
 LINUX_BROWSER_GUARD = "    if: needs.plan.outputs.run_browser == 'true'"
 FULL_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix == 'true' && needs.plan.outputs.run_browser == 'true'"
@@ -1048,7 +1086,7 @@ PATH_FILTER_COMMAND = (
     '            python "$base/distribution/tooling/path_filter.py" plan --repository .'
     ' --merge HEAD --output "$GITHUB_OUTPUT" || {\n'
     '              echo "::warning::the path filter failed, running everything"\n'
-    "              for group in checks python rust client browser lint; do\n"
+    "              for group in checks python rust client browser lint oidc; do\n"
     '                echo "run_$group=true" >> "$GITHUB_OUTPUT"\n'
     "              done\n"
     "            }\n"
@@ -1106,6 +1144,28 @@ FILTERED_JOBS = {
         REDUCED_MATRIX_GUARD.removeprefix("if: "),
         "needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser != 'false'",
     ),
+    # The OIDC browser suite (T-58 P7b, D-103): Linux only, its own group.
+    "browser-e2e-oidc": (
+        "needs.plan.outputs.run_oidc == 'true'",
+        "needs.plan.outputs.run_oidc != 'false'",
+    ),
+}
+# Jobs of test.yml that run only when a dispatch asks for them (T-179, D-167). They are not
+# required checks: browser-e2e does not need them, so "not asked for" is a skip by design and
+# never reaches the gate. Each is a call of another workflow, started by a boolean
+# workflow_dispatch input with default false that workflow_call does not offer.
+OPTIONAL_JOBS = {
+    "llama-conformance": {
+        "input": "llama_conformance",
+        "body": (
+            "    if: inputs.llama_conformance == true\n"
+            "    permissions:\n"
+            "      contents: read\n"
+            "    uses: ./.github/workflows/llama-conformance.yml\n"
+            "    with:\n"
+            "      spike: ${{ inputs.llama_spike == true }}\n"
+        ),
+    },
 }
 CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
 
@@ -1360,11 +1420,12 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
         )
 
     jobs = dict(_job_blocks(workflow))
-    unplaced = set(jobs) - set(FILTERED_JOBS) - {"plan", "browser-e2e"}
+    unplaced = set(jobs) - set(FILTERED_JOBS) - set(OPTIONAL_JOBS) - {"plan", "browser-e2e"}
     if unplaced:
         raise WorkflowContractError(
             "test.yml jobs without a path-filter group: " + ", ".join(sorted(unplaced))
         )
+    validate_optional_jobs(workflow, jobs)
     # The browser jobs start beside frontend, not after it (T-46): they serve the committed
     # dist/ and take nothing from frontend. Its edge used to drop them whenever frontend was
     # filtered off; now every rule that selects browser must also select checks.
@@ -1423,6 +1484,44 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
                 raise WorkflowContractError(f"browser-e2e does not gate {name}: {evidence.strip()}")
     if "continue-on-error" in workflow:
         raise WorkflowContractError("test.yml may not use continue-on-error")
+
+
+def _trigger_inputs(workflow: str, trigger: str) -> str:
+    triggers = workflow.partition("\njobs:")[0]
+    block = re.search(rf"^  {trigger}:\n((?:    .*\n|\n)*)", triggers + "\n", re.MULTILINE)
+    return block.group(1) if block else ""
+
+
+def validate_optional_jobs(workflow: str, jobs: dict[str, str]) -> None:
+    """An optional job runs only on a dispatch that asks for it, and no gate waits for it."""
+
+    dispatch = _trigger_inputs(workflow, "workflow_dispatch")
+    call = _trigger_inputs(workflow, "workflow_call")
+    for name, spec in OPTIONAL_JOBS.items():
+        body = jobs.get(name)
+        if body is None:
+            raise WorkflowContractError(f"workflow is missing the {name} job")
+        if body.strip("\n") != spec["body"].strip("\n"):
+            raise WorkflowContractError(
+                f"test.yml:{name} must be exactly an on-request call:\n{spec['body']}"
+            )
+        field = re.search(rf"^      {spec['input']}:\n((?:        .*\n)*)", dispatch, re.MULTILINE)
+        fields = field.group(1) if field else ""
+        if "        type: boolean\n" not in fields or "        default: false\n" not in fields:
+            raise WorkflowContractError(
+                f"test.yml workflow_dispatch must declare the boolean input {spec['input']}, "
+                "default false"
+            )
+        if re.search(rf"^      {spec['input']}:", call, re.MULTILINE):
+            raise WorkflowContractError(
+                f"test.yml workflow_call may not offer {spec['input']}; a caller never runs {name}"
+            )
+        if re.search(
+            rf"^\s+(?:- )?{re.escape(name)}$|needs\['{re.escape(name)}'\]",
+            jobs["browser-e2e"],
+            re.MULTILINE,
+        ):
+            raise WorkflowContractError(f"browser-e2e may not need the optional job {name}")
 
 
 CHECK_RUNNER = "node tools/dev/run-check.mjs"
@@ -1507,10 +1606,13 @@ def validate_test_caches(sources: dict[Path, str]) -> None:
 REDUCED_ONLY = frozenset({"cross-platform-smoke"})
 # Matrix expansions per job in full mode. A job not listed here has no matrix.
 FULL_MATRIX_EXPANSIONS = {
-    "browser-e2e-shards": 4,
+    "browser-e2e-shards": 6,
     "cross-platform-native": 2,
     "cross-platform-browser": sum(count for _, _, count in CROSS_PLATFORM_SLOTS),
 }
+# The free plan runs five macOS jobs at once (T-160). In full mode test.yml starts Core on
+# macos-15 and every macOS browser slot together; Release Build's macos-direct needs the tests.
+MACOS_CONCURRENT_LIMIT = 5
 TEST_TRIGGERS = ("pull_request", "workflow_dispatch", "workflow_call")
 VERDICT_OUTPUT = (
     "    outputs:\n"
@@ -1592,7 +1694,9 @@ def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
         )
     if not set(FILTERED_JOBS) >= REDUCED_ONLY:
         raise WorkflowContractError("every reduced-only job must be a filtered job")
-    jobs = dict(_job_blocks(workflow))
+    # An optional job is never part of a caller's run: workflow_call cannot request it
+    # (validate_optional_jobs), so full mode skips it and the verdict does not cover it.
+    jobs = {name: body for name, body in _job_blocks(workflow) if name not in OPTIONAL_JOBS}
     if set(jobs) != {"plan", "browser-e2e", *FILTERED_JOBS}:
         raise WorkflowContractError(
             "test.yml must consist of plan, browser-e2e and the filtered jobs browser-e2e gates; "
@@ -1608,6 +1712,12 @@ def validate_full_matrix_coverage(sources: dict[Path, str]) -> None:
                 f"test.yml:{name} expands to {count} jobs in full mode; the contract expects "
                 f"{expected}"
             )
+    macos_jobs = 1 + sum(count for os, _, count in CROSS_PLATFORM_SLOTS if os == "macos-15")
+    if macos_jobs > MACOS_CONCURRENT_LIMIT:
+        raise WorkflowContractError(
+            f"test.yml starts {macos_jobs} macOS jobs at once in full mode; the free plan runs "
+            f"{MACOS_CONCURRENT_LIMIT} (Core on macos-15 plus the browser slots)"
+        )
 
 
 def validate_full_matrix_verdict(sources: dict[Path, str]) -> None:
@@ -2772,6 +2882,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_playwright_worker_settings(sources)
         validate_product_server_log(sources)
         validate_linux_playwright_install(sources)
+        validate_linux_pdf_sandbox(sources)
         validate_windows_port_range(sources)
         validate_windows_playwright_install(sources)
         validate_full_matrix_switch(sources)

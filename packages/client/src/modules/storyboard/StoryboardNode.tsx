@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { Button, IconButton, ScrollArea, TextField } from "../../design";
 import { useI18n } from "../../i18n";
 import { cardKindClassName, GRAPH_CONNECTION_HANDLES } from "../graph";
-import { NoteEditor } from "../notes";
+import { NoteEditor, titleHeadingLines } from "../notes";
 import type { StoryboardBoardNode, StoryboardReferenceNode } from "./model";
 import {
   STORYBOARD_NODE_SIZES,
@@ -204,17 +204,41 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
     ? t("storyboardNoteEditorLabel")
     : t("storyboardNodeNoteEditorLabel", { name });
   const context = data.boardContext ?? data.boardTitle ?? t("storyboardTitle");
+  const className =
+    `storyboard-node__note ${isNoteCard ? "" : "storyboard-node__note--compact"}`.trim();
+  // A reference card shows the one note of its element and writes into the element's own
+  // document, so every view of the element and every board shows the same text (T-177).
+  const element =
+    item.kind === "reference" && data.elementNote !== undefined
+      ? { target: item.target, note: data.elementNote }
+      : null;
+  if (element && element.note === null) {
+    return (
+      <div className={className}>
+        <p className="storyboard-node__note-missing" role="note">
+          {data.elementInTrash ? t("storyboardElementInTrash") : t("storyboardElementDeleted")}
+        </p>
+      </div>
+    );
+  }
+  const note = element?.note ?? {
+    text: item.text ?? "",
+    noteReferences: item.noteReferences,
+    noteMarks: item.noteMarks,
+  };
+
+  // A note that opens with the card's own title as a heading does not repeat it on the card.
+  // Only while nobody writes: the card's CSS shows the line again once the editor has focus.
+  const hiddenLines = element ? titleHeadingLines(note, name) : 0;
 
   return (
-    <div
-      className={`storyboard-node__note ${isNoteCard ? "" : "storyboard-node__note--compact"}`.trim()}
-    >
+    <div className={className} data-title-heading-lines={hiddenLines || undefined}>
       <NoteEditor
-        owner={{ kind: "storyboard", id: item.id }}
+        owner={element ? element.target : { kind: "storyboard", id: item.id }}
         label={editorLabel}
-        value={item.text ?? ""}
-        references={item.noteReferences}
-        marks={item.noteMarks}
+        value={note.text}
+        references={note.noteReferences}
+        marks={note.noteMarks}
         placeholder={
           isNoteCard ? t("storyboardNotePlaceholder") : t("storyboardNodeNotePlaceholder")
         }
@@ -237,7 +261,11 @@ function StoryboardNodeNoteEditor({ data }: { data: StoryboardFlowNodeData }) {
           editorLabel,
         }}
         focusButtonClassName="nodrag nopan"
-        onChange={(text, references, marks) => data.onNoteChange(item.id, text, references, marks)}
+        onChange={(text, references, marks) =>
+          element
+            ? data.onElementNoteChange?.(element.target, text, references, marks)
+            : data.onNoteChange(item.id, text, references, marks)
+        }
       />
     </div>
   );

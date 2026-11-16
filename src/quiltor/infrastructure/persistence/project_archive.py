@@ -8,10 +8,10 @@ import os
 import re
 import uuid
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, cast
 
 from quiltor.application.document_wire_v1 import (
     InvalidDocumentWireV1,
@@ -29,7 +29,13 @@ from quiltor.application.project_transfer import (
 )
 from quiltor.application.worlds import WorldSummary
 from quiltor.domain.manuscript import story_time_anchor_issue
+from quiltor.domain.story_world.map_dimensions import map_image_ids, with_map_dimensions
 from quiltor.domain.story_world.place_map_image import MAX_IMAGE_BYTES, UnsupportedImage, identify
+from quiltor.domain.storyboard.element_notes import (
+    DiscardedProtocolEntry,
+    discarded_protocol,
+    move_reference_notes,
+)
 from quiltor.infrastructure.persistence.adapters.worlds import SQLiteWorldRepository
 from quiltor.infrastructure.persistence.sqlite import (
     manuscript,
@@ -41,6 +47,7 @@ from quiltor.infrastructure.persistence.sqlite import (
 )
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 from quiltor.infrastructure.persistence.sqlite.connection import connection
+from quiltor.infrastructure.persistence.sqlite.migrations import DISCARDED_NOTES_META_KEY
 
 MAX_EXPANDED_BYTES = 128 * 1024 * 1024
 MAX_MEMBERS = 256
@@ -57,6 +64,8 @@ class ValidatedArchive:
     storyboards: dict[str, Any]
     images: dict[str, bytes]
     descriptors: list[dict[str, Any]]
+    # Card texts the 3.25 move had to drop, as the migration records them (F-177-11).
+    discarded_notes: list[dict[str, Any]] = field(default_factory=list)
 
     def preview(self) -> ProjectTransferPreview:
         chapters = self.manuscript.get("chapters", [])
@@ -70,6 +79,33 @@ class ValidatedArchive:
             storyboards=len(self.storyboards.get("boards", [])),
             images=len(self.images),
         )
+
+
+def _with_reference_notes_moved(
+    documents: dict[str, Any],
+) -> tuple[dict[str, Any], list[DiscardedProtocolEntry]]:
+    """An archive from 3.25 or earlier carries text on reference cards; move it first (T-177).
+
+    The same rule as the schema-15 migration, so an imported world matches one that was
+    migrated. A malformed envelope is left alone for the decoder to reject. Also returns the
+    record of the card texts that had to be dropped, in the migration's format.
+    """
+
+    payloads: list[dict[str, Any]] = []
+    for kind in ("manuscript", "figures", "storyboards"):
+        envelope = documents[kind]
+        payload = envelope.get("payload") if isinstance(envelope, dict) else None
+        if not isinstance(payload, dict):
+            return documents, []
+        payloads.append(cast(dict[str, Any], payload))
+    manuscript_payload, figures_payload, storyboards_payload, discarded = move_reference_notes(
+        payloads[0], payloads[1], payloads[2]
+    )
+    return {
+        "manuscript": {**documents["manuscript"], "payload": manuscript_payload},
+        "figures": {**documents["figures"], "payload": figures_payload},
+        "storyboards": {**documents["storyboards"], "payload": storyboards_payload},
+    }, discarded_protocol(discarded)
 
 
 class SQLiteProjectTransferRepository:
@@ -170,6 +206,9 @@ class SQLiteProjectTransferRepository:
                     _validate_image(validated.images[descriptor["id"]], descriptor["id"]),
                     db_path=staged,
                 )
+            # Only now are the pictures in the staging database, so only now can a map
+            # that arrived without a frame size take its picture's.
+            _size_imported_maps(staged)
             with connection(staged) as database:
                 database.execute(
                     "INSERT OR REPLACE INTO meta(key,value) VALUES('world_title',?)",
@@ -179,6 +218,14 @@ class SQLiteProjectTransferRepository:
                     "INSERT OR REPLACE INTO meta(key,value) VALUES('owner_sub',?)",
                     (owner_sub,),
                 )
+                if validated.discarded_notes:
+                    database.execute(
+                        "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+                        (
+                            DISCARDED_NOTES_META_KEY,
+                            json.dumps(validated.discarded_notes, ensure_ascii=False),
+                        ),
+                    )
                 database.execute("DELETE FROM meta WHERE key='backup_endpoint'")
                 database.execute("DELETE FROM meta WHERE key='deleted_at'")
             _verify_staged(staged)
@@ -198,6 +245,15 @@ class SQLiteProjectTransferRepository:
             backup_url="",
             updated=datetime.now(UTC).isoformat(),
         )
+
+
+def _size_imported_maps(staged: Path) -> None:
+    figures = story_world.load(staged)
+    sized = with_map_dimensions(
+        figures, place_map_images.dimensions(map_image_ids(figures), db_path=staged)
+    )
+    if sized != figures:
+        story_world.save(sized, db_path=staged)
 
 
 def validate_archive(payload: bytes) -> ValidatedArchive:
@@ -269,6 +325,7 @@ def validate_archive(payload: bytes) -> ValidatedArchive:
             storyboards=validated["storyboards"],
             images=images,
             descriptors=validated["descriptors"],
+            discarded_notes=validated["discarded_notes"],
         )
 
 
@@ -316,6 +373,7 @@ def _validate_manifest(value: Any) -> dict[str, Any]:
         "storyboards",
     }:
         raise InvalidProjectArchive("Project documents are incomplete.")
+    documents, discarded_notes = _with_reference_notes_moved(documents)
     decoded: dict[str, dict[str, Any]] = {}
     try:
         for kind in ("manuscript", "figures", "storyboards"):
@@ -376,6 +434,7 @@ def _validate_manifest(value: Any) -> dict[str, Any]:
         "figures": decoded["figures"],
         "storyboards": decoded["storyboards"],
         "descriptors": descriptors,
+        "discarded_notes": discarded_notes,
     }
 
 

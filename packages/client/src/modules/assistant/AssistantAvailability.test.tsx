@@ -41,6 +41,39 @@ describe("assistant availability and installation", () => {
     expect(api.install).not.toHaveBeenCalled();
   });
 
+  it("explains the missing premium role instead of reporting the model offline", async () => {
+    // The server's answer for a signed-in user without the role (T-58, plan 2.5a).
+    vi.mocked(api.status).mockResolvedValue({
+      ok: true,
+      available: false,
+      premium: false,
+      installed: false,
+      reason: "",
+      chunks: 0,
+      mode: "local",
+    });
+    setup();
+    expect(
+      await screen.findByText(
+        "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Lokales Modell nicht erreichbar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Jetzt einrichten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Erneut versuchen")).not.toBeInTheDocument();
+  });
+
+  it("treats a status without the premium field as premium, the way older servers answer", async () => {
+    vi.mocked(api.status).mockResolvedValue(NOT_INSTALLED);
+    setup();
+    await screen.findByText("Lokales Modell nicht erreichbar");
+    expect(
+      screen.queryByText(
+        "Der KI-Assistent auf diesem Server steht nur mit Premium-Berechtigung zur Verfügung.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows installation progress with an accessible progress bar", async () => {
     vi.mocked(api.status).mockResolvedValue(NOT_INSTALLED);
     vi.mocked(api.installStatus)

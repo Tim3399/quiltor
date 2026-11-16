@@ -42,17 +42,9 @@
         "kind": "reference",
         "x": 520,
         "y": 40,
-        "text": "Mara protects the archive.",
-        "noteReferences": [
-          {
-            "id": "reference-note-ref-mara",
-            "target": { "kind": "entity", "id": "mara" },
-            "from": 0,
-            "to": 4,
-            "surface": "Mara"
-          }
-        ],
-        "noteMarks": [{ "from": 0, "to": 4, "kind": "italic" }],
+        "text": "",
+        "noteReferences": [],
+        "noteMarks": [],
         "target": { "kind": "entity", "id": "mara", "extensionLabel": "Mara" },
         "extensionVariant": "portrait"
       },

@@ -1,0 +1,98 @@
+import { type ChildProcess, spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { BrowserContext } from "@playwright/test";
+import { freePort, pythonCommand, ROOT, terminate, waitFor } from "./python-process";
+
+/**
+ * A Quiltor instance of its own with QUILTOR_TEST_HOOKS=1 and QUILTOR_CSP=enforce, serving
+ * dist/ (T-61 part 8a, F-61-28). Only there does the client offer the cloud executor's test
+ * profile and does connect-src name its origin. The suite's server on :8010 keeps running
+ * without test hooks, so every other spec measures the policy that ships.
+ */
+export interface TestHooksServer {
+  url: string;
+  /** The tail of the server's own output, for a failure report. */
+  output: () => string;
+  stop: () => Promise<void>;
+}
+
+/**
+ * `testHooks: false` starts the same instance without QUILTOR_TEST_HOOKS, so connect-src is
+ * the policy that ships (D-T-61-7-E2E measures the in-browser engine against it).
+ */
+export async function startTestHooksServer(
+  options: { testHooks?: boolean; port?: number } = {},
+): Promise<TestHooksServer> {
+  const testHooks = options.testHooks ?? true;
+  const [python, prefix] = pythonCommand();
+  const scratch = mkdtempSync(join(tmpdir(), "quiltor-e2e-test-hooks-"));
+  // A fixed port keeps the origin, and with it the browser's per-origin caches, the same
+  // from run to run (the real-model spec's WebLLM model cache, T-307).
+  const port = options.port ?? (await freePort());
+  const url = `http://127.0.0.1:${port}`;
+  const logs: string[] = [];
+  const child: ChildProcess = spawn(
+    python,
+    [...prefix, "apps/web/server.py", String(port), "--no-open"],
+    {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: "1",
+        QUILTOR_HOME: join(scratch, "quiltor"),
+        ...(testHooks ? { QUILTOR_TEST_HOOKS: "1" } : {}),
+        QUILTOR_CSP: "enforce",
+        QUILTOR_CREDENTIAL_BACKEND: "memory",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  const collect = (chunk: Buffer) => logs.push(chunk.toString());
+  child.stdout?.on("data", collect);
+  child.stderr?.on("data", collect);
+  const stop = async () => {
+    await terminate(child);
+    rmSync(scratch, { recursive: true, force: true });
+  };
+  const output = () => logs.join("").slice(-4000);
+  try {
+    await waitFor(`${url}/`, child, output);
+    return { url, output, stop };
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+}
+
+/**
+ * Shows this instance to a browser context as a hosted server without the premium role
+ * (D-205, T-275 Nachtrag 3): `assistantInstall: false`, `clientAi: true`, `serverAi: false`.
+ *
+ * Only a hosted server offers "Im Browser"; on a local, installable instance the product
+ * deliberately offers the server engine alone. A truly hosted instance needs OIDC
+ * (`operation_profile_for`: hosted is exactly multi-user), and there is no environment switch
+ * for it by design, so the instance stays local and `GET /api/capabilities` is rewritten in
+ * the browser, as assistant-engine-product.spec.ts and assistant-client-relay.spec.ts do.
+ * The jobs themselves run in the browser, so the server needs no other change.
+ */
+const hosted = new WeakSet<BrowserContext>();
+
+export async function presentAsHosted(context: BrowserContext): Promise<void> {
+  // Once per context: a worker-scoped context is handed to every test of the worker.
+  if (hosted.has(context)) return;
+  hosted.add(context);
+  await context.route("**/api/capabilities", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        instance: { ...body.instance, assistantInstall: false, clientAi: true },
+        user: { ...body.user, serverAi: false },
+      },
+    });
+  });
+}

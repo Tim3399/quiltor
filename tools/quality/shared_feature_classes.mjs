@@ -27,6 +27,8 @@ export const SHARED_FEATURE_CLASSES = Object.freeze({
   "has-selection": "Selection state of the inspector in figures and places.",
   "is-connecting": "The canvas connecting mode, in figures and places.",
   "importance-mark": "The star on a card, the same one in figures and places.",
+  "place-node__pinned":
+    "The pin that holds a place card in place, drawn by PlaceNode; the favourites gallery scene draws the same pin with this class to show a symbol beside a name that is cut off.",
   "story-world-toast": "Message surface of the world views, the same place in figures and places.",
   "graph-viewport-surface": "Canvas shell from the graph module; world graph and storyboard.",
   "has-minimap": "State of that same shell; it drives the keep-clear areas along the bottom edge.",

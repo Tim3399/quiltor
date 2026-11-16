@@ -21,9 +21,12 @@ class LockedAssistantInteractionLogger:
         error: str = "",
         owner_sub: str,
         world_id: str,
+        engine: str = "server",
     ) -> str:
         with self._lock:
-            return self._assistant.record(owner_sub, world_id, question, response, error=error)
+            return self._assistant.record(
+                owner_sub, world_id, question, response, error=error, engine=engine
+            )
 
 
 class ApplicationAssistantWorldAccess:

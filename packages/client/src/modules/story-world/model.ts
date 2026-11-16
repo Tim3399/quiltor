@@ -205,4 +205,8 @@ export interface WorldInfo {
   title: string;
   backupUrl: string;
   updated: string;
+  /** "example": the world came from the example world, and stays marked for good (D-127). */
+  origin?: "example";
+  /** An unchanged preview of the example world; the first saved change makes it real. */
+  preview?: true;
 }

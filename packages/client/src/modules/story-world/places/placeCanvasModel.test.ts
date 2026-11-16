@@ -4,10 +4,12 @@ import type { Translate } from "../../../i18n";
 import type { FigureNode } from "../model";
 import {
   createMeasurementPoints,
+  createMeasurePointNodes,
   createPinNodes,
   createPlaceFlowNodes,
   createPlaceMapNodes,
   mapBoxPatch,
+  measureClickTarget,
   PLACE_PIN_SCREEN_SIZES,
   placePinSize,
 } from "./placeCanvasModel";
@@ -40,6 +42,8 @@ describe("place canvas model", () => {
       t,
     });
 
+    // A favourite is stacked above ordinary places, whatever order they were made in (T-129).
+    expect(nodes.map((node) => node.zIndex)).toEqual([0, 4]);
     expect(nodes[0]).toMatchObject({
       position: { x: 10, y: 20 },
       ariaLabel: "Ort: A",
@@ -54,6 +58,57 @@ describe("place canvas model", () => {
       draggable: false,
       data: { place: { important: true, pinned: true } },
     });
+  });
+
+  it("does not stack a favourite that stands on a place map, as a pin or as a card", () => {
+    const standing = (id: string, placeDisplay?: "pin"): FigureNode => ({
+      id,
+      x: 0,
+      y: 0,
+      mapU: 0.5,
+      mapV: 0.5,
+      parentPlaceId: "map",
+      name: id,
+      type: "ort",
+      important: true,
+      ...(placeDisplay ? { placeDisplay } : {}),
+    });
+    const onMap = [standing("pin", "pin"), standing("card")];
+    const nodes = createPlaceFlowNodes({
+      nodes: onMap,
+      places: onMap,
+      host: { x: 0, y: 0, width: 800, height: 400 },
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      measuring: false,
+      measureSelection: [],
+      zoomTier: "detail",
+      viewportZoom: 1,
+      t,
+    });
+
+    expect(nodes.map((node) => node.zIndex)).toEqual([0, 0]);
+    // The mark the stylesheet leaves out of the hover lift.
+    expect(nodes.map((node) => node.className)).toEqual(["place-on-map", "place-on-map"]);
+  });
+
+  it("marks a place that stands on no map neither way, so the favourite rule applies", () => {
+    const [node] = createPlaceFlowNodes({
+      nodes: [places[1]],
+      places: [places[1]],
+      onOpenLevel: () => {},
+      onExpandMap: () => {},
+      sourceUrl: (id: string) => `/api/place-map?id=${id}`,
+      measuring: false,
+      measureSelection: [],
+      zoomTier: "overview",
+      viewportZoom: 0.2,
+      t,
+    });
+
+    expect(node.zIndex).toBe(4);
+    expect(node.className).toBeUndefined();
   });
 
   it("marks exactly the first measurement selection", () => {
@@ -206,6 +261,15 @@ describe("a map laid out on the level", () => {
     expect(nodes[0]).toMatchObject({ width: 1200, height: 900 });
   });
 
+  it("carries its own size as measured, so a resize begun on a rebuilt node has a ratio", () => {
+    // React Flow's resizer takes its start size and aspect ratio from `measured` only, and a
+    // rebuilt node has none until it is measured again: a corner drag begun in that window
+    // divided 0 by 0 and wrote NaN into the frame, which the save then refused (T-79).
+    expect(build()[0].measured).toEqual({ width: 800, height: 600 });
+    const [live] = build({ liveSize: { id: "m", x: 100, y: 200, width: 1200, height: 900 } });
+    expect(live.measured).toEqual({ width: 1200, height: 900 });
+  });
+
   it("moves the origin with a left or top grip, so the opposite edge stays put", () => {
     // Dragging the left grip 60 units outward: the right edge (100 + 800) must
     // stay at 900, which only holds when the origin follows the width.
@@ -324,5 +388,41 @@ describe("a card standing on a map", () => {
 
   it("ignores a drag that belongs to something else", () => {
     expect(build({ id: "welt", x: 120, y: 40 })[0].position).toEqual({ x: 500, y: 250 });
+  });
+});
+
+describe("what a click means while measuring", () => {
+  it("takes a click on a map or on the level's picture as a free point", () => {
+    expect(measureClickTarget("placeMap", "nordhafen")).toBe("point");
+    expect(measureClickTarget("placeGround", "ground:nordhafen")).toBe("point");
+  });
+
+  it("takes a click on a card or pin as the place itself", () => {
+    expect(measureClickTarget("place", "salzmarkt")).toBe("place");
+    expect(measureClickTarget("placePin", "salzmarkt")).toBe("place");
+  });
+
+  it("ignores a click on a point that is already set", () => {
+    expect(measureClickTarget("measurePoint", "measure-point:0")).toBe("none");
+    expect(measureClickTarget("placeMap", "measure-point:1")).toBe("none");
+  });
+
+  it("draws free points as fixed helpers that nothing can pick up", () => {
+    const nodes = createMeasurePointNodes([
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+    ]);
+    expect(nodes).toEqual([
+      expect.objectContaining({
+        id: "measure-point:0",
+        type: "measurePoint",
+        position: { x: 10, y: 20 },
+        draggable: false,
+        selectable: false,
+        focusable: false,
+        deletable: false,
+      }),
+      expect.objectContaining({ id: "measure-point:1", position: { x: 30, y: 40 } }),
+    ]);
   });
 });

@@ -3,12 +3,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button, ConfirmDialog, IconButton, ListboxSelect, Sheet, SidePanel } from "../../design";
 import { useI18n } from "../../i18n";
 import type { Workspace } from "../../shared";
+import { useUserCapabilities } from "../../shared/capabilities";
 import { type Chapter, isChapterInBook } from "../manuscript";
 import type { FigureState } from "../story-world";
 import { AssistantComposer } from "./AssistantComposer";
 import { AssistantConversation } from "./AssistantConversation";
 import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
+import { useEngineChoice } from "./engines/useEngineChoice";
+import { useEngineLabels, useEngineLabelsKnown } from "./engines/useEngineLabels";
 import type { AssistantProposal } from "./model";
 import type { AssistantProposalApplyResult } from "./proposals";
 import { useAssistantAvailability } from "./useAssistantAvailability";
@@ -17,6 +20,7 @@ import "./AssistantDrawer.css";
 
 export function AssistantDrawer({
   worldId,
+  accountSub,
   figures,
   chapters,
   chapterStatuses,
@@ -28,6 +32,8 @@ export function AssistantDrawer({
   onClose,
 }: {
   worldId: string;
+  /** The signed-in account on a shared server; binds the assistant history to it (S269-6). */
+  accountSub?: string;
   figures: FigureState;
   chapters: Chapter[];
   chapterStatuses?: ReadonlyMap<string, "set_aside" | "deleted">;
@@ -57,7 +63,20 @@ export function AssistantDrawer({
   );
   const endRef = useRef<HTMLDivElement>(null);
   const chapterPickerRef = useRef<HTMLButtonElement>(null);
-  const { status, installState, checkStatus, startInstall } = useAssistantAvailability();
+  const { status, installState, checkStatus, startInstall } = useAssistantAvailability(open);
+  // One choice for the drawer and its status panel, so a switch of engine re-renders both.
+  const engineChoice = useEngineChoice(status?.premium !== false);
+  const engineLabels = useEngineLabels();
+  const engineLabelsKnown = useEngineLabelsKnown();
+  // The server's assistant locks the composer only while a job would run there: without a
+  // runtime, or without the premium role, which the server enforces with a 403 (D-40). The
+  // effective engine falls back to the server when nothing is offered, so that case locks too.
+  // A browser engine works without either (T-61 part 6, D-T-61-8a-F2). A browser engine she
+  // chose that this browser cannot run locks it too, instead of sending to the server (F4).
+  const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
+  const serverOffline =
+    (engineChoice.engine === "server" && (status?.available === false || !serverAi)) ||
+    engineChoice.blocked;
   const {
     entries,
     sending,
@@ -71,6 +90,7 @@ export function AssistantDrawer({
     clear,
   } = useAssistantConversation({
     worldId,
+    accountSub,
     forcedChapterIds,
     onApply,
     onBeforeSend,
@@ -143,7 +163,17 @@ export function AssistantDrawer({
           <Sparkles />
           <span>
             <strong>{t("assistant")}</strong>
-            <small>{t("localOnlySuggestions")}</small>
+            <small>
+              {/* No engine to name when none can run: hosted, no premium role, no WebGPU. */}
+              {/* No engine either while the capabilities load: its name depends on them. */}
+              {engineChoice.available.length === 0
+                ? t("assistantEngineNone")
+                : !engineLabelsKnown
+                  ? t("assistantSuggestionsOnly")
+                  : t("assistantEngineSuggestionsOnly", {
+                      engine: engineLabels[engineChoice.engine],
+                    })}
+            </small>
           </span>
         </div>
         <div className="assistant-header-actions">
@@ -159,6 +189,7 @@ export function AssistantDrawer({
       </header>
       <AssistantStatusPanel
         status={status}
+        choice={engineChoice}
         installState={installState}
         installProgressId={installProgressId}
         onRetry={checkStatus}
@@ -172,7 +203,7 @@ export function AssistantDrawer({
             icon={<BookOpenCheck />}
             disabled={
               sending ||
-              status?.available === false ||
+              serverOffline ||
               chapters.length === 0 ||
               (extractionScope === "current" && !currentChapterId)
             }
@@ -245,7 +276,7 @@ export function AssistantDrawer({
         draft={draft}
         onDraftChange={setDraft}
         sending={sending}
-        unavailable={status?.available === false}
+        unavailable={serverOffline}
         onSend={sendDraft}
         onCancel={cancel}
       />
@@ -263,7 +294,7 @@ export function AssistantDrawer({
     </>
   );
 
-  const className = `assistant-drawer ${status && !status.available ? "has-offline" : ""}`;
+  const className = "assistant-drawer";
   // The component remains mounted while closed so requests and install polling survive.
   return compact ? (
     <Sheet

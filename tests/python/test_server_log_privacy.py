@@ -21,16 +21,20 @@ import io
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import tempfile
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from quiltor.application.backups import BackupGatewayError
 from quiltor.delivery.http import routes as api_routes
 from quiltor.infrastructure.backup import adapters as backup_adapters
+from quiltor.infrastructure.backup.snapshots import SnapshotStore
+from quiltor.infrastructure.identity.runtime import ProviderUnavailable
 from quiltor.infrastructure.observability import StdlibStructuredLogger
 from quiltor.infrastructure.observability import schema as log_schema
 from tests.python.test_server_logging import _LiveServer
@@ -246,6 +250,76 @@ class _PrivacyServer(_LiveServer):
         with patch.object(identity, "resolve", return_value=None):
             self.assertEqual(self.request("GET", self.manuscript_path(), headers=cookie)[0], 401)
 
+    def scenario_login_without_roles(self):
+        """An OIDC login whose ID token carries no role claims (T-58 G0). The provider
+        side is faked: only the callback's own logging is under test here."""
+        identity = self.application.identity
+        sub = "sub-0f3a"
+        session = SimpleNamespace(session_id="login-session", sub=sub, roles=())
+        fake = MagicMock()
+        fake.consume_pending_login.return_value = {
+            "verifier": "v",
+            "redirect_uri": "http://127.0.0.1/auth/callback",
+            "nonce": "n",
+        }
+        fake.exchange_code.return_value = {"id_token": CANARIES["oidc_token"]}
+        fake.verify_id_token.return_value = {
+            "sub": sub,
+            "email": f"{CANARIES['email']}@example.org",
+            "name": CANARIES["name"],
+        }
+        fake.create_session.return_value = session.session_id
+        fake.get_session.return_value = session
+        fake.store_session_tokens.return_value = session
+        fake.session_ttl = 60
+        state = "state0f3a"
+        with (
+            patch.object(identity, "multi_user", True),
+            patch.object(identity, "auth", fake),
+        ):
+            status = self.request(
+                "GET",
+                f"/auth/callback?code=c&state={state}",
+                headers={"Cookie": f"quiltor_login_state={state}"},
+            )[0]
+        self.assertEqual(status, 302)
+        hints = [line for line in self.parsed() if line["event"] == "identity.login_without_roles"]
+        self.assertTrue(hints)
+        for line in hints:
+            self.assertEqual(line["sub"], sub)
+            self.assertIs(line["roles_claim_present"], False)
+
+    def scenario_login_unavailable(self):
+        """/login while the identity provider is away (T-253). The provider's own text
+        and everything the request carried must stay out of the one line this writes."""
+        identity = self.application.identity
+        fake = MagicMock()
+        fake.start_login.side_effect = ProviderUnavailable(
+            f"https://{CANARIES['exception']}.example said no"
+        )
+        with (
+            patch.object(identity, "multi_user", True),
+            patch.object(identity, "auth", fake),
+        ):
+            status, _, body = self.request(
+                "GET",
+                f"/login?ui_locales={CANARIES['query_value']}&{CANARIES['query_key']}=1",
+                headers={
+                    "Accept-Language": CANARIES["prose"],
+                    "Cookie": f"quiltor_login_state={CANARIES['cookie_login']}",
+                },
+            )
+        self.assertEqual(status, 503)
+        self.assertNotIn(CANARIES["exception"], body.decode("utf-8"))
+        lines = [line for line in self.parsed() if line["event"] == "identity.login_unavailable"]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertEqual(line["error_type"], "ProviderUnavailable")
+            self.assertEqual(line["level"], "warning")
+            self.assertLessEqual(
+                set(line) - {"event", "level", "timestamp"}, {"request_id", "error_type"}
+            )
+
     def scenario_worlds(self):
         self.assertEqual(self.request("GET", self.manuscript_path(CANARIES["query_world"]))[0], 400)
         self.assertEqual(self.request("GET", self.manuscript_path(UNRESOLVED_WORLD))[0], 404)
@@ -358,6 +432,15 @@ class _PrivacyServer(_LiveServer):
             complete_login.side_effect = RuntimeError(f"{text} {path}")
             self.request("GET", f"/backup/callback?code={CANARIES['oidc_token']}&state={path}")
 
+    def scenario_backup_label(self):
+        # Keeping a version whose label cannot be appended, with a world-named path and the
+        # author's text in the exception (T-165).
+        text, path = CANARIES["exception"], CANARIES["file_path"]
+        with patch.object(
+            SnapshotStore, "_append_label", side_effect=OSError(errno.ENOSPC, text, path)
+        ):
+            self.request("POST", "/api/backup", {"worldId": self.world_id, "message": ""})
+
     def scenario_backup_remote(self):
         # The gateway's own line when a call to the endpoint fails, with the author's text,
         # a world-named path and the token in the exception (T-123). It runs on the
@@ -375,17 +458,73 @@ class _PrivacyServer(_LiveServer):
             with self.assertRaises(RuntimeError):
                 gateway.worlds(f"https://{path}.example", MagicMock())
 
+    def scenario_assistant_claim(self):
+        # The job queue fails under a worker (T-61): the line names the worker and the
+        # exception's type, never its text, which can carry a path or a world's name.
+        from quiltor.modules.assistant import jobs as assistant_jobs
+
+        runner = assistant_jobs.AssistantJobRunner(
+            MagicMock(),
+            store_factory=MagicMock(),
+            interaction_logger=MagicMock(),
+            world_access=MagicMock(),
+            structured_logger=self.application.observability.logger,
+            metrics=MagicMock(),
+        )
+        failure = sqlite3.OperationalError(f"{CANARIES['exception']} {CANARIES['file_path']}.db")
+
+        def claim():
+            raise failure
+
+        with patch.object(assistant_jobs, "CLAIM_RETRY_SECONDS", 0):
+            self.assertIsNone(runner._claim(claim, "client"))
+
+    def scenario_pdf(self):
+        # A failed PDF render whose stderr quotes the render URL with its token and the
+        # author's text, and the start-up warning of QUILTOR_PDF_SANDBOX=off. Only the
+        # category and the exit code reach the log.
+        from quiltor.infrastructure import pdf as pdf_package
+        from quiltor.infrastructure.pdf import node_chromium
+
+        stderr = (
+            f"No usable sandbox! {CANARIES['exception']} {CANARIES['file_path']} "
+            f"http://127.0.0.1/?renderToken={CANARIES['query_render']}"
+        )
+
+        def failing_run(argv, **kwargs):
+            return subprocess.CompletedProcess(argv, 1, stdout="", stderr=stderr)
+
+        renderer = node_chromium.renderer(Path("render.mjs"), Path("."))
+
+        def render(url, timeout=90):
+            with patch.object(node_chromium.subprocess, "run", failing_run):
+                return renderer(url, timeout)
+
+        original = self.application.render_pdf
+        object.__setattr__(self.application, "render_pdf", render)
+        try:
+            self.request("POST", "/api/book.pdf", {"worldId": self.world_id})
+        finally:
+            object.__setattr__(self.application, "render_pdf", original)
+        with patch.dict(os.environ, {"QUILTOR_PDF_SANDBOX": "off"}):
+            pdf_package.warn_if_sandbox_disabled(self.application.observability.logger)
+
     SCENARIOS = (
         "scenario_content",
         "scenario_rejected_saves",
         "scenario_query_and_headers",
         "scenario_sessions",
+        "scenario_login_without_roles",
+        "scenario_login_unavailable",
         "scenario_worlds",
         "scenario_unhandled",
         "scenario_storage",
         "scenario_operator_only",
         "scenario_backup",
         "scenario_backup_remote",
+        "scenario_assistant_claim",
+        "scenario_backup_label",
+        "scenario_pdf",
     )
 
 
@@ -405,6 +544,10 @@ class ServerLogPrivacyTests(_PrivacyServer):
 
     def test_a_session_contributes_its_sub_and_nothing_else(self):
         self.scenario_sessions()
+        self.assert_clean()
+
+    def test_a_login_without_roles_logs_its_sub_but_no_email_name_or_token(self):
+        self.scenario_login_without_roles()
         self.assert_clean()
 
     def test_an_unresolved_world_is_named_only_where_it_failed(self):
@@ -445,6 +588,10 @@ class ServerLogPrivacyTests(_PrivacyServer):
             )
         self.assert_clean()
 
+    def test_an_unreachable_login_provider_logs_the_error_type_only(self):
+        self.scenario_login_unavailable()
+        self.assert_clean()
+
     def test_a_backup_failure_drops_a_field_it_does_not_list(self):
         # The guard itself: a future caller that hands over more than the type gets it
         # filtered, because the name is registered (T-122).
@@ -463,6 +610,18 @@ class ServerLogPrivacyTests(_PrivacyServer):
             self.assertLessEqual(
                 set(line) - {"event", "level", "timestamp"},
                 {"request_id", "operation", "error_type"},
+            )
+        self.assert_clean()
+
+    def test_a_kept_version_without_its_label_still_succeeds_and_logs_the_type(self):
+        self.scenario_backup_label()
+        lines = [line for line in self.parsed() if line["event"] == "backup.label_failed"]
+        self.assertTrue(lines)
+        for line in lines:
+            self.assertEqual(line["error_type"], "OSError")
+            self.assertEqual(line["level"], "warning")
+            self.assertLessEqual(
+                set(line) - {"event", "level", "timestamp"}, {"request_id", "error_type"}
             )
         self.assert_clean()
 

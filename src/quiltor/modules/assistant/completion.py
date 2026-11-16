@@ -5,25 +5,31 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any, Protocol
 
 from quiltor.domain.story_world.knowledge import build_knowledge, retrieve, scoped_chapters
 from quiltor.modules.assistant.audit import audit_reply, validate_world
 from quiltor.modules.assistant.batch import broad_scope_reply, estimate_batch_seconds
+from quiltor.modules.assistant.budget import RAG_FLOOR, output_headroom, prompt_budget
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
 from quiltor.modules.assistant.context import pack_chunks
 from quiltor.modules.assistant.contract import (
+    COMPLETE_WORLD_HEADER,
     complete_compound_proposals,
     creation_target_resolution,
     existing_creation_target,
+    fit_world_state,
     proposal_group_title,
-    structured_world_state,
     task_contract,
     verify_task_contract,
 )
 from quiltor.modules.assistant.conversation import conversation_messages, fit_to_budget
-from quiltor.modules.assistant.entity_references import clarification_candidates
+from quiltor.modules.assistant.entity_references import (
+    clarification_candidates,
+    entity_mentions,
+)
 from quiltor.modules.assistant.planner import needs_planner
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 from quiltor.modules.assistant.ports import (
@@ -48,7 +54,7 @@ from quiltor.modules.assistant.proposal_resolution import (
 from quiltor.modules.assistant.proposals import missing_items, set_deterministic_message
 from quiltor.modules.assistant.references import resolve_reference
 from quiltor.modules.assistant.schemas import KINDS, json_schema_format, reply_schema
-from quiltor.modules.assistant.tool_loop import run_tool_loop
+from quiltor.modules.assistant.tool_loop import run_tool_loop, tool_instructions
 
 
 class CompletionRuntime(Protocol):
@@ -192,7 +198,7 @@ def _world_extraction_contract(question: str, figures: dict[str, Any]) -> dict[s
 
 def _proposal_envelopes(
     proposals: list[dict[str, Any]],
-    sources: list[dict[str, Any]],
+    sources: Sequence[Mapping[str, Any]],
     decisions: list[Any],
 ) -> list[dict[str, Any]]:
     operation_for_kind = {
@@ -264,6 +270,51 @@ def _resolution_clarification_reply(
             },
         ],
     }
+
+
+CHUNK_SCOPES = {
+    "element": "elements",
+    "relationship": "relationships",
+    "timeline": "timeline",
+    "presence": "presence",
+}
+
+
+def relevant_ids(
+    question: str,
+    figures: dict[str, Any],
+    plan: Mapping[str, Any],
+    candidates: Sequence[Any],
+) -> dict[str, list[str]]:
+    """The ids a request is about, per scope and highest rank first (T-307, plan 7).
+
+    Fixed before any budget is divided, so there is no cycle: names in the request, then names
+    in the plan, then the targets of the first twelve retrieval candidates -- candidates, not
+    packed chunks, because packing comes after the world state.
+    """
+    scopes: dict[str, list[str]] = {}
+
+    def add(scope: str, ident: object) -> None:
+        if isinstance(ident, str) and ident:
+            scopes.setdefault(scope, [])
+            if ident not in scopes[scope]:
+                scopes[scope].append(ident)
+
+    plan_text = " ".join(
+        str(item) for item in [*plan.get("steps", []), *plan.get("searchQueries", [])]
+    )
+    for text in (question, plan_text):
+        for mention in entity_mentions(text, figures) if text else []:
+            resolution = mention.resolution
+            if resolution.resolved_id:
+                add("elements", resolution.resolved_id)
+            for candidate in resolution.candidates:
+                add("elements", getattr(candidate, "element_id", None))
+    for chunk in list(candidates)[:12]:
+        scope = CHUNK_SCOPES.get(str(getattr(chunk, "kind", "")))
+        if scope:
+            add(scope, chunk.target.get("id"))
+    return scopes
 
 
 def complete_request(
@@ -504,16 +555,6 @@ def complete_request(
     def counter(_identity, text):
         return runtime.inference.count_tokens(text)
 
-    context = pack_chunks(
-        context_candidates,
-        runtime.url,
-        RUNTIME_CONFIG.forced_context_tokens,
-        counter,
-        runtime.token_cache,
-        trace,
-    )
-    context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
-    world_json = json.dumps(structured_world_state(figures, contract), ensure_ascii=False)
     if PROSE_REQUEST.search(question):
         return {
             "message": "Ich schreibe oder vervollständige keine Romanprosa. Ich kann die geplante Szene aber anhand deiner Welt analysieren, Widersprüche finden, beteiligte Figuren und Beziehungen ordnen oder ihre Konsequenzen als Notizen vorbereiten.",
@@ -531,27 +572,113 @@ def complete_request(
     conversation = conversation_messages(
         history, runtime.url, runtime.inference.count_tokens, runtime.token_cache
     )
+    supported = set(KINDS)
+    explicit_required = set(contract["requiredKinds"])
+    planned_required = {kind for kind in plan.get("requiredKinds", []) if kind in supported}
+    required = explicit_required or (planned_required if mutation_requested else set())
+    requirements = (
+        "\n\nTASK REQUIREMENTS: The structured proposals must include: "
+        + ", ".join(sorted(required))
+        + "."
+        if required
+        else ""
+    )
 
-    def prompt_for(packed_json: str) -> tuple[str, int, int]:
-        content = f"STRUCTURED WORLD STATE (complete for the requested scopes):\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{packed_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
+    def count(text: str) -> int:
+        return runtime.token_cache.count(runtime.url, text, runtime.inference.count_tokens)
+
+    def prompt_for(world_json: str, header: str, packed_json: str) -> tuple[str, int, int]:
+        content = f"{header}:\n{world_json}\n\nRAG CONTEXT (content excerpts only):\n{packed_json}\n\nTASK CONTRACT:\n{json.dumps(contract, ensure_ascii=False)}\n\nREQUEST:\n{question}\n/no_think"
         tokens = runtime.inference.count_tokens(
             prompt + "".join(message["content"] for message in conversation) + content
         )
-        return content, tokens, MODEL_CONTEXT_TOKENS - tokens - RUNTIME_CONFIG.template_reserve
+        return content, tokens, output_headroom(tokens)
 
-    user_content, prompt_tokens, headroom = prompt_for(context_json)
-    for reduced_budget in (4096, 3072, 2048, 1024, 512, 0):
-        if headroom >= RUNTIME_CONFIG.minimum_output_tokens:
-            break
-        context = pack_chunks(
+    def pack(budget_tokens: int, record: bool) -> list[Any]:
+        return pack_chunks(
             context_candidates,
             runtime.url,
-            reduced_budget,
+            max(0, budget_tokens),
             counter,
             runtime.token_cache,
+            trace if record else None,
         )
-        context_json = json.dumps([chunk.public() for chunk in context], ensure_ascii=False)
-        user_content, prompt_tokens, headroom = prompt_for(context_json)
+
+    def serialized(chunks_: list[Any]) -> str:
+        return json.dumps([chunk.public() for chunk in chunks_], ensure_ascii=False)
+
+    def too_large() -> InferenceContextTooLargeError:
+        return InferenceContextTooLargeError(
+            "The request exceeds the local model's context window before any response tokens "
+            "can be generated. Narrow the request, for example to fewer chapters."
+        )
+
+    # One budget per prompt part (T-307): the fixed parts are measured first -- the prompt with an
+    # empty world state and no excerpts, the read-tool instructions, the answer and one reserved
+    # read round -- and what is left goes to the world state and the RAG excerpts by one rule.
+    _, base_tokens, _ = prompt_for("{}", COMPLETE_WORLD_HEADER, "[]")
+    budget = prompt_budget(
+        base_prompt=base_tokens + (count(requirements) if requirements else 0),
+        tools=count(tool_instructions(runtime.read_tools)),
+        required_kinds=len(contract["requiredKinds"]),
+    )
+    relevant = relevant_ids(question, figures, plan, context_candidates)
+    if extraction_mode:
+        # Extraction reads the manuscript first; the world keeps every name and id.
+        context = pack(budget.cap, True)
+        used = count(serialized(context))
+        world = fit_world_state(
+            figures,
+            contract,
+            target=budget.free - used,
+            count=count,
+            relevant=relevant,
+            keep_all_entries=True,
+        )
+        if world is None:
+            raise too_large()
+        if len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
+            context = pack(budget.free - world.tokens, False)
+    else:
+        floor = RAG_FLOOR if context_candidates else 0
+        world = fit_world_state(
+            figures,
+            contract,
+            target=min(budget.cap, budget.free - floor),
+            count=count,
+            relevant=relevant,
+        )
+        if world is None:
+            raise too_large()
+        context = pack(budget.free - world.tokens, True)
+        used = count(serialized(context))
+        if world.shortened and budget.free - used - world.tokens > 0:
+            # What RAG left goes back to the world state, once.
+            regrown = fit_world_state(
+                figures, contract, target=budget.free - used, count=count, relevant=relevant
+            )
+            if regrown is not None and regrown.tokens >= world.tokens:
+                world = regrown
+    trace.append(
+        {
+            **budget.trace(),
+            "cap": budget.cap,
+            "worldTokens": world.tokens,
+            "ragTokens": count(serialized(context)),
+            "shortened": world.state.get("shortened", {}),
+            "truncated": world.state.get("truncated", {}),
+        }
+    )
+    world_json = json.dumps(world.state, ensure_ascii=False)
+    context_json = serialized(context)
+    user_content, prompt_tokens, headroom = prompt_for(world_json, world.header, context_json)
+    # Token sums are not exactly additive; the last word belongs to the real prompt.
+    for reduced_budget in (4096, 3072, 2048, 1024, 512, 0):
+        if headroom >= budget.answer:
+            break
+        context = pack(min(reduced_budget, count(context_json)), False)
+        context_json = serialized(context)
+        user_content, prompt_tokens, headroom = prompt_for(world_json, world.header, context_json)
         trace.append(
             {
                 "step": "context_reduce",
@@ -561,15 +688,8 @@ def complete_request(
             }
         )
     if headroom < RUNTIME_CONFIG.minimum_output_tokens:
-        raise InferenceContextTooLargeError(
-            "The request exceeds the local model's context window before any response tokens "
-            "can be generated. Narrow the request, for example to fewer chapters."
-        )
-    max_tokens = min(
-        RUNTIME_CONFIG.base_output_tokens
-        + RUNTIME_CONFIG.output_tokens_per_kind * len(contract["requiredKinds"]),
-        headroom,
-    )
+        raise too_large()
+    max_tokens = min(budget.answer, headroom)
     payload = {
         "model": "local",
         "stream": False,
@@ -582,16 +702,8 @@ def complete_request(
         ],
         "response_format": json_schema_format(schema),
     }
-    supported = set(KINDS)
-    explicit_required = set(contract["requiredKinds"])
-    planned_required = {kind for kind in plan.get("requiredKinds", []) if kind in supported}
-    required = explicit_required or (planned_required if mutation_requested else set())
-    if required:
-        payload["messages"][1]["content"] += (
-            "\n\nTASK REQUIREMENTS: The structured proposals must include: "
-            + ", ".join(sorted(required))
-            + "."
-        )
+    if requirements:
+        payload["messages"][1]["content"] += requirements
     tool_loop = run_tool_loop(
         payload,
         allowed_proposal_kinds=allowed_proposal_kinds,
@@ -665,10 +777,7 @@ def complete_request(
         **payload,
         "messages": repair_messages,
         "response_format": json_schema_format(schema),
-        "max_tokens": min(
-            max_tokens,
-            MODEL_CONTEXT_TOKENS - prompt_tokens - RUNTIME_CONFIG.template_reserve,
-        ),
+        "max_tokens": min(max_tokens, output_headroom(prompt_tokens)),
     }
     parsed = _model_reply(tool_loop.final)
     raw_proposals = parsed["proposals"]

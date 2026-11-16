@@ -1,50 +1,13 @@
 import type { Locator, Page } from "@playwright/test";
-import type { FigureState } from "../../packages/client/src/modules/story-world";
-import { mockRequiredWorldDocuments } from "./support/application-api";
-import { createTestWorld, expect, test } from "./support/world-fixture";
+import { seedExampleWorld } from "./support/example-world";
+import { expect, test } from "./support/world-fixture";
 
 // The compact project is a 390x844 phone; it gets a touch screen so the editor is
 // driven by taps, the way it failed for authors. Wider projects keep their pointer.
 test.use({ hasTouch: true });
 
-const person = (id: string, name: string, x: number) => ({
-  id,
-  x,
-  y: 120,
-  type: "person" as const,
-  name,
-  label: "",
-  sub: "",
-});
-
-const storyWorld: FigureState = {
-  nodes: [person("ada", "Ada", 120), person("bela", "Bela", 320), person("cleo", "Cleo", 520)],
-  edges: [],
-  timeline: [],
-  presence: [],
-  timeSystem: {
-    id: "primary",
-    name: "Gregorianisch",
-    kind: "gregorian",
-    unit: "day",
-    eraName: "",
-    eraAbbreviation: "",
-    epochTime: 0,
-    epochYear: 2024,
-    epochMonth: 1,
-    epochDay: 1,
-    epochWeekday: 0,
-    displayFormat: "",
-    months: [],
-    weekdays: [],
-  },
-};
-
+// The proposal joins Ada and Bela of the test world; the editor then picks a third figure.
 async function openAssistantWithProposal(page: Page) {
-  await mockRequiredWorldDocuments(page, {
-    manuscript: { chapters: [{ id: "chapter", title: "Prolog", body: "Nebel.", note: "" }] },
-    storyWorld,
-  });
   await page.route("**/api/assistant/status*", (route) =>
     route.fulfill({ json: { ok: true, available: true, mode: "local", reason: "", chunks: 0 } }),
   );
@@ -75,8 +38,7 @@ async function openAssistantWithProposal(page: Page) {
       },
     }),
   );
-  const world = await createTestWorld(page, "Vorschlag mobil bearbeiten");
-  await page.goto(`/?world=${world.id}`);
+  const world = await seedExampleWorld(page);
   await expect(page.getByRole("toolbar", { name: "Manuskript" })).toBeVisible();
   await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
   const drawer =
@@ -87,7 +49,7 @@ async function openAssistantWithProposal(page: Page) {
     .getByRole("textbox", { name: "Nachricht an den lokalen Assistenten" })
     .fill("Verbinde Ada und Bela.");
   await drawer.getByRole("button", { name: "Nachricht senden" }).click();
-  return drawer;
+  return { drawer, third: world.text("el.iven.name") };
 }
 
 async function press(locator: Locator, touch: boolean) {
@@ -97,7 +59,7 @@ async function press(locator: Locator, touch: boolean) {
 
 test("the proposal editor stays operable above the assistant sheet", async ({ page }, testInfo) => {
   const touch = testInfo.project.name === "compact";
-  const drawer = await openAssistantWithProposal(page);
+  const { drawer, third } = await openAssistantWithProposal(page);
 
   const edit = drawer.getByRole("button", { name: "Bearbeiten", exact: true });
   await press(edit, touch);
@@ -112,8 +74,8 @@ test("the proposal editor stays operable above the assistant sheet", async ({ pa
 
   const from = editor.getByRole("combobox", { name: "Von" });
   await press(from, touch);
-  await press(page.getByRole("option", { name: "Cleo" }), touch);
-  await expect(from).toHaveText(/Cleo/);
+  await press(page.getByRole("option", { name: third }), touch);
+  await expect(from).toHaveText(third);
 
   const to = editor.getByRole("combobox", { name: "Nach" });
   await press(to, touch);
@@ -133,7 +95,7 @@ test("the proposal editor stays operable above the assistant sheet", async ({ pa
 
   await press(edit, touch);
   await expect(page.getByRole("dialog", { name: "Bearbeiten" })).toBeVisible();
-  await expect(from).toHaveText(/Cleo/);
+  await expect(from).toHaveText(third);
   await expect(to).toHaveText(/Ada/);
 });
 
@@ -142,7 +104,7 @@ test("an unsaved proposal edit survives a switch across the compact breakpoint",
 }, testInfo) => {
   // The test drives the viewport itself, so one desktop-sized project covers it.
   test.skip(testInfo.project.name !== "regular", "resizes the viewport itself");
-  const drawer = await openAssistantWithProposal(page);
+  const { drawer } = await openAssistantWithProposal(page);
   await drawer.getByRole("button", { name: "Bearbeiten", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "Bearbeiten" });
   const label = editor.getByRole("textbox", { name: "Bezeichnung" });

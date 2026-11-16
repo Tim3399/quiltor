@@ -38,6 +38,8 @@ interface ManuscriptToolbarProps {
   binderOpen: boolean;
   inspectorOpen: boolean;
   historyOpen: boolean;
+  /** False in the example world's preview, which keeps no versions (T-214, T-86). */
+  versionsAvailable?: boolean;
   canUndo: boolean;
   canRedo: boolean;
   pdfState: PdfState;
@@ -63,6 +65,7 @@ export function ManuscriptToolbar({
   binderOpen,
   inspectorOpen,
   historyOpen,
+  versionsAvailable = true,
   canUndo,
   canRedo,
   pdfState,
@@ -206,7 +209,7 @@ export function ManuscriptToolbar({
               selected={preview}
               onSelect={() => onPreview(!preview)}
             />
-            {current && (
+            {current && versionsAvailable && (
               <MenuItem
                 icon={<HistoryIcon />}
                 label={t("versions")}

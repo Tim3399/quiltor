@@ -5,7 +5,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import NotRequired, TypedDict
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.profile import normalize_profile
@@ -19,6 +19,18 @@ class KnowledgeContextClass(str, Enum):
     PLANNING = "planning"
 
 
+class PublicKnowledgeChunk(TypedDict):
+    """A knowledge chunk as the assistant and the wire receive it."""
+
+    id: str
+    kind: str
+    title: str
+    text: str
+    target: dict[str, object]
+    contextClass: str
+    documentStatus: NotRequired[str]
+
+
 @dataclass(frozen=True)
 class KnowledgeChunk:
     id: str
@@ -30,9 +42,8 @@ class KnowledgeChunk:
     context_class: KnowledgeContextClass = KnowledgeContextClass.CANON
     document_status: str | None = None
 
-    # `dict[str, Any]` because the wire and the assistant read it untyped; see validate_world.
-    def public(self) -> dict[str, Any]:
-        result: dict[str, Any] = {
+    def public(self) -> PublicKnowledgeChunk:
+        result: PublicKnowledgeChunk = {
             "id": self.id,
             "kind": self.kind,
             "title": self.title,
@@ -92,7 +103,7 @@ def chapter_in_book(chapter: Mapping[str, object]) -> bool:
 
 def scoped_chapters(
     manuscript: Mapping[str, object], chapter_ids: Sequence[str] | None = None
-) -> list[dict[str, Any]]:
+) -> list[JsonObject]:
     selected = set(chapter_ids or [])
     return [
         chapter

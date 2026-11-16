@@ -12,7 +12,12 @@ import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import { addDeterministicMentions, scanEntityMentions } from "./mentions";
 import type { Chapter, EntityMention, Manuscript, TextMark, WritingIssue } from "./model";
 import type { HelperMode, WorkspaceSelection, WritingTool } from "./workspaceTypes";
-import { writingAssistanceErrorMessage } from "./writingAssistanceErrors";
+import {
+  isRateLimited,
+  isSuperseded,
+  retryAfterMs,
+  writingAssistanceErrorMessage,
+} from "./writingAssistanceErrors";
 
 interface WritingAssistanceOptions {
   selectionKey: string;
@@ -71,6 +76,10 @@ export function useWritingAssistance({
     "idle" | "checking" | "installing" | "unavailable" | "error"
   >("idle");
   const [grammarError, setGrammarError] = useState("");
+  // The pause a `429 writing_assistance.rate_limited` asked for, after which the text is
+  // checked once more. A newer check, an edit or a switched item drops it, so one pause never
+  // yields two retries. A fresh object per 429, so a second pause restarts the timer.
+  const [grammarPause, setGrammarPause] = useState<{ ms: number } | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the vocabulary only reads `manuscript.words`; depending on the whole manuscript would rebuild it on every keystroke
   const vocabulary = useMemo(
     () => writingVocabulary(manuscript, figures),
@@ -102,6 +111,7 @@ export function useWritingAssistance({
     setResults([]);
     setGrammarIssues([]);
     setSelectedIssue(null);
+    setGrammarPause(null);
   }
   // biome-ignore lint/correctness/useExhaustiveDependencies: `selectionKey` is a trigger: switching the edited item aborts the grammar request of the old one
   useEffect(() => {
@@ -275,6 +285,7 @@ export function useWritingAssistance({
       return;
     }
     grammarRequest.current?.abort();
+    setGrammarPause(null);
     const request = new AbortController();
     grammarRequest.current = request;
     const chapterId = current.id;
@@ -295,10 +306,29 @@ export function useWritingAssistance({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (isSuperseded(error)) {
+          // A newer check of this tab replaced this one; it brings the answer, so no retry.
+          if (grammarRequest.current === request) setGrammarPhase("idle");
+          return;
+        }
+        if (isRateLimited(error)) {
+          // Not a failure the author has to read: the server only asks for a pause. The last
+          // issues stay, and the newest text is checked once the pause is over.
+          if (grammarRequest.current !== request) return;
+          setGrammarPhase("idle");
+          setGrammarPause({ ms: retryAfterMs(error) });
+          return;
+        }
         setGrammarError(grammarErrorMessage(error));
         setGrammarPhase("error");
       });
   };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `grammarPause` is the trigger; `checkGrammar` is recreated every render, and an edit drops the pause anyway
+  useEffect(() => {
+    if (!grammarPause) return;
+    const timeout = window.setTimeout(checkGrammar, grammarPause.ms);
+    return () => window.clearTimeout(timeout);
+  }, [grammarPause]);
   const installGrammar = () => {
     setGrammarPhase("installing");
     void quiltorClient.application.writingAssistance
@@ -364,6 +394,7 @@ export function useWritingAssistance({
       setGrammarIssues([]);
       setSelectedIssue(null);
       grammarRequest.current?.abort();
+      setGrammarPause(null);
     }
     onUpdateCurrent({
       body,

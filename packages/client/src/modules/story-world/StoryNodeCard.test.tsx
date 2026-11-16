@@ -69,12 +69,9 @@ describe("StoryNodeCard", () => {
     expect(
       screen.getByText("D", { selector: ".node-monogram-letter" }).closest(".node-monogram"),
     ).toHaveAttribute("aria-hidden", "true");
-    expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toContainElement(
-      screen.getByTestId("leading"),
-    );
-    expect(screen.getByText("Dämmerhafen", { selector: "strong" })).toContainElement(
-      screen.getByTestId("trailing"),
-    );
+    const strong = screen.getByText("Dämmerhafen", { selector: ".node-name" }).closest("strong");
+    expect(strong).toContainElement(screen.getByTestId("leading"));
+    expect(strong).toContainElement(screen.getByTestId("trailing"));
     expect(screen.getByText("An der Nebelküste", { selector: "small" })).toBeInTheDocument();
   });
 
@@ -85,9 +82,24 @@ describe("StoryNodeCard", () => {
       </StoryNodeCard>,
     );
 
-    expect(screen.getByText("Leuchtturm Süderoog", { selector: "strong" })).toHaveAttribute(
-      "title",
-      "Leuchtturm Süderoog",
+    expect(
+      screen.getByText("Leuchtturm Süderoog", { selector: ".node-name" }).closest("strong"),
+    ).toHaveAttribute("title", "Leuchtturm Süderoog");
+  });
+
+  it("puts the name in an element of its own, between the symbols", () => {
+    render(
+      <StoryNodeCard zoomTier="overview" viewportZoom={0.2} important>
+        <StoryNodeIdentity
+          kindLabel="Person"
+          name="Mara"
+          leading={<i data-testid="leading" />}
+          trailing={<b data-testid="trailing" />}
+        />
+      </StoryNodeCard>,
     );
+
+    const strong = screen.getByText("Mara", { selector: ".node-name" }).closest("strong");
+    expect([...(strong?.children ?? [])].map((child) => child.tagName)).toEqual(["I", "SPAN", "B"]);
   });
 });

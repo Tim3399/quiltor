@@ -1,0 +1,22 @@
+{
+  "version": "3.26.0",
+  "platform": "win32",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "inputs": "51b76b7acbd6ec18b796d644425e50e5a0c24dcad98dccba00c8de254be6cf31",
+  "images": {
+    "manuscript.png": "c5c67cef800af8969634bbdb2e7f210f4bfc082c625dbe13d84e6b328c99ad09",
+    "world-graph.png": "5c4124fbd23172635ef7a9708008305d3306df0bb99de6baad10f177da4b6ab2",
+    "timeline-playback.png": "8c42a798adac3f83d668e76f0162c30cae62fa1655a6f0836427e6975d944ae9",
+    "timeline-manager.png": "0583d3222bacd698cece064322f3c62e8c8137ec32ec8f9954ecce43afd870ba",
+    "timeline-calendar.png": "45d5d04a852863f5c2c816e9b1d5070bd8bc0ae73efa320f8592e44ea10b3e11",
+    "places.png": "d414656c2e2c19b944856b3535a896d0e7a23991c53924ae235f22acc52fd215",
+    "places-map.png": "b6646b835aa786de7ca146521fb4e5539aaf21a92352f0fddd16f53a824833c8",
+    "storyboard.png": "0ee8677005b481bf20eb2cd277cd56f35de48d0267f0754883cbbadb8342b86e",
+    "shared-notes.png": "5157560406fb373a16c84f8e51eaf0c0fe08f07b3cfeeb828815f56776909bbd",
+    "search.png": "b5994e7afdc3ff339977489f0a7eaf8bef889765540afa205248ca3a87443817",
+    "versions.png": "827530293d39f83e249a8c8e356fcda05c811c13dde4dda06fd0c8962bbf4576"
+  }
+}

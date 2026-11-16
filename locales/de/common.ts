@@ -25,6 +25,8 @@ export const common = {
     "Nicht genug Speicherplatz. Rette den Entwurf, schaffe Platz und versuche es erneut.",
   errorStorageLocked:
     "Das Projekt ist gerade für Schreibzugriffe gesperrt. Dein Entwurf bleibt erhalten. Versuche es erneut oder rette den Entwurf.",
+  errorStorageSchemaNewer:
+    "Diese Daten stammen aus einer neueren Quiltor-Version. Aktualisiere Quiltor und versuche es erneut. Dein aktueller Stand bleibt unverändert.",
   errorBackupPreviewFailed:
     "Die Sicherung konnte nicht für die Vorschau geöffnet werden. Sie wurde möglicherweise beschädigt.",
   errorBackupContentIntegrity:
@@ -33,6 +35,14 @@ export const common = {
     "Der Inhalt dieser Version konnte nicht abgerufen werden. Dein aktueller Stand ist unverändert.",
   errorSyncForbiddenHosted:
     "Auf diesem Server gibt es keinen Abgleich mit anderen Geräten. Deine Versionen liegen bereits auf dem Server.",
+  errorWorldPreview:
+    "Die Beispielwelt wird erst gesichert und abgeglichen, wenn du etwas an ihr änderst.",
+  errorExampleWorldFailed: "Die Beispielwelt konnte nicht geöffnet werden.",
+  errorWorldQuota:
+    "Du hast die Höchstzahl an Welten oder den Speicherplatz für deine Welten erreicht. Lösche eine Welt und leere den Papierkorb („Endgültig löschen“), dann ist wieder Platz. Eine Welt im Papierkorb zählt noch mit.",
+  errorServerBusy: "Der Server ist gerade ausgelastet. Versuche es gleich erneut.",
+  errorInstallForbiddenHosted:
+    "Auf diesem Server richtet der Betreiber Erweiterungen ein. Hier lässt sich nichts nachinstallieren.",
   errorSyncTargetInvalid:
     "Diese Adresse passt nicht. Gib eine Adresse mit https:// ein, zum Beispiel https://abgleich.example.org.",
   errorUnknown: "Die Aktion konnte nicht abgeschlossen werden.",

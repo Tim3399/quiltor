@@ -15,6 +15,8 @@ const first: FigureNode = {
   y: 0,
   mapImageId: "bild-a",
   mapExpanded: true,
+  mapWidth: 1200,
+  mapHeight: 800,
 };
 const second: FigureNode = { ...first, id: "karte-b", name: "Seekarte" };
 const child: FigureNode = {

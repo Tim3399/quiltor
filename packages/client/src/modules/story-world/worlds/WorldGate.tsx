@@ -1,13 +1,26 @@
-import { BookOpen, ChevronRight, FileText, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  CircleHelp,
+  FileText,
+  Plus,
+  RotateCcw,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useState } from "react";
-import { PRODUCT_MARK, PRODUCT_NAME } from "../../../config/branding";
+import { BrandMark } from "../../../config/BrandMark";
+import { PRODUCT_NAME } from "../../../config/branding";
 import {
   Alert,
   Button,
   ConfirmDialog,
   Dialog,
+  DropdownMenu,
   IconButton,
   IRREVERSIBLE_HOLD_MS,
+  MenuItem,
   ScrollArea,
   SegmentedControl,
   SelectionCard,
@@ -25,6 +38,7 @@ export function WorldGate({
   compact = false,
   worlds,
   onOpen,
+  onOpenExample,
   onCreate,
   onDelete,
   trash,
@@ -41,6 +55,8 @@ export function WorldGate({
   compact?: boolean;
   worlds: WorldInfo[];
   onOpen: (id: string) => Promise<void>;
+  /** Opens a fresh preview of the example world in the interface language (D-127). */
+  onOpenExample?: (lang: string) => Promise<void>;
   onCreate: (title: string, backupUrl: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   trash?: (WorldInfo & { deletedAt: string })[] | null;
@@ -67,6 +83,7 @@ export function WorldGate({
   const [importOpen, setImportOpen] = useState(false);
   const [manuscriptImportOpen, setManuscriptImportOpen] = useState(false);
   const [worldQuery, setWorldQuery] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
   const { locale, setLocale, t } = useI18n();
   const normalizedQuery = worldQuery.trim().toLocaleLowerCase(locale);
   const visibleWorlds = normalizedQuery
@@ -106,10 +123,35 @@ export function WorldGate({
               label: candidate.name,
             }))}
           />
+          {onOpenExample && (
+            <DropdownMenu
+              label={t("help")}
+              open={helpOpen}
+              onOpenChange={setHelpOpen}
+              renderTrigger={({ ref, ...triggerProps }) => (
+                <IconButton
+                  {...triggerProps}
+                  ref={ref}
+                  className="world-help"
+                  label={t("help")}
+                  title={t("help")}
+                  icon={<CircleHelp />}
+                  appearance="ghost"
+                  size="regular"
+                />
+              )}
+            >
+              <MenuItem
+                icon={<BookOpen />}
+                label={t("openExampleWorld")}
+                onSelect={() => void run(() => onOpenExample(locale))}
+              />
+            </DropdownMenu>
+          )}
         </div>
         <header>
           <span className="world-mark" aria-hidden="true">
-            {PRODUCT_MARK}
+            <BrandMark />
           </span>
           <div>
             <small>
@@ -201,11 +243,16 @@ export function WorldGate({
             {visibleWorlds.map((world) => (
               <li key={world.id}>
                 <SelectionCard
-                  label={`${world.title} – ${t("openWorld")}`}
+                  dashed={world.origin === "example"}
+                  label={
+                    world.origin === "example"
+                      ? `${world.title} – ${t("exampleWorldLabel")} – ${t("openWorld")}`
+                      : `${world.title} – ${t("openWorld")}`
+                  }
                   title={world.title}
-                  description={`${t("lastChanged")} ${new Date(world.updated).toLocaleDateString(
-                    locale,
-                  )}`}
+                  description={`${world.origin === "example" ? `${t("exampleWorldLabel")} · ` : ""}${t(
+                    "lastChanged",
+                  )} ${new Date(world.updated).toLocaleDateString(locale)}`}
                   leading={<BookOpen />}
                   indicator={<ChevronRight />}
                   disabled={busy}
@@ -225,7 +272,24 @@ export function WorldGate({
                 />
               </li>
             ))}
-            {!worlds.length && <li className="world-list-empty">{t("noWorld")}</li>}
+            {!worlds.length && (
+              <li className="world-list-empty">
+                <p>{t("noWorld")}</p>
+                {onOpenExample && (
+                  <>
+                    <Button
+                      className="world-example-open"
+                      icon={<BookOpen />}
+                      disabled={busy}
+                      onClick={() => void run(() => onOpenExample(locale))}
+                    >
+                      {t("openExampleWorld")}
+                    </Button>
+                    <p className="world-example-hint">{t("exampleWorldHint")}</p>
+                  </>
+                )}
+              </li>
+            )}
             {Boolean(worlds.length && !visibleWorlds.length) && (
               <li className="world-list-empty" role="status">
                 {t("writingNoResults")}

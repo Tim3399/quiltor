@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PRODUCT_MARK } from "../../config/branding";
+import { BrandMark } from "../../config/BrandMark";
 import { PageState } from "../../design";
 import { useI18n } from "../../i18n";
 import { SignInGate } from "../../modules/identity";
@@ -17,6 +17,7 @@ export function WorldSessionBoundary({
   theme,
   onTheme,
   onOpen,
+  onOpenExample,
   onCreate,
   onDelete,
   trash,
@@ -37,6 +38,7 @@ export function WorldSessionBoundary({
   theme: ThemePreference;
   onTheme: (theme: ThemePreference) => void;
   onOpen: (id: string) => Promise<void>;
+  onOpenExample?: (lang: string) => Promise<void>;
   onCreate: (title: string, backupUrl: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   trash: (WorldInfo & { deletedAt: string })[] | null;
@@ -52,7 +54,7 @@ export function WorldSessionBoundary({
   const { t } = useI18n();
   const viewportMode = useViewportMode();
   const loading = (message: string) => (
-    <PageState kind="loading" mark={PRODUCT_MARK}>
+    <PageState kind="loading" mark={<BrandMark />}>
       <p>{message}</p>
     </PageState>
   );
@@ -68,6 +70,7 @@ export function WorldSessionBoundary({
         onTheme={onTheme}
         error={loadError}
         onOpen={onOpen}
+        onOpenExample={onOpenExample}
         onCreate={onCreate}
         onDelete={onDelete}
         trash={trash}

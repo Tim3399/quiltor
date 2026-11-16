@@ -6,14 +6,18 @@ import { EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { cardKindColor } from "../../graph";
 import { GRID_SIZE } from "../figures/relationships";
-import type { FigureNode, FigureState } from "../model";
+import type { FigureNode, FigureState, MapScale } from "../model";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import { PlaceGround } from "./PlaceGround";
 import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { type ActivePlaceMapChromeProps, PlaceMapChromeOverlay } from "./PlaceMapChromeOverlay";
 import { PlaceMapFrameProvider } from "./PlaceMapFrameContext";
 import { PlaceMapNode } from "./PlaceMapNode";
+import { measureClickTarget } from "./placeCanvasModel";
+import { PlaceMeasurePoint } from "./PlaceMeasurePoint";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
+import type { MeasureTarget } from "./placeCanvasModel";
+import { PlaceScaleCalibration, placeAt, useCalibrationGesture } from "./PlaceScaleCalibration";
 import { type PlaceCardData, type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
 import "./PlaceCanvas.css";
@@ -30,8 +34,11 @@ export function PlaceCanvas({
   onSelectPlace,
   onEnterPlace,
   onClearSelection,
+  onMeasurePoint,
   onStopMeasuring,
   onScale,
+  onCalibrateLevel,
+  calibration,
   mapTools,
   mapChrome,
 }: {
@@ -47,8 +54,23 @@ export function PlaceCanvas({
   onSelectPlace: (id: string) => void;
   onEnterPlace: (id: string) => void;
   onClearSelection: () => void;
+  /** A free point on the surface, in flow units; offered only while measuring. */
+  onMeasurePoint?: (point: { x: number; y: number }) => void;
   onStopMeasuring: () => void;
   onScale: (patch: Partial<{ unitsPer100px: number; unitLabel: string }>) => void;
+  /** Starts setting the level's scale by measuring, from the measuring bar. */
+  onCalibrateLevel?: () => void;
+  /** Present while a scale is being measured: the stretch so far and what to do with it. */
+  calibration?: {
+    ends: number;
+    flowLength: number | undefined;
+    defaultUnit: string;
+    onStart: (start: MeasureTarget) => void;
+    onPreview: (point: { x: number; y: number }) => void;
+    onEnd: (end: MeasureTarget) => void;
+    onApply: (scale: MapScale) => void;
+    onCancel: () => void;
+  };
   /** What the selected map offers, shown over the canvas rather than on the map. */
   mapTools?: ReactNode;
   mapChrome?: ActivePlaceMapChromeProps;
@@ -68,6 +90,45 @@ export function PlaceCanvas({
     [onSelectPlace],
   );
 
+  const measurePointAt = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      const point = controller.toFlowPosition({ x: event.clientX, y: event.clientY });
+      if (point && onMeasurePoint) onMeasurePoint(point);
+    },
+    [controller, onMeasurePoint],
+  );
+  // A laid-out map and the level's picture are nodes, so a click on them never
+  // reaches the pane. While measuring it is a free point there, not the map's middle.
+  const measureAwareNodeClick = useCallback(
+    (event: { clientX: number; clientY: number }, node: { id: string; type?: string }) => {
+      if (onMeasurePoint) {
+        const target = measureClickTarget(node.type ?? "", node.id);
+        if (target === "none") return;
+        if (target === "point") {
+          measurePointAt(event);
+          return;
+        }
+      }
+      onSelectPlace(node.id);
+    },
+    [measurePointAt, onMeasurePoint, onSelectPlace],
+  );
+
+  const calibrating = calibration !== undefined;
+  const gesture = useCalibrationGesture({
+    active: calibrating,
+    toFlow: controller.toFlowPosition,
+    targetAt: (client) => {
+      const id = placeAt(client);
+      if (id) return { kind: "place", id };
+      const point = controller.toFlowPosition(client);
+      return point ? { kind: "point", ...point } : undefined;
+    },
+    onStart: (start) => calibration?.onStart(start),
+    onPreview: (point) => calibration?.onPreview(point),
+    onEnd: (end) => calibration?.onEnd(end),
+  });
+
   const levelTrail = <PlaceLevelTrail trail={trail} scale={trailScale} onGoToLevel={onGoToLevel} />;
 
   return (
@@ -83,9 +144,10 @@ export function PlaceCanvas({
         showGrid={controller.snapToGrid}
         minZoom={controller.minZoom}
         onSurfaceResize={controller.onSurfaceResize}
+        surfaceListeners={calibrating ? gesture : undefined}
         overlay={
           <>
-            {measuring ? null : levelTrail}
+            {measuring || calibrating ? null : levelTrail}
             {mapTools}
             {controller.dragPreview ? (
               <div
@@ -116,20 +178,39 @@ export function PlaceCanvas({
                 scale={scale}
                 onScale={onScale}
                 onStop={onStopMeasuring}
+                onCalibrate={onCalibrateLevel}
                 trail={levelTrail}
+              />
+            ) : null}
+            {calibration ? (
+              <PlaceScaleCalibration
+                ends={calibration.ends}
+                flowLength={calibration.flowLength}
+                defaultUnit={calibration.defaultUnit}
+                trail={levelTrail}
+                onApply={calibration.onApply}
+                onCancel={calibration.onCancel}
               />
             ) : null}
           </>
         }
         flowProps={{
-          nodeTypes: { ...placeNodeTypes, placeMap: PlaceMapNode, placeGround: PlaceGround },
+          nodeTypes: {
+            ...placeNodeTypes,
+            placeMap: PlaceMapNode,
+            placeGround: PlaceGround,
+            measurePoint: PlaceMeasurePoint,
+          },
           nodesConnectable: true,
           fitViewOptions: controller.fitViewOptions,
           translateExtent: controller.translateExtent,
           onKeyDown: selectPlaceFromKeyboard,
+          // While a stretch is drawn, a drag draws it: the surface neither pans nor
+          // moves what stands on it. Pinch and wheel zoom stay with the canvas.
+          ...(calibrating ? { panOnDrag: false, nodesDraggable: false } : {}),
           onInit: controller.onInit,
           onMove: (_, viewport) => controller.onMove(viewport),
-          onNodeClick: (_, node) => onSelectPlace(node.id),
+          onNodeClick: measureAwareNodeClick,
           // The ordinary gesture for one level down, so a level can be reached
           // without first selecting something to find out that it has one. The
           // canvas has to give the gesture up for it: React Flow's zoom claims
@@ -137,7 +218,8 @@ export function PlaceCanvas({
           // a surface built out of levels going down beats zooming in.
           onNodeDoubleClick: (_, node) => onEnterPlace(node.id),
           zoomOnDoubleClick: false,
-          onPaneClick: onClearSelection,
+          // Beside every map, while measuring, is still somewhere a point can be set.
+          onPaneClick: onMeasurePoint ? (event) => measurePointAt(event) : onClearSelection,
           onNodesChange: controller.onNodesChange,
           onNodeDragStart: (event, node) => controller.onNodeDragStart(event, node),
           onNodeDrag: (event, node) => controller.onNodeDrag(event, node),
