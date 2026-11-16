@@ -9,7 +9,7 @@ from typing import Any
 
 from quiltor.modules.assistant.budget import ROUND_MINIMUM, output_headroom
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
-from quiltor.modules.assistant.ports import AssistantReadToolExecutor
+from quiltor.modules.assistant.ports import AssistantReadToolExecutor, InferenceValidationError
 from quiltor.modules.assistant.schemas import STEP_KEY, json_schema_format, tool_step_schema
 
 MAX_TOOL_ROUNDS = 4
@@ -57,6 +57,13 @@ RETURNABLE_ERROR_CODES = frozenset(
     {"not_found", "invalid_arguments", "unavailable", "result_too_large"}
 )
 RESULT_TOO_LARGE_MESSAGE = "The bounded read result exceeded its output limit."
+# A step that does not fit the step schema gets one second chance (T-307, D-219 addendum):
+# like a read tool's own failure (D-218), the model sees a code and a fixed short message only --
+# no schema path, no raw output. A second invalid step leads to the final-only call.
+INVALID_STEP_NOTE = (
+    'INVALID STEP: {"code":"invalid_step","message":"The last step did not match the required '
+    'step format. Return one valid step."}'
+)
 FINAL_ONLY_NOTE = (
     "READ BUDGET USED UP: no further read tools are available. "
     "Answer now from what you have and return a final step."
@@ -256,6 +263,22 @@ def run_tool_loop(
             messages.append({"role": "user", "content": FINAL_ONLY_NOTE})
             trace.append({"step": "tool_loop_final_only", "toolRounds": tool_rounds})
 
+    invalid_steps = 0
+
+    def second_chance() -> bool:
+        # True: ask again (with the hint, or final-only). False: the final-only call itself was
+        # invalid, and the loop ends as before.
+        nonlocal invalid_steps
+        if final_only:
+            return False
+        invalid_steps += 1
+        trace.append({"step": "tool_step_invalid", "count": invalid_steps})
+        if invalid_steps == 1:
+            messages.append({"role": "user", "content": INVALID_STEP_NOTE})
+        else:
+            finish_with_final()
+        return True
+
     while True:
         prompt_tokens = _prompt_tokens(messages, count_tokens)
         if (
@@ -283,7 +306,12 @@ def run_tool_loop(
             "messages": messages,
             "response_format": json_schema_format(schema, "quiltor_read_tool_step"),
         }
-        wrapped = invoke(step_payload, prompt_tokens)
+        try:
+            wrapped = invoke(step_payload, prompt_tokens)
+        except InferenceValidationError:
+            if second_chance():
+                continue
+            raise
         # The schema's root is an object; the step itself sits one level down.
         raw_step = (
             wrapped.get(STEP_KEY)
@@ -294,6 +322,8 @@ def run_tool_loop(
             "tool_calls",
             "final",
         }:
+            if second_chance():
+                continue
             return _failure(
                 "invalid_tool_step",
                 messages,
@@ -306,6 +336,8 @@ def run_tool_loop(
 
         if raw_step["action"] == "final":
             if set(raw_step) != {"action", "final"} or not isinstance(raw_step.get("final"), dict):
+                if second_chance():
+                    continue
                 return _failure(
                     "invalid_final_step",
                     messages,
@@ -334,8 +366,11 @@ def run_tool_loop(
                 result_tokens,
             )
 
-        calls = _valid_calls(raw_step.get("toolCalls"), allowed_names)
+        # After the final-only call no read tool runs, whatever the step says.
+        calls = None if final_only else _valid_calls(raw_step.get("toolCalls"), allowed_names)
         if set(raw_step) != {"action", "toolCalls"} or calls is None:
+            if second_chance():
+                continue
             return _failure(
                 "invalid_tool_calls",
                 messages,
