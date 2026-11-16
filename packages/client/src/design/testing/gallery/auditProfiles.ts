@@ -204,8 +204,8 @@ export const designAuditProfiles = {
     priority: "P0",
     coverage: {
       default: ["Default"],
-      disabled: ["DisabledOption"],
-      keyboard: ["Default", "DisabledOption"],
+      disabled: ["DisabledOption", "LockedWithReason"],
+      keyboard: ["Default", "DisabledOption", "LockedWithReason"],
       touch: ["Touch"],
     },
   },
@@ -332,6 +332,14 @@ export const designAuditProfiles = {
       selection: ["Pressed"],
       disabled: ["Disabled"],
       responsive: ["ResponsiveLabel", "PersistentLabel"],
+    },
+  },
+  Tooltip: {
+    priority: "P1",
+    coverage: {
+      default: ["Default"],
+      keyboard: ["Default"],
+      overlay: ["Default"],
     },
   },
   UndoRedoControls: {

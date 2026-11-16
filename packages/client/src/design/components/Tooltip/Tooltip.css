@@ -1,0 +1,31 @@
+/* A short hint from the same family as the menus: popover paper, a fine line, the base radius
+   and a light lift; metadata type in the secondary text colour (T-275-F6). */
+.ui-tooltip {
+  position: fixed;
+  z-index: var(--z-popover-portal);
+  box-sizing: border-box;
+  max-width: min(var(--popover-max) * 0.75, calc(100vw - var(--spacing-section-tight)));
+  padding: var(--spacing-compact-tight) var(--spacing-compact-wide);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--material-popover);
+  backdrop-filter: blur(var(--blur-popover));
+  box-shadow: var(--elevation-1) var(--shadow-color);
+  color: var(--soft);
+  font-size: var(--font-size-metadata);
+  line-height: 1.4;
+  animation: ui-tooltip-in var(--motion-fast) var(--ease-emphasized);
+}
+
+.ui-tooltip[hidden] {
+  display: none;
+}
+
+@keyframes ui-tooltip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

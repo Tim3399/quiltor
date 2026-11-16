@@ -37,6 +37,7 @@ export const cssDesignOwnerClassesByComponent = Object.freeze({
   TextField: Object.freeze(["ui-text-field"]),
   Toast: Object.freeze(["design-toast", "design-toast-region"]),
   ToolbarButton: Object.freeze(["ui-toolbar-button"]),
+  Tooltip: Object.freeze(["ui-tooltip"]),
   UndoRedoControls: Object.freeze(["undo-redo-controls"]),
   WorkspaceToolbar: Object.freeze(["workspace-toolbar"]),
 });
