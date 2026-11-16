@@ -17,7 +17,7 @@ function storeIn(state: ModelState): ModelStore {
 
 function renderPanel(store: ModelStore) {
   const Panel = createWebllmPanel(store);
-  render(
+  return render(
     <I18nProvider>
       <Panel />
     </I18nProvider>,
@@ -39,11 +39,34 @@ describe("WebLLM panel (T-61 part 7)", () => {
     expect(screen.getByText("42%")).toBeInTheDocument();
   });
 
-  it("removes a loaded model", () => {
+  it("shows a loaded model as a quiet status line, not a box (T-275-F6)", () => {
+    const { container } = renderPanel(storeIn({ phase: "ready" }));
+    expect(container.querySelector(".ui-alert, .webllm-panel")).toBeNull();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Im Browser · geladen")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Modell entfernen" })).not.toBeInTheDocument();
+  });
+
+  it("removes a loaded model from the overflow menu", () => {
     const store = storeIn({ phase: "ready" });
     renderPanel(store);
-    fireEvent.click(screen.getByRole("button", { name: "Modell entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modell-Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Modell entfernen" }));
     expect(store.remove).toHaveBeenCalled();
+  });
+
+  it("keeps the box for states that ask for action", () => {
+    for (const state of [
+      { phase: "absent" },
+      { phase: "downloading", progress: 0.1 },
+      { phase: "error", message: "x" },
+      { phase: "cached" },
+    ] as ModelState[]) {
+      const { container, unmount } = renderPanel(storeIn(state));
+      expect(container.querySelector(".webllm-panel")).not.toBeNull();
+      expect(screen.getByText("KI im Browser")).toBeInTheDocument();
+      unmount();
+    }
   });
 
   it("offers the remove button for a model on disk that is not loaded", () => {
