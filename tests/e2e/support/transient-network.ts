@@ -1,4 +1,11 @@
-import { test as base, expect, type Page, type Request, type TestInfo } from "@playwright/test";
+import {
+  type BrowserContext,
+  test as base,
+  expect,
+  type Page,
+  type Request,
+  type TestInfo,
+} from "@playwright/test";
 
 /*
  * Recover once from a socket the Windows runner could not hand out.
@@ -54,6 +61,10 @@ type BaseFixtures = {
   cspGuard: true;
 };
 
+// One binding per browser context; a context shared by several tests (a worker-scoped
+// persistent profile) keeps it and only the list that collects the violations changes.
+const cspSinks = new WeakMap<BrowserContext, { current: string[] }>();
+
 export const test = base.extend<BaseFixtures>({
   transientSocketRecovery: [
     async ({ page }, use, testInfo) => {
@@ -72,10 +83,22 @@ export const test = base.extend<BaseFixtures>({
   // collected, so it does not need the page to be open any more.
   cspGuard: [
     async ({ page, cspViolations }, use) => {
-      await page.context().exposeBinding("__quiltorCspViolation", (_source, violation: string) => {
-        cspViolations.push(violation);
+      const context = page.context();
+      const known = cspSinks.get(context);
+      if (known) {
+        known.current = cspViolations;
+        await use(true);
+        if (cspViolations.length > 0) {
+          throw new Error(`Content-Security-Policy violations:\n${cspViolations.join("\n")}`);
+        }
+        return;
+      }
+      const sink = { current: cspViolations };
+      cspSinks.set(context, sink);
+      await context.exposeBinding("__quiltorCspViolation", (_source, violation: string) => {
+        sink.current.push(violation);
       });
-      await page.context().addInitScript(() => {
+      await context.addInitScript(() => {
         document.addEventListener("securitypolicyviolation", (event) => {
           const report = (window as unknown as { __quiltorCspViolation?: (v: string) => void })
             .__quiltorCspViolation;

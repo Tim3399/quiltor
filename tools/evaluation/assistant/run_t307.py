@@ -196,28 +196,41 @@ def main() -> None:
                 if args.cases and name not in args.cases:
                     continue
                 for run in range(1, args.runs + 1):
-                    history: list[dict[str, str]] = []
-                    for earlier in before:
-                        answer = assistant_request(
-                            base,
-                            world_id,
-                            {"question": earlier, "history": history, "language": "de"},
-                        )
-                        history += [
-                            {"role": "user", "content": earlier},
-                            {"role": "assistant", "content": str(answer.get("message") or "")},
-                        ]
-                    started = time.monotonic()
-                    result = assistant_request(
-                        base, world_id, {"question": question, "history": history, "language": "de"}
-                    )
-                    line = {
+                    line: dict[str, Any] = {
                         "commit": commit,
                         "world": args.world,
                         "case": name,
                         "run": run,
-                        **summarize(result, stored, time.monotonic() - started),
                     }
+                    history: list[dict[str, str]] = []
+                    started = time.monotonic()
+                    try:
+                        for earlier in before:
+                            answer = assistant_request(
+                                base,
+                                world_id,
+                                {"question": earlier, "history": history, "language": "de"},
+                            )
+                            history += [
+                                {"role": "user", "content": earlier},
+                                {"role": "assistant", "content": str(answer.get("message") or "")},
+                            ]
+                        started = time.monotonic()
+                        result = assistant_request(
+                            base,
+                            world_id,
+                            {"question": question, "history": history, "language": "de"},
+                        )
+                        line.update(summarize(result, stored, time.monotonic() - started))
+                    # A failed job is a measurement too; record it and go on with the next run.
+                    except RuntimeError as error:
+                        line.update(
+                            {
+                                "seconds": round(time.monotonic() - started, 1),
+                                "error": str(error),
+                                "inHistory": len(history) < 2 * len(before),
+                            }
+                        )
                     print(json.dumps(line, ensure_ascii=False), flush=True)
                     if output:
                         output.write(json.dumps(line, ensure_ascii=False) + "\n")
