@@ -257,7 +257,12 @@ async function prepareEngine(page: Page, log: Record<string, unknown>, worldId: 
   // since the engine was chosen (download, loading from the cache, shader compilation).
   const phases: { s: number; text: string }[] = [];
   log.loadPhases = phases;
-  const status = drawer.getByRole("alert").filter({ hasText: "KI im Browser" });
+  // Every state that needs action is an alert; a loaded model is only a quiet status line
+  // with its removal in the "Modell-Aktionen" menu (T-275-F6).
+  const status = drawer
+    .getByRole("alert")
+    .filter({ hasText: "KI im Browser" })
+    .or(drawer.getByText("Im Browser · geladen", { exact: true }));
   const sampler = setInterval(() => {
     void status
       .innerText({ timeout: 500 })
@@ -276,9 +281,9 @@ async function prepareEngine(page: Page, log: Record<string, unknown>, worldId: 
   if (!log.cachedBefore) await download.click();
   await expect(browserEngine).toBeChecked();
   if (!log.cachedBefore) {
-    await expect(
-      drawer.getByText("Das Modell ist geladen und rechnet auf diesem Gerät."),
-    ).toBeVisible({ timeout: 45 * 60_000 });
+    await expect(drawer.getByText("Im Browser · geladen", { exact: true })).toBeVisible({
+      timeout: 45 * 60_000,
+    });
   }
   log.loadSeconds = Math.round((Date.now() - started) / 1000);
   return { drawer, browserEngine };
@@ -348,7 +353,16 @@ test("The in-browser engine removes the model and leaves no foreign host or CSP 
   const world = await createTestWorld(page, "KI im Browser mit echtem Modell");
   const { drawer } = await prepareEngine(page, log, world.id);
 
-  await drawer.getByRole("button", { name: "Modell entfernen" }).click();
+  // Only in the cache, the panel keeps the button; loaded, the removal sits in the menu.
+  const removeButton = drawer.getByRole("button", { name: "Modell entfernen" });
+  const actions = drawer.getByRole("button", { name: "Modell-Aktionen" });
+  await expect(removeButton.or(actions)).toBeVisible({ timeout: 60_000 });
+  if (await actions.isVisible()) {
+    await actions.click();
+    await page.getByRole("menuitem", { name: "Modell entfernen" }).click();
+  } else {
+    await removeButton.click();
+  }
   await expect(drawer.getByRole("button", { name: "Modell herunterladen" })).toBeVisible({
     timeout: 60_000,
   });
