@@ -1,8 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import type { BrowserContext } from "@playwright/test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { BrowserContext } from "@playwright/test";
 import { freePort, pythonCommand, ROOT, terminate, waitFor } from "./python-process";
 
 /**
@@ -23,12 +23,14 @@ export interface TestHooksServer {
  * the policy that ships (D-T-61-7-E2E measures the in-browser engine against it).
  */
 export async function startTestHooksServer(
-  options: { testHooks?: boolean } = {},
+  options: { testHooks?: boolean; port?: number } = {},
 ): Promise<TestHooksServer> {
   const testHooks = options.testHooks ?? true;
   const [python, prefix] = pythonCommand();
   const scratch = mkdtempSync(join(tmpdir(), "quiltor-e2e-test-hooks-"));
-  const port = await freePort();
+  // A fixed port keeps the origin, and with it the browser's per-origin caches, the same
+  // from run to run (the real-model spec's WebLLM model cache, T-307).
+  const port = options.port ?? (await freePort());
   const url = `http://127.0.0.1:${port}`;
   const logs: string[] = [];
   const child: ChildProcess = spawn(
@@ -75,7 +77,12 @@ export async function startTestHooksServer(
  * the browser, as assistant-engine-product.spec.ts and assistant-client-relay.spec.ts do.
  * The jobs themselves run in the browser, so the server needs no other change.
  */
+const hosted = new WeakSet<BrowserContext>();
+
 export async function presentAsHosted(context: BrowserContext): Promise<void> {
+  // Once per context: a worker-scoped context is handed to every test of the worker.
+  if (hosted.has(context)) return;
+  hosted.add(context);
   await context.route("**/api/capabilities", async (route) => {
     const response = await route.fetch();
     const body = await response.json();

@@ -290,7 +290,8 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
 
     def test_budget_errors_are_not_returned_to_the_model(self):
-        for code in ("too_many_calls", "result_too_large", "invalid_snapshot"):
+        # result_too_large joined the returnable codes after D-218 (T-307); see the test below.
+        for code in ("too_many_calls", "invalid_snapshot"):
             with self.subTest(code=code):
                 result, _calls, _read_tools = self._run(
                     [call_step(), final_step()],
@@ -299,6 +300,96 @@ class AssistantToolLoopTests(unittest.TestCase):
                     ),
                 )
                 self.assertEqual(result.failure, "tool_execution_rejected")
+
+    # --- T-307: the read budget ends in an answer, not in the fallback text ---------------
+
+    def _final_only(self, request) -> bool:
+        schema = request["response_format"]["json_schema"]["schema"]
+        branches = schema["properties"]["step"]["anyOf"]
+        return [branch["properties"]["action"]["enum"] for branch in branches] == [["final"]]
+
+    def test_a_result_over_the_budget_goes_back_as_result_too_large(self):
+        # A system prompt of ~6000 words leaves the round room for ~1000 words, not 4000.
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "wort " * 4000}) for call in requested)
+
+        result, calls, _read_tools = self._run(
+            [call_step(), final_step("narrower")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 6000 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "narrower")
+        self.assertIn('"code":"result_too_large"', calls[1][0]["messages"][-1]["content"])
+        self.assertEqual(result.trace[0]["status"], "error_returned")
+
+    def test_no_room_for_another_round_asks_once_more_for_an_answer_only(self):
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "wort " * 700}) for call in requested)
+
+        result, calls, _read_tools = self._run(
+            [call_step(), final_step("from what I have")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 6000 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "from what I have")
+        self.assertFalse(self._final_only(calls[0][0]))
+        self.assertTrue(self._final_only(calls[1][0]))
+        self.assertIn("READ BUDGET USED UP", calls[1][0]["messages"][-1]["content"])
+
+    def test_after_the_last_round_the_model_may_only_answer(self):
+        result, calls, _read_tools = self._run(
+            [*(call_step() for _index in range(MAX_TOOL_ROUNDS)), final_step("four rounds")]
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
+        self.assertEqual(len(calls), MAX_TOOL_ROUNDS + 1)
+        self.assertTrue(self._final_only(calls[-1][0]))
+        self.assertFalse(any(self._final_only(call[0]) for call in calls[:-1]))
+
+    def test_four_rounds_of_a_thousand_tokens_end_in_an_answer(self):
+        # The example world's first prompt on llama was 6333 tokens (T-307 confirmation).
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "wort " * 1024}) for call in requested)
+
+        result, _calls, _read_tools = self._run(
+            [*(call_step() for _index in range(MAX_TOOL_ROUNDS)), final_step("answered")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 4500 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "answered")
+
+    def test_a_long_step_message_counts_with_its_real_length(self):
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "kurz"}) for call in requested)
+
+        long_step = call_step(arguments={"mention": "wort " * 2500})
+        result, calls, _read_tools = self._run(
+            [long_step, final_step("short")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 5000 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertTrue(self._final_only(calls[1][0]))
+        self.assertEqual(result.trace[0]["status"], "budget_exhausted")
+
+    def test_the_adapters_own_result_too_large_goes_back_to_the_model(self):
+        result, calls, _read_tools = self._run(
+            [call_step(), final_step("smaller then")],
+            execute=lambda requested: tuple(
+                not_found(call["name"], code="result_too_large") for call in requested
+            ),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertIn('"code":"result_too_large"', calls[1][0]["messages"][-1]["content"])
 
     def test_execution_error_is_counted_and_traced(self):
         def fail_execution(_requested):

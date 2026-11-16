@@ -30,6 +30,10 @@ import { test as base, createTestWorld, expect } from "./support/world-fixture";
 const ENABLED = process.env.QUILTOR_WEBLLM_E2E === "1";
 const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 const PROFILE = process.env.QUILTOR_WEBLLM_PROFILE;
+// WebLLM keeps the model in the Cache API, which belongs to an origin. A kept profile is
+// only worth keeping when the server comes back on the same port, so with a profile the
+// server takes a fixed one (QUILTOR_WEBLLM_PORT, default 8027) instead of a free one.
+const PORT = PROFILE ? Number(process.env.QUILTOR_WEBLLM_PORT ?? 8027) : undefined;
 const HEADLESS = process.env.QUILTOR_WEBLLM_HEADED !== "1";
 const ARGS = ["--enable-unsafe-webgpu", "--enable-features=Vulkan"];
 
@@ -52,7 +56,7 @@ const test = base.extend<object, { webllmServer: TestHooksServer; profileContext
     webllmServer: [
       // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
       async ({}, use) => {
-        const server = await startTestHooksServer({ testHooks: false });
+        const server = await startTestHooksServer({ testHooks: false, port: PORT });
         try {
           await use(server);
         } finally {
@@ -153,11 +157,15 @@ async function askAndRead(page: Page, request: APIRequestContext, worldId: strin
   };
 }
 
+/** Stops the load-phase samplers of the test that just ended. */
+const stopSamplers: (() => void)[] = [];
+
 /** What the run measured, reported even when an assertion fails half-way. */
 let lastLog: Record<string, unknown> | null = null;
 
 // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
 test.afterEach(async ({}, testInfo) => {
+  for (const stop of stopSamplers.splice(0)) stop();
   if (!lastLog) return;
   const report = JSON.stringify(lastLog, null, 2);
   console.log(`[webllm-real-model]\n${report}`);
@@ -240,6 +248,25 @@ async function prepareEngine(page: Page, log: Record<string, unknown>, worldId: 
   );
   await expect(download.or(cached)).toBeVisible({ timeout: 60_000 });
   log.cachedBefore = await cached.isVisible();
+  log.origin = new URL(page.url()).origin;
+  // Where the time goes: the panel's own status line, sampled once a second, with the seconds
+  // since the engine was chosen (download, loading from the cache, shader compilation).
+  const phases: { s: number; text: string }[] = [];
+  log.loadPhases = phases;
+  const status = drawer.getByRole("alert").filter({ hasText: "KI im Browser" });
+  const sampler = setInterval(() => {
+    void status
+      .innerText({ timeout: 500 })
+      .then((text) => {
+        const line = text.replace(/\s+/g, " ").replace(/\d+%/, "%").trim();
+        if (phases.at(-1)?.text !== line) {
+          phases.push({ s: Math.round((Date.now() - started) / 1000), text: line });
+        }
+      })
+      .catch(() => undefined);
+  }, 1000);
+  page.once("close", () => clearInterval(sampler));
+  stopSamplers.push(() => clearInterval(sampler));
   // A model already in the profile (an earlier test, or QUILTOR_WEBLLM_PROFILE) is loaded by
   // the first job instead.
   if (!log.cachedBefore) await download.click();
@@ -277,19 +304,12 @@ test("The in-browser engine answers on an empty world with the real model under 
   network.check(log);
 });
 
-// T-307: the prompt fills the 8192-token window before the first model call on the example
-// world (tool_context_limit, 7805/8192), so this case fails until the context budget is fixed.
-// Remove the test.fail line below together with that fix.
 test("The in-browser engine answers on the example world with the real model", async ({
   page,
   context,
   request,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
-  test.fail(
-    true,
-    "T-307: the prompt fills the 8192-token window before the first model call on the example world",
-  );
   test.setTimeout(60 * 60_000);
 
   const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };
