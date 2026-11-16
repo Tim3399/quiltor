@@ -3,7 +3,6 @@ import {
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
-  type Ref,
   useCallback,
   useEffect,
   useId,
@@ -20,7 +19,7 @@ export const TOOLTIP_HOVER_DELAY_MS = 300;
 const CLOSE_GRACE_MS = 120;
 
 export interface TooltipTriggerProps {
-  ref: Ref<HTMLElement>;
+  ref: (node: HTMLElement | null) => void;
   "aria-describedby": string;
   onPointerEnter: (event: PointerEvent) => void;
   onPointerLeave: (event: PointerEvent) => void;
