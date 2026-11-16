@@ -32,6 +32,7 @@ from quiltor.modules.assistant.contract import (
     structured_world_state,
     task_contract,
 )
+from quiltor.modules.assistant.ports import InferenceValidationError
 
 EXAMPLE = json.loads(
     (Path(__file__).resolve().parents[2] / "src/quiltor/resources/example_world/de.json").read_text(
@@ -336,6 +337,151 @@ class CompletionBudgetTests(unittest.TestCase):
         with self.assertRaises(InferenceContextTooLargeError):
             runtime.complete(question, {"chapters": []}, world)
         self.assertEqual(inference.calls, [])
+
+
+REPLY = {"message": "ok", "citations": [], "proposals": []}
+EXTRACTION = "Weltmodell aus Manuskript aktualisieren"
+
+
+class CompletionWiringTests(CompletionBudgetTests):
+    """The lines in complete_request that apply the budget rules (F-307-10, F-307-11)."""
+
+    def capture_budget(self) -> tuple[Any, list[dict[str, Any]]]:
+        from quiltor.modules.assistant import completion
+
+        calls: list[dict[str, Any]] = []
+
+        def recording(**kwargs: Any) -> Any:
+            calls.append(kwargs)
+            return prompt_budget(**kwargs)
+
+        return mock.patch.object(completion, "prompt_budget", side_effect=recording), calls
+
+    def test_the_tool_instructions_and_the_task_requirements_are_measured_first(self):
+        # Swap world state and excerpts in the prompt that was sent for empty ones: what remains
+        # is what the budget measured as fixed -- base prompt (with the requirements) and tools.
+        from quiltor.modules.assistant.contract import COMPLETE_WORLD_HEADER
+        from quiltor.modules.assistant.tool_loop import tool_instructions
+
+        runtime, inference = self.runtime(*[REPLY] * 4)
+        patch, budgets = self.capture_budget()
+        question = "Ergänze in Ivens Steckbrief, dass er Salzspuren an den Stiefeln trägt."
+        with patch, self.assertRaises(InferenceValidationError):
+            runtime.complete(question, MANUSCRIPT, FIGURES)
+        measured = budgets[0]
+        tools = inference.count_tokens(tool_instructions(runtime.read_tools))
+        self.assertGreater(tools, 0)
+        self.assertEqual(measured["tools"], tools)
+        messages = inference.calls[0]["messages"]
+        self.assertIn("TASK REQUIREMENTS", messages[1]["content"])
+        user = messages[-1]["content"]
+        rag_at = user.index("\n\nRAG CONTEXT (content excerpts only):\n")
+        contract_at = user.index("\n\nTASK CONTRACT:\n")
+        emptied = (
+            f"{COMPLETE_WORLD_HEADER}:\n{{}}"
+            + "\n\nRAG CONTEXT (content excerpts only):\n[]"
+            + user[contract_at:]
+        )
+        self.assertLess(rag_at, contract_at)
+        sent = [message["content"] for message in messages[:-1]] + [emptied]
+        fixed = inference.count_tokens("".join(sent))
+        self.assertLessEqual(abs(measured["base_prompt"] + tools - fixed), 3)
+
+    def test_the_world_state_of_a_question_stays_under_the_cap(self):
+        runtime, _ = self.runtime(REPLY)
+        result = runtime.complete(Q1, MANUSCRIPT, generated_world(400))
+        step = self.budget_step(result)
+        self.assertLess(step["cap"], step["free"] - RAG_FLOOR)
+        # The world is cut to the cap before RAG is packed, so RAG gets far more than its floor;
+        # without the cap the world would take all but the floor.
+        self.assertGreater(step["ragTokens"], 2 * RAG_FLOOR)
+
+    def test_rag_keeps_its_floor_when_the_cap_would_leave_less(self):
+        # A small window: 65 % of what is free leaves RAG less than its floor.
+        from quiltor.modules.assistant import completion
+
+        def tight(**kwargs: Any) -> Any:
+            budget = prompt_budget(**kwargs)
+            return type(budget)(
+                **{**budget.__dict__, "round_reserve": budget.round_reserve + budget.free - 600}
+            )
+
+        runtime, _ = self.runtime(REPLY)
+        with (
+            mock.patch.object(completion, "prompt_budget", side_effect=tight),
+            mock.patch.object(completion, "fit_world_state", wraps=fit_world_state) as fitted,
+        ):
+            result = runtime.complete(Q1, MANUSCRIPT, generated_world(200))
+        step = self.budget_step(result)
+        self.assertEqual(step["free"], 600)
+        self.assertGreater(step["cap"], step["free"] - RAG_FLOOR)
+        # The first cut leaves RAG its floor; only what RAG then leaves may flow back.
+        self.assertEqual(fitted.call_args_list[0].kwargs["target"], step["free"] - RAG_FLOOR)
+
+    def test_extraction_on_the_example_world_reaches_the_model(self):
+        # F-307-10: presence has only "always" fields and cannot shrink; every scope gets its
+        cases: list[tuple[float, list[str] | None]] = [
+            (per_char, ["c-arrival"]) for per_char in (0.25, 0.33, 0.37)
+        ]
+        cases = [(per_char, ["c-arrival"]) for per_char in (0.25, 0.33, 0.37)]
+        # Every chapter: more excerpts than the cap, so RAG is cut to the cap before the world.
+        cases.append((0.37, None))
+        for per_char, chapters in cases:
+            with self.subTest(per_char=per_char, chapters=chapters):
+                from quiltor.modules.assistant import completion
+
+                runtime, inference = self.runtime(REPLY, tokens_per_char=per_char)
+                with mock.patch.object(completion, "pack_chunks", wraps=pack_chunks) as packed:
+                    result = runtime.complete(
+                        EXTRACTION,
+                        MANUSCRIPT,
+                        FIGURES,
+                        chapter_ids=chapters,
+                        mode="world_extraction",
+                    )
+                self.assertEqual(len(inference.calls), 1)
+                step = self.budget_step(result)
+                # The manuscript is packed first, up to the cap, not up to everything free.
+                self.assertEqual(packed.call_args_list[0].args[2], step["cap"])
+                self.assertEqual(step["truncated"], {})
+                self.assertLessEqual(step["ragTokens"], step["cap"])
+                content = inference.calls[0]["messages"][-1]["content"]
+                for node in FIGURES["nodes"]:
+                    self.assertIn(node["name"], content)
+
+    def test_extraction_keeps_every_entry_of_a_large_world(self):
+        world = generated_world(120)
+        runtime, inference = self.runtime(REPLY, tokens_per_char=0.37)
+        result = runtime.complete(
+            EXTRACTION, MANUSCRIPT, world, chapter_ids=["c-arrival"], mode="world_extraction"
+        )
+        step = self.budget_step(result)
+        self.assertTrue(step["shortened"])
+        self.assertEqual(step["truncated"], {})
+        content = inference.calls[0]["messages"][-1]["content"]
+        for node in world["nodes"]:
+            self.assertIn(node["name"], content)
+
+
+class ScopeFloorTests(unittest.TestCase):
+    def test_a_scope_of_always_fields_only_gets_its_full_size(self):
+        # Presence cannot lose a field; the shares must not cut it below its size.
+        everything = {"readScopes": ["elements", "relationships", "timeline", "presence"]}
+        full = structured_world_state(FIGURES, everything)
+        presence = relay_worst(dump(full["presence"]))
+        floor_world = fit_world_state(
+            FIGURES, everything, target=10**6, count=relay_worst, keep_all_entries=True
+        )
+        assert floor_world is not None
+        whole = floor_world.tokens
+        fitted = fit_world_state(
+            FIGURES, everything, target=whole * 2 // 3, count=relay_worst, keep_all_entries=True
+        )
+        self.assertIsNotNone(fitted)
+        assert fitted is not None
+        self.assertEqual(fitted.state["presence"], full["presence"])
+        self.assertNotIn("presence", fitted.state.get("shortened", {}))
+        self.assertGreater(presence, 0)
 
 
 if __name__ == "__main__":

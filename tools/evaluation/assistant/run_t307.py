@@ -47,7 +47,11 @@ CASES: list[tuple[str, list[str], str]] = [
     ),
     # Only Oda's profile notes say whether she believes the rumours; the follow-up names nobody.
     ("Q4", ["Wer ist die Hafenmeisterin?"], "Und glaubt sie an die Gerüchte über den Atlas?"),
+    # "Welt aktualisieren" over every chapter, as the extraction button sends it (F-307-10).
+    ("EX", [], "Weltmodell aus Manuskript aktualisieren"),
 ]
+# Cases sent as world extraction instead of a chat question.
+EXTRACTION_CASES = {"EX": {"mode": "world_extraction", "runBatches": True, "chapterIds": []}}
 
 
 def assistant_request(base: str, world_id: str, payload: dict, seconds: float) -> dict:
@@ -164,6 +168,16 @@ def summarize(result: dict[str, Any], stored: dict[str, Any], seconds: float) ->
         "promptTokens": metrics.get("promptTokens"),
         "finishReason": metrics.get("finishReason"),
         "proposals": [proposal.get("kind") for proposal in result.get("proposals") or []],
+        "batchGroups": [
+            {
+                "chapterIds": step.get("chapterIds"),
+                "proposalKinds": step.get("proposalKinds"),
+                "budget": step.get("budget"),
+            }
+            for step in trace
+            if step.get("step") == "batch_group"
+        ],
+        "batchNotes": result.get("batchNotes"),
         "profileEdits": shorter,
     }
 
@@ -173,6 +187,8 @@ def main() -> None:
     parser.add_argument("--checkout", type=Path, default=ROOT)
     parser.add_argument("--world", choices=("example", "large"), default="example")
     parser.add_argument("--generated", type=int, default=200)
+    # Elements taken out of the world before seeding, so extraction has something new to find.
+    parser.add_argument("--drop", action="append", default=[])
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--case", action="append", dest="cases")
     parser.add_argument("--binary", type=Path, required=True)
@@ -183,6 +199,28 @@ def main() -> None:
 
     checkout = args.checkout.resolve()
     world = example_world(checkout, args.generated if args.world == "large" else 0)
+    if args.drop:
+        figures = world["storyWorld"]
+        gone = set(args.drop)
+        figures["nodes"] = [node for node in figures["nodes"] if node["id"] not in gone]
+        for key in ("edges", "presence"):
+            figures[key] = [
+                item
+                for item in figures.get(key) or []
+                if not gone
+                & {
+                    str(item.get(field))
+                    for field in (
+                        "from",
+                        "to",
+                        "source",
+                        "target",
+                        "elementId",
+                        "nodeId",
+                        "placeId",
+                    )
+                }
+            ]
     stored = {node["id"]: node for node in world["storyWorld"]["nodes"]}
     port = free_port()
     base = f"http://127.0.0.1:{port}"
@@ -259,7 +297,12 @@ def main() -> None:
                         result = assistant_request(
                             base,
                             world_id,
-                            {"question": question, "history": history, "language": "de"},
+                            {
+                                "question": question,
+                                "history": history,
+                                "language": "de",
+                                **EXTRACTION_CASES.get(name, {}),
+                            },
                             args.job_seconds,
                         )
                         line.update(summarize(result, stored, time.monotonic() - started))
