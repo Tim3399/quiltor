@@ -475,12 +475,13 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
     def test_invalid_tool_name_fails_closed_without_proposal_fallback(self):
         # T-61 part 4: a tool name outside the catalog breaks the step schema, so the
         # reply now ends as validation_error before the tool loop sees it.
-        runtime, inference = self._runtime(
-            {
-                "action": "tool_calls",
-                "toolCalls": [{"name": "write_world", "arguments": {}}],
-            }
-        )
+        # Since D-219 (T-307) the step gets a hint and then a final-only call; the third
+        # invalid reply ends the request as before, with nothing read or written.
+        invalid = {
+            "action": "tool_calls",
+            "toolCalls": [{"name": "write_world", "arguments": {}}],
+        }
+        runtime, inference = self._runtime(invalid, invalid, invalid)
 
         with self.assertRaises(InferenceValidationError) as raised:
             runtime.complete(
@@ -492,7 +493,7 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             )
 
         self.assertEqual(classify_assistant_error(raised.exception), "validation_error")
-        self.assertEqual(len(inference.calls), 1)
+        self.assertEqual(len(inference.calls), 3)
         self.assertEqual(runtime.read_tools.calls, [])
 
     def test_repair_keeps_tool_results_untrusted_without_requiring_more_tool_steps(self):

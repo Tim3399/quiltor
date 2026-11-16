@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from quiltor.modules.assistant.ports import InferenceValidationError
 from quiltor.modules.assistant.tool_loop import (
     EXPECTED_READ_TOOL_NAMES,
+    INVALID_STEP_NOTE,
     MAX_CALLS_PER_ROUND,
     MAX_TOOL_CALLS,
     MAX_TOOL_RESULT_CHARS,
@@ -110,16 +112,21 @@ class FakeReadTools:
 
 
 class AssistantToolLoopTests(unittest.TestCase):
-    def _run(self, replies, *, execute=None, count_tokens=None, tool_catalog=None):
+    def _run(self, replies, *, execute=None, count_tokens=None, tool_catalog=None, respond=None):
         calls = []
         replies = list(replies)
         read_tools = FakeReadTools(tool_catalog=tool_catalog, execute=execute)
 
         def invoke(request, prompt_tokens):
             calls.append((request, prompt_tokens))
+            if respond is not None:
+                return {"step": respond(request)}
             if not replies:
                 raise AssertionError("unexpected model step")
-            return {"step": replies.pop(0)}
+            reply = replies.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return {"step": reply}
 
         result = run_tool_loop(
             payload(),
@@ -173,18 +180,23 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.trace[0]["status"], "accepted")
 
     def test_unknown_or_write_tool_is_rejected_without_execution(self):
+        # Since D-219 (T-307) an invalid step gets a hint and then a final-only call; only a
+        # third invalid step ends the loop. Nothing is executed on the way.
         executed = []
-        result, _calls, _read_tools = self._run(
-            [call_step("write_world")],
+        result, calls, _read_tools = self._run(
+            [call_step("write_world")] * 3,
             execute=lambda requested: executed.append(requested) or (),
         )
 
+        self.assertEqual(len(calls), 3)
         self.assertEqual(executed, [])
         self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertIsNone(result.final)
 
     def test_more_than_six_calls_in_one_step_is_rejected(self):
-        result, _calls, _read_tools = self._run([call_step(count=MAX_CALLS_PER_ROUND + 1)])
+        # Since D-219 (T-307) an invalid step gets a hint and then a final-only call; only a
+        # third invalid step ends the loop. Nothing is executed on the way.
+        result, _calls, _read_tools = self._run([call_step(count=MAX_CALLS_PER_ROUND + 1)] * 3)
 
         self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertEqual(result.tool_calls, 0)
@@ -220,7 +232,8 @@ class AssistantToolLoopTests(unittest.TestCase):
         )
 
         self.assertEqual(len(executions), MAX_TOOL_ROUNDS)
-        self.assertEqual(result.failure, "tool_round_limit")
+        # After round four only a final step is allowed (T-307); a fifth tool step is invalid.
+        self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
         self.assertIsNone(result.final)
 
@@ -286,7 +299,8 @@ class AssistantToolLoopTests(unittest.TestCase):
             execute=lambda requested: tuple(not_found(call["name"]) for call in requested),
         )
 
-        self.assertEqual(result.failure, "tool_round_limit")
+        # After round four only a final step is allowed (T-307); a fifth tool step is invalid.
+        self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
 
     def test_budget_errors_are_not_returned_to_the_model(self):
@@ -356,10 +370,14 @@ class AssistantToolLoopTests(unittest.TestCase):
         def execute(requested):
             return tuple(envelope(call["name"], {"text": "wort " * 1024}) for call in requested)
 
+        # Like a real engine: a tool step while tools are offered, an answer once only final is.
         result, _calls, _read_tools = self._run(
-            [*(call_step() for _index in range(MAX_TOOL_ROUNDS)), final_step("answered")],
+            [],
             execute=execute,
             count_tokens=lambda text: len(text.split()) + 4500 * ("System." in text),
+            respond=lambda request: (
+                final_step("answered") if self._final_only(request) else call_step()
+            ),
         )
 
         self.assertIsNone(result.failure)
@@ -390,6 +408,54 @@ class AssistantToolLoopTests(unittest.TestCase):
 
         self.assertIsNone(result.failure)
         self.assertIn('"code":"result_too_large"', calls[1][0]["messages"][-1]["content"])
+
+    # --- D-219 addendum (T-307): an invalid step gets one second chance --------------------
+
+    def test_an_invalid_step_gets_a_hint_and_the_next_valid_step_answers(self):
+        schema_error = InferenceValidationError("schema: $.step anyOf")
+        result, calls, _read_tools = self._run([schema_error, final_step("second try")])
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "second try")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1][0]["messages"][-1]["content"], INVALID_STEP_NOTE)
+        self.assertFalse(self._final_only(calls[1][0]))
+        self.assertIn({"step": "tool_step_invalid", "count": 1}, result.trace)
+
+    def test_two_invalid_steps_lead_to_a_final_only_call(self):
+        schema_error = InferenceValidationError("schema: $.step anyOf")
+        result, calls, _read_tools = self._run(
+            [schema_error, call_step("write_world"), final_step("answer only")]
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "answer only")
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(self._final_only(calls[2][0]))
+        self.assertIn("READ BUDGET USED UP", calls[2][0]["messages"][-1]["content"])
+
+    def test_the_hint_carries_a_code_and_a_fixed_message_only(self):
+        schema_error = InferenceValidationError("schema: $.step.toolCalls[0].arguments maxItems")
+        _result, calls, _read_tools = self._run([schema_error, final_step()])
+
+        hint = calls[1][0]["messages"][-1]["content"]
+        self.assertIn('"code":"invalid_step"', hint)
+        for internal in ("$.", "maxItems", "anyOf", "Traceback", "schema:"):
+            self.assertNotIn(internal, hint)
+
+    def test_an_invalid_step_does_not_change_the_round_limit(self):
+        result, calls, _read_tools = self._run(
+            [
+                call_step(count=MAX_CALLS_PER_ROUND + 1),
+                *(call_step() for _index in range(MAX_TOOL_ROUNDS)),
+                final_step("four rounds"),
+            ]
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
+        self.assertEqual(len(calls), MAX_TOOL_ROUNDS + 2)
+        self.assertTrue(self._final_only(calls[-1][0]))
 
     def test_execution_error_is_counted_and_traced(self):
         def fail_execution(_requested):
@@ -443,8 +509,10 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.trace[0]["status"], "result_limit")
 
     def test_final_action_cannot_smuggle_tool_calls(self):
+        # Since D-219 (T-307) an invalid step gets a hint and then a final-only call; only a
+        # third invalid step ends the loop. Nothing is executed on the way.
         step = {**final_step(), "toolCalls": []}
-        result, _calls, _read_tools = self._run([step])
+        result, _calls, _read_tools = self._run([step] * 3)
 
         self.assertEqual(result.failure, "invalid_final_step")
         self.assertIsNone(result.final)

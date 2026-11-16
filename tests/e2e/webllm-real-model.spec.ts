@@ -24,7 +24,9 @@ import { test as base, createTestWorld, expect } from "./support/world-fixture";
 // QUILTOR_WEBLLM_PROFILE=<dir> keeps the browser profile, and with it WebLLM's model cache, in
 // that directory instead of a temporary one: the 2.5 GB land on a disk of one's choosing.
 // The profile is shared by the tests of the file (worker-scoped), so the model is downloaded
-// once: the first test fetches it, the later ones find it cached, the last one removes it.
+// once: the first test fetches it, the later ones find it cached.
+// QUILTOR_WEBLLM_FULL=1 adds the last test, "Modell entfernen", which empties that cache again.
+// Without it the model stays in the profile, and the next run starts without a download.
 // QUILTOR_WEBLLM_HEADED=1 runs Chromium headed, for a machine where headless gets no adapter.
 
 const ENABLED = process.env.QUILTOR_WEBLLM_E2E === "1";
@@ -35,6 +37,8 @@ const PROFILE = process.env.QUILTOR_WEBLLM_PROFILE;
 // server takes a fixed one (QUILTOR_WEBLLM_PORT, default 8027) instead of a free one.
 const PORT = PROFILE ? Number(process.env.QUILTOR_WEBLLM_PORT ?? 8027) : undefined;
 const HEADLESS = process.env.QUILTOR_WEBLLM_HEADED !== "1";
+// The full run removes the model at the end; by default the cache stays (T-307).
+const FULL = process.env.QUILTOR_WEBLLM_FULL === "1";
 const ARGS = ["--enable-unsafe-webgpu", "--enable-features=Vulkan"];
 
 const POLICY = JSON.parse(
@@ -335,6 +339,7 @@ test("The in-browser engine removes the model and leaves no foreign host or CSP 
   context,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
+  test.skip(!FULL, "Needs QUILTOR_WEBLLM_FULL=1: removing the model empties the kept cache.");
   test.setTimeout(60 * 60_000);
 
   const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };

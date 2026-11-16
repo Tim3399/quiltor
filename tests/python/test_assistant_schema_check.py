@@ -262,7 +262,9 @@ class InvokeIntegrationTests(unittest.TestCase):
             "edges": [],
             "timeline": [],
         }
-        runtime = self.runtime(reply(citations=["c1", "c1"]))
+        # Three invalid replies: the first two get the D-219 second chances (T-307).
+        invalid = reply(citations=["c1", "c1"])
+        runtime = self.runtime(invalid, invalid, invalid)
         with self.assertRaises(InferenceValidationError) as raised:
             runtime.complete("Wie geht es Tarek?", {}, figures, history=None)
         self.assertEqual(classify_assistant_error(raised.exception), "validation_error")
