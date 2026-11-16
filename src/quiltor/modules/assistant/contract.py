@@ -582,13 +582,23 @@ def fit_world_state(
         scope: _ScopeFit(scope, list(entries), relevant.get(scope, ()), count)
         for scope, entries in full.items()
     }
-    total = sum(fit.size() for fit in fits.values()) or 1
-    # Each scope gets a share in proportion to its full size; what one leaves goes to the next.
+    # Each scope first gets its floor -- what is left once it has shrunk as far as it can, which
+    # for a scope of "always" fields only (presence) is its full size. The rest of the target is
+    # shared in proportion to what each scope can still lose; what one leaves goes to the next.
     # Smaller scopes first, so their leftovers reach the large ones.
+    floors: dict[str, int] = {}
+    for scope, entries in full.items():
+        probe = _ScopeFit(scope, list(entries), relevant.get(scope, ()), count)
+        probe.fit(0, keep_all_entries)
+        floors[scope] = probe.size()
+    spare = target - sum(floors.values())
+    if spare < 0:
+        return None
+    total = sum(fit.size() - floors[scope] for scope, fit in fits.items()) or 1
     carry = 0
     for scope in sorted(fits, key=lambda name: fits[name].size()):
         fit = fits[scope]
-        share = target * fit.size() // total + carry
+        share = floors[scope] + spare * (fit.size() - floors[scope]) // total + carry
         if not fit.fit(share, keep_all_entries):
             return None
         carry = share - fit.size()
