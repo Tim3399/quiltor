@@ -22,14 +22,16 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.insert(0, str(HERE))
-from run_scenarios import assistant_request, request  # noqa: E402
+from run_scenarios import request  # noqa: E402
 
 FALLBACK = "Der sichere Leseschritt konnte nicht abgeschlossen werden."
 # Each case: name, the conversation before it (questions whose answers become the history),
@@ -46,6 +48,42 @@ CASES: list[tuple[str, list[str], str]] = [
     # Only Oda's profile notes say whether she believes the rumours; the follow-up names nobody.
     ("Q4", ["Wer ist die Hafenmeisterin?"], "Und glaubt sie an die Gerüchte über den Atlas?"),
 ]
+
+
+def assistant_request(base: str, world_id: str, payload: dict, seconds: float) -> dict:
+    """One durable job, polled until it ends or ``seconds`` pass.
+
+    On a world large enough to be shortened one request can take several model calls (a read
+    round, a hint after an invalid step, the final-only call), so the window is an option
+    instead of run_scenarios' fixed 240 seconds.
+    """
+    created = request(
+        base,
+        "/api/assistant/jobs",
+        {**payload, "worldId": world_id},
+        headers={"Idempotency-Key": uuid.uuid4().hex},
+    )
+    job = created.get("job") or {}
+    job_id = str(job.get("id") or "")
+    if not job_id:
+        raise RuntimeError("Assistant job creation returned no job id.")
+    path = "/api/assistant/job?" + urllib.parse.urlencode({"id": job_id, "world": world_id})
+    deadline = time.monotonic() + seconds
+    while True:
+        status = str(job.get("status") or "")
+        if status == "completed" and isinstance(job.get("result"), dict):
+            return job["result"]
+        if status in {"completed", "failed", "cancelled"}:
+            raise RuntimeError(
+                f"Assistant job {job_id} ended as {status}: "
+                f"{job.get('errorType') or job.get('error') or 'unknown error'}"
+            )
+        if time.monotonic() > deadline:
+            raise RuntimeError(
+                f"Assistant job {job_id} did not finish within {seconds:.0f} seconds."
+            )
+        time.sleep(0.5)
+        job = request(base, path).get("job") or {}
 
 
 def free_port() -> int:
@@ -140,6 +178,7 @@ def main() -> None:
     parser.add_argument("--binary", type=Path, required=True)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--job-seconds", type=float, default=900.0)
     args = parser.parse_args()
 
     checkout = args.checkout.resolve()
@@ -210,6 +249,7 @@ def main() -> None:
                                 base,
                                 world_id,
                                 {"question": earlier, "history": history, "language": "de"},
+                                args.job_seconds,
                             )
                             history += [
                                 {"role": "user", "content": earlier},
@@ -220,6 +260,7 @@ def main() -> None:
                             base,
                             world_id,
                             {"question": question, "history": history, "language": "de"},
+                            args.job_seconds,
                         )
                         line.update(summarize(result, stored, time.monotonic() - started))
                     # A failed job is a measurement too; record it and go on with the next run.
