@@ -82,6 +82,12 @@ describe("SegmentedControl", () => {
     expect(locked).toHaveAttribute("aria-disabled", "true");
     expect(locked).not.toBeDisabled();
     expect(locked).toHaveAccessibleDescription("Nur mit Premium");
+    // A small lock marks the segment at all times; the reason itself waits for hover or focus.
+    expect(locked.querySelector(".ui-segmented__lock svg")).not.toBeNull();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Eigener Schlüssel" }).querySelector(".ui-segmented__lock"),
+    ).toBeNull();
     fireEvent.click(locked);
     const own = screen.getByRole("radio", { name: "Eigener Schlüssel" });
     own.focus();

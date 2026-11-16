@@ -71,16 +71,17 @@ export function Tooltip({ content, children, id }: TooltipProps) {
 
   useLayoutEffect(() => {
     if (!open || !anchor || !panel.current) return;
-    const box = anchor.getBoundingClientRect();
+    // A trigger may mark the part the hint docks to, such as a lock icon inside a segment.
+    const dock = anchor.querySelector<HTMLElement>("[data-tooltip-anchor]") ?? anchor;
+    const box = dock.getBoundingClientRect();
     const tip = panel.current.getBoundingClientRect();
     const gap = 6;
     const margin = 12;
     const left = Math.max(margin, Math.min(box.left, innerWidth - tip.width - margin));
-    const below = box.bottom + gap;
+    // Above the trigger first: below it there is usually content the hint should not cover.
+    const above = box.top - tip.height - gap;
     const top =
-      below + tip.height <= innerHeight - margin
-        ? below
-        : Math.max(margin, box.top - tip.height - gap);
+      above >= margin ? above : Math.min(box.bottom + gap, innerHeight - tip.height - margin);
     setPosition({ left, top });
   }, [open, anchor]);
 
@@ -132,7 +133,7 @@ export function Tooltip({ content, children, id }: TooltipProps) {
           ref={panel}
           id={tooltipId}
           role="tooltip"
-          className="ui-tooltip ui-popover material-popover"
+          className="ui-tooltip"
           hidden={!open}
           style={position}
           onPointerEnter={() => schedule(true, 0)}

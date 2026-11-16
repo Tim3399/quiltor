@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react";
 import { type HTMLAttributes, type KeyboardEvent, type ReactNode, useRef } from "react";
 import { Tooltip } from "../../components/Tooltip";
 import "./SegmentedControl.css";
@@ -9,7 +10,7 @@ export type Segment<T extends string> = {
   /**
    * Why the segment is unavailable, shown as a tooltip. A disabled segment with a hint is only
    * `aria-disabled`: it still receives hover and focus so its reason can be reached, but it
-   * cannot be chosen.
+   * cannot be chosen. A small lock marks it at a glance and is where the hint docks.
    */
   hint?: string;
   /** The hint's element id, for a caller that also describes the whole group with it. */
@@ -87,6 +88,11 @@ export function SegmentedControl<T extends string>({
             }}
             {...extra}
           >
+            {locked && (
+              <span className="ui-segmented__lock" data-tooltip-anchor aria-hidden="true">
+                <Lock />
+              </span>
+            )}
             {option.label}
           </button>
         );

@@ -204,8 +204,8 @@ export const designAuditProfiles = {
     priority: "P0",
     coverage: {
       default: ["Default"],
-      disabled: ["DisabledOption"],
-      keyboard: ["Default", "DisabledOption"],
+      disabled: ["DisabledOption", "LockedWithReason"],
+      keyboard: ["Default", "DisabledOption", "LockedWithReason"],
       touch: ["Touch"],
     },
   },
