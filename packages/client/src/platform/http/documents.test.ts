@@ -492,6 +492,68 @@ describe("document HTTP v1 boundary", () => {
     expect(body.payload).not.toHaveProperty("worldId");
   });
 
+  it.each(['"7"', 'W/"7"', '"7-gzip"', '"7-zstd"', '"7-br"', 'W/"7-zstd"'])(
+    "reads the revision from the tag %s a compressing proxy leaves, and sends it back bare",
+    async (etag) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(response(manuscriptFixture, { ETag: etag }))
+        .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:00", revision: 8 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const manuscript = await application.manuscript.load();
+      await application.manuscript.save(manuscript);
+
+      const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+      expect(init.headers).toEqual(expect.objectContaining({ "If-Match": '"7"' }));
+    },
+  );
+
+  it.each([
+    ["Nginx", 'W/"7"', 'W/"8"'],
+    ["Caddy", '"7-zstd"', '"8-zstd"'],
+  ])(
+    "round-trips revisions through %s proxy ETags without proxy syntax in the wire envelope",
+    async (_proxy, initialTag, savedTag) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(response(manuscriptFixture, { ETag: initialTag }))
+        .mockResolvedValueOnce(
+          response({ ok: true, zeit: "12:00:00", revision: 8 }, { ETag: savedTag }),
+        )
+        .mockResolvedValueOnce(response(manuscriptAtRevision(8), { ETag: savedTag }))
+        .mockResolvedValueOnce(response({ ok: true, zeit: "12:00:01", revision: 9 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const manuscript = await application.manuscript.load();
+      await application.manuscript.save(manuscript);
+      const reloaded = await application.manuscript.load();
+      await application.manuscript.save(reloaded);
+
+      const firstSave = fetchMock.mock.calls[1][1] as RequestInit;
+      expect(firstSave.headers).toEqual(expect.objectContaining({ "If-Match": '"7"' }));
+      expect(JSON.parse(String(firstSave.body))).toEqual(manuscriptFixture);
+
+      const secondSave = fetchMock.mock.calls[3][1] as RequestInit;
+      expect(secondSave.headers).toEqual(expect.objectContaining({ "If-Match": '"8"' }));
+      expect(JSON.parse(String(secondSave.body))).toEqual(manuscriptAtRevision(8));
+    },
+  );
+
+  it.each(['"7-deflate"', '"7-"', '"abc"', "7", '"7"x'])(
+    "still refuses the tag %s",
+    async (etag) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(response(manuscriptFixture, { ETag: etag })),
+      );
+
+      await expect(application.manuscript.load()).rejects.toMatchObject({
+        code: "invalid_response",
+      });
+    },
+  );
+
   it("loads and saves Storyboards through their own revision channel", async () => {
     const fetchMock = vi
       .fn()
@@ -567,7 +629,7 @@ describe("document HTTP v1 boundary", () => {
         .fn()
         .mockResolvedValueOnce(response(manuscriptFixture, { ETag: '"7"' }))
         .mockResolvedValueOnce(
-          response({ ok: true, zeit: "12:00:00", revision: 8 }, { ETag: '"9"' }),
+          response({ ok: true, zeit: "12:00:00", revision: 8 }, { ETag: 'W/"9-zstd"' }),
         ),
     );
 
