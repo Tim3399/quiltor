@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+// The word count of the product (the manuscript's word counter), the one the AI features see.
+import { wordCount } from "../../packages/client/src/modules/manuscript/wordCount.ts";
 import { CATALOG_FILE, PURPOSES, partOfIds, renderCatalog } from "./catalog.mjs";
 import { IDS_FILE, renderIdsFile } from "./ids.mjs";
 import {
@@ -16,6 +18,7 @@ import {
   structureKeys,
 } from "./index.mjs";
 import { LOCK_FILE, lockBytes, lockDifferences, renderLock } from "./lock.mjs";
+import { checkpointPositions } from "./parts/edge.mjs";
 import { renderShipFiles, SHIP_DIRECTORY, SHIP_FORMAT } from "./ship.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -488,4 +491,117 @@ test("the catalog is what the test world renders; run npm run world:update", asy
     readFileSync(target).equals(await renderCatalog()),
     `${CATALOG_FILE} is stale; run npm run world:update`,
   );
+});
+
+/** The two long chapters of the check part (T-355) in one language. */
+function longChapters(lang) {
+  const world = buildExampleWorld(lang, { include: PARTS });
+  const chapter = (id) => world.manuscript.chapters.find((item) => item.id === id);
+  return { world, kettenwache: chapter("x-kettenwache"), siegel: chapter("x-siegel") };
+}
+
+test("the two long chapters have the length the AI tests need, counted as the product counts", () => {
+  for (const lang of LANGUAGES) {
+    const { kettenwache, siegel } = longChapters(lang);
+    const words = [wordCount(kettenwache.body), wordCount(siegel.body)];
+    for (const count of words)
+      assert.ok(count > 5000, `${lang}: a chapter has only ${count} words`);
+    if (lang === "de") {
+      assert.ok(words[0] >= 8000 && words[0] <= 9000, `de: x-kettenwache has ${words[0]} words`);
+      assert.ok(words[1] >= 5500 && words[1] <= 6500, `de: x-siegel has ${words[1]} words`);
+    }
+  }
+});
+
+test("the long chapters repeat no paragraph and sit in the second act with a story time", () => {
+  for (const lang of LANGUAGES) {
+    const { world, kettenwache, siegel } = longChapters(lang);
+    const moments = new Set(world.figures.timeline.map((moment) => moment.id));
+    for (const chapter of [kettenwache, siegel]) {
+      // A one-word reply may recur in a dialogue; a whole paragraph of prose must not.
+      const paragraphs = chapter.body.split("\n\n").filter((paragraph) => paragraph.length > 60);
+      assert.equal(new Set(paragraphs).size, paragraphs.length, `${lang}: ${chapter.id} repeats`);
+      assert.ok(moments.has(chapter.storyTime.startMomentId), chapter.id);
+      assert.ok(moments.has(chapter.storyTime.endMomentId), chapter.id);
+      const item = world.manuscript.structure.items.find((entry) => entry.chapterId === chapter.id);
+      assert.equal(item.parentFolderId, "act-two", `${lang}: ${chapter.id}`);
+    }
+  }
+});
+
+test("every checkpoint of the long chapters is found in the text, in both languages", () => {
+  for (const lang of LANGUAGES) {
+    const { world } = longChapters(lang);
+    const kinds = new Set(["figur", "alias", "beziehung", "ort", "ereignis", "pronomen", "spaet"]);
+    const nodes = new Set(world.figures.nodes.map((node) => node.id));
+    const edges = new Set(world.figures.edges.map((edge) => edge.id));
+    const moments = new Set(world.figures.timeline.map((moment) => moment.id));
+    const ids = world.checkpoints.map((checkpoint) => checkpoint.id);
+    assert.equal(new Set(ids).size, ids.length, `${lang}: checkpoint ids repeat`);
+    for (const checkpoint of world.checkpoints) {
+      assert.ok(
+        kinds.has(checkpoint.kind),
+        `${lang}: ${checkpoint.id} has kind ${checkpoint.kind}`,
+      );
+      if (checkpoint.elementId) assert.ok(nodes.has(checkpoint.elementId), checkpoint.id);
+      if (checkpoint.edgeId) assert.ok(edges.has(checkpoint.edgeId), checkpoint.id);
+      if (checkpoint.momentId) assert.ok(moments.has(checkpoint.momentId), checkpoint.id);
+    }
+    for (const position of checkpointPositions(world)) {
+      assert.ok(position.offset >= 0, `${lang}: ${position.id} is not in ${position.chapterId}`);
+    }
+    for (const chapterId of ["x-kettenwache", "x-siegel"]) {
+      const own = world.checkpoints.filter((checkpoint) => checkpoint.chapterId === chapterId);
+      for (const kind of ["figur", "alias", "beziehung", "ort", "ereignis", "pronomen", "spaet"]) {
+        assert.ok(
+          own.some((checkpoint) => checkpoint.kind === kind),
+          `${chapterId}: no ${kind}`,
+        );
+      }
+      assert.ok(own.filter((checkpoint) => checkpoint.kind === "ereignis").length >= 3, chapterId);
+      assert.ok(
+        own.some((checkpoint) => checkpoint.mentionOnly),
+        `${chapterId}: nobody only mentioned`,
+      );
+    }
+  }
+});
+
+test("the late checkpoints lie in the last fifth, the others are spread over the chapter", () => {
+  for (const lang of LANGUAGES) {
+    const { world, kettenwache, siegel } = longChapters(lang);
+    const body = { "x-kettenwache": kettenwache.body, "x-siegel": siegel.body };
+    const positions = checkpointPositions(world);
+    const ratio = (id) => positions.find((item) => item.id === id).ratio;
+    for (const [chapterId, text] of Object.entries(body)) {
+      const late = world.checkpoints.filter(
+        (checkpoint) => checkpoint.chapterId === chapterId && checkpoint.kind === "spaet",
+      );
+      assert.deepEqual(late.map((checkpoint) => checkpoint.of).sort(), ["ereignis", "figur"]);
+      for (const checkpoint of late) {
+        assert.ok(
+          ratio(checkpoint.id) >= 0.8,
+          `${lang}: ${checkpoint.id} at ${ratio(checkpoint.id)}`,
+        );
+        if (checkpoint.of === "figur") {
+          // The first name of the new figure occurs nowhere before the last fifth.
+          const node = world.figures.nodes.find((item) => item.id === checkpoint.elementId);
+          const first = node.name.split(" ")[0];
+          assert.ok(text.indexOf(first) / text.length >= 0.8, `${lang}: ${first} appears early`);
+        } else {
+          // The day of the new event is spoken of nowhere before the last fifth.
+          const day = world.checkpoints.find(
+            (item) => item.kind === "ereignis" && item.momentId === checkpoint.momentId,
+          );
+          assert.ok(ratio(day.id) >= 0.8, `${lang}: ${day.id} at ${ratio(day.id)}`);
+        }
+      }
+      const fifths = new Set(
+        positions
+          .filter((position) => position.chapterId === chapterId)
+          .map((position) => Math.min(4, Math.floor(position.ratio * 5))),
+      );
+      assert.equal(fifths.size, 5, `${lang}: ${chapterId} checkpoints cover ${fifths.size} fifths`);
+    }
+  }
 });
