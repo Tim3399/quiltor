@@ -69,6 +69,12 @@ class InferenceContextTooLargeError(RuntimeError):
     """The request cannot fit inside the runtime's context window."""
 
 
+class WorldTooLargeError(InferenceContextTooLargeError):
+    """The world state alone leaves no room for any of the manuscript (T-330).
+
+    Fewer chapters would not help: world extraction keeps every entry of the world."""
+
+
 @runtime_checkable
 class InferenceEngine(Protocol):
     @property

@@ -27,6 +27,7 @@ class AssistantRuntime:
 
     # Set per request by completion.complete_request; declared for CompletionRuntime.
     _invocation_metrics: list[dict[str, Any]]
+    _extraction_context: list[Any] | None = None
 
     def __init__(
         self,

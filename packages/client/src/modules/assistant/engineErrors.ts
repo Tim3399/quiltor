@@ -10,6 +10,8 @@ const MESSAGES: Readonly<Record<string, MessageKey>> = {
   client_unavailable: "assistantEngineErrorClientUnavailable",
   provider_error: "assistantEngineErrorProvider",
   context_too_large: "assistantEngineErrorContextTooLarge",
+  // The server's own refusal: the world state alone fills the window (T-330).
+  world_too_large: "assistantEngineErrorWorldTooLarge",
   cancelled: "requestAborted",
 };
 

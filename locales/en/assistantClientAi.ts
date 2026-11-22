@@ -21,7 +21,9 @@ export const assistantClientAi = {
     "This browser did not take the request. Keep the assistant's tab open and try again.",
   assistantEngineErrorProvider: "The provider refused the request. Check your key and try again.",
   assistantEngineErrorContextTooLarge:
-    "The request is too large for the model in the browser. Select fewer chapters.",
+    "The request is too large for the model in the browser. Choose another engine under “AI engine” above.",
+  assistantEngineErrorWorldTooLarge:
+    "This world is too large for the model in the browser: the world state alone fills its window. Choose another engine under “AI engine” above.",
   assistantEngineErrorUnknown: "Your own engine could not run the request.",
   webllmTitle: "AI in the browser",
   webllmChecking: "Checking whether the model is already on this device …",

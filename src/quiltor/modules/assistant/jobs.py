@@ -22,6 +22,7 @@ from quiltor.modules.assistant.ports import (
     InferenceValidationError,
     JobStoreFactory,
     TooManyOpenJobs,
+    WorldTooLargeError,
 )
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
@@ -156,6 +157,8 @@ def classify_assistant_error(exc: Exception) -> str:
         return "timeout"
     if isinstance(exc, InferenceUnavailableError):
         return "runtime_unavailable"
+    if isinstance(exc, WorldTooLargeError):
+        return "world_too_large"
     if isinstance(exc, InferenceContextTooLargeError):
         return "context_too_large"
     if isinstance(exc, IncompleteInferenceResponse):

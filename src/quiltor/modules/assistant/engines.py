@@ -28,8 +28,13 @@ CLIENT_ERROR_CODES = frozenset(
 
 #: The codes a job on a client engine can fail with, as the job reports them (D-T-61-30):
 #: the browser's own codes, `client_unavailable` when no browser took the work and
-#: `client_error` for a code outside the list. The client words each one; none is shown raw.
-CLIENT_FAILURE_CODES = CLIENT_ERROR_CODES | {"client_unavailable", "client_error"}
+#: `client_error` for a code outside the list, and `world_too_large` when the server finds
+#: the world state alone too large for the engine's window (T-330). The client words each one; none is shown raw.
+CLIENT_FAILURE_CODES = CLIENT_ERROR_CODES | {
+    "client_unavailable",
+    "client_error",
+    "world_too_large",
+}
 
 
 class ClientEngineFailure(InferenceUnavailableError):

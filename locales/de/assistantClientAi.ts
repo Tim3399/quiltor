@@ -25,7 +25,9 @@ export const assistantClientAi = {
   assistantEngineErrorProvider:
     "Der Anbieter hat die Anfrage abgelehnt. Prüfe deinen Schlüssel und versuche es noch einmal.",
   assistantEngineErrorContextTooLarge:
-    "Die Anfrage ist zu groß für das Modell im Browser. Wähle weniger Kapitel aus.",
+    "Die Anfrage ist zu groß für das Modell im Browser. Wähle oben unter „KI-Engine“ eine andere Engine.",
+  assistantEngineErrorWorldTooLarge:
+    "Diese Welt ist zu groß für das Modell im Browser: Schon der Weltzustand allein füllt sein Fenster. Wähle oben unter „KI-Engine“ eine andere Engine.",
   assistantEngineErrorUnknown: "Die eigene Engine konnte den Auftrag nicht ausführen.",
   webllmTitle: "KI im Browser",
   webllmChecking: "Prüfe, ob das Modell schon auf diesem Gerät liegt …",

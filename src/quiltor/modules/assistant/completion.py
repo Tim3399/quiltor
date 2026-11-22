@@ -9,9 +9,18 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any, Protocol
 
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve, scoped_chapters
+from quiltor.domain.story_world.knowledge import (
+    build_knowledge,
+    chapter_parts,
+    retrieve,
+    scoped_chapters,
+)
 from quiltor.modules.assistant.audit import audit_reply, validate_world
-from quiltor.modules.assistant.batch import broad_scope_reply, estimate_batch_seconds
+from quiltor.modules.assistant.batch import (
+    _merge_accumulated,
+    broad_scope_reply,
+    estimate_batch_seconds,
+)
 from quiltor.modules.assistant.budget import RAG_FLOOR, output_headroom, prompt_budget
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
 from quiltor.modules.assistant.context import pack_chunks
@@ -37,6 +46,7 @@ from quiltor.modules.assistant.ports import (
     InferenceContextTooLargeError,
     InferenceEngine,
     TokenCountCache,
+    WorldTooLargeError,
 )
 from quiltor.modules.assistant.prompts import (
     CONTEXT_SAFETY_MARGIN,
@@ -66,6 +76,8 @@ class CompletionRuntime(Protocol):
     token_cache: TokenCountCache
     debug_enabled: bool
     _invocation_metrics: list[dict[str, Any]]
+    # The chunks the last world-extraction call carried; None before one is built (T-330).
+    _extraction_context: list[Any] | None
 
     def _invoke_with_growth(
         self, payload: dict[str, Any], prompt_tokens: int
@@ -317,7 +329,155 @@ def relevant_ids(
     return scopes
 
 
+# A safety stop for the parts of one extraction: 9,000 words take about ten.
+MAX_EXTRACTION_PARTS = 64
+
+
+def remaining_manuscript(
+    manuscript: dict[str, Any], chapter_ids: list[str] | None, sent: list[Any]
+) -> tuple[dict[str, Any], bool]:
+    """The manuscript with what ``sent`` carried to the model taken out of the scoped chapters,
+    and whether anything of them is left. A part cut short leaves its tail,
+    from its last whole word on."""
+    covered: dict[str, str] = {chunk.id: chunk.text for chunk in sent}
+    scoped = {str(chapter.get("id")) for chapter in scoped_chapters(manuscript, chapter_ids)}
+    chapters: list[dict[str, Any]] = []
+    left = False
+    for chapter in manuscript.get("chapters") or []:
+        chapter_id = str(chapter.get("id"))
+        if chapter_id not in scoped:
+            chapters.append(chapter)
+            continue
+        pieces = []
+        for index, part in enumerate(chapter_parts(str(chapter.get("body") or ""))):
+            done = covered.get(f"chapter:{chapter_id}:{index}")
+            if done is None:
+                pieces.append(part)
+            elif len(done) < len(part):
+                # Resume at the last word boundary: a word cut in half is sent again whole.
+                cut = done.rfind(" ")
+                tail = part[max(cut, 0) :].strip()
+                if tail:
+                    pieces.append(tail)
+        rest = {**chapter, "body": "\n\n".join(pieces)}
+        if f"chapter-note:{chapter_id}" in covered:
+            rest["note"] = ""
+        left = left or bool(pieces) or bool(str(rest.get("note") or "").strip())
+        chapters.append(rest)
+    return {**manuscript, "chapters": chapters}, left
+
+
+def merge_extraction_parts(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """One extraction reply from the replies of its parts (T-330)."""
+    merged = dict(results[-1])
+    proposals = [item for result in results for item in result.get("proposals") or []]
+    merged["proposals"] = proposals
+    merged["proposalEnvelopes"] = [
+        item for result in results for item in result.get("proposalEnvelopes") or []
+    ]
+    sources: dict[str, Any] = {}
+    for result in results:
+        for item in result.get("sources") or []:
+            sources.setdefault(str(item.get("id")), item)
+    merged["sources"] = list(sources.values())
+    merged["citations"] = list(
+        dict.fromkeys(item for result in results for item in result.get("citations") or [])
+    )
+    merged["contextClassesUsed"] = list(
+        dict.fromkeys(item for result in results for item in result.get("contextClassesUsed") or [])
+    )
+    merged["agentTrace"] = [
+        step
+        for index, result in enumerate(results, start=1)
+        for step in (
+            {"step": "extraction_part", "index": index, "total": len(results)},
+            *(result.get("agentTrace") or []),
+        )
+    ]
+    merged.pop("proposalGroup", None)
+    if proposals:
+        merged["proposalGroup"] = {
+            "id": "task",
+            "title": next(
+                (item["proposalGroup"]["title"] for item in results if item.get("proposalGroup")),
+                "",
+            ),
+            "proposalIndexes": list(range(len(proposals))),
+        }
+        count = len(proposals)
+        merged["message"] = (
+            f"{count} zusammengehörige Änderung{'en' if count != 1 else ''} als prüfbarer "
+            "Vorschlag vorbereitet. Es wurde noch nichts angewendet."
+        )
+        set_deterministic_message(
+            merged,
+            "proposalsPreparedOne" if count == 1 else "proposalsPreparedMany",
+            params={"n": count},
+        )
+    return merged
+
+
 def complete_request(
+    runtime: CompletionRuntime,
+    question: str,
+    manuscript: dict[str, Any],
+    figures: dict[str, Any],
+    history: list[dict[str, Any]] | None = None,
+    chapter_ids: list[str] | None = None,
+    run_batches: bool = False,
+    progress_id: str | None = None,
+    language: str = DEFAULT_ASSISTANT_LANGUAGE,
+    mode: str = "chat",
+    *,
+    storyboards: dict[str, Any] | None = None,
+    owner_sub: str = "",
+    world_id: str = "",
+    world_revision: int = 0,
+) -> dict[str, Any]:
+    """Answer one request. World extraction covers its chapters in full: what one call could not
+    carry goes to the model in further parts, each with the proposals so far folded into the
+    world, instead of being cut off (T-330)."""
+
+    def once(current: dict[str, Any], world: dict[str, Any]) -> dict[str, Any]:
+        runtime._extraction_context = None
+        return _complete_once(
+            runtime,
+            question,
+            current,
+            world,
+            history,
+            chapter_ids,
+            run_batches,
+            progress_id,
+            language,
+            mode,
+            storyboards=storyboards,
+            owner_sub=owner_sub,
+            world_id=world_id,
+            world_revision=world_revision,
+        )
+
+    results = [once(manuscript, figures)]
+    # Only a chosen scope is covered in parts; a broad one goes through the batches.
+    if mode != WORLD_EXTRACTION_MODE or run_batches or not chapter_ids:
+        return results[0]
+    current = manuscript
+    while len(results) < MAX_EXTRACTION_PARTS:
+        sent = runtime._extraction_context
+        if not sent:
+            break
+        rest, left = remaining_manuscript(current, chapter_ids, sent)
+        if not left:
+            break
+        if rest == current:
+            raise WorldTooLargeError("No part of the manuscript fits next to the world state.")
+        current = rest
+        proposals = [item for result in results for item in result.get("proposals") or []]
+        results.append(once(current, _merge_accumulated(figures, proposals)))
+    return results[0] if len(results) == 1 else merge_extraction_parts(results)
+
+
+def _complete_once(
     runtime: CompletionRuntime,
     question: str,
     manuscript: dict[str, Any],
@@ -636,8 +796,24 @@ def complete_request(
             keep_all_entries=True,
         )
         if world is None:
-            raise too_large()
-        if len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
+            # T-330: the world keeps every entry, so the manuscript gives way. What does not fit
+            # here goes to the model in a later part (complete_request); only a world that
+            # leaves the manuscript not even its floor is refused, and fewer chapters would
+            # not help it.
+            world = fit_world_state(
+                figures,
+                contract,
+                target=budget.free - RAG_FLOOR,
+                count=count,
+                relevant=relevant,
+                keep_all_entries=True,
+            )
+            if world is None:
+                raise WorldTooLargeError(
+                    "The world state alone leaves the model no room for the manuscript."
+                )
+            context = pack(budget.free - world.tokens, True)
+        elif len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
             context = pack(budget.free - world.tokens, False)
     else:
         floor = RAG_FLOOR if context_candidates else 0
@@ -689,6 +865,9 @@ def complete_request(
         )
     if headroom < RUNTIME_CONFIG.minimum_output_tokens:
         raise too_large()
+    if extraction_mode:
+        # What of the manuscript this call carries; complete_request sends the rest (T-330).
+        runtime._extraction_context = list(context)
     max_tokens = min(budget.answer, headroom)
     payload = {
         "model": "local",

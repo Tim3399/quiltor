@@ -32,7 +32,7 @@ from quiltor.modules.assistant.contract import (
     structured_world_state,
     task_contract,
 )
-from quiltor.modules.assistant.ports import InferenceValidationError
+from quiltor.modules.assistant.ports import InferenceValidationError, WorldTooLargeError
 
 EXAMPLE = json.loads(
     (Path(__file__).resolve().parents[2] / "src/quiltor/resources/example_world/de.json").read_text(
@@ -461,6 +461,109 @@ class CompletionWiringTests(CompletionBudgetTests):
         content = inference.calls[0]["messages"][-1]["content"]
         for node in world["nodes"]:
             self.assertIn(node["name"], content)
+
+
+def marked_chapter(words: int) -> tuple[dict[str, Any], str, list[str]]:
+    """The example manuscript with its first chapter replaced by ``words`` words of its own prose,
+    a unique marker every 25 words and a paragraph break every 100: the markers prove which part
+    of the chapter reached the model."""
+    prose = " ".join(str(chapter.get("body") or "") for chapter in MANUSCRIPT["chapters"]).split()
+    markers: list[str] = []
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for index in range(words):
+        if index % 25 == 0:
+            markers.append(f"M{index:05d}")
+            current.append(markers[-1])
+        else:
+            current.append(prose[index % len(prose)])
+        if len(current) == 100:
+            paragraphs.append(" ".join(current))
+            current = []
+    if current:
+        paragraphs.append(" ".join(current))
+    manuscript = json.loads(json.dumps(MANUSCRIPT))
+    manuscript["chapters"][0]["body"] = "\n\n".join(paragraphs)
+    return manuscript, str(manuscript["chapters"][0]["id"]), markers
+
+
+class ExtractionPartsTests(CompletionBudgetTests):
+    """T-330: world extraction covers a whole chapter in parts, each fitting the browser's window,
+    and refuses only a world that cannot fit on its own. Counted with the relay's counter."""
+
+    def relay(self, calibration: float, replies: int = 60):
+        return self.runtime(*([REPLY] * replies), tokens_per_char=calibration * 1.1 / 3)
+
+    def prompt_tokens(self, inference: Any, call: dict[str, Any]) -> int:
+        return inference.count_tokens("".join(m["content"] for m in call["messages"]))
+
+    def assert_calls_fit(self, inference: Any) -> None:
+        for call in inference.calls:
+            self.assertLessEqual(
+                self.prompt_tokens(inference, call) + call["max_tokens"],
+                RUNTIME_CONFIG.context_tokens - RUNTIME_CONFIG.template_reserve,
+            )
+
+    def test_a_long_chapter_reaches_the_model_in_full(self):
+        for words in (2000, 9000):
+            with self.subTest(words=words):
+                manuscript, chapter_id, markers = marked_chapter(words)
+                runtime, inference = self.relay(0.9)
+                result = runtime.complete(
+                    EXTRACTION,
+                    manuscript,
+                    FIGURES,
+                    chapter_ids=[chapter_id],
+                    mode="world_extraction",
+                )
+                sent = "\n".join(m["content"] for call in inference.calls for m in call["messages"])
+                missing = [marker for marker in markers if marker not in sent]
+                self.assertEqual(missing, [])
+                self.assertGreater(len(inference.calls), 1)
+                self.assert_calls_fit(inference)
+                self.assertEqual(result["mode"], "world_extraction")
+
+    def test_a_chapter_that_fits_stays_one_call(self):
+        runtime, inference = self.relay(0.9)
+        runtime.complete(
+            EXTRACTION, MANUSCRIPT, FIGURES, chapter_ids=["c-arrival"], mode="world_extraction"
+        )
+        self.assertEqual(len(inference.calls), 1)
+
+    def test_a_large_world_gets_a_smaller_share_of_the_chapter_instead_of_a_refusal(self):
+        cases = [
+            ("200 elements, cal 0.9", generated_world(200), 0.9),
+            ("example world, cal 1.3", FIGURES, 1.3),
+        ]
+        for label, world, calibration in cases:
+            with self.subTest(label):
+                # A 2,000-word chapter: with it the example world was refused at 1.3.
+                manuscript, chapter_id, _ = marked_chapter(2000)
+                runtime, inference = self.relay(calibration)
+                runtime.complete(
+                    EXTRACTION,
+                    manuscript,
+                    world,
+                    chapter_ids=[chapter_id],
+                    mode="world_extraction",
+                )
+                self.assertGreaterEqual(len(inference.calls), 1)
+                self.assert_calls_fit(inference)
+                sent = "\n".join(m["content"] for call in inference.calls for m in call["messages"])
+                for node in world["nodes"]:
+                    self.assertIn(node["name"], sent)
+
+    def test_a_world_too_large_on_its_own_is_refused_as_such(self):
+        runtime, inference = self.relay(0.9)
+        with self.assertRaises(WorldTooLargeError):
+            runtime.complete(
+                EXTRACTION,
+                MANUSCRIPT,
+                generated_world(1500),
+                chapter_ids=["c-arrival"],
+                mode="world_extraction",
+            )
+        self.assertEqual(inference.calls, [])
 
 
 class ScopeFloorTests(unittest.TestCase):

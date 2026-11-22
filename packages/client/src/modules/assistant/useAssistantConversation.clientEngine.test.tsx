@@ -146,6 +146,7 @@ describe("a failed job on a browser engine", () => {
     [{ code: "client_unavailable" }, "assistantEngineErrorClientUnavailable"],
     [{ code: "provider_error", detail: "401" }, "assistantEngineErrorProvider"],
     [{ code: "context_too_large" }, "assistantEngineErrorContextTooLarge"],
+    [{ code: "world_too_large" }, "assistantEngineErrorWorldTooLarge"],
     [{ code: "client_error", detail: "gpu_on_fire" }, "assistantEngineErrorUnknown"],
     [{ code: "something_new" }, "assistantEngineErrorUnknown"],
   ] as const)("words %o in German, without the raw code", async (engineError, key) => {

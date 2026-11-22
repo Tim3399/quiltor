@@ -19,7 +19,11 @@ from typing import Any
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.modules.assistant.engines import CLOUD, SERVER, WEBLLM, ClientEngineFailure
 from quiltor.modules.assistant.jobs import AssistantJobRunner
-from quiltor.modules.assistant.ports import ClientJobRunning, InferenceContextTooLargeError
+from quiltor.modules.assistant.ports import (
+    ClientJobRunning,
+    InferenceContextTooLargeError,
+    WorldTooLargeError,
+)
 from tests.python.narrowing import present
 from tests.python.test_assistant_jobs import (
     WORLD_ID,
@@ -312,6 +316,23 @@ class ClientJobRunnerTests(unittest.TestCase):
             self.assertEqual(
                 done.get("engineError"), {"code": "context_too_large", "detail": "prompt too long"}
             )
+        finally:
+            runner.close()
+
+    def test_a_world_too_large_for_the_client_engine_is_its_own_code(self):
+        # T-330: the server refuses before any model call; fewer chapters would not help.
+        class _WorldTooLarge(_BlockingRuntime):
+            def complete(self, question, *args, **kwargs):
+                raise WorldTooLargeError("The world state alone leaves no room.")
+
+        runner = self._runner()
+        self.clients["alice"] = _WorldTooLarge()
+        try:
+            job = _submit(runner, "alice", "client-world")
+            done = runner.wait(job["id"], "alice", WORLD_ID, timeout=3)
+            self.assertEqual(done["status"], "failed", done)
+            self.assertEqual(done["errorType"], "world_too_large")
+            self.assertEqual(done.get("engineError", {}).get("code"), "world_too_large")
         finally:
             runner.close()
 

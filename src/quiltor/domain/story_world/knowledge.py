@@ -97,6 +97,12 @@ def _parts(text: str | None, limit: int = 1400) -> list[str]:
     return result
 
 
+def chapter_parts(text: str | None) -> list[str]:
+    """A chapter body in the parts its knowledge chunks carry, in order: chunk ``index`` of
+    chapter ``id`` (``chapter:{id}:{index}``) holds part ``index``."""
+    return _parts(text)
+
+
 def chapter_in_book(chapter: Mapping[str, object]) -> bool:
     return chapter.get("inBook") is not False
 
