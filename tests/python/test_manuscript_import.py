@@ -24,6 +24,23 @@ from quiltor.infrastructure.persistence.sqlite import manuscript
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+WORD_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "manuscript-import"
+
+
+def notes(tag: str, *, separators_only: bool) -> bytes:
+    """A notes part as Word writes it: two separator entries, then the author's notes."""
+
+    entries = (
+        f'<w:{tag} w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:{tag}>'
+        f'<w:{tag} w:type="continuationSeparator" w:id="0">'
+        f"<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:{tag}>"
+    )
+    if not separators_only:
+        entries += f'<w:{tag} w:id="1"><w:p><w:r><w:t>Anmerkung</w:t></w:r></w:p></w:{tag}>'
+    return f'<w:{tag}s xmlns:w="{W}">{entries}</w:{tag}s>'.encode()
+
+
+NOTES_WITH_ONE = notes("footnote", separators_only=False)
 
 
 def docx(document: str, *, styles: str = "", extras: dict[str, bytes] | None = None) -> bytes:
@@ -94,7 +111,7 @@ class DocxParserTests(unittest.TestCase):
             docx(
                 document(warning_body),
                 styles=STYLES,
-                extras={"word/header1.xml": b"<header/>", "word/footnotes.xml": b"<notes/>"},
+                extras={"word/header1.xml": b"<header/>", "word/footnotes.xml": NOTES_WITH_ONE},
             ),
         )
         self.assertEqual(
@@ -110,6 +127,80 @@ class DocxParserTests(unittest.TestCase):
                     document(f"<w:sdt><w:sdtContent>{paragraph('Hidden')}</w:sdtContent></w:sdt>")
                 ),
             )
+
+    def test_a_notes_part_holding_only_words_separators_warns_of_nothing(self):
+        for part in ("word/footnotes.xml", "word/endnotes.xml"):
+            with self.subTest(part=part):
+                tag = "footnote" if part == "word/footnotes.xml" else "endnote"
+                parsed = parse_docx(
+                    "Trenner.docx",
+                    docx(
+                        document(paragraph("Kapitel", style="Heading1") + paragraph("Text")),
+                        styles=STYLES,
+                        extras={part: notes(tag, separators_only=True)},
+                    ),
+                )
+                self.assertEqual(parsed.warnings, ())
+
+    def test_a_real_endnote_in_its_part_still_warns(self):
+        parsed = parse_docx(
+            "Endnote.docx",
+            docx(
+                document(paragraph("Kapitel", style="Heading1") + paragraph("Text")),
+                styles=STYLES,
+                extras={"word/endnotes.xml": notes("endnote", separators_only=False)},
+            ),
+        )
+        self.assertEqual(parsed.warnings, ({"code": "footnotes_endnotes", "count": 1},))
+
+    def test_symbols_become_characters_and_an_unknown_one_becomes_a_replacement(self):
+        cases = {
+            '<w:sym w:font="Symbol" w:char="F061"/>': "\u03b1",  # alpha
+            '<w:sym w:font="Symbol" w:char="F0AE"/>': "→",
+            '<w:sym w:font="Symbol" w:char="0057"/>': "Ω",
+            '<w:sym w:font="Arial" w:char="2192"/>': "→",
+            # A picture font has no Unicode meaning: U+FFFD, counted as lost formatting.
+            '<w:sym w:font="Wingdings" w:char="F0AB"/>': "\ufffd",
+            '<w:sym w:font="Symbol" w:char="F0FF"/>': "\ufffd",
+            '<w:sym w:font="Arial" w:char="E001"/>': "\ufffd",
+            '<w:sym w:font="Arial" w:char="zz"/>': "\ufffd",
+        }
+        for sym, expected in cases.items():
+            with self.subTest(sym=sym):
+                body = paragraph("Kapitel", style="Heading1") + f"<w:p><w:r>{sym}</w:r></w:p>"
+                parsed = parse_docx("Symbol.docx", docx(document(body), styles=STYLES))
+                self.assertEqual(parsed.chapters[0].body, expected)
+                lost = [w["count"] for w in parsed.warnings if w["code"] == "formatting"]
+                self.assertEqual(lost, [1] if expected == "\ufffd" else [])
+
+    def test_a_multi_page_file_saved_by_word_imports(self):
+        """F0: Word writes `w:lastRenderedPageBreak` into every run that began a page."""
+
+        payload = (WORD_FIXTURES / "word-multipage.docx").read_bytes()
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            self.assertIn(b"lastRenderedPageBreak", archive.read("word/document.xml"))
+        parsed = parse_docx("word-multipage.docx", payload)
+        self.assertEqual(
+            [chapter.title for chapter in parsed.chapters],
+            [
+                "Die Ankunft",
+                "Das Archiv",
+                "Das letzte Blatt",
+                "Gerüchte am Salzmarkt",
+                "Vor dem Sturm",
+                "Bruch mit der Gilde",
+                "Die Überfahrt",
+                "Die offene Küste",
+            ],
+        )
+        self.assertTrue(parsed.chapters[0].body.startswith("Der Morgen lag still über dem Hafen."))
+        self.assertNotIn("footnotes_endnotes", {w["code"] for w in parsed.warnings})
+
+    def test_a_word_file_with_inserted_symbols_imports_them(self):
+        """F1: one Wingdings and one Symbol character inserted through Word's symbol dialog."""
+
+        parsed = parse_docx("word-symbol.docx", (WORD_FIXTURES / "word-symbol.docx").read_bytes())
+        self.assertIn("Kompassrose \ufffd und Windrichtung ⊥", parsed.chapters[0].body)
 
     def test_character_style_adds_to_inherited_paragraph_formatting(self):
         body = (
@@ -138,9 +229,11 @@ class DocxParserTests(unittest.TestCase):
         self.assertEqual(parsed.warnings, ({"code": "formatting", "count": 1},))
 
     def test_fails_closed_on_unsupported_visible_run_content(self):
-        body = '<w:p><w:r><w:t>A</w:t><w:sym w:char="F041"/></w:r></w:p>'
+        # An embedded OLE object is visible and has no text form. (`w:sym` was the example
+        # here until T-334 turned symbols into characters.)
+        body = "<w:p><w:r><w:t>A</w:t><w:object/></w:r></w:p>"
         with self.assertRaises(UnsupportedManuscriptContent):
-            parse_docx("Symbol.docx", docx(document(body)))
+            parse_docx("Objekt.docx", docx(document(body)))
 
     def test_rejects_utf16_dtd_and_excessive_xml_depth(self):
         unsafe = (
