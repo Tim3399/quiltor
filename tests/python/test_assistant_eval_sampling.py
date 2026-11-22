@@ -323,6 +323,17 @@ class EvalSeedAcceptedRouteTests(EvalSeedRouteTests):
             [EvalSampling(temperature=0.0, seed=1000), EvalSampling(temperature=0.0, seed=1001)],
         )
 
+    def test_another_seed_under_the_same_key_is_another_job(self):
+        status, body = self._submit({"evalSeed": 1000}, key="one-key")
+        self.assertEqual(status, 202, body)
+        self._wait(body)
+        status, again = self._submit({"evalSeed": 1000}, key="one-key")
+        self.assertEqual((status, again["job"]["id"]), (200, body["job"]["id"]))
+        status, other = self._submit({"evalSeed": 1001}, key="one-key")
+        self.assertEqual(status, 409, other)
+        self.assertEqual(other["error"]["code"], "assistant.idempotency_conflict")
+        self.assertEqual(self.assistant.complete.call_count, 1)
+
     def test_without_an_eval_seed_the_start_seed_applies(self):
         status, body = self._submit({}, key="start-seed")
         self.assertEqual(status, 202, body)

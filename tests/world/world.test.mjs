@@ -684,3 +684,37 @@ test("the catalog is what the test world renders; run npm run world:update", asy
     `${CATALOG_FILE} is stale; run npm run world:update`,
   );
 });
+
+test("the gold set agrees with itself: its own entries as proposals score F1 = 1.0", () => {
+  // The matcher compares German word forms (a genitive, a compound); a gold part whose own
+  // moment is not found by its own keywords would put a floor under the German event score.
+  const isGold = (item) => typeof item.id === "string" && item.id.startsWith("g-");
+  for (const lang of LANGUAGES) {
+    const world = buildExampleWorld(lang, { include: ["gold"] });
+    const dump = {
+      evaluation: world.evaluation,
+      nodes: world.figures.nodes.filter(isGold),
+      edges: world.figures.edges.filter(isGold),
+      timeline: world.figures.timeline.filter(isGold),
+      presence: world.figures.presence.filter(isGold),
+    };
+    const result = spawnSync(
+      process.execPath,
+      [
+        join(repositoryRoot, "tools/dev/python.mjs"),
+        "--needs",
+        "json",
+        join(repositoryRoot, "tests/world/gold_selfcheck.py"),
+      ],
+      { cwd: repositoryRoot, input: JSON.stringify(dump), encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout.trim().split("\n").at(-1));
+    assert.ok(Object.keys(report).length >= 5, `${lang}: only ${Object.keys(report)} chapters`);
+    for (const [chapter, categories] of Object.entries(report)) {
+      for (const [category, f1] of Object.entries(categories)) {
+        assert.equal(f1, 1, `${lang} ${chapter} ${category}: F1 ${f1}`);
+      }
+    }
+  }
+});

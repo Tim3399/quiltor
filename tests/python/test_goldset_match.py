@@ -354,6 +354,168 @@ class MissingFigures(unittest.TestCase):
         self.assertEqual(result["offTask"], 2)
 
 
+class GermanWordForms(unittest.TestCase):
+    """Plan 4.5: a key meets a genitive and the member of a compound; no stemmer."""
+
+    def event_counts(self, title, keyword="Brot", note="", refs=None, gold=None):
+        event = {
+            "id": "g-ev-form",
+            "category": "event",
+            "keywords": [keyword],
+            "refs": refs or [],
+        }
+        return counts(
+            gm.match_task(task([ARVID, event]), [create("Selm Arvid"), moment(title, note)]),
+            "event",
+        )
+
+    def test_key_as_the_first_member_of_a_compound_is_a_hit(self):
+        self.assertEqual(
+            self.event_counts("Mittagsbrot im Fort", keyword="Mittag"),
+            {"tp": 0.5, "fp": 0.5, "fn": 0.5},
+        )
+
+    def test_key_as_the_last_member_of_a_compound_is_a_hit(self):
+        self.assertEqual(
+            self.event_counts("Mittagsbrot im Fort"), {"tp": 0.5, "fp": 0.5, "fn": 0.5}
+        )
+
+    def test_key_of_three_characters_is_no_member_of_a_compound(self):
+        self.assertEqual(
+            self.event_counts("Toröffnung", keyword="Tor"), {"tp": 0, "fp": 1, "fn": 1}
+        )
+
+    def test_key_of_four_characters_is_a_member_of_a_compound(self):
+        self.assertEqual(
+            self.event_counts("Torwächter", keyword="Torw"), {"tp": 0.5, "fp": 0.5, "fn": 0.5}
+        )
+
+    def test_the_umlaut_is_folded_on_both_sides(self):
+        self.assertEqual(self.event_counts("Rückkehr", keyword="Ruckkehr")["tp"], 0.5)
+        self.assertEqual(self.event_counts("Ruckkehr", keyword="Rückkehr")["tp"], 0.5)
+        self.assertEqual(
+            self.event_counts("Rückkehr des Hauptmanns", keyword="Rückkehr")["tp"], 0.5
+        )
+
+    def test_genitive_of_a_key_is_a_hit(self):
+        for title in ("Hauptmanns Rückkehr", "Die Ankunft des Hauptmannes"):
+            with self.subTest(title=title):
+                self.assertEqual(self.event_counts(title, keyword="Hauptmann")["tp"], 0.5, title)
+
+    def test_apostrophe_genitive_of_a_key_is_a_hit(self):
+        for title in ("Hauptmann's Rückkehr", "Hauptmann\u2019s Rückkehr"):
+            with self.subTest(title=title):
+                self.assertEqual(self.event_counts(title, keyword="Hauptmann")["tp"], 0.5, title)
+
+    def test_an_unrelated_word_is_no_hit(self):
+        self.assertEqual(self.event_counts("Brosche", keyword="Brot")["tp"], 0)
+        self.assertEqual(self.event_counts("Brots", keyword="Brotes")["tp"], 0)
+
+    def test_genitive_of_a_name_makes_the_reference(self):
+        # "Arvids" in the title names Arvid: a full hit with the keyword, not a partial one.
+        self.assertEqual(
+            self.event_counts("Brot für Arvids Wache", refs=["g-arvid"]),
+            {"tp": 1, "fp": 0, "fn": 0},
+        )
+
+    def test_a_name_is_no_compound_member(self):
+        # Compounds count for keywords only; "Arvidhaus" does not name Arvid.
+        self.assertEqual(
+            self.event_counts("Brot im Arvidhaus", refs=["g-arvid"]),
+            {"tp": 0.5, "fp": 0.5, "fn": 0.5},
+        )
+
+
+class RulesHeldByNoOtherTest(unittest.TestCase):
+    """F-289-17: rules of plan 4 that stood without a test of their own."""
+
+    def test_a_proposal_serves_one_gold_entry_only(self):
+        # Two gold triples on one pair, one proposal: one hit and one miss, not a second
+        # partial hit for the same proposal.
+        allies = {
+            **owns(),
+            "id": "g-allies",
+            "synonyms": ["verbündet"],
+            "to": "g-wenke",
+            "directed": False,
+        }
+        rivals = {**allies, "id": "g-rivals", "synonyms": ["rivalen"]}
+        wenke = figure("g-wenke", "Wenke Dorn")
+        proposals = [
+            create("Selm Arvid", temp_id="new:arvid"),
+            create("Wenke Dorn", temp_id="new:wenke"),
+            relation("new:arvid", "new:wenke", "verbündet", directed=False),
+        ]
+        result = gm.match_task(task([ARVID, wenke, allies, rivals]), proposals)
+        self.assertEqual(counts(result, "relation"), {"tp": 1, "fp": 0, "fn": 1})
+
+    def test_title_words_do_not_count_when_comparing_a_partial_name(self):
+        result = gm.match_task(task([ARVID]), [create("Hauptmann Arvid")])
+        self.assertEqual(counts(result, "figure"), {"tp": 1, "fp": 0, "fn": 0})
+
+    def test_the_endpoint_of_a_partial_element_hit_is_resolved(self):
+        # Arvid is proposed with the wrong type (a partial hit); his relation still counts.
+        result = gm.match_task(
+            task([ARVID, KEY, owns()]),
+            [
+                create("Selm Arvid", "ort", temp_id="new:arvid"),
+                create("Torschlüssel", "objekt", temp_id="new:key"),
+                relation("new:arvid", "new:key", "besitzt"),
+            ],
+        )
+        self.assertEqual(counts(result, "relation"), {"tp": 1, "fp": 0, "fn": 0})
+
+    def test_the_name_wins_over_an_alias_whatever_the_order(self):
+        by_alias = create("Hauptmann", temp_id="new:alias")
+        by_name = create("Selm Arvid", temp_id="new:name")
+        for proposals, expected in (([by_alias, by_name], 1), ([by_name, by_alias], 0)):
+            with self.subTest(first=proposals[0]["tempId"]):
+                result = gm.match_task(task([ARVID]), proposals)
+                self.assertEqual([hit["proposal"] for hit in result["matches"]], [expected])
+
+    def test_a_keyword_in_the_note_alone_is_no_keyword(self):
+        event = {"id": "g-ev", "category": "event", "keywords": ["Tor"], "refs": ["g-arvid"]}
+        result = gm.match_task(
+            task([ARVID, event]),
+            [create("Selm Arvid"), moment("Arvid am Morgen", note="Das Tor steht offen")],
+        )
+        self.assertEqual(counts(result, "event"), {"tp": 0, "fp": 1, "fn": 1})
+
+    def test_presence_is_the_ordered_pair_of_figure_and_place(self):
+        fort = place("g-fort", "Fort Kehrwieder")
+        presence = {"id": "g-pr", "category": "presence", "element": "g-arvid", "place": "g-fort"}
+        result = gm.match_task(
+            task([ARVID, fort, presence]),
+            [
+                create("Selm Arvid", temp_id="new:a"),
+                create("Fort Kehrwieder", "ort", temp_id="new:f"),
+                {"kind": "set_presence", "elementId": "new:f", "placeId": "new:a"},
+            ],
+        )
+        self.assertEqual(counts(result, "presence"), {"tp": 0, "fp": 1, "fn": 1})
+
+    def test_a_relationship_state_without_a_known_relationship_is_a_false_positive(self):
+        # The patch names both ends itself; without a known relationship it still has no base.
+        result = gm.match_task(
+            task([ARVID, KEY, owns()], knownRelationships={}),
+            [
+                create("Selm Arvid", temp_id="new:arvid"),
+                create("Torschlüssel", "objekt", temp_id="new:key"),
+                {
+                    "kind": "set_relationship_at_moment",
+                    "relationshipId": "r-unknown",
+                    "patch": {
+                        "from": "new:arvid",
+                        "to": "new:key",
+                        "label": "besitzt",
+                        "directed": True,
+                    },
+                },
+            ],
+        )
+        self.assertEqual(counts(result, "relation"), {"tp": 0, "fp": 1, "fn": 1})
+
+
 class Metrics(unittest.TestCase):
     def test_f1_is_zero_not_null_when_nothing_was_proposed(self):
         # F-289-3: three gold relations, no proposal.
