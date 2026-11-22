@@ -406,6 +406,20 @@ jobs:
           select_status=$?
           product_status=1
           design_status=1
+          # T-338 diagnostics: sample disk, inodes and the usual growth paths every 30 s.
+          diag() {
+            echo "::group::T-338 disk sample $(date -u +%H:%M:%S) $1"
+            df -h / /tmp /dev/shm "$GITHUB_WORKSPACE" "$RUNNER_TEMP" 2>&1
+            df -i / /dev/shm 2>&1
+            cat /proc/sys/fs/inotify/max_user_watches /proc/sys/fs/inotify/max_user_instances 2>&1
+            du -sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/test-results" "$GITHUB_WORKSPACE/node_modules/.vite" \
+              ~/.cache ~/.cache/ms-playwright /tmp /dev/shm "$RUNNER_TEMP" 2>/dev/null
+            du -xh --max-depth=2 /tmp "$RUNNER_TEMP" "$GITHUB_WORKSPACE/test-results" 2>/dev/null | sort -rh | head -15
+            echo "::endgroup::"
+          }
+          diag before
+          ( while true; do sleep 30; diag loop; done ) &
+          diag_pid=$!
           if [ "$select_status" -eq 0 ]; then
             echo "Product browser tests of slot $SLOT"
             PLAYWRIGHT_WORKERS="$WORKERS_LINUX_PRODUCT" PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
@@ -418,6 +432,8 @@ jobs:
               --test-list "$lists/design.txt" --output=test-results/design --reporter=line,json
             design_status=$?
           fi
+          kill "$diag_pid" 2>/dev/null
+          diag after
 
           if [ "$select_status" -ne 0 ] || [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
             echo "::error::Browser slot failures: select=$select_status product=$product_status design=$design_status"
@@ -845,6 +861,20 @@ jobs:
           select_status=$?
           product_status=1
           design_status=1
+          # T-338 diagnostics: sample disk, inodes and the usual growth paths every 30 s.
+          diag() {
+            echo "::group::T-338 disk sample $(date -u +%H:%M:%S) $1"
+            df -h / /tmp /dev/shm "$GITHUB_WORKSPACE" "$RUNNER_TEMP" 2>&1
+            df -i / /dev/shm 2>&1
+            cat /proc/sys/fs/inotify/max_user_watches /proc/sys/fs/inotify/max_user_instances 2>&1
+            du -sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/test-results" "$GITHUB_WORKSPACE/node_modules/.vite" \
+              ~/.cache ~/.cache/ms-playwright /tmp /dev/shm "$RUNNER_TEMP" 2>/dev/null
+            du -xh --max-depth=2 /tmp "$RUNNER_TEMP" "$GITHUB_WORKSPACE/test-results" 2>/dev/null | sort -rh | head -15
+            echo "::endgroup::"
+          }
+          diag before
+          ( while true; do sleep 30; diag loop; done ) &
+          diag_pid=$!
           if [ "$select_status" -eq 0 ]; then
             echo "Product browser tests of slot $SLOT"
             PLAYWRIGHT_FULLY_PARALLEL=1 PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/reports/product.json \
@@ -857,6 +887,8 @@ jobs:
               --test-list "$lists/design.txt" --output=test-results/design --reporter=line,json
             design_status=$?
           fi
+          kill "$diag_pid" 2>/dev/null
+          diag after
 
           if [ "$select_status" -ne 0 ] || [ "$product_status" -ne 0 ] || [ "$design_status" -ne 0 ]; then
             echo "::error::Browser slot failures: select=$select_status product=$product_status design=$design_status"
