@@ -1,5 +1,5 @@
 {
-  "version": "3.26.0",
+  "version": "3.26.1",
   "platform": "win32",
   "viewport": {
     "width": 1440,
@@ -8,15 +8,15 @@
   "inputs": "51b76b7acbd6ec18b796d644425e50e5a0c24dcad98dccba00c8de254be6cf31",
   "images": {
     "manuscript.png": "5ca282e7b3e3c67def28a182824d252c5982d49fa3b0e7bd206f21c4dd8cf472",
-    "world-graph.png": "6eb556cebec2af7fe7db64e77816dc07b6bb6edcc93595b60350dd2deb40cbb4",
+    "world-graph.png": "ec4b12e20facee189a8bf9eb369fdef3196f01b5c3567d028156b3181a68ba59",
     "timeline-playback.png": "e79ec58131dc663754e4347d5a1d1ef1fa499d6322d25b10890640cbe124b147",
     "timeline-manager.png": "f5dc0631b82e7bd4868d299267b4401f5c7f8c46bda3033e28c582f3236252f4",
     "timeline-calendar.png": "2036a2c8b4a60f47b13b2ca8d9db2f23b55a28618aff3e4aee4e7e53729a4403",
     "places.png": "abd9d20c1eb90c0cafe6f4f5a0e7deb661cf2bd4ed64ed215b344ad1dbd1aef6",
     "places-map.png": "787e6b099addea13b8fbb28938bfc3eb6809f8cdf3fd30876ddf28310928fd43",
-    "storyboard.png": "506d0c0bd1f056603e3ba8345bfc73eea8ce397e71a26ea090237dd02ea29b7f",
+    "storyboard.png": "c01f63d04ac54004773a7a7331e3a85709095023a49cfe57f17ceb915d69cfb5",
     "shared-notes.png": "5ab306b9982e3d6f14319c8a5f1ab1c82da7a01eae8fa63851da01b9f31e36e0",
     "search.png": "793191093efdcc3832838acadaef53a462dd1d405f890a7dd317839d9befffc6",
-    "versions.png": "bb4cde28e673bc568ee6252211a78a916e66db9f2af178ba1202a5f631fddb96"
+    "versions.png": "2d0fd813376e88e4a9850ae9f02a5eef6966137b3cd7e584e4b4daa3f0a87b47"
   }
 }
