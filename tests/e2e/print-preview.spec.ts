@@ -46,6 +46,18 @@ async function placeCaretAtDocumentOffset(page: Page, editor: Locator, offset: n
   await page.keyboard.press(documentStartKey);
   await expect(editor.locator(".cm-line").first()).toHaveText("Startpunkt am Hafen.");
   for (let index = 0; index < offset; index += 1) await page.keyboard.press("ArrowRight");
+  await expectCaretAtDocumentOffset(editor, offset);
+}
+
+/**
+ * Waits until the browser's own selection is a caret at this offset of the editor's text.
+ *
+ * A key typed right after the editor is focused again lands wherever the selection is at
+ * that moment, and CodeMirror writes a restored one into the DOM only after it has measured
+ * (macOS, T-340: "@" went in after "Sta" instead of "Star"). Typing is therefore tied to
+ * this state, not to the editor merely being focused.
+ */
+async function expectCaretAtDocumentOffset(editor: Locator, offset: number) {
   await expect
     .poll(() =>
       editor.evaluate((root) => {
@@ -155,6 +167,7 @@ test("Print preview preserves editor position and shares physical pages with the
     .poll(() => page.locator(".editor-scroll").evaluate((element) => element.scrollTop))
     .toBeCloseTo(scrollTop, 0);
   await expect(editor).toBeFocused();
+  await expectCaretAtDocumentOffset(editor, 4);
   await page.keyboard.type("@");
   await expect.poll(() => editor.textContent()).toContain("Star@tpunkt");
   expect(errors).toEqual([]);
@@ -192,6 +205,7 @@ test("Leaving Text from print preview preserves the editor session", async ({ pa
   await expect(page.getByLabel("Kapiteltitel")).toHaveValue("Ankunft");
   await expect(editor).toBeFocused();
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(scrollTop);
+  await expectCaretAtDocumentOffset(editor, 4);
   await page.keyboard.type("@");
   await expect.poll(() => editor.textContent()).toContain("Star@tpunkt");
 });
