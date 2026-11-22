@@ -19,6 +19,7 @@ from quiltor.application.manuscript_import import (
     UnsupportedManuscriptContent,
 )
 from quiltor.infrastructure.importing.docx import parse_docx
+from quiltor.infrastructure.importing.text_formats import parse_markdown_units
 from quiltor.infrastructure.persistence.manuscript_import import SQLiteManuscriptImportRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
@@ -257,6 +258,17 @@ def _archive_with_document(payload: bytes) -> bytes:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("word/document.xml", payload)
     return target.getvalue()
+
+
+class MarkdownSceneBreakTests(unittest.TestCase):
+    def test_every_markdown_rule_form_imports_as_the_scene_break_the_book_layout_knows(self):
+        before = "Sie las die Küstenlinie wie einen Brief."
+        after = "Spät am Abend zählte Iven die Lampen im Lesesaal."
+        for form in ("* * *", "***", "---", "___", "- - -", "_ _ _", "*****", "- - - - -"):
+            with self.subTest(form=form):
+                source = f"{before}\n\n{form}\n\n{after}\n".encode()
+                parsed = parse_markdown_units("kapitel.md", source)
+                self.assertEqual([unit.text for unit in parsed.units], [before, "* * *", after])
 
 
 class ManuscriptImportRepositoryTests(unittest.TestCase):

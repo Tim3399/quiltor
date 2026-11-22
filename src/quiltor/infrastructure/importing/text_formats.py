@@ -17,6 +17,7 @@ MAX_TEXT_CHARS = 10_000_000
 MAX_MARKDOWN_TOKENS = 300_000
 MAX_MARKDOWN_SOURCE_CHARS = 2_000_000
 MAX_MARKDOWN_DEPTH = 64
+SCENE_BREAK = "* * *"
 _WORD = re.compile(r"\w+", re.UNICODE)
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
@@ -67,7 +68,9 @@ def parse_markdown_units(file_name: str, payload: bytes) -> ParsedUnitManuscript
             units.append(ImportUnit(len(units), token.content, (), False))
         elif token.type == "hr":
             warnings["formatting"] += 1
-            units.append(ImportUnit(len(units), token.markup, (), False))
+            # The book layout (isSceneBreak) recognises only this spelling; markdown-it's own
+            # `markup` differs per source form (and is one marker too long).
+            units.append(ImportUnit(len(units), SCENE_BREAK, (), False))
         elif token.content:
             raise UnsupportedManuscriptContent(
                 "Markdown contains an unsupported text-bearing structure."
