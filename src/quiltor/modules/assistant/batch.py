@@ -341,6 +341,13 @@ def run_batches(
             accumulated.extend(proposals)
             if result.get("message"):
                 notes.append(f"{label}: {result['message']}")
+            # The parts a chapter of this group was taken in, and what each carried (T-330).
+            trace.extend(
+                step
+                for step in result.get("agentTrace") or []
+                if isinstance(step, dict)
+                and step.get("step") in {"extraction_part", "extraction_sent"}
+            )
             trace.append(
                 {
                     "step": "batch_group",

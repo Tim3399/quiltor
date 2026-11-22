@@ -494,6 +494,8 @@ def marked_chapter(words: int) -> tuple[dict[str, Any], str, list[str]]:
         paragraphs.append(" ".join(current))
     manuscript = json.loads(json.dumps(MANUSCRIPT))
     manuscript["chapters"][0]["body"] = "\n\n".join(paragraphs)
+    # Mentions point into the old text by offset; the new text has none of them.
+    manuscript["chapters"][0]["mentions"] = []
     return manuscript, str(manuscript["chapters"][0]["id"]), markers
 
 
@@ -718,7 +720,7 @@ class ExtractionPartsTests(CompletionBudgetTests):
         with mock.patch.object(
             runtime.progress, "update", side_effect=lambda *args: updates.append((args[4], args[5]))
         ):
-            runtime.complete(
+            result = runtime.complete(
                 EXTRACTION,
                 manuscript,
                 FIGURES,
@@ -728,6 +730,9 @@ class ExtractionPartsTests(CompletionBudgetTests):
                 progress_id="p-1",
             )
         self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
+        # The product route keeps the coverage in the trace too.
+        sent = [step for step in result["agentTrace"] if step.get("step") == "extraction_sent"]
+        self.assertEqual(len(sent), len(inference.calls))
         parts = [params for key, params in updates if key == "chapterGroupPartLabel"]
         self.assertEqual(
             [params["part"] for params in parts], list(range(2, len(inference.calls) + 1))
