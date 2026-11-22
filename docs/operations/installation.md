@@ -346,6 +346,11 @@ deliberately the operator's call; try them in this order, narrowest first:
    reboots. A new Chromium version changes only the number in the directory name
    `chromium_headless_shell-…`, which the `*` covers.
 
+   So far only the path from Playwright is confirmed. The profile has not yet been tried on
+   a real Ubuntu 24.04 x64; that proof follows (T-303). If the profile does not take effect
+   and the export still ends with `pdf.sandbox_unavailable`, `QUILTOR_PDF_SANDBOX=off`
+   (option 3) is the reliable fallback, with the warning given there.
+
 3. **`QUILTOR_PDF_SANDBOX=off` as the last resort.** That starts Chromium without its
    sandbox. A page the renderer loads can then escape the process through a Chromium
    bug. The server writes the warning `pdf.sandbox_disabled` to the log at **every

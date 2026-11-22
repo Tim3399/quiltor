@@ -18,6 +18,11 @@ export type EngineChoice = {
    * it (Safari, Firefox, an older device). False while the probe has not answered yet.
    */
   browserUnsupported: boolean;
+  /**
+   * She chose the browser engine, this browser cannot run it, and the choice stays: nothing is
+   * sent, and only she can switch to the server AI.
+   */
+  blocked: boolean;
   choose(kind: AssistantEngineKind): void;
   /** The engine and slot as stored right now; for code that runs outside a render. */
   current(): { engine: AssistantEngineKind; slot: ClientEngineSlot | null };
@@ -53,7 +58,19 @@ export function useEngineChoice(
     () => availableEngines({ serverAi, clientAi, webgpu: webgpu === true, ownComputer, slots }),
     [serverAi, clientAi, webgpu, ownComputer, slots],
   );
-  const engine = effectiveEngine(stored, available);
+  const browserUnsupported = !ownComputer && clientAi && Boolean(slots.webllm) && webgpu === false;
+  // Only an explicitly stored choice is kept, and only where the server AI would be the silent
+  // fallback; without the premium role nothing would move to the server anyway. It is kept
+  // until it is known that the browser engine can run: while the capabilities are not loaded
+  // (or the whoami fallback stood in for them and says nothing about `clientAi`) and while the
+  // WebGPU probe has not answered, a missing engine is no reason to send her text to the
+  // server (D-T-275-F5). A computer of one's own is the one case where the server is the only
+  // engine, and the capabilities say so as soon as they are there.
+  const unknown = !ownComputer && (instance === null || instance.clientAi === undefined);
+  const unsupported = clientAi && Boolean(slots.webllm) && webgpu !== true;
+  const kept =
+    serverAi && stored === "webllm" && !ownComputer && (unknown || unsupported) ? "webllm" : null;
+  const engine = effectiveEngine(stored, available, kept);
   const choose = useCallback(
     (kind: AssistantEngineKind) => {
       writeEngineChoice(preferences, kind);
@@ -63,9 +80,9 @@ export function useEngineChoice(
   );
   const slot = engine === "server" ? null : (slots[engine] ?? null);
   const current = useCallback(() => {
-    const now = effectiveEngine(readEngineChoice(preferences), available);
+    const now = effectiveEngine(readEngineChoice(preferences), available, kept);
     return { engine: now, slot: now === "server" ? null : (slots[now] ?? null) };
-  }, [available, preferences, slots]);
-  const browserUnsupported = !ownComputer && clientAi && Boolean(slots.webllm) && webgpu === false;
-  return { available, engine, slot, browserUnsupported, choose, current };
+  }, [available, kept, preferences, slots]);
+  const blocked = kept !== null && engine === kept;
+  return { available, engine, slot, browserUnsupported, blocked, choose, current };
 }

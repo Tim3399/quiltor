@@ -15,7 +15,8 @@ import { join } from "node:path";
  * Each document shows the pictures of its own language only: the German README the German
  * interface, the English README the English one.
  * The pictures are taken on Windows, where releases are prepared (`npm run set-version`):
- * font rasterisation differs per platform, and the Linux release job only verifies.
+ * font rasterisation differs per platform, and the Linux release job only verifies. The
+ * manifest records the platform a capture actually ran on.
  */
 
 /** Every view the README shows, in the order the capture takes them. The one list. */
@@ -38,7 +39,6 @@ export const SCREENSHOT_LANGUAGES = ["de", "en"];
 
 export const SCREENSHOT_DIRECTORY = "docs/screenshots";
 export const MANIFEST_NAME = "manifest.json";
-export const CAPTURE_PLATFORM = "win32";
 export const CAPTURE_VIEWPORT = { width: 1440, height: 900 };
 
 /** Markdown files whose image links count as README references, and the language each shows. */
@@ -91,14 +91,14 @@ export function languageDirectory(root, language) {
   return join(root, SCREENSHOT_DIRECTORY, language);
 }
 
-export function buildManifest({ root, directory, version }) {
+export function buildManifest({ root, directory, version, platform = process.platform }) {
   const images = {};
   for (const view of README_VIEWS) {
     images[`${view}.png`] = sha256(readFileSync(join(directory, `${view}.png`)));
   }
   return {
     version,
-    platform: CAPTURE_PLATFORM,
+    platform,
     viewport: CAPTURE_VIEWPORT,
     inputs: inputsDigest(root),
     images,

@@ -55,9 +55,21 @@ export function AssistantStatusPanel({
       .join(" ") || undefined;
   const options = [
     ...(serverLocked
-      ? [{ value: "server" as const, label: engineLabels.server, disabled: true }]
+      ? [
+          {
+            value: "server" as const,
+            label: engineLabels.server,
+            disabled: true,
+            // The reason is a tooltip on the greyed-out option, not a standing note; it still
+            // describes the whole switch for screen readers (T-275-F6).
+            hint: t("assistantEngineServerLocked"),
+            hintId: lockNote,
+          },
+        ]
       : []),
     ...choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] })),
+    // The chosen browser engine stays in the switch although this browser cannot run it.
+    ...(choice.blocked ? [{ value: "webllm" as const, label: engineLabels.webllm }] : []),
   ];
   return (
     <>
@@ -77,11 +89,6 @@ export function AssistantStatusPanel({
               onChange={choice.choose}
             />
           )}
-          {serverLocked && (
-            <small id={lockNote} className="assistant-engine-note">
-              {t("assistantEngineServerLocked")}
-            </small>
-          )}
           {choice.browserUnsupported && (
             <small id={browserNote} className="assistant-engine-note">
               {t("assistantEngineBrowserUnsupported")}
@@ -89,7 +96,8 @@ export function AssistantStatusPanel({
           )}
         </div>
       )}
-      {EnginePanel && <EnginePanel />}
+      {/* No model download where the model cannot run: the note above says why (F-275-2). */}
+      {EnginePanel && !choice.blocked && <EnginePanel />}
       <div className="assistant-scope">
         <Database />
         <span>

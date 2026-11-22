@@ -1,8 +1,14 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type BrowserContext, chromium } from "@playwright/test";
+import { type APIRequestContext, type BrowserContext, chromium, type Page } from "@playwright/test";
+import { seedExampleWorld } from "./support/example-world";
 import { ROOT } from "./support/python-process";
-import { startTestHooksServer, type TestHooksServer } from "./support/test-hooks-server";
+import {
+  presentAsHosted,
+  startTestHooksServer,
+  type TestHooksServer,
+} from "./support/test-hooks-server";
 import { test as base, createTestWorld, expect } from "./support/world-fixture";
 
 // The in-browser engine with the real model, end to end (D-T-61-7-E2E, T-61 part 7).
@@ -12,14 +18,27 @@ import { test as base, createTestWorld, expect } from "./support/world-fixture";
 // own with QUILTOR_CSP=enforce and without test hooks, so connect-src is the policy that ships;
 // the cspGuard of the base fixture fails the test on any violation.
 //
+// The context presents the server as a hosted one (presentAsHosted): since D-205 only a hosted
+// server offers "Im Browser", a local installable one offers the server engine alone.
+//
 // QUILTOR_WEBLLM_PROFILE=<dir> keeps the browser profile, and with it WebLLM's model cache, in
 // that directory instead of a temporary one: the 2.5 GB land on a disk of one's choosing.
+// The profile is shared by the tests of the file (worker-scoped), so the model is downloaded
+// once: the first test fetches it, the later ones find it cached.
+// QUILTOR_WEBLLM_FULL=1 adds the last test, "Modell entfernen", which empties that cache again.
+// Without it the model stays in the profile, and the next run starts without a download.
 // QUILTOR_WEBLLM_HEADED=1 runs Chromium headed, for a machine where headless gets no adapter.
 
 const ENABLED = process.env.QUILTOR_WEBLLM_E2E === "1";
 const MODEL_ID = "Qwen3-4B-q4f16_1-MLC";
 const PROFILE = process.env.QUILTOR_WEBLLM_PROFILE;
+// WebLLM keeps the model in the Cache API, which belongs to an origin. A kept profile is
+// only worth keeping when the server comes back on the same port, so with a profile the
+// server takes a fixed one (QUILTOR_WEBLLM_PORT, default 8027) instead of a free one.
+const PORT = PROFILE ? Number(process.env.QUILTOR_WEBLLM_PORT ?? 8027) : undefined;
 const HEADLESS = process.env.QUILTOR_WEBLLM_HEADED !== "1";
+// The full run removes the model at the end; by default the cache stays (T-307).
+const FULL = process.env.QUILTOR_WEBLLM_FULL === "1";
 const ARGS = ["--enable-unsafe-webgpu", "--enable-features=Vulkan"];
 
 const POLICY = JSON.parse(
@@ -36,45 +55,48 @@ function allowedHost(origin: string): boolean {
   });
 }
 
-const test = base.extend<
-  object,
-  { webllmServer: TestHooksServer; profileContext: BrowserContext | null }
->({
-  webllmServer: [
-    // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
-    async ({}, use) => {
-      const server = await startTestHooksServer({ testHooks: false });
-      try {
-        await use(server);
-      } finally {
-        await server.stop();
-      }
+const test = base.extend<object, { webllmServer: TestHooksServer; profileContext: BrowserContext }>(
+  {
+    webllmServer: [
+      // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
+      async ({}, use) => {
+        const server = await startTestHooksServer({ testHooks: false, port: PORT });
+        try {
+          await use(server);
+        } finally {
+          await server.stop();
+        }
+      },
+      { scope: "worker", timeout: 120_000 },
+    ],
+    baseURL: async ({ webllmServer }, use) => use(webllmServer.url),
+    // Worker-scoped, so the world cleanup that runs on page.request after page.close() still
+    // finds the context open; a test-scoped persistent context is gone by then.
+    profileContext: [
+      async ({ webllmServer }, use) => {
+        const dir = PROFILE ?? mkdtempSync(join(tmpdir(), "quiltor-webllm-"));
+        mkdirSync(dir, { recursive: true });
+        const persistent = await chromium.launchPersistentContext(dir, {
+          headless: HEADLESS,
+          args: ARGS,
+          baseURL: webllmServer.url,
+          viewport: { width: 1440, height: 900 },
+        });
+        try {
+          await use(persistent);
+        } finally {
+          await persistent.close();
+          if (!PROFILE) rmSync(dir, { recursive: true, force: true });
+        }
+      },
+      { scope: "worker", timeout: 120_000 },
+    ],
+    context: async ({ profileContext }, use) => {
+      await presentAsHosted(profileContext);
+      await use(profileContext);
     },
-    { scope: "worker", timeout: 120_000 },
-  ],
-  baseURL: async ({ webllmServer }, use) => use(webllmServer.url),
-  // Worker-scoped, so the world cleanup that runs on page.request after page.close() still
-  // finds the context open; a test-scoped persistent context is gone by then.
-  profileContext: [
-    async ({ webllmServer }, use) => {
-      if (!PROFILE) return use(null);
-      mkdirSync(PROFILE, { recursive: true });
-      const persistent = await chromium.launchPersistentContext(PROFILE, {
-        headless: HEADLESS,
-        args: ARGS,
-        baseURL: webllmServer.url,
-        viewport: { width: 1440, height: 900 },
-      });
-      try {
-        await use(persistent);
-      } finally {
-        await persistent.close();
-      }
-    },
-    { scope: "worker", timeout: 120_000 },
-  ],
-  context: async ({ context, profileContext }, use) => use(profileContext ?? context),
-});
+  },
+);
 
 // At file level, so a skipped run starts no server either.
 test.skip(
@@ -87,11 +109,67 @@ test.use({
   launchOptions: { args: ARGS },
 });
 
+/** The text the server sends when the read step could not finish (completion.py). */
+const READ_STEP_FALLBACK = "Der sichere Leseschritt konnte nicht abgeschlossen werden.";
+/** Figures of the example world an answer may name. */
+const EXAMPLE_FIGURES = ["Mara", "Iven", "Oda", "Tilo", "Ada", "Bela", "Lumen"];
+
+/** Asks the open drawer who is in the world, waits for the job and checks the drawer shows it. */
+async function askAndRead(page: Page, request: APIRequestContext, worldId: string) {
+  const drawer = page.getByRole("complementary", { name: "Lokaler Assistent" });
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/assistant/jobs" &&
+      response.request().method() === "POST",
+  );
+  await drawer
+    .getByRole("textbox", { name: "Nachricht an den lokalen Assistenten" })
+    .fill("Wer kommt in dieser Welt vor?");
+  await drawer.getByRole("button", { name: "Nachricht senden" }).click();
+  const response = await created;
+  expect(response.status(), await response.text()).toBe(202);
+  expect(response.request().postDataJSON().engine?.kind).not.toBe("server");
+  const jobId = ((await response.json()) as { job: { id: string } }).job.id;
+
+  const asked = Date.now();
+  let job: { status: string; result?: { message?: string } | null; error?: string } = {
+    status: "",
+  };
+  await expect
+    .poll(
+      async () => {
+        const read = await request.get(`/api/assistant/job?id=${jobId}&world=${worldId}`);
+        job = ((await read.json()) as { job: typeof job }).job;
+        return job.status;
+      },
+      { timeout: 15 * 60_000, intervals: [2_000] },
+    )
+    .toMatch(/^(completed|failed|cancelled)$/);
+  const answerSeconds = Math.round((Date.now() - asked) / 1000);
+  expect(job.status, job.error).toBe("completed");
+  const answer = (job.result?.message ?? "").trim();
+  expect(answer.length).toBeGreaterThan(0);
+  expect(answer, "the read step ended in the fallback text").not.toContain(READ_STEP_FALLBACK);
+  // The drawer polls the job ever less often (up to ~7 s apart near the end, T-61 diagnosis).
+  await expect(drawer.getByText(answer.slice(0, 40), { exact: false }).first()).toBeVisible({
+    timeout: 30_000,
+  });
+  return {
+    answerSeconds,
+    answerLength: answer.length,
+    names: EXAMPLE_FIGURES.filter((name) => answer.includes(name)),
+  };
+}
+
+/** Stops the load-phase samplers of the test that just ended. */
+const stopSamplers: (() => void)[] = [];
+
 /** What the run measured, reported even when an assertion fails half-way. */
 let lastLog: Record<string, unknown> | null = null;
 
 // biome-ignore lint/correctness/noEmptyPattern: Playwright reads the dependencies from the pattern.
 test.afterEach(async ({}, testInfo) => {
+  for (const stop of stopSamplers.splice(0)) stop();
   if (!lastLog) return;
   const report = JSON.stringify(lastLog, null, 2);
   console.log(`[webllm-real-model]\n${report}`);
@@ -99,16 +177,8 @@ test.afterEach(async ({}, testInfo) => {
   lastLog = null;
 });
 
-test("The in-browser engine answers with the real model under an enforced CSP", async ({
-  page,
-  context,
-  request,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
-  test.setTimeout(60 * 60_000);
-
-  const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };
-  lastLog = log;
+/** Records the hosts the page talks to and the CSP messages of its console. */
+function watchNetwork(page: Page, context: BrowserContext) {
   const consoleCsp: string[] = [];
   const origins = new Set<string>();
   page.on("console", (message) => {
@@ -118,9 +188,22 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
     const url = new URL(req.url());
     if (url.protocol.startsWith("http")) origins.add(url.origin);
   });
+  return {
+    /** Puts the hosts into `log`, then asserts that all of them are allowed and the console is clean. */
+    check(log: Record<string, unknown>) {
+      const own = new URL(page.url()).origin;
+      const foreign = [...origins].filter((origin) => origin !== own).sort();
+      log.hosts = foreign.map((origin) => ({ origin, allowed: allowedHost(origin) }));
+      log.consoleCsp = consoleCsp;
+      expect(consoleCsp).toEqual([]);
+      expect(foreign.filter((origin) => !allowedHost(origin))).toEqual([]);
+    },
+  };
+}
 
-  const world = await createTestWorld(page, "KI im Browser mit echtem Modell");
-  await page.goto(`/?world=${world.id}`);
+/** Opens a world, selects "Im Browser" and gets the model loaded (or finds it cached). */
+async function prepareEngine(page: Page, log: Record<string, unknown>, worldId: string) {
+  await page.goto(`/?world=${worldId}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript" })).toBeVisible();
 
   log.adapter = await page.evaluate(async () => {
@@ -169,52 +252,117 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
   );
   await expect(download.or(cached)).toBeVisible({ timeout: 60_000 });
   log.cachedBefore = await cached.isVisible();
-  // A model left in the profile (QUILTOR_WEBLLM_PROFILE) is loaded by the first job instead.
+  log.origin = new URL(page.url()).origin;
+  // Where the time goes: the panel's own status line, sampled once a second, with the seconds
+  // since the engine was chosen (download, loading from the cache, shader compilation).
+  const phases: { s: number; text: string }[] = [];
+  log.loadPhases = phases;
+  // Every state that needs action is an alert; a loaded model is only a quiet status line
+  // with its removal in the "Modell-Aktionen" menu (T-275-F6).
+  const status = drawer
+    .getByRole("alert")
+    .filter({ hasText: "KI im Browser" })
+    .or(drawer.getByText("Im Browser · geladen", { exact: true }));
+  const sampler = setInterval(() => {
+    void status
+      .innerText({ timeout: 500 })
+      .then((text) => {
+        const line = text.replace(/\s+/g, " ").replace(/\d+%/, "%").trim();
+        if (phases.at(-1)?.text !== line) {
+          phases.push({ s: Math.round((Date.now() - started) / 1000), text: line });
+        }
+      })
+      .catch(() => undefined);
+  }, 1000);
+  page.once("close", () => clearInterval(sampler));
+  stopSamplers.push(() => clearInterval(sampler));
+  // A model already in the profile (an earlier test, or QUILTOR_WEBLLM_PROFILE) is loaded by
+  // the first job instead.
   if (!log.cachedBefore) await download.click();
   await expect(browserEngine).toBeChecked();
   if (!log.cachedBefore) {
-    await expect(
-      drawer.getByText("Das Modell ist geladen und rechnet auf diesem Gerät."),
-    ).toBeVisible({ timeout: 45 * 60_000 });
+    await expect(drawer.getByText("Im Browser · geladen", { exact: true })).toBeVisible({
+      timeout: 45 * 60_000,
+    });
   }
   log.loadSeconds = Math.round((Date.now() - started) / 1000);
+  return { drawer, browserEngine };
+}
 
-  const created = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/assistant/jobs" &&
-      response.request().method() === "POST",
-  );
-  await drawer
-    .getByRole("textbox", { name: "Nachricht an den lokalen Assistenten" })
-    .fill("Wer kommt in dieser Welt vor?");
-  await drawer.getByRole("button", { name: "Nachricht senden" }).click();
-  const response = await created;
-  expect(response.status(), await response.text()).toBe(202);
-  expect(response.request().postDataJSON().engine?.kind).not.toBe("server");
-  const jobId = ((await response.json()) as { job: { id: string } }).job.id;
+// The three tests share one profile and run in order: the first fetches the model, the last
+// removes it again.
+test.describe.configure({ mode: "serial" });
 
-  const asked = Date.now();
-  let job: { status: string; result?: { message?: string } | null; error?: string } = {
-    status: "",
-  };
-  await expect
-    .poll(
-      async () => {
-        const read = await request.get(`/api/assistant/job?id=${jobId}&world=${world.id}`);
-        job = ((await read.json()) as { job: typeof job }).job;
-        return job.status;
-      },
-      { timeout: 15 * 60_000, intervals: [2_000] },
-    )
-    .toMatch(/^(completed|failed|cancelled)$/);
-  log.answerSeconds = Math.round((Date.now() - asked) / 1000);
-  expect(job.status, job.error).toBe("completed");
-  const answer = (job.result?.message ?? "").trim();
-  log.answerLength = answer.length;
-  expect(answer.length).toBeGreaterThan(0);
-  await expect(drawer.getByText(answer.slice(0, 40), { exact: false }).first()).toBeVisible();
+test("The in-browser engine answers on an empty world with the real model under an enforced CSP", async ({
+  page,
+  context,
+  request,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
+  test.setTimeout(60 * 60_000);
 
-  await drawer.getByRole("button", { name: "Modell entfernen" }).click();
+  const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };
+  lastLog = log;
+  const network = watchNetwork(page, context);
+  const world = await createTestWorld(page, "KI im Browser mit echtem Modell");
+  await prepareEngine(page, log, world.id);
+
+  // An empty world: there the model looks up ids that do not exist, and a "not found" once
+  // ended the read step with the fallback text (T-61 diagnosis, D-218).
+  log.empty = await askAndRead(page, request, world.id);
+  network.check(log);
+});
+
+test("The in-browser engine answers on the example world with the real model", async ({
+  page,
+  context,
+  request,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
+  test.setTimeout(60 * 60_000);
+
+  const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };
+  lastLog = log;
+  const network = watchNetwork(page, context);
+  const world = await createTestWorld(page, "KI im Browser mit echtem Modell");
+  const { browserEngine } = await prepareEngine(page, log, world.id);
+
+  // The example world, so the answer has something to read.
+  const seeded = await seedExampleWorld(page);
+  await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
+  await expect(browserEngine).toBeChecked();
+  log.seeded = await askAndRead(page, request, seeded.id);
+  expect(
+    (log.seeded as { names: string[] }).names.length,
+    "the answer about the example world names none of its figures",
+  ).toBeGreaterThan(0);
+  network.check(log);
+});
+
+test("The in-browser engine removes the model and leaves no foreign host or CSP violation", async ({
+  page,
+  context,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "One viewport is enough for a 2.5 GB download.");
+  test.skip(!FULL, "Needs QUILTOR_WEBLLM_FULL=1: removing the model empties the kept cache.");
+  test.setTimeout(60 * 60_000);
+
+  const log: Record<string, unknown> = { model: MODEL_ID, profile: PROFILE ?? "(temporary)" };
+  lastLog = log;
+  const network = watchNetwork(page, context);
+  const world = await createTestWorld(page, "KI im Browser mit echtem Modell");
+  const { drawer } = await prepareEngine(page, log, world.id);
+
+  // Only in the cache, the panel keeps the button; loaded, the removal sits in the menu.
+  const removeButton = drawer.getByRole("button", { name: "Modell entfernen" });
+  const actions = drawer.getByRole("button", { name: "Modell-Aktionen" });
+  await expect(removeButton.or(actions)).toBeVisible({ timeout: 60_000 });
+  if (await actions.isVisible()) {
+    await actions.click();
+    await page.getByRole("menuitem", { name: "Modell entfernen" }).click();
+  } else {
+    await removeButton.click();
+  }
   await expect(drawer.getByRole("button", { name: "Modell herunterladen" })).toBeVisible({
     timeout: 60_000,
   });
@@ -250,12 +398,7 @@ test("The in-browser engine answers with the real model under an enforced CSP", 
     return `${Math.round((estimate.usage ?? 0) / 1e6)} MB`;
   });
 
-  const own = new URL(page.url()).origin;
-  const foreign = [...origins].filter((origin) => origin !== own).sort();
-  log.hosts = foreign.map((origin) => ({ origin, allowed: allowedHost(origin) }));
-  log.consoleCsp = consoleCsp;
-  expect(consoleCsp).toEqual([]);
-  expect(foreign.filter((origin) => !allowedHost(origin))).toEqual([]);
+  network.check(log);
   // WebLLM 0.2.86's deleteModelAllInfoInCache leaves the model's tensor-cache.json behind
   // (measured: one entry, storage 0 MB). That index is a few kilobytes; the shards are gone.
   // Anything else left over fails, and so does storage that did not drop.

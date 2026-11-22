@@ -164,6 +164,7 @@ visuellen Zustände werden zusätzlich durch die maschinenlesbare Auditmatrix un
 | `Tabs`             | Zugängliche Tab-Navigation und Panels                     |
 | `Toast`            | Flüchtige Statusmeldung und Toast-Region                  |
 | `ToolbarButton`    | Einheitliche Toolbar-Aktion mit responsivem Label         |
+| `Tooltip`          | Kurze Zusatzhilfe bei Hover, Fokus und Tippen             |
 | `UndoRedoControls` | Gekoppelte Undo-/Redo-Aktionen                            |
 | `WorkspaceToolbar` | Struktur und Gruppierung eines Workspace-Kontexts         |
 

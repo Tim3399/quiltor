@@ -4887,6 +4887,30 @@ class ReleaseNotesStartTests(unittest.TestCase):
 EXAMPLE_WORLD_SOURCE = REPO_ROOT / "src/quiltor/resources/example_world"
 
 
+def _packaged_package_data() -> list[str]:
+    """Non-Python files under src/quiltor that the package configuration packs as they are.
+
+    `resources/` is covered by the fixed resource list and the pyproject `exclude` entries
+    are generated (build profile) or left out (the MCP README), so what remains is data that
+    ships just because it sits next to the code, such as the CSP policy.
+    """
+    import tomllib
+
+    source = REPO_ROOT / "src/quiltor"
+    config = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    excluded = {
+        name.removeprefix("src/quiltor/") for name in config["tool"]["hatch"]["build"]["exclude"]
+    }
+    return sorted(
+        name
+        for name in artifact_profile._source_files(source)
+        if not name.endswith((".py", ".pyi", ".pyc"))
+        and "__pycache__" not in name
+        and not name.startswith("resources/")
+        and name not in excluded
+    )
+
+
 def _wheel_names() -> dict[str, bytes]:
     """Every member a built wheel holds, as the build would pack it.
 
@@ -4901,6 +4925,8 @@ def _wheel_names() -> dict[str, bytes]:
         for name in artifact_profile._source_files(source)
         if name.endswith((".py", ".pyi"))
     }
+    for name in _packaged_package_data():
+        members[f"quiltor/{name}"] = b""
     for name in artifact_profile.FIXED_RESOURCE_SOURCES:
         if not name.startswith("example_world/"):
             members[f"quiltor/resources/{name}"] = b""
@@ -4938,6 +4964,13 @@ class ShippedExampleWorldTests(unittest.TestCase):
             wheel = _write_wheel(directory, _wheel_names())
             artifact_profile._verify_wheel_payload(wheel)
             artifact_profile._verify_example_world(wheel, artifact_profile.RESOURCE_PREFIX)
+
+    def test_package_data_is_allowed_in_the_wheel_and_the_sdist(self):
+        data = _packaged_package_data()
+        self.assertIn("bootstrap/csp-policy.json", data)
+        for name in data:
+            with self.subTest(file=name):
+                self.assertIn(f"src/quiltor/{name}", artifact_profile.SDIST_FIXED_SOURCES)
 
     def test_the_shipped_documents_carry_no_id_of_the_check_part(self):
         # The real files as they are checked in: a ship built with the check part fails here.

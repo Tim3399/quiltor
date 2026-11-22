@@ -47,6 +47,10 @@ CALIBRATION_MAX = 2.0
 SAFETY_MARGIN = 1.1
 #: How much a new measurement moves the calibration (exponential smoothing).
 SMOOTHING = 0.5
+# Where the estimate starts before the first answer has calibrated it (T-307). Measured for
+# Qwen3 in WebLLM: llama counted 6333 tokens where the raw estimate (chars / 3, before the
+# safety margin) said 7095, a ratio of 0.89. Other client engines start at 1.0.
+INITIAL_CALIBRATION = {"webllm": 0.9}
 
 
 def _prompt_text(payload: dict[str, Any]) -> str:
@@ -77,7 +81,7 @@ class RelayInferenceEngine:
         self._job_deadline = clock() + job_seconds
         self._job_seconds = job_seconds
         self._answer_seconds = dict(ANSWER_SECONDS if answer_seconds is None else answer_seconds)
-        self._calibration = 1.0
+        self._calibration = INITIAL_CALIBRATION.get(str(self._engine.get("kind")), 1.0)
         # Set by close(): a closed engine opens no further ticket (F-61-12). The pipeline
         # may call invoke again between two model calls after the job was cancelled.
         self._closed = False

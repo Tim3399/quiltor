@@ -251,8 +251,14 @@ def reply_schema(allowed_kinds: Iterable[str] | None = None) -> dict[str, Any]:
 def tool_step_schema(
     tool_catalog: Iterable[Mapping[str, Any]],
     allowed_kinds: Iterable[str] | None = None,
+    *,
+    final_only: bool = False,
 ) -> dict[str, Any]:
-    """Strict JSON step contract for runtimes without native function calling."""
+    """Strict JSON step contract for runtimes without native function calling.
+
+    ``final_only`` leaves out the tool-call branch: the last call of a read loop whose budget
+    or rounds are used up may only answer (T-307).
+    """
 
     calls = []
     for spec in tool_catalog:
@@ -268,6 +274,15 @@ def tool_step_schema(
                 },
             )
         )
+    final_step = _object(
+        ["action", "final"],
+        {
+            "action": {"enum": ["final"]},
+            "final": reply_schema(allowed_kinds),
+        },
+    )
+    if final_only:
+        return _object([STEP_KEY], {STEP_KEY: {"anyOf": [final_step]}})
     step = {
         "anyOf": [
             _object(
@@ -282,13 +297,7 @@ def tool_step_schema(
                     },
                 },
             ),
-            _object(
-                ["action", "final"],
-                {
-                    "action": {"enum": ["final"]},
-                    "final": reply_schema(allowed_kinds),
-                },
-            ),
+            final_step,
         ]
     }
     return _object([STEP_KEY], {STEP_KEY: step})

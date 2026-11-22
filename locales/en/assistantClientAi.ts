@@ -31,6 +31,8 @@ export const assistantClientAi = {
   webllmDownloading: "Loading the model …",
   webllmCached: "The model is on this device and loads with the first request.",
   webllmReady: "The model is loaded and runs on this device.",
+  webllmReadyStatus: "In the browser · loaded",
+  webllmModelActions: "Model actions",
   webllmRemoveModel: "Remove model",
   webllmError: "The model could not be loaded: {error}",
 };

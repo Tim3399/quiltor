@@ -375,7 +375,8 @@ class RelayOutputTests(RelayTestCase):
         call.join()
 
     def test_the_calibration_follows_the_browser_but_only_so_far(self):
-        estimate = self.engine.count_tokens("y" * 300)
+        # A webllm engine starts at 0.9 (T-307); the bound is relative to calibration 1.0.
+        estimate = self.engine.count_tokens("y" * 300) / self.engine.calibration
         self._answered(_output("{}", usage={"promptTokens": 1_000_000}))
         self._answered(_output("{}", usage={"promptTokens": 1_000_000}))
         self.assertEqual(self.engine.calibration, 2.0)

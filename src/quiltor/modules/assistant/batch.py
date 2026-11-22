@@ -308,6 +308,15 @@ def run_batches(
                     "index": index,
                     "chapterIds": group,
                     "proposalKinds": [item.get("kind") for item in proposals],
+                    # The prompt parts of this group's model call (T-307), for the trace reader.
+                    "budget": next(
+                        (
+                            step
+                            for step in result.get("agentTrace") or []
+                            if isinstance(step, dict) and step.get("step") == "budget"
+                        ),
+                        None,
+                    ),
                 }
             )
             if progress_id:

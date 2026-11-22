@@ -23,6 +23,7 @@ export * from "./components/SidePanel";
 export * from "./components/StatusBar";
 export * from "./components/Tabs";
 export * from "./components/Toast";
+export * from "./components/Tooltip";
 export * from "./components/ToolbarButton";
 export * from "./components/UndoRedoControls";
 export * from "./components/WorkspaceToolbar";

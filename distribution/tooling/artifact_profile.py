@@ -66,6 +66,7 @@ SDIST_FIXED_SOURCES = {
     "distribution/profiles/python-package.json",
     "contracts/fixtures/mcp/tools.v1.json",
     "src/quiltor/infrastructure/platform/quiltor-build-profile.json",
+    "src/quiltor/bootstrap/csp-policy.json",
     "src/quiltor/resources/contracts/mcp/tools.v1.json",
 }
 
@@ -234,6 +235,7 @@ def _verify_wheel_payload(path: Path) -> None:
     allowed_package_non_python = {
         f"{PACKAGE_PREFIX}VERSION",
         f"{PACKAGE_PREFIX}infrastructure/platform/quiltor-build-profile.json",
+        f"{PACKAGE_PREFIX}bootstrap/csp-policy.json",
         *(f"{RESOURCE_PREFIX}{name}" for name in expected_resources),
     }
     expected_python = {

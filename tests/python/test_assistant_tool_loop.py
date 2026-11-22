@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from quiltor.modules.assistant.ports import InferenceValidationError
 from quiltor.modules.assistant.tool_loop import (
     EXPECTED_READ_TOOL_NAMES,
+    INVALID_STEP_NOTE,
     MAX_CALLS_PER_ROUND,
     MAX_TOOL_CALLS,
     MAX_TOOL_RESULT_CHARS,
@@ -74,6 +76,18 @@ def envelope(name="resolve_entity", result=None, *, revision=3, ok=True):
     }
 
 
+def not_found(name="resolve_entity", *, revision=3, code="not_found"):
+    """The read tools' own failure envelope (read_tools._error)."""
+    return {
+        "name": name,
+        "ok": False,
+        "readOnly": True,
+        "sideEffectFree": True,
+        "worldRevision": revision,
+        "error": {"code": code, "message": "The requested exact reference was not found."},
+    }
+
+
 class FakeReadTools:
     def __init__(self, *, tool_catalog=None, execute=None):
         self._catalog = tuple(tool_catalog or catalog())
@@ -98,16 +112,21 @@ class FakeReadTools:
 
 
 class AssistantToolLoopTests(unittest.TestCase):
-    def _run(self, replies, *, execute=None, count_tokens=None, tool_catalog=None):
+    def _run(self, replies, *, execute=None, count_tokens=None, tool_catalog=None, respond=None):
         calls = []
         replies = list(replies)
         read_tools = FakeReadTools(tool_catalog=tool_catalog, execute=execute)
 
         def invoke(request, prompt_tokens):
             calls.append((request, prompt_tokens))
+            if respond is not None:
+                return {"step": respond(request)}
             if not replies:
                 raise AssertionError("unexpected model step")
-            return {"step": replies.pop(0)}
+            reply = replies.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return {"step": reply}
 
         result = run_tool_loop(
             payload(),
@@ -161,18 +180,23 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.trace[0]["status"], "accepted")
 
     def test_unknown_or_write_tool_is_rejected_without_execution(self):
+        # Since D-219 (T-307) an invalid step gets a hint and then a final-only call; only a
+        # third invalid step ends the loop. Nothing is executed on the way.
         executed = []
-        result, _calls, _read_tools = self._run(
-            [call_step("write_world")],
+        result, calls, _read_tools = self._run(
+            [call_step("write_world")] * 3,
             execute=lambda requested: executed.append(requested) or (),
         )
 
+        self.assertEqual(len(calls), 3)
         self.assertEqual(executed, [])
         self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertIsNone(result.final)
 
     def test_more_than_six_calls_in_one_step_is_rejected(self):
-        result, _calls, _read_tools = self._run([call_step(count=MAX_CALLS_PER_ROUND + 1)])
+        # Since D-219 (T-307) an invalid step gets a hint and then a final-only call; only a
+        # third invalid step ends the loop. Nothing is executed on the way.
+        result, _calls, _read_tools = self._run([call_step(count=MAX_CALLS_PER_ROUND + 1)] * 3)
 
         self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertEqual(result.tool_calls, 0)
@@ -208,7 +232,8 @@ class AssistantToolLoopTests(unittest.TestCase):
         )
 
         self.assertEqual(len(executions), MAX_TOOL_ROUNDS)
-        self.assertEqual(result.failure, "tool_round_limit")
+        # After round four only a final step is allowed (T-307); a fifth tool step is invalid.
+        self.assertEqual(result.failure, "invalid_tool_calls")
         self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
         self.assertIsNone(result.final)
 
@@ -222,6 +247,215 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.tool_rounds, 1)
         self.assertEqual(result.tool_calls, 1)
         self.assertEqual(result.trace[0]["status"], "rejected")
+
+    def test_not_found_goes_back_to_the_model_and_the_loop_completes(self):
+        # An empty world: the model looks up an id that does not exist (T-61 WebLLM run).
+        def execute(requested):
+            return tuple(not_found(call["name"]) for call in requested)
+
+        result, calls, _read_tools = self._run(
+            [call_step("get_entity", {"elementId": "new:world"}), final_step("nobody yet")],
+            execute=execute,
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "nobody yet")
+        returned = calls[1][0]["messages"][-1]["content"]
+        # Only the code and the fixed short message reach the model: no paths, no traceback.
+        self.assertIn(
+            '{"name":"get_entity","ok":false,"readOnly":true,"sideEffectFree":true,'
+            '"worldRevision":3,"error":{"code":"not_found",'
+            '"message":"The requested exact reference was not found."}}',
+            returned,
+        )
+        self.assertNotIn("Traceback", returned)
+        self.assertEqual(result.trace[0]["status"], "error_returned")
+        self.assertIs(result.trace[0]["ok"], False)
+
+    def test_error_without_read_only_promise_still_fails_closed(self):
+        result, _calls, _read_tools = self._run(
+            [call_step(), final_step()],
+            execute=lambda requested: tuple(
+                {**not_found(call["name"]), "readOnly": False} for call in requested
+            ),
+        )
+
+        self.assertEqual(result.failure, "tool_execution_rejected")
+        self.assertEqual(result.trace[0]["status"], "rejected")
+
+    def test_error_from_another_world_revision_still_fails_closed(self):
+        result, _calls, _read_tools = self._run(
+            [call_step(), final_step()],
+            execute=lambda requested: tuple(
+                not_found(call["name"], revision=4) for call in requested
+            ),
+        )
+
+        self.assertEqual(result.failure, "tool_execution_rejected")
+
+    def test_returned_errors_still_count_against_the_round_limit(self):
+        result, _calls, _read_tools = self._run(
+            [call_step() for _index in range(MAX_TOOL_ROUNDS + 1)],
+            execute=lambda requested: tuple(not_found(call["name"]) for call in requested),
+        )
+
+        # After round four only a final step is allowed (T-307); a fifth tool step is invalid.
+        self.assertEqual(result.failure, "invalid_tool_calls")
+        self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
+
+    def test_budget_errors_are_not_returned_to_the_model(self):
+        # result_too_large joined the returnable codes after D-218 (T-307); see the test below.
+        for code in ("too_many_calls", "invalid_snapshot"):
+            with self.subTest(code=code):
+                result, _calls, _read_tools = self._run(
+                    [call_step(), final_step()],
+                    execute=lambda requested, code=code: tuple(
+                        not_found(call["name"], code=code) for call in requested
+                    ),
+                )
+                self.assertEqual(result.failure, "tool_execution_rejected")
+
+    # --- T-307: the read budget ends in an answer, not in the fallback text ---------------
+
+    def _final_only(self, request) -> bool:
+        schema = request["response_format"]["json_schema"]["schema"]
+        branches = schema["properties"]["step"]["anyOf"]
+        return [branch["properties"]["action"]["enum"] for branch in branches] == [["final"]]
+
+    def test_a_result_over_the_budget_goes_back_as_result_too_large(self):
+        # A system prompt of ~6000 words leaves the round room for ~1000 words, not 4000.
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "wort " * 4000}) for call in requested)
+
+        result, calls, _read_tools = self._run(
+            [call_step(), final_step("narrower")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 6000 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "narrower")
+        self.assertIn('"code":"result_too_large"', calls[1][0]["messages"][-1]["content"])
+        self.assertEqual(result.trace[0]["status"], "error_returned")
+
+    def test_no_room_for_another_round_asks_once_more_for_an_answer_only(self):
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "wort " * 700}) for call in requested)
+
+        result, calls, _read_tools = self._run(
+            [call_step(), final_step("from what I have")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 6000 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "from what I have")
+        self.assertFalse(self._final_only(calls[0][0]))
+        self.assertTrue(self._final_only(calls[1][0]))
+        self.assertIn("READ BUDGET USED UP", calls[1][0]["messages"][-1]["content"])
+
+    def test_after_the_last_round_the_model_may_only_answer(self):
+        result, calls, _read_tools = self._run(
+            [*(call_step() for _index in range(MAX_TOOL_ROUNDS)), final_step("four rounds")]
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
+        self.assertEqual(len(calls), MAX_TOOL_ROUNDS + 1)
+        self.assertTrue(self._final_only(calls[-1][0]))
+        self.assertFalse(any(self._final_only(call[0]) for call in calls[:-1]))
+
+    def test_four_rounds_of_a_thousand_tokens_end_in_an_answer(self):
+        # The example world's first prompt on llama was 6333 tokens (T-307 confirmation).
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "wort " * 1024}) for call in requested)
+
+        # Like a real engine: a tool step while tools are offered, an answer once only final is.
+        result, _calls, _read_tools = self._run(
+            [],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 4500 * ("System." in text),
+            respond=lambda request: (
+                final_step("answered") if self._final_only(request) else call_step()
+            ),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "answered")
+
+    def test_a_long_step_message_counts_with_its_real_length(self):
+        def execute(requested):
+            return tuple(envelope(call["name"], {"text": "kurz"}) for call in requested)
+
+        long_step = call_step(arguments={"mention": "wort " * 2500})
+        result, calls, _read_tools = self._run(
+            [long_step, final_step("short")],
+            execute=execute,
+            count_tokens=lambda text: len(text.split()) + 5000 * ("System." in text),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertTrue(self._final_only(calls[1][0]))
+        self.assertEqual(result.trace[0]["status"], "budget_exhausted")
+
+    def test_the_adapters_own_result_too_large_goes_back_to_the_model(self):
+        result, calls, _read_tools = self._run(
+            [call_step(), final_step("smaller then")],
+            execute=lambda requested: tuple(
+                not_found(call["name"], code="result_too_large") for call in requested
+            ),
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertIn('"code":"result_too_large"', calls[1][0]["messages"][-1]["content"])
+
+    # --- D-219 addendum (T-307): an invalid step gets one second chance --------------------
+
+    def test_an_invalid_step_gets_a_hint_and_the_next_valid_step_answers(self):
+        schema_error = InferenceValidationError("schema: $.step anyOf")
+        result, calls, _read_tools = self._run([schema_error, final_step("second try")])
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "second try")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1][0]["messages"][-1]["content"], INVALID_STEP_NOTE)
+        self.assertFalse(self._final_only(calls[1][0]))
+        self.assertIn({"step": "tool_step_invalid", "count": 1}, result.trace)
+
+    def test_two_invalid_steps_lead_to_a_final_only_call(self):
+        schema_error = InferenceValidationError("schema: $.step anyOf")
+        result, calls, _read_tools = self._run(
+            [schema_error, call_step("write_world"), final_step("answer only")]
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "answer only")
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(self._final_only(calls[2][0]))
+        self.assertIn("READ BUDGET USED UP", calls[2][0]["messages"][-1]["content"])
+
+    def test_the_hint_carries_a_code_and_a_fixed_message_only(self):
+        schema_error = InferenceValidationError("schema: $.step.toolCalls[0].arguments maxItems")
+        _result, calls, _read_tools = self._run([schema_error, final_step()])
+
+        hint = calls[1][0]["messages"][-1]["content"]
+        self.assertIn('"code":"invalid_step"', hint)
+        for internal in ("$.", "maxItems", "anyOf", "Traceback", "schema:"):
+            self.assertNotIn(internal, hint)
+
+    def test_an_invalid_step_does_not_change_the_round_limit(self):
+        result, calls, _read_tools = self._run(
+            [
+                call_step(count=MAX_CALLS_PER_ROUND + 1),
+                *(call_step() for _index in range(MAX_TOOL_ROUNDS)),
+                final_step("four rounds"),
+            ]
+        )
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(result.tool_rounds, MAX_TOOL_ROUNDS)
+        self.assertEqual(len(calls), MAX_TOOL_ROUNDS + 2)
+        self.assertTrue(self._final_only(calls[-1][0]))
 
     def test_execution_error_is_counted_and_traced(self):
         def fail_execution(_requested):
@@ -275,8 +509,10 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertEqual(result.trace[0]["status"], "result_limit")
 
     def test_final_action_cannot_smuggle_tool_calls(self):
+        # Since D-219 (T-307) an invalid step gets a hint and then a final-only call; only a
+        # third invalid step ends the loop. Nothing is executed on the way.
         step = {**final_step(), "toolCalls": []}
-        result, _calls, _read_tools = self._run([step])
+        result, _calls, _read_tools = self._run([step] * 3)
 
         self.assertEqual(result.failure, "invalid_final_step")
         self.assertIsNone(result.final)

@@ -35,6 +35,8 @@ export const assistantClientAi = {
   webllmDownloading: "Lade das Modell …",
   webllmCached: "Das Modell liegt auf diesem Gerät und wird beim ersten Auftrag geladen.",
   webllmReady: "Das Modell ist geladen und rechnet auf diesem Gerät.",
+  webllmReadyStatus: "Im Browser · geladen",
+  webllmModelActions: "Modell-Aktionen",
   webllmRemoveModel: "Modell entfernen",
   webllmError: "Das Modell ließ sich nicht laden: {error}",
 };

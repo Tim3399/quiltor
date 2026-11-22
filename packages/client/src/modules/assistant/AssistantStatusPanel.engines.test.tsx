@@ -132,12 +132,23 @@ describe("engine choice in the assistant status (T-61, D-205, T-275 Nachtrag 3)"
     vi.stubGlobal("navigator", { ...navigator, gpu: {} });
     renderPanel({ clientAi: true, multiUser: true }, false);
     const choice = screen.getByRole("radiogroup", { name: "KI-Engine" });
-    expect(screen.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Server-KI" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.getByRole("radio", { name: "Eigener Schlüssel" })).toBeChecked();
     // The reason describes the switch, so a screen reader reads it with the focused choice.
     expect(choice).toHaveAccessibleDescription(
       "Die Server-KI steht nur mit Premium-Berechtigung zur Verfügung.",
     );
+    // The reason is no standing note but a tooltip on the greyed-out option (T-275-F6).
+    const server = screen.getByRole("radio", { name: "Server-KI" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(server).toHaveAccessibleDescription(LOCKED);
+    fireEvent.focus(server);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(LOCKED);
+    fireEvent.click(server);
+    expect(server).not.toBeChecked();
     expect(screen.getByText("Schlüssel-Panel")).toBeInTheDocument();
     expect(screen.queryByText("Lokales Modell nicht erreichbar")).not.toBeInTheDocument();
   });
@@ -159,7 +170,10 @@ describe("the product's browser engine on a hosted server (D-T-275-F1)", () => {
     vi.stubGlobal("navigator", { ...navigator, gpu: {} });
     renderPanel({ clientAi: true, multiUser: true }, false);
     expect(await screen.findByRole("radio", { name: "Im Browser" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Server-KI" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.getByRole("radiogroup", { name: "KI-Engine" })).toHaveAccessibleDescription(
       LOCKED,
     );
@@ -173,7 +187,10 @@ describe("the product's browser engine on a hosted server (D-T-275-F1)", () => {
     renderPanel({ clientAi: true, multiUser: true }, false);
     await settle();
     const choice = await screen.findByRole("radiogroup", { name: "KI-Engine" });
-    expect(screen.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Server-KI" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(screen.queryByRole("radio", { name: "Im Browser" })).not.toBeInTheDocument();
     // Both reasons describe the switch, so the focused choice reads them out.
     expect(choice).toHaveAccessibleDescription(`${LOCKED} ${NO_WEBGPU}`);
