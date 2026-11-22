@@ -26,8 +26,14 @@ export const assistantClientAi = {
     "Der Anbieter hat die Anfrage abgelehnt. Prüfe deinen Schlüssel und versuche es noch einmal.",
   assistantEngineErrorContextTooLarge:
     "Die Anfrage ist zu groß für das Modell im Browser. Wähle oben unter „KI-Engine“ eine andere Engine.",
-  assistantEngineErrorWorldTooLarge:
-    "Diese Welt ist zu groß für das Modell im Browser: Schon der Weltzustand allein füllt sein Fenster. Wähle oben unter „KI-Engine“ eine andere Engine.",
+  assistantErrorWorldTooLarge:
+    "Diese Welt ist zu groß, um sie aus dem Manuskript zu aktualisieren: Schon der Weltzustand allein füllt das Fenster des Modells. Die Auswahl der Kapitel ändert daran nichts.",
+  assistantErrorChapterTooLong:
+    "Dieses Kapitel ist für die Auswertung zu lang. Teile es in mehrere Kapitel, zum Beispiel an Szenenwechseln, und aktualisiere die Welt dann kapitelweise.",
+  assistantErrorExtractionIncomplete:
+    "Das Kapitel ließ sich nicht vollständig auswerten. Es wurde nichts übernommen.",
+  assistantErrorExtractionPartFailed:
+    "Die Auswertung brach in einem späteren Teil des Kapitels ab. Es wurde nichts übernommen; ein neuer Versuch beginnt wieder beim ersten Teil.",
   assistantEngineErrorUnknown: "Die eigene Engine konnte den Auftrag nicht ausführen.",
   webllmTitle: "KI im Browser",
   webllmChecking: "Prüfe, ob das Modell schon auf diesem Gerät liegt …",

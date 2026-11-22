@@ -4,11 +4,12 @@ rough time estimate shown before a user opts into batch mode."""
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable
 from typing import Any
 
 from quiltor.domain.story_world.knowledge import scoped_chapters
-from quiltor.modules.assistant.ports import AssistantProgressStore
+from quiltor.modules.assistant.ports import AssistantProgressStore, InferenceUnavailableError
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, UNTITLED_CHAPTER
 
 # Per-group ceiling for batch mode's chapter grouping. Chapters vary a lot in length (a
@@ -175,6 +176,27 @@ def _merge_accumulated(
     }
 
 
+def _report_part(
+    progress: AssistantProgressStore,
+    owner_sub: str,
+    world_id: str,
+    progress_id: str | None,
+    done: int,
+    params: dict[str, Any],
+    part: int,
+    parts: int,
+) -> None:
+    if progress_id:
+        progress.update(
+            owner_sub,
+            world_id,
+            progress_id,
+            done,
+            "chapterGroupPartLabel",
+            {**params, "part": part, "parts": parts},
+        )
+
+
 def run_batches(
     question: str,
     manuscript: dict[str, Any],
@@ -192,6 +214,7 @@ def run_batches(
     progress: AssistantProgressStore,
     identity: str,
     count_tokens: Callable[[str], int],
+    should_stop: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Run an explicitly approved broad request through token-budgeted groups.
 
@@ -225,6 +248,9 @@ def run_batches(
         progress.start(owner_sub, world_id, progress_id, len(groups))
     try:
         for index, group in enumerate(groups, start=1):
+            if index > 1 and should_stop is not None and should_stop():
+                # A cancelled job starts no further group (T-330); the runner knows the error.
+                raise InferenceUnavailableError("cancelled")
             label_params = {
                 "index": index,
                 "total": len(groups),
@@ -232,6 +258,21 @@ def run_batches(
             }
             label = f"Kapitel {index}/{len(groups)}: " + label_params["titles"]
             merged_figures = _merge_accumulated(figures, accumulated)
+
+            # A chapter taken in parts (T-330) shows which part of the group is running.
+            extra: dict[str, Any] = {
+                "on_part": functools.partial(
+                    _report_part,
+                    progress,
+                    owner_sub,
+                    world_id,
+                    progress_id,
+                    index - 1,
+                    label_params,
+                )
+            }
+            if should_stop is not None:
+                extra["should_stop"] = should_stop
             result = complete(
                 question,
                 manuscript,
@@ -243,6 +284,7 @@ def run_batches(
                 world_id=world_id,
                 world_revision=world_revision,
                 mode=mode,
+                **extra,
             )
             if result.get("clarification"):
                 known_ids = {str(item.get("id")) for item in clarification_candidates}

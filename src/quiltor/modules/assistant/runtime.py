@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,8 @@ class AssistantRuntime:
     # Set per request by completion.complete_request; declared for CompletionRuntime.
     _invocation_metrics: list[dict[str, Any]]
     _extraction_context: list[Any] | None = None
+    _extraction_parts_left: int | None = None
+    _extraction_estimate: int | None = None
 
     def __init__(
         self,
@@ -89,6 +92,8 @@ class AssistantRuntime:
         owner_sub: str = "",
         world_id: str = "",
         world_revision: int = 0,
+        should_stop: Callable[[], bool] | None = None,
+        on_part: Callable[[int, int], None] | None = None,
     ) -> dict[str, Any]:
         return complete_request(
             self,
@@ -105,6 +110,8 @@ class AssistantRuntime:
             owner_sub=owner_sub,
             world_id=world_id,
             world_revision=world_revision,
+            should_stop=should_stop,
+            on_part=on_part,
         )
 
     def _run_batches(
@@ -120,6 +127,7 @@ class AssistantRuntime:
         world_revision: int = 0,
         chapter_ids: list[str] | None = None,
         mode: str = "chat",
+        should_stop: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         return run_batches(
             question,
@@ -137,6 +145,7 @@ class AssistantRuntime:
             progress=self.progress,
             identity=self.url,
             count_tokens=self.inference.count_tokens,
+            should_stop=should_stop,
         )
 
     def _plan(self, question: str, context: list[Any]) -> dict[str, Any]:

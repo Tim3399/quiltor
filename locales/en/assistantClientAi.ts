@@ -22,8 +22,14 @@ export const assistantClientAi = {
   assistantEngineErrorProvider: "The provider refused the request. Check your key and try again.",
   assistantEngineErrorContextTooLarge:
     "The request is too large for the model in the browser. Choose another engine under “AI engine” above.",
-  assistantEngineErrorWorldTooLarge:
-    "This world is too large for the model in the browser: the world state alone fills its window. Choose another engine under “AI engine” above.",
+  assistantErrorWorldTooLarge:
+    "This world is too large to update from the manuscript: the world state alone fills the model’s window. Choosing different chapters does not change that.",
+  assistantErrorChapterTooLong:
+    "This chapter is too long to analyse. Split it into several chapters, for example at scene breaks, and then update the world chapter by chapter.",
+  assistantErrorExtractionIncomplete:
+    "The chapter could not be analysed in full. Nothing was kept.",
+  assistantErrorExtractionPartFailed:
+    "The analysis stopped in a later part of the chapter. Nothing was kept; a new attempt starts again with the first part.",
   assistantEngineErrorUnknown: "Your own engine could not run the request.",
   webllmTitle: "AI in the browser",
   webllmChecking: "Checking whether the model is already on this device …",
