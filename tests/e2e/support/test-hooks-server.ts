@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { BrowserContext } from "@playwright/test";
 import { freePort, pythonCommand, ROOT, terminate, waitFor } from "./python-process";
 
 /**
@@ -22,12 +23,14 @@ export interface TestHooksServer {
  * the policy that ships (D-T-61-7-E2E measures the in-browser engine against it).
  */
 export async function startTestHooksServer(
-  options: { testHooks?: boolean } = {},
+  options: { testHooks?: boolean; port?: number } = {},
 ): Promise<TestHooksServer> {
   const testHooks = options.testHooks ?? true;
   const [python, prefix] = pythonCommand();
   const scratch = mkdtempSync(join(tmpdir(), "quiltor-e2e-test-hooks-"));
-  const port = await freePort();
+  // A fixed port keeps the origin, and with it the browser's per-origin caches, the same
+  // from run to run (the real-model spec's WebLLM model cache, T-307).
+  const port = options.port ?? (await freePort());
   const url = `http://127.0.0.1:${port}`;
   const logs: string[] = [];
   const child: ChildProcess = spawn(
@@ -61,4 +64,35 @@ export async function startTestHooksServer(
     await stop();
     throw error;
   }
+}
+
+/**
+ * Shows this instance to a browser context as a hosted server without the premium role
+ * (D-205, T-275 Nachtrag 3): `assistantInstall: false`, `clientAi: true`, `serverAi: false`.
+ *
+ * Only a hosted server offers "Im Browser"; on a local, installable instance the product
+ * deliberately offers the server engine alone. A truly hosted instance needs OIDC
+ * (`operation_profile_for`: hosted is exactly multi-user), and there is no environment switch
+ * for it by design, so the instance stays local and `GET /api/capabilities` is rewritten in
+ * the browser, as assistant-engine-product.spec.ts and assistant-client-relay.spec.ts do.
+ * The jobs themselves run in the browser, so the server needs no other change.
+ */
+const hosted = new WeakSet<BrowserContext>();
+
+export async function presentAsHosted(context: BrowserContext): Promise<void> {
+  // Once per context: a worker-scoped context is handed to every test of the worker.
+  if (hosted.has(context)) return;
+  hosted.add(context);
+  await context.route("**/api/capabilities", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        instance: { ...body.instance, assistantInstall: false, clientAi: true },
+        user: { ...body.user, serverAi: false },
+      },
+    });
+  });
 }

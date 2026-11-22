@@ -14,6 +14,7 @@ import type { Chapter, EntityMention, Manuscript, TextMark, WritingIssue } from 
 import type { HelperMode, WorkspaceSelection, WritingTool } from "./workspaceTypes";
 import {
   isRateLimited,
+  isSuperseded,
   retryAfterMs,
   writingAssistanceErrorMessage,
 } from "./writingAssistanceErrors";
@@ -305,6 +306,11 @@ export function useWritingAssistance({
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (isSuperseded(error)) {
+          // A newer check of this tab replaced this one; it brings the answer, so no retry.
+          if (grammarRequest.current === request) setGrammarPhase("idle");
+          return;
+        }
         if (isRateLimited(error)) {
           // Not a failure the author has to read: the server only asks for a pause. The last
           // issues stay, and the newest text is checked once the pause is over.

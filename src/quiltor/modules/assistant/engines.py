@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from quiltor.modules.assistant.ports import InferenceUnavailableError
+
 SERVER = "server"
 WEBLLM = "webllm"
 CLOUD = "cloud"
@@ -22,6 +24,22 @@ CLOUD_PROVIDERS = frozenset({"openai", "openrouter", "anthropic"})
 CLIENT_ERROR_CODES = frozenset(
     {"context_too_large", "engine_unavailable", "provider_error", "cancelled"}
 )
+
+
+#: The codes a job on a client engine can fail with, as the job reports them (D-T-61-30):
+#: the browser's own codes, `client_unavailable` when no browser took the work and
+#: `client_error` for a code outside the list. The client words each one; none is shown raw.
+CLIENT_FAILURE_CODES = CLIENT_ERROR_CODES | {"client_unavailable", "client_error"}
+
+
+class ClientEngineFailure(InferenceUnavailableError):
+    """A client engine could not answer. `code` is one of CLIENT_FAILURE_CODES; `detail` is
+    the browser's own words, for the job's owner and the log, never for the conversation."""
+
+    def __init__(self, code: str, detail: str | None = None) -> None:
+        self.code = code if code in CLIENT_FAILURE_CODES else "client_error"
+        self.detail = detail or None
+        super().__init__(f"{self.code}: {detail}" if detail else self.code)
 
 
 class InvalidEngine(ValueError):

@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createWritingAssistanceHttpGateway } from "./writingAssistance";
+import {
+  createWritingAssistanceHttpGateway,
+  GRAMMAR_TAB_HEADER,
+  grammarTabId,
+} from "./writingAssistance";
 
 function response(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -153,7 +157,9 @@ describe("writing-assistance HTTP port", () => {
           {
             cache: "no-store",
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: requestCase.url.endsWith("/check")
+              ? { "Content-Type": "application/json", [GRAMMAR_TAB_HEADER]: grammarTabId }
+              : { "Content-Type": "application/json" },
             body: requestCase.body,
             ...(requestCase.signal === false ? {} : { signal }),
           },
@@ -302,6 +308,21 @@ describe("writing-assistance HTTP port", () => {
         }),
       }),
     );
+  });
+
+  it("names this tab with one id that the server accepts as a key", async () => {
+    const fetchMock = vi.fn(async () => response({ ok: true, language: "de-DE", issues: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const gateway = createWritingAssistanceHttpGateway();
+    await gateway.checkGrammar("Ein Satz.", []);
+    await createWritingAssistanceHttpGateway().checkGrammar("Noch ein Satz.", []);
+
+    const tabs = fetchMock.mock.calls.map(
+      (call) => (call as unknown as [string, RequestInit])[1].headers as Record<string, string>,
+    );
+    expect(tabs[0]?.[GRAMMAR_TAB_HEADER]).toBe(grammarTabId);
+    expect(tabs[1]?.[GRAMMAR_TAB_HEADER]).toBe(grammarTabId);
+    expect(grammarTabId).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
   });
 
   it("preserves structured HTTP rejections for every POST operation", async () => {

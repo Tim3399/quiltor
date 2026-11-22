@@ -11,7 +11,8 @@ export const assistant = {
     "A relationship needs two different elements. Edit the proposal.",
   proposalApplyRelationshipExists:
     "This relationship already exists. Review the existing relationship or edit the proposal.",
-  localOnlySuggestions: "Local · suggestions only",
+  assistantSuggestionsOnly: "suggestions only",
+  assistantEngineSuggestionsOnly: "{engine} · suggestions only",
   newChat: "New chat",
   closeAssistant: "Close assistant",
   sourcesIndexed: "{n} sources indexed",
@@ -34,7 +35,7 @@ export const assistant = {
   findMissingFiguresPrompt: "Based on my existing notes, propose any missing characters.",
   checkTimeline: "Check timeline",
   checkTimelinePrompt: "Check the relationships and timeline for gaps or contradictions.",
-  updateWorldFromManuscript: "Update world model from manuscript",
+  updateWorldFromManuscript: "Update world",
   updateWorldFromManuscriptHint:
     "Creates reviewable proposals from {scope}. The manuscript remains unchanged.",
   updateWorldFromManuscriptRequest: "Update world model from manuscript",

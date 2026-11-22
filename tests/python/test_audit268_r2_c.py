@@ -121,7 +121,7 @@ class GrammarAbortTests(HostedHarness):
         ((status, document),) = results
         self.assertEqual(status, 429)
         assert isinstance(document, dict)
-        self.assertEqual(document["error"]["code"], "writing_assistance.rate_limited")
+        self.assertEqual(document["error"]["code"], "writing_assistance.superseded")
 
     def test_another_session_of_the_account_is_still_held_to_the_limit(self) -> None:
         first_session = self.login("alice")

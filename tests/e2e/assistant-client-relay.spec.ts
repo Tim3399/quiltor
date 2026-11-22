@@ -80,9 +80,9 @@ function completion(message: string) {
         {
           message: {
             role: "assistant",
+            // The tool-step schema wraps each step in `step` (T-179 part 3, lac-schema-v1).
             content: JSON.stringify({
-              action: "final",
-              final: { message, citations: [], proposals: [] },
+              step: { action: "final", final: { message, citations: [], proposals: [] } },
             }),
           },
           finish_reason: "stop",
@@ -117,6 +117,21 @@ async function silentProvider(page: Page): Promise<Route[]> {
 
 async function openAssistant(page: Page, worldId: string): Promise<Locator> {
   lastWorld = worldId;
+  // Browser engines are offered only on a hosted server (D-205, T-275 Nachtrag 3); this
+  // local server is shown as one, with an account that lacks the premium role, so the test
+  // profile is the engine that is chosen.
+  await page.route("**/api/capabilities", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        instance: { ...body.instance, assistantInstall: false },
+        user: { ...body.user, serverAi: false },
+      },
+    });
+  });
   await page.goto(`/?world=${worldId}`);
   await expect(page.getByRole("toolbar", { name: "Manuskript" })).toBeVisible();
   await page.getByRole("button", { name: "Lokalen Assistenten öffnen" }).click();
@@ -124,9 +139,9 @@ async function openAssistant(page: Page, worldId: string): Promise<Locator> {
     (page.viewportSize()?.width || 0) < 720
       ? page.getByRole("dialog", { name: "Lokaler Assistent" })
       : page.getByRole("complementary", { name: "Lokaler Assistent" });
-  const ownKey = drawer.getByRole("radio", { name: "Eigener Schlüssel" });
-  await expect(ownKey).toBeVisible();
-  await ownKey.check();
+  await expect(drawer.getByRole("radio", { name: "Server-KI" })).toBeDisabled();
+  await expect(drawer.getByRole("radio", { name: "Eigener Schlüssel" })).toBeChecked();
+  await expect(drawer.getByText("Eigener Schlüssel · nur Vorschläge")).toBeVisible();
   return drawer;
 }
 

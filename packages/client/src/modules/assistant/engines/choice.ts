@@ -18,13 +18,24 @@ export type EngineOffer = {
   clientAi: boolean;
   /** Does this browser have WebGPU, which the in-browser engine needs. */
   webgpu: boolean;
+  /**
+   * Does the server's model run on the author's own computer (capabilities
+   * `instance.assistantInstall`: she installs it herself). Then it is the only engine.
+   */
+  ownComputer: boolean;
   slots: ClientEngineSlots;
 };
 
-/** The engines this user can pick right now, in display order. */
+/**
+ * The engines this user can pick right now, in display order (D-205, T-275 Nachtrag 3).
+ *
+ * On a computer of one's own the model already runs there: it is the only engine, and a
+ * browser engine would add nothing. On a hosted server the browser engine is always offered,
+ * so a text need not go to the server; the server AI joins it with the premium role.
+ */
 export function availableEngines(offer: EngineOffer): AssistantEngineKind[] {
-  const engines: AssistantEngineKind[] = [];
-  if (offer.serverAi) engines.push("server");
+  if (offer.ownComputer) return ["server"];
+  const engines: AssistantEngineKind[] = offer.serverAi ? ["server"] : [];
   if (offer.clientAi && offer.webgpu && offer.slots.webllm) engines.push("webllm");
   if (offer.clientAi && offer.slots.cloud) engines.push("cloud");
   return engines;
@@ -39,11 +50,17 @@ export function writeEngineChoice(preferences: Preferences, kind: AssistantEngin
   preferences.set(ENGINE_PREFERENCE_KEY, kind);
 }
 
-/** The stored choice while it is still on offer, else the first engine offered, else the server. */
+/**
+ * The stored choice while it is still on offer, else the first engine offered, else the server.
+ * `kept` is a stored choice that stays even when it is not on offer: the author chose the
+ * browser engine so that no text goes to the server, and a missing WebGPU must not move her
+ * there behind her back (D-205, T-275 F4).
+ */
 export function effectiveEngine(
   stored: AssistantEngineKind | null,
   available: readonly AssistantEngineKind[],
+  kept: AssistantEngineKind | null = null,
 ): AssistantEngineKind {
-  if (stored && available.includes(stored)) return stored;
+  if (stored && (stored === kept || available.includes(stored))) return stored;
   return available[0] ?? "server";
 }

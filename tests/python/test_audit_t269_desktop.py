@@ -18,6 +18,7 @@ import threading
 import time
 import unittest
 from contextlib import redirect_stdout
+from http.cookies import SimpleCookie
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -272,10 +273,19 @@ class LocalProcessTests(_LocalServer):
         self.assertIn(status, (401, 403))
         self.assertNotIn("Set-Cookie", headers)
 
-    def test_f269_10_the_owner_cookie_carries_no_max_age(self):
+    def test_f269_14_the_owner_cookie_survives_a_browser_restart(self):
+        """`quiltor run` restarts the browser: only cookies with Max-Age are reloaded."""
         identity = cast(LocalIdentity, self.application.identity)
         _, headers, _ = self._get(f"/?code={identity.issue_open_code()}")
-        self.assertNotIn("max-age", headers.get("Set-Cookie", "").lower())
+        jar = SimpleCookie()
+        jar.load(headers.get("Set-Cookie", ""))
+        persisted = {name: m for name, m in jar.items() if m["max-age"] or m["expires"]}
+        self.assertIn("quiltor_session", persisted, "the owner cookie is a session cookie")
+        max_age = int(persisted["quiltor_session"]["max-age"])
+        self.assertGreater(max_age, 30 * identity.auth.session_ttl)
+        cookie = "; ".join(f"{name}={m.value}" for name, m in persisted.items())
+        status, _, _ = self._get("/api/whoami", {"Cookie": cookie})
+        self.assertEqual(status, 200)
 
     def test_f269_10_the_owner_session_survives_a_night_without_requests(self):
         """Opened, used for twelve hours, then fourteen hours idle: the next save works."""

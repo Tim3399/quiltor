@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { quiltorClient, type RelayAnswerV1 } from "../../platform";
+import { translateUiMessage } from "../../i18n";
+import { ApplicationGatewayError, quiltorClient, type RelayAnswerV1 } from "../../platform";
 import { CapabilitiesProvider } from "../../shared/capabilities";
 import type { ClientEngineResult } from "./engines/types";
 import type { AssistantJobState } from "./model";
@@ -22,8 +23,9 @@ afterEach(() => vi.restoreAllMocks());
 function wrapper({ children }: { children: ReactNode }) {
   return (
     <CapabilitiesProvider
-      value={{ multiUser: false, signOut: false, deviceSync: true, clientAi: true }}
-      user={{ serverAi: true }}
+      value={{ multiUser: true, signOut: true, deviceSync: true, clientAi: true }}
+      // A browser engine computes only where the server AI is not allowed (D-205).
+      user={{ serverAi: false }}
     >
       {children}
     </CapabilitiesProvider>
@@ -98,5 +100,58 @@ describe("a job on a browser engine", () => {
 
     expect(answers).toEqual([{ ticket: "t1", seq: 1, error: { code: "cancelled" } }]);
     expect(cancelJob).toHaveBeenCalledWith("job-1");
+  });
+});
+
+// D-T-61-30: a failed job on the user's own engine reaches the conversation in German words,
+// never as the engine's code or the browser's English detail.
+describe("a failed job on a browser engine", () => {
+  const german = (key: Parameters<typeof translateUiMessage>[1]) => translateUiMessage("de", key);
+
+  async function failWith(engineError: { code: string; detail?: string }) {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(quiltorClient.platform.preferences, "get").mockReturnValue("cloud");
+    vi.spyOn(quiltorClient.application.assistant, "chat").mockRejectedValue(
+      // What terminalReply throws for the job (platform/http/assistantJobs.ts).
+      new ApplicationGatewayError(engineError.detail ?? "", "unavailable", {
+        params: { engineError },
+      }),
+    );
+    const { result } = renderHook(
+      () =>
+        useAssistantConversation({
+          worldId: "relay-fixture",
+          forcedChapterIds: [],
+          onApply: () => ({ appliedIndices: [], skipped: [] }),
+          onBeforeSend: async () => {},
+          t: german,
+        }),
+      { wrapper },
+    );
+    await act(async () => result.current.send(undefined, undefined, "Wer ist Tarek?"));
+    const failed = result.current.entries.find((entry) => entry.error);
+    expect(failed).toBeDefined();
+    return failed?.error ?? "";
+  }
+
+  it.each([
+    [
+      { code: "engine_unavailable", detail: "model not loaded" },
+      "assistantEngineErrorModelNotLoaded",
+    ],
+    [
+      { code: "engine_unavailable", detail: "WebGPU device lost" },
+      "assistantEngineErrorUnavailable",
+    ],
+    [{ code: "client_unavailable" }, "assistantEngineErrorClientUnavailable"],
+    [{ code: "provider_error", detail: "401" }, "assistantEngineErrorProvider"],
+    [{ code: "context_too_large" }, "assistantEngineErrorContextTooLarge"],
+    [{ code: "client_error", detail: "gpu_on_fire" }, "assistantEngineErrorUnknown"],
+    [{ code: "something_new" }, "assistantEngineErrorUnknown"],
+  ] as const)("words %o in German, without the raw code", async (engineError, key) => {
+    const message = await failWith(engineError);
+    expect(message).toBe(german(key));
+    expect(message).not.toContain(engineError.code);
+    if ("detail" in engineError) expect(message).not.toContain(engineError.detail);
   });
 });

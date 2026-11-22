@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Translate } from "../../i18n";
-import { applicationErrorMessage, quiltorClient } from "../../platform";
+import { quiltorClient } from "../../platform";
+import { assistantErrorMessage } from "./engineErrors";
 import { useEngineChoice } from "./engines/useEngineChoice";
 import { useRelayLoop } from "./useRelayLoop";
 import type { AssistantEntry, AssistantSendOptions } from "./conversationTypes";
@@ -117,7 +118,7 @@ export function useAssistantConversation({
       .catch((error) => {
         const message = controller.signal.aborted
           ? t("requestAborted")
-          : applicationErrorMessage(error);
+          : assistantErrorMessage(error, t);
         persistEntries((current) =>
           current.map((entry) =>
             entry.id === pending.id
@@ -148,6 +149,10 @@ export function useAssistantConversation({
         explicitQuestion ||
         (retryId ? entries.find((entry) => entry.id === retryId)?.question : undefined);
       if (!question || sending) return;
+      // A browser engine without its slot (capabilities not loaded yet) cannot run the job, and
+      // a job without a wire would run on the server: nothing is sent then (D-T-275-F5).
+      const target = currentEngine();
+      if (target.engine !== "server" && !target.slot) return;
 
       sendLockRef.current = true;
       const id = retryId ?? crypto.randomUUID();
@@ -254,7 +259,7 @@ export function useAssistantConversation({
       } catch (error) {
         const message = controller.signal.aborted
           ? t("requestAborted")
-          : applicationErrorMessage(error);
+          : assistantErrorMessage(error, t);
         const keepRequestId = !controller.signal.aborted && !activeJobRef.current;
         persistEntries((current) =>
           current.map((entry) =>

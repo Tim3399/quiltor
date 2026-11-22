@@ -350,16 +350,26 @@ dieser Reihenfolge, vom engsten zum weitesten:
    abi <abi/4.0>,
    include <tunables/global>
 
-   profile quiltor-chromium /home/quiltor/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell flags=(unconfined) {
+   profile quiltor-chromium /home/quiltor/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell flags=(unconfined) {
      userns,
 
      include if exists <local/quiltor-chromium>
    }
    ```
 
+   Der Pfad gilt für x64. Auf arm64 legt Playwright die Shell unter
+   `chromium_headless_shell-*/chrome-linux/headless_shell` ab; dort diesen Pfad
+   eintragen. Im Zweifel den echten Pfad aus der Fehlermeldung oder aus
+   `~/.cache/ms-playwright/` übernehmen.
+
    Laden: `sudo apparmor_parser -r /etc/apparmor.d/quiltor-chromium`. Das Profil bleibt
-   über Neustarts erhalten. Ändert sich die Chromium-Version, ändert sich der
-   Verzeichnisname; das Muster mit `*` deckt das ab.
+   über Neustarts erhalten. Ändert sich die Chromium-Version, ändert sich nur die Nummer
+   im Verzeichnisnamen `chromium_headless_shell-…`; das `*` deckt das ab.
+
+   Bestätigt ist bisher nur der Pfad aus Playwright. Auf einem echten Ubuntu 24.04 x64 ist
+   das Profil noch nicht ausprobiert; dieser Nachweis folgt (T-303). Greift das Profil nicht
+   und der Export endet weiter mit `pdf.sandbox_unavailable`, ist `QUILTOR_PDF_SANDBOX=off`
+   (Option 3) der verlässliche Rückfall, mit der Warnung, die dort steht.
 
 3. **`QUILTOR_PDF_SANDBOX=off` als letzter Ausweg.** Das startet Chromium ohne Sandbox.
    Eine Seite, die der Renderer lädt, kann dann bei einem Fehler in Chromium aus dem

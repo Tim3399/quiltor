@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { after, test } from "node:test";
 import {
+  buildManifest,
   CAPTURE_INPUTS,
   checkReadmeScreenshots,
   inputsDigest,
@@ -212,4 +213,13 @@ test("a manifest entry without a picture is a violation", () => {
 
 test("the repository itself passes", () => {
   assert.deepEqual(checkReadmeScreenshots(repositoryRoot), []);
+});
+
+test("the manifest records the platform the pictures were taken on", () => {
+  const root = workspace();
+  const directory = folder(root, "de");
+  const manifest = (platform) => buildManifest({ root, directory, version: "1.2.3", platform });
+  assert.equal(manifest("linux").platform, "linux");
+  assert.equal(manifest("darwin").platform, "darwin");
+  assert.equal(manifest(undefined).platform, process.platform);
 });

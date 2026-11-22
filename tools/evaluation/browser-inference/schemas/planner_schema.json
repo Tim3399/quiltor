@@ -16,15 +16,12 @@
     "searchQueries": {
       "type": "array",
       "maxItems": 4,
-      "uniqueItems": true,
       "items": {
-        "type": "string",
-        "maxLength": 300
+        "type": "string"
       }
     },
     "requiredKinds": {
       "type": "array",
-      "uniqueItems": true,
       "items": {
         "enum": [
           "create_element",

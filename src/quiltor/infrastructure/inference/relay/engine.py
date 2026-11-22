@@ -28,7 +28,7 @@ from quiltor.infrastructure.inference.relay.tickets import (
     RelayTicketStore,
 )
 from quiltor.infrastructure.inference.shared.contract import json_object_fallback
-from quiltor.modules.assistant.engines import CLIENT_ERROR_CODES
+from quiltor.modules.assistant.engines import CLIENT_ERROR_CODES, ClientEngineFailure
 from quiltor.modules.assistant.ports import (
     IncompleteInferenceResponse,
     InferenceContextTooLargeError,
@@ -47,6 +47,10 @@ CALIBRATION_MAX = 2.0
 SAFETY_MARGIN = 1.1
 #: How much a new measurement moves the calibration (exponential smoothing).
 SMOOTHING = 0.5
+# Where the estimate starts before the first answer has calibrated it (T-307). Measured for
+# Qwen3 in WebLLM: llama counted 6333 tokens where the raw estimate (chars / 3, before the
+# safety margin) said 7095, a ratio of 0.89. Other client engines start at 1.0.
+INITIAL_CALIBRATION = {"webllm": 0.9}
 
 
 def _prompt_text(payload: dict[str, Any]) -> str:
@@ -77,7 +81,7 @@ class RelayInferenceEngine:
         self._job_deadline = clock() + job_seconds
         self._job_seconds = job_seconds
         self._answer_seconds = dict(ANSWER_SECONDS if answer_seconds is None else answer_seconds)
-        self._calibration = 1.0
+        self._calibration = INITIAL_CALIBRATION.get(str(self._engine.get("kind")), 1.0)
         # Set by close(): a closed engine opens no further ticket (F-61-12). The pipeline
         # may call invoke again between two model calls after the job was cancelled.
         self._closed = False
@@ -148,7 +152,7 @@ class RelayInferenceEngine:
         except RelayCancelled as exc:
             raise InferenceUnavailableError("cancelled") from exc
         except (RelayFull, RelayDeliveryTimeout) as exc:
-            raise InferenceUnavailableError("client_unavailable") from exc
+            raise ClientEngineFailure("client_unavailable") from exc
         except RelayAnswerTimeout as exc:
             raise InferenceTimeoutError(exc.seconds) from exc
 
@@ -159,11 +163,11 @@ class RelayInferenceEngine:
                 raise InferenceContextTooLargeError("The browser's model window is too small.")
             if code == "cancelled":
                 raise InferenceUnavailableError("cancelled")
-            message = str(code) if code in CLIENT_ERROR_CODES else "client_error"
             detail = error.get("detail")
             # The relay route trimmed and cleaned it; it reaches only the job's owner.
-            raise InferenceUnavailableError(
-                f"{message}: {detail}" if isinstance(detail, str) and detail else message
+            raise ClientEngineFailure(
+                str(code) if code in CLIENT_ERROR_CODES else "client_error",
+                detail if isinstance(detail, str) else None,
             )
 
         output = answer.get("output")

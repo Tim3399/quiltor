@@ -62,6 +62,7 @@
       "design-toast",
       "design-toast-region",
       "ui-toolbar-button",
+      "ui-tooltip",
       "undo-redo-controls",
       "workspace-toolbar",
       "secondary-action",

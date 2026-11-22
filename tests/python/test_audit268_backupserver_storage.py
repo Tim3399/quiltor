@@ -421,6 +421,11 @@ class StreamedUploadTest(BackupServerCase):
             )
             sock.shutdown(socket.SHUT_WR)
             self.assertTrue(sock.recv(100).startswith(b"HTTP/1.0 400"))
+        # The failed upload removes its staging file in a finally after the 400 is sent, so the
+        # answer can reach the client a moment before the file is gone (same race as the A7 test).
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and self.stored_files():
+            time.sleep(0.05)
         self.assertEqual(self.stored_files(), [])
 
 

@@ -134,6 +134,9 @@ function terminalReply(job: AssistantJobState): AssistantReply {
     throw new ApplicationGatewayError(
       job.error || "Assistant request failed.",
       job.failureCode || "unavailable",
+      // The conversation words a client engine's code itself; job.error is the browser's
+      // own detail then, never meant for it (D-T-61-30).
+      job.engineError ? { params: { engineError: { ...job.engineError } } } : {},
     );
   }
   throw new Error(`Assistant job ${job.id} is not terminal.`);

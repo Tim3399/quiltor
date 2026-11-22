@@ -1,4 +1,6 @@
+import json
 import unittest
+from dataclasses import replace
 
 from quiltor.domain.story_world.knowledge import KnowledgeChunk
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
@@ -14,8 +16,8 @@ from tests.python.narrowing import present
 class AssistantEnhancementTests(unittest.TestCase):
     def test_reply_schema_is_a_strict_discriminated_contract_union(self):
         schema = reply_schema(["set_presence"])
-        proposal = schema["properties"]["proposals"]["items"]["oneOf"][0]
-        self.assertEqual(proposal["properties"]["kind"], {"const": "set_presence"})
+        proposal = schema["properties"]["proposals"]["items"]["anyOf"][0]
+        self.assertEqual(proposal["properties"]["kind"], {"enum": ["set_presence"]})
         self.assertFalse(proposal["additionalProperties"])
 
     def test_presence_requires_existing_element_place_and_optional_moment(self):
@@ -79,15 +81,19 @@ class AssistantEnhancementTests(unittest.TestCase):
         chunk = KnowledgeChunk(
             "chapter:c1:0", "chapter", "Eins", "abcdefghij", {"workspace": "text", "id": "c1"}
         )
+        # The budget covers the chunk as the prompt carries it, its public JSON (T-307): room
+        # for the JSON of an empty chunk plus five characters of text.
+        empty = json.dumps(replace(chunk, text="").public(), ensure_ascii=False) + ", "
         packed = pack_chunks(
             [chunk],
             "tokenizer-a",
-            5,
+            len(empty) + 5,
             lambda _url, text: len(text),
             BoundedTokenCountCache(),
         )
         self.assertEqual(len(packed), 1)
-        self.assertLess(len(packed[0].text), len(chunk.text) + 2)
+        self.assertLess(len(packed[0].text), len(chunk.text))
+        self.assertTrue(packed[0].text)
 
     def test_token_cache_invalidates_on_tokenizer_identity_change(self):
         cache = BoundedTokenCountCache(1024)

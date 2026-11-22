@@ -10,6 +10,18 @@ The assistant can have an answer computed in two ways:
   for the server AI; only the computing happens in the browser. It needs neither the premium
   role nor a model on the server.
 
+Which engines can be chosen depends on the setup and on what the account may use:
+
+| Setup                                 | Engines                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| on one's own computer, no sign-in     | only the model on this computer ("On this computer"), no switch             |
+| hosted, account with the premium role | server AI and AI in the browser, with a switch                              |
+| hosted, account without it            | AI in the browser; "Server AI" is greyed out in the switch, with the reason |
+
+On a hosted server the AI in the browser stays available with the premium role too: whoever
+does not want to send their text to the server computes in their own browser. Running Quiltor
+on one's own computer already puts the model there; an AI in the browser would add nothing.
+
 An own key for a cloud provider is planned for a later version. This version has none.
 
 ## Switching it on and off

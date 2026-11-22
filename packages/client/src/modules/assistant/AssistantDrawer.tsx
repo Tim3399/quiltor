@@ -11,6 +11,7 @@ import { AssistantConversation } from "./AssistantConversation";
 import { AssistantProposalEditor } from "./AssistantProposalEditor";
 import { AssistantStatusPanel } from "./AssistantStatusPanel";
 import { useEngineChoice } from "./engines/useEngineChoice";
+import { useEngineLabels, useEngineLabelsKnown } from "./engines/useEngineLabels";
 import type { AssistantProposal } from "./model";
 import type { AssistantProposalApplyResult } from "./proposals";
 import { useAssistantAvailability } from "./useAssistantAvailability";
@@ -65,13 +66,17 @@ export function AssistantDrawer({
   const { status, installState, checkStatus, startInstall } = useAssistantAvailability(open);
   // One choice for the drawer and its status panel, so a switch of engine re-renders both.
   const engineChoice = useEngineChoice(status?.premium !== false);
+  const engineLabels = useEngineLabels();
+  const engineLabelsKnown = useEngineLabelsKnown();
   // The server's assistant locks the composer only while a job would run there: without a
   // runtime, or without the premium role, which the server enforces with a 403 (D-40). The
   // effective engine falls back to the server when nothing is offered, so that case locks too.
-  // A browser engine works without either (T-61 part 6, D-T-61-8a-F2).
+  // A browser engine works without either (T-61 part 6, D-T-61-8a-F2). A browser engine she
+  // chose that this browser cannot run locks it too, instead of sending to the server (F4).
   const serverAi = useUserCapabilities().serverAi ?? status?.premium !== false;
   const serverOffline =
-    engineChoice.engine === "server" && (status?.available === false || !serverAi);
+    (engineChoice.engine === "server" && (status?.available === false || !serverAi)) ||
+    engineChoice.blocked;
   const {
     entries,
     sending,
@@ -158,7 +163,17 @@ export function AssistantDrawer({
           <Sparkles />
           <span>
             <strong>{t("assistant")}</strong>
-            <small>{t("localOnlySuggestions")}</small>
+            <small>
+              {/* No engine to name when none can run: hosted, no premium role, no WebGPU. */}
+              {/* No engine either while the capabilities load: its name depends on them. */}
+              {engineChoice.available.length === 0
+                ? t("assistantEngineNone")
+                : !engineLabelsKnown
+                  ? t("assistantSuggestionsOnly")
+                  : t("assistantEngineSuggestionsOnly", {
+                      engine: engineLabels[engineChoice.engine],
+                    })}
+            </small>
           </span>
         </div>
         <div className="assistant-header-actions">
@@ -279,7 +294,7 @@ export function AssistantDrawer({
     </>
   );
 
-  const className = `assistant-drawer ${serverOffline ? "has-offline" : ""}`;
+  const className = "assistant-drawer";
   // The component remains mounted while closed so requests and install polling survive.
   return compact ? (
     <Sheet

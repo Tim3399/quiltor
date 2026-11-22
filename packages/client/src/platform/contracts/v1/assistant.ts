@@ -49,6 +49,8 @@ export interface AssistantJobWireV1 {
   result?: AssistantReplyWireV1 | null;
   error: string;
   errorType: string;
+  /** Present only for a failed job on a client engine (D-T-61-30). */
+  engineError?: { code: string; detail?: string };
   httpStatus?: number | null;
   interactionId?: string | null;
   cancelRequested: boolean;

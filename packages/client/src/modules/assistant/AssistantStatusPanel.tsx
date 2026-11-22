@@ -1,4 +1,5 @@
 import { Bot, Database, Download, RotateCw } from "lucide-react";
+import { useId } from "react";
 import { Alert, Button, ProgressBar, SegmentedControl } from "../../design";
 import { useI18n } from "../../i18n";
 import {
@@ -6,8 +7,8 @@ import {
   useInstanceCapabilities,
   useUserCapabilities,
 } from "../../shared/capabilities";
-import type { AssistantEngineKind } from "./engines/types";
 import { type EngineChoice, useEngineChoice } from "./engines/useEngineChoice";
+import { useEngineLabels } from "./engines/useEngineLabels";
 import { installStepLabel } from "./installPhase";
 import type { AssistantAvailability, AssistantInstallState } from "./useAssistantAvailability";
 import "./AssistantStatusPanel.css";
@@ -37,25 +38,66 @@ export function AssistantStatusPanel({
   const choice = shared ?? own;
   const onServer = choice.engine === "server";
   const EnginePanel = choice.slot?.Panel;
-  const engineLabels: Record<AssistantEngineKind, string> = {
-    server: t("assistantEngineServer"),
-    webllm: t("assistantEngineBrowser"),
-    cloud: t("assistantEngineOwnKey"),
-  };
+  const engineLabels = useEngineLabels();
+  // Without the premium role the server AI stays in the switch, greyed out, and a note says
+  // why; the switch is described by it, so keyboard and screen reader reach the reason too
+  // (T-275 Nachtrag 3, D-T-61-8a-F2). Only a hosted server has a role to lack; on a computer
+  // of one's own the server engine is always on offer. That holds with no other engine as well,
+  // where the greyed-out switch is all there is (D-T-275-F1).
+  // An older server sends no capabilities: then the premium alert below says it instead.
+  const hosted = capabilities?.assistantInstall === false;
+  const serverLocked = hosted && !serverAi && !choice.available.includes("server");
+  const lockNote = useId();
+  const browserNote = useId();
+  const described =
+    [serverLocked && lockNote, choice.browserUnsupported && browserNote]
+      .filter(Boolean)
+      .join(" ") || undefined;
+  const options = [
+    ...(serverLocked
+      ? [
+          {
+            value: "server" as const,
+            label: engineLabels.server,
+            disabled: true,
+            // The reason is a tooltip on the greyed-out option, not a standing note; it still
+            // describes the whole switch for screen readers (T-275-F6).
+            hint: t("assistantEngineServerLocked"),
+            hintId: lockNote,
+          },
+        ]
+      : []),
+    ...choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] })),
+    // The chosen browser engine stays in the switch although this browser cannot run it.
+    ...(choice.blocked ? [{ value: "webllm" as const, label: engineLabels.webllm }] : []),
+  ];
   return (
     <>
-      {/* Only a real choice is shown: with the server alone nothing changes for the user. */}
-      {choice.available.length > 1 && (
-        <SegmentedControl
-          className="assistant-engine-choice"
-          size="compact"
-          label={t("assistantEngineLabel")}
-          value={choice.engine}
-          options={choice.available.map((kind) => ({ value: kind, label: engineLabels[kind] }))}
-          onChange={choice.choose}
-        />
+      {/* Only a real choice is shown: with the server alone nothing changes for the user.
+          Before the capabilities arrive no other engine is offered, so no switch can name the
+          server engine too early (D-T-275-F3). */}
+      {(options.length > 1 || serverLocked || choice.browserUnsupported) && (
+        <div className="assistant-engine">
+          {(options.length > 1 || serverLocked) && (
+            <SegmentedControl
+              className="assistant-engine-choice"
+              size="compact"
+              aria-describedby={described}
+              label={t("assistantEngineLabel")}
+              value={choice.engine}
+              options={options}
+              onChange={choice.choose}
+            />
+          )}
+          {choice.browserUnsupported && (
+            <small id={browserNote} className="assistant-engine-note">
+              {t("assistantEngineBrowserUnsupported")}
+            </small>
+          )}
+        </div>
       )}
-      {EnginePanel && <EnginePanel />}
+      {/* No model download where the model cannot run: the note above says why (F-275-2). */}
+      {EnginePanel && !choice.blocked && <EnginePanel />}
       <div className="assistant-scope">
         <Database />
         <span>
@@ -65,7 +107,8 @@ export function AssistantStatusPanel({
       </div>
       {/* Without the premium role nothing here can help: no model to reach, nothing to install
           (the install would answer 403). Only `false` counts -- older servers send no field. */}
-      {onServer && status && !serverAi && (
+      {/* The note at the switch already says it when the switch shows the server greyed out. */}
+      {onServer && status && !serverAi && !serverLocked && (
         <Alert className="assistant-offline" tone="info" icon={<Bot />}>
           <p>{t("errorAssistantPremiumRequired")}</p>
         </Alert>
