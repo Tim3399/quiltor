@@ -197,6 +197,48 @@ class DocxParserTests(unittest.TestCase):
         self.assertTrue(parsed.chapters[0].body.startswith("Der Morgen lag still über dem Hafen."))
         self.assertNotIn("footnotes_endnotes", {w["code"] for w in parsed.warnings})
 
+    def test_a_plain_word_file_brings_no_formatting_warning(self):
+        """F0 has no formatting of its own; Word's default styles alone are no loss (T-337)."""
+
+        parsed = parse_docx(
+            "word-multipage.docx", (WORD_FIXTURES / "word-multipage.docx").read_bytes()
+        )
+        self.assertEqual(parsed.warnings, ())
+
+    def test_only_a_used_style_that_cannot_be_mapped_warns_and_once_per_code(self):
+        # Word's look in docDefaults, Normal and Heading 1 is replaced by Quiltor's own.
+        # "Einzug" indents its paragraphs, which Quiltor cannot keep; "Ungenutzt" would too,
+        # but no paragraph uses it.
+        styles = f"""<w:styles xmlns:w="{W}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+          <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/>
+            <w:kern w:val="2"/><w:sz w:val="22"/><w:lang w:val="de-DE"/>
+            <w14:ligatures w14:val="standardContextual"/></w:rPr></w:rPrDefault>
+            <w:pPrDefault><w:pPr><w:spacing w:after="160"/></w:pPr></w:pPrDefault></w:docDefaults>
+          <w:style w:type="paragraph" w:default="1" w:styleId="Standard"><w:name w:val="Normal"/>
+            <w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:sz w:val="24"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="berschrift1"><w:name w:val="heading 1"/>
+            <w:basedOn w:val="Standard"/><w:pPr><w:keepNext/><w:outlineLvl w:val="0"/></w:pPr>
+            <w:rPr><w:color w:val="0F4761"/><w:sz w:val="40"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Einzug"><w:name w:val="Einzug"/>
+            <w:basedOn w:val="Standard"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Ungenutzt"><w:name w:val="Ungenutzt"/>
+            <w:pPr><w:jc w:val="center"/></w:pPr></w:style>
+        </w:styles>"""
+        indented = '<w:p><w:pPr><w:pStyle w:val="Einzug"/></w:pPr><w:r><w:t>Zitat</w:t></w:r></w:p>'
+        body = (
+            paragraph("Kapitel", style="berschrift1")
+            + "<w:p><w:r><w:t>Der Morgen lag still.</w:t></w:r></w:p>"
+            + indented * 3
+        )
+        parsed = parse_docx("Einzug.docx", docx(document(body), styles=styles))
+        self.assertEqual(parsed.chapters[0].title, "Kapitel")
+        self.assertEqual(parsed.warnings, ({"code": "formatting", "count": 3},))
+        without_loss = parse_docx(
+            "Einzug.docx",
+            docx(document(body.replace("Einzug", "Standard")), styles=styles),
+        )
+        self.assertEqual(without_loss.warnings, ())
+
     def test_a_word_file_with_inserted_symbols_imports_them(self):
         """F1: one Wingdings and one Symbol character inserted through Word's symbol dialog."""
 

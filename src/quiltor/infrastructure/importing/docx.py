@@ -195,6 +195,9 @@ class _StyleBook:
         return False
 
 
+_HEADING_ONE = {"heading1", "überschrift1", "uberschrift1"}
+
+
 def _styles(archive: zipfile.ZipFile) -> _StyleBook:
     root = _read_xml(archive, "word/styles.xml")
     default_rpr = root.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr")
@@ -212,13 +215,17 @@ def _styles(archive: zipfile.ZipFile) -> _StyleBook:
         style_rpr = element.find(f"{W}rPr")
         style_ppr = element.find(f"{W}pPr")
         normalized_name = re.sub(r"[\s_-]", "", name).casefold()
+        # The default paragraph style and Heading 1 carry the look of body text and chapter
+        # titles, which Quiltor replaces with its own; Word fills them in every file it saves.
+        base_look = element.get(f"{W}default") in {"1", "true"} or normalized_name in _HEADING_ONE
         styles[style_id] = (
             name,
             based.get(f"{W}val") if based is not None else None,
             _properties(style_rpr),
-            _unsupported_rpr(style_rpr) or _unsupported_style_ppr(style_ppr, normalized_name),
+            _unsupported_rpr(style_rpr, _BASE_LOOK_RPR if base_look else set())
+            or (not base_look and _unsupported_style_ppr(style_ppr, normalized_name)),
         )
-    return _StyleBook(styles, defaults, _unsupported_rpr(default_rpr))
+    return _StyleBook(styles, defaults, _unsupported_rpr(default_rpr, _BASE_LOOK_RPR))
 
 
 def _properties(rpr: ET.Element | None) -> dict[str, bool]:
@@ -232,8 +239,28 @@ def _properties(rpr: ET.Element | None) -> dict[str, bool]:
     return result
 
 
-def _unsupported_rpr(rpr: ET.Element | None) -> bool:
-    return bool(rpr is not None and {child.tag for child in rpr} - {f"{W}b", f"{W}i", f"{W}rStyle"})
+_MAPPED_RPR = {f"{W}b", f"{W}i", f"{W}rStyle"}
+# The look of a whole text -- typeface, size, colour, kerning -- and the proofing switches
+# Word writes on its own. Quiltor sets its own typography, so dropping these loses nothing
+# an author put into the text. This holds for the base styles only (see `_styles`).
+_BASE_LOOK_RPR = {
+    f"{W}rFonts",
+    f"{W}sz",
+    f"{W}szCs",
+    f"{W}color",
+    f"{W}kern",
+    f"{W}lang",
+    f"{W}noProof",
+}
+
+
+def _unsupported_rpr(rpr: ET.Element | None, ignored: frozenset | set = frozenset()) -> bool:
+    if rpr is None:
+        return False
+    # Children outside the main namespace (w14:ligatures and the like) are Word extensions
+    # that only fine-tune rendering.
+    tags = {child.tag for child in rpr if child.tag.startswith(W)}
+    return bool(tags - _MAPPED_RPR - ignored)
 
 
 def _package_warnings(names: list[str]) -> Counter:
