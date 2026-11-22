@@ -44,6 +44,15 @@ for the README and ships as the example world; the edge part (ids `x-...`) never
 | `x-inselhafen`     | edge | ort          | Inselhafen                                                        | the one place on the second map                                                                                                                                         |
 | `x-masslos-ebene`  | edge | ort          | Kartenarchiv                                                      | level of its own for the map without a size (T-79)                                                                                                                      |
 | `x-masslose-karte` | edge | ort          | Alte Hafenkarte                                                   | opened-out map with a picture but no frame size; the server fills it in (T-79)                                                                                          |
+| `x-wenke`          | edge | person       | Wenke Holm                                                        | council clerk of the long chapters; alias Federwenke; the harbourmaster comes to rely on her (T-355)                                                                    |
+| `x-hinrik`         | edge | person       | Hinrik Salm                                                       | former harbourmaster, only ever mentioned, never on stage (T-355)                                                                                                       |
+| `x-jorun`          | edge | person       | Jorun Estrand                                                     | captain who first appears in the last fifth of x-kettenwache, a check for silent truncation (T-355)                                                                     |
+| `x-pelle`          | edge | person       | Pelle                                                             | chalk boy of the Salt Market; alias Kreidepelle; figure of x-siegel (T-355)                                                                                             |
+| `x-thea`           | edge | person       | Thea Marsk                                                        | Guild examiner who first appears in the last fifth of x-siegel (T-355)                                                                                                  |
+| `x-kettenordnung`  | edge | objekt       | Die Kettenordnung                                                 | the harbour's chain law; the harbourmaster bends it in x-siegel (T-355)                                                                                                 |
+| `x-seeschwalbe`    | edge | objekt       | Seeschwalbe                                                       | salt barge of x-jorun, waiting before the chain (T-355)                                                                                                                 |
+| `x-hafenhaus`      | edge | ort          | Hafenhaus                                                         | the council's hall, a place inside Nordhafen (T-355)                                                                                                                    |
+| `x-netzboden`      | edge | ort          | Netzboden                                                         | Bela's net loft, a place inside Nordhafen (T-355)                                                                                                                       |
 
 ## Chapters
 
@@ -59,21 +68,30 @@ for the README and ships as the example world; the edge part (ids `x-...`) never
 | `c-coast`         | base | act-two | Die offene Küste             |                                                                                                           |
 | `x-empty-chapter` | edge | act-two | Leeres Kapitel               | chapter without text and without a note                                                                   |
 | `x-chronicle`     | edge | act-two | Die Chronik des Hafens       | chapter with three texts; seedExampleWorldWithHistory saves them as versions, the first creates it (T-86) |
+| `x-kettenwache`   | edge | act-two | Kettenwache                  | long chapter, 8,000 to 9,000 words, days 12 to 17 of the Tide Reckoning; checkpoints a-* (T-355)          |
+| `x-siegel`        | edge | act-two | Das Siegel am Archiv         | long chapter, 5,500 to 6,500 words, days 25 to 30 of the Tide Reckoning; checkpoints b-* (T-355)          |
 | `c-prologue`      | base | bin     | Prolog: Was der Atlas wusste |                                                                                                           |
 | `x-trash-orphan`  | edge | bin     | Verworfener Entwurf          | chapter in the bin whose folder no longer exists                                                          |
 
 ## Moments
 
-| Id   | Time | Title                   |
-| ---- | ---- | ----------------------- |
-| `t1` | 0    | Ankunft im Nordhafen    |
-| `t2` | 3    | Öffnung des Atlas       |
-| `t3` | 6    | Das letzte Blatt        |
-| `t4` | 9    | Gerüchte am Salzmarkt   |
-| `t5` | 12   | Der Hafen wird gesperrt |
-| `t6` | 15   | Bruch mit der Gilde     |
-| `t7` | 18   | Die Überfahrt           |
-| `t8` | 22   | Die offene Küste        |
+| Id     | Time | Title                         |
+| ------ | ---- | ----------------------------- |
+| `t1`   | 0    | Ankunft im Nordhafen          |
+| `t2`   | 3    | Öffnung des Atlas             |
+| `t3`   | 6    | Das letzte Blatt              |
+| `t4`   | 9    | Gerüchte am Salzmarkt         |
+| `t5`   | 12   | Der Hafen wird gesperrt       |
+| `t6`   | 15   | Bruch mit der Gilde           |
+| `t7`   | 18   | Die Überfahrt                 |
+| `t8`   | 22   | Die offene Küste              |
+| `x-t1` | 13   | Fässerzählung am Salzmarkt    |
+| `x-t2` | 14   | Ratssitzung im Hafenhaus      |
+| `x-t3` | 16   | Verlesung der Kettenordnung   |
+| `x-t4` | 17   | Die Seeschwalbe vor der Kette |
+| `x-t5` | 25   | Die Kette wird gesenkt        |
+| `x-t6` | 27   | Nipptide über dem Becken      |
+| `x-t7` | 30   | Das Siegel am Archiv          |
 
 ## Storyboards
 
