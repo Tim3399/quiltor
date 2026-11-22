@@ -88,6 +88,9 @@ def _docx_parts(payload: bytes):
         document = _read_xml(archive, "word/document.xml")
         styles = _styles(archive) if "word/styles.xml" in names else _StyleBook.empty()
         warnings = _package_warnings(names)
+        for part, tag in (("word/footnotes.xml", "footnote"), ("word/endnotes.xml", "endnote")):
+            if part in names:
+                warnings["footnotes_endnotes"] += _real_notes(_read_xml(archive, part), tag)
         package_title = _core_title(archive) if "docProps/core.xml" in names else ""
         return document, styles, warnings, package_title
 
@@ -238,11 +241,69 @@ def _package_warnings(names: list[str]) -> Counter:
     warnings["headers_footers"] = sum(
         name.startswith(("word/header", "word/footer")) for name in names
     )
-    warnings["footnotes_endnotes"] = sum(
-        name in {"word/footnotes.xml", "word/endnotes.xml"} for name in names
-    )
     warnings["comments"] = sum(name.startswith("word/comments") for name in names)
     return warnings
+
+
+def _real_notes(root: ET.Element, tag: str) -> int:
+    """Notes the author wrote, without the separators Word keeps in every notes part (T-334)."""
+
+    return sum(note.get(f"{W}type", "normal") == "normal" for note in root.findall(f"{W}{tag}"))
+
+
+# Word's Symbol font places its glyphs at private code points F020-F0FF (ECMA-376
+# 17.3.3.30). The common ones are mapped to Unicode; any other symbol becomes U+FFFD and
+# counts as lost formatting, so the author is told something did not come across.
+_SYMBOL_FONT = {
+    **dict(zip(range(0x41, 0x5B), "ΑΒΧΔΕΦΓΗΙϑΚΛΜΝΟΠΘΡΣΤΥςΩΞΨΖ", strict=True)),
+    **dict(zip(range(0x61, 0x7B), "αβχδεφγηιϕκλμνοπθρστυϖωξψζ", strict=True)),
+    0x5E: "⊥",
+    0xA3: "≤",
+    0xA5: "∞",
+    0xAB: "↔",
+    0xAC: "←",
+    0xAD: "↑",
+    0xAE: "→",
+    0xAF: "↓",
+    0xB0: "°",
+    0xB1: "±",
+    0xB3: "≥",
+    0xB4: "\u00d7",  # multiplication sign
+    0xB7: "•",
+    0xB8: "÷",
+    0xB9: "≠",
+    0xBA: "≡",
+    0xBB: "≈",
+    0xBC: "…",
+    0xD7: "⋅",
+    0xDB: "⇔",
+    0xDC: "⇐",
+    0xDD: "⇑",
+    0xDE: "⇒",
+    0xDF: "⇓",
+}
+UNKNOWN_SYMBOL = "\ufffd"
+
+
+def _symbol_text(sym: ET.Element) -> str:
+    """The character a `w:sym` stands for, or U+FFFD when it has no Unicode meaning."""
+
+    try:
+        code = int(sym.get(f"{W}char", ""), 16)
+    except ValueError:
+        return UNKNOWN_SYMBOL
+    in_font_area = 0xF000 <= code <= 0xF0FF
+    if sym.get(f"{W}font", "").casefold() == "symbol":
+        return _SYMBOL_FONT.get(code - 0xF000 if in_font_area else code, UNKNOWN_SYMBOL)
+    if (
+        in_font_area  # Wingdings and other picture fonts
+        or code < 0x20
+        or 0xD800 <= code <= 0xDFFF
+        or 0xE000 <= code <= 0xF8FF
+        or code > 0x10FFFF
+    ):
+        return UNKNOWN_SYMBOL
+    return chr(code)
 
 
 def _unsupported_style_ppr(ppr: ET.Element | None, normalized_name: str) -> bool:
@@ -426,7 +487,14 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             f"{W}commentReference",
             f"{W}footnoteReference",
             f"{W}endnoteReference",
+            # Word writes this on saving wherever its layout began a page; it holds nothing.
+            f"{W}lastRenderedPageBreak",
+            f"{W}sym",
         }
+        lost_symbols = sum(
+            _symbol_text(child) == UNKNOWN_SYMBOL for child in run if child.tag == f"{W}sym"
+        )
+        warnings["formatting"] += lost_symbols
         if any(child.tag not in allowed_run_children for child in run):
             raise UnsupportedManuscriptContent("The DOCX contains unsupported run content.")
         text = "".join(
@@ -440,6 +508,8 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             if child.tag == f"{W}noBreakHyphen"
             else "\u00ad"
             if child.tag == f"{W}softHyphen"
+            else _symbol_text(child)
+            if child.tag == f"{W}sym"
             else ""
             for child in run
         )
