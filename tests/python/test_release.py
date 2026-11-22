@@ -3030,6 +3030,43 @@ class PathFilterContractTests(unittest.TestCase):
                 "jobs without a path-filter group: extra",
             ),
             (
+                "the desktop probe runs without being asked for",
+                "    if: needs.plan.outputs.desktop_csp_probe == 'true'\n",
+                "    if: always()\n",
+                "test.yml:desktop-csp-probe must run on exactly",
+            ),
+            (
+                "the plan starts the desktop probe outside a dispatch",
+                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false",
+                "inputs.desktop_csp_probe != false",
+                "must start desktop-csp-probe on dispatch only",
+            ),
+            (
+                "the desktop probe reads a secret",
+                "        env:\n          PYTHONPATH: src\n        run: |\n          status=0\n",
+                "        env:\n          PYTHONPATH: src\n          TOKEN: ${{ secrets.GITHUB_TOKEN }}\n"
+                "        run: |\n          status=0\n",
+                "desktop-csp-probe reads the repository and nothing else",
+            ),
+            (
+                "the verdict waits for the desktop probe",
+                "    needs:\n      - plan\n",
+                "    needs:\n      - plan\n      - desktop-csp-probe\n",
+                "browser-e2e may not need the optional job desktop-csp-probe",
+            ),
+            (
+                "the desktop probe runs beside the full matrix",
+                " && inputs.full_matrix == false }}",
+                " }}",
+                "must start desktop-csp-probe on dispatch only",
+            ),
+            (
+                "the desktop probe keeps its reports for good",
+                "          retention-days: 5\n",
+                "",
+                "desktop-csp-probe must keep its artifact only briefly",
+            ),
+            (
                 "the gate accepts any skip",
                 '            elif [ "$2" = "skipped" ] && [ "$3" = "false" ]; then\n',
                 '            elif [ "$2" = "skipped" ]; then\n',
@@ -3170,6 +3207,70 @@ class PathFilterContractTests(unittest.TestCase):
                     workflow_contract.WorkflowContractError, re.escape(error)
                 ):
                     workflow_contract.validate_path_filter(mutated)
+
+    def test_one_optional_job_form_covers_both_kinds_of_start(self):
+        """D-208: one OPTIONAL_JOBS entry form holds the dispatch rules for every optional job.
+
+        llama-conformance reads its input itself; desktop-csp-probe is started by the plan job.
+        The shared rules -- boolean dispatch input, default false, not offered to a caller --
+        must bite on both, and a start the contract does not know must not pass unchecked.
+        """
+        self.assertEqual(
+            {name: spec["start"] for name, spec in workflow_contract.OPTIONAL_JOBS.items()},
+            {"llama-conformance": "input", "desktop-csp-probe": "plan"},
+        )
+        sources = workflow_contract._workflow_sources()
+        workflow = sources[TEST_WORKFLOW]
+        workflow_contract.validate_path_filter(sources)
+        probe_input = (
+            "      desktop_csp_probe:\n"
+            '        description: "Also open the desktop window on macOS under each CSP mode '
+            '(T-272)"\n'
+            "        type: boolean\n        default: false\n"
+        )
+        mutations = (
+            (
+                "the probe is requested by default",
+                probe_input,
+                probe_input.replace("default: false", "default: true"),
+                "must declare the boolean input desktop_csp_probe, default false",
+            ),
+            (
+                "the probe is offered to a caller",
+                "  workflow_call:\n    inputs:\n",
+                "  workflow_call:\n    inputs:\n      desktop_csp_probe:\n        type: boolean\n",
+                "workflow_call may not offer desktop_csp_probe",
+            ),
+            (
+                "the probe needs more than the plan",
+                "    name: Desktop CSP probe on macos-15\n    needs: plan\n",
+                "    name: Desktop CSP probe on macos-15\n    needs: [plan, frontend]\n",
+                "test.yml:desktop-csp-probe must need only the plan job",
+            ),
+        )
+        for name, original, replacement, error in mutations:
+            with self.subTest(name=name):
+                self.assertIn(original, workflow)
+                mutated = dict(sources)
+                mutated[TEST_WORKFLOW] = workflow.replace(original, replacement, 1)
+                with self.assertRaisesRegex(
+                    workflow_contract.WorkflowContractError, re.escape(error)
+                ):
+                    workflow_contract.validate_path_filter(mutated)
+        unknown = {
+            **workflow_contract.OPTIONAL_JOBS,
+            "desktop-csp-probe": {
+                **workflow_contract.OPTIONAL_JOBS["desktop-csp-probe"],
+                "start": "push",
+            },
+        }
+        with (
+            patch.object(workflow_contract, "OPTIONAL_JOBS", unknown),
+            self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError, "has no known start: push"
+            ),
+        ):
+            workflow_contract.validate_path_filter(sources)
 
     def test_a_red_frontend_fails_the_gate_beside_green_browsers(self):
         """T-46: the browsers no longer wait for frontend; the real gate script still fails."""

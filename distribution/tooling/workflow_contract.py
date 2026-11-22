@@ -1150,13 +1150,21 @@ FILTERED_JOBS = {
         "needs.plan.outputs.run_oidc != 'false'",
     ),
 }
-# Jobs of test.yml that run only when a dispatch asks for them (T-179, D-167). They are not
-# required checks: browser-e2e does not need them, so "not asked for" is a skip by design and
-# never reaches the gate. Each is a call of another workflow, started by a boolean
-# workflow_dispatch input with default false that workflow_call does not offer.
+CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
+# Jobs of test.yml that run only when a manual dispatch asks for them (T-179, D-167, T-272).
+# They are not required checks and stand outside the path filter and the verdict: browser-e2e
+# does not need them, so "not asked for" is a skip by design and never reaches the gate. One form
+# describes every one of them (D-208): the boolean workflow_dispatch input that asks for it --
+# default false, never offered to workflow_call -- and how that input starts the job:
+#   "input" -- the job reads the input itself; "body" is the job, exactly (a call of another
+#              workflow).
+#   "plan"  -- the plan job decides; "decision" is the line in plan that turns the input into an
+#              output, "condition" the job's only `if:`. Such a job needs plan alone, reads the
+#              repository and nothing else, uses no cache and keeps its artifact only briefly.
 OPTIONAL_JOBS = {
     "llama-conformance": {
         "input": "llama_conformance",
+        "start": "input",
         "body": (
             "    if: inputs.llama_conformance == true\n"
             "    permissions:\n"
@@ -1166,8 +1174,17 @@ OPTIONAL_JOBS = {
             "      spike: ${{ inputs.llama_spike == true }}\n"
         ),
     },
+    # The probe runs only in a reduced run: full_matrix == false is part of the decision.
+    "desktop-csp-probe": {
+        "input": "desktop_csp_probe",
+        "start": "plan",
+        "condition": "needs.plan.outputs.desktop_csp_probe == 'true'",
+        "decision": (
+            "DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && "
+            "inputs.desktop_csp_probe == true && inputs.full_matrix == false }}"
+        ),
+    },
 }
-CLIENT_STEPS = ("Unit tests", "Type-check and build", "dist/ matches the sources")
 
 
 def plan_output_expression(group: str) -> str:
@@ -1501,9 +1518,16 @@ def validate_optional_jobs(workflow: str, jobs: dict[str, str]) -> None:
         body = jobs.get(name)
         if body is None:
             raise WorkflowContractError(f"workflow is missing the {name} job")
-        if body.strip("\n") != spec["body"].strip("\n"):
+        if spec["start"] == "input":
+            if body.strip("\n") != spec["body"].strip("\n"):
+                raise WorkflowContractError(
+                    f"test.yml:{name} must be exactly an on-request call:\n{spec['body']}"
+                )
+        elif spec["start"] == "plan":
+            _validate_planned_optional_job(name, spec, body, jobs["plan"])
+        else:
             raise WorkflowContractError(
-                f"test.yml:{name} must be exactly an on-request call:\n{spec['body']}"
+                f"OPTIONAL_JOBS[{name}] has no known start: {spec['start']}"
             )
         field = re.search(rf"^      {spec['input']}:\n((?:        .*\n)*)", dispatch, re.MULTILINE)
         fields = field.group(1) if field else ""
@@ -1522,6 +1546,25 @@ def validate_optional_jobs(workflow: str, jobs: dict[str, str]) -> None:
             re.MULTILINE,
         ):
             raise WorkflowContractError(f"browser-e2e may not need the optional job {name}")
+
+
+def _validate_planned_optional_job(name: str, spec: dict[str, str], body: str, plan: str) -> None:
+    """An optional job the plan job starts: plan decides, the job only reads that decision."""
+
+    if spec["decision"] not in plan:
+        raise WorkflowContractError(
+            f"the plan job must start {name} on dispatch only: {spec['decision']}"
+        )
+    if not re.search(r"^    needs: plan$", body, re.MULTILINE):
+        raise WorkflowContractError(f"test.yml:{name} must need only the plan job")
+    if re.findall(r"^    if: ([^\n]*)$", body, re.MULTILINE) != [spec["condition"]]:
+        raise WorkflowContractError(f"test.yml:{name} must run on exactly: if: {spec['condition']}")
+    if "secrets." in body or "      contents: read\n" not in body:
+        raise WorkflowContractError(f"test.yml:{name} reads the repository and nothing else")
+    if "cache:" in body or "actions/cache" in body:
+        raise WorkflowContractError(f"test.yml:{name} may not use a cache")
+    if "retention-days:" not in body:
+        raise WorkflowContractError(f"test.yml:{name} must keep its artifact only briefly")
 
 
 CHECK_RUNNER = "node tools/dev/run-check.mjs"
@@ -1967,7 +2010,8 @@ def validate_required_step_conditions(sources: dict[Path, str]) -> None:
         re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", _job_body(workflow, "plan"), re.MULTILINE)
     )
     for name, body in _job_blocks(workflow):
-        if name == "plan":
+        # An optional job is not gated and never runs in full mode (OPTIONAL_JOBS).
+        if name == "plan" or name in OPTIONAL_JOBS:
             continue
         for step in re.split(r"^      - ", body, flags=re.MULTILINE)[1:]:
             for condition in re.findall(r"^(?:        )?if:[ ]*([^\n]*)$", step, re.MULTILINE):

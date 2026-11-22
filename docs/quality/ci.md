@@ -248,6 +248,18 @@ test.yml with GitHub's comparison rules for these cases:
 | Browser on Windows (10 slots) and macOS (4 slots)                   | 14                          | --                     |
 | Smoke on Windows and macOS                                          | --                          | 2                      |
 | **Total**                                                           | **30** (was 23)             | **18** (was 23)        |
+| Desktop CSP probe on macos-15, only on request (T-272)              | --                          | +1                     |
+
+The desktop CSP probe is outside both totals and outside the verdict: only a manual run with
+`desktop_csp_probe: true` and `full_matrix: false` starts it, never a pull request, a push, a
+release call or a full-matrix run, and `browser-e2e` does not wait for it (`OPTIONAL_JOBS` in
+`workflow_contract.py`). The full matrix already runs 5 macOS jobs, the plan's limit, so the probe
+never runs beside it. The job opens the real desktop window under `enforce` and `report-only` with
+`tools/dev/desktop_csp_probe.py`, checks the two JSON reports for local paths and tokens, and keeps
+them for five days. Until T-277 and T-278 land, the job is expected to end in failure: under
+`enforce` WKWebView blocks pywebview's bridge (`bridge-blocked-by-csp`, D-207), and under
+`report-only` pywebview's Cocoa backend drops the `window.open` the backup sign-in uses. A red
+probe job is the measurement, not a broken run.
 
 Why this cut:
 
