@@ -44,8 +44,10 @@ describe("TimelineStrip", () => {
       join(process.cwd(), "packages/client/src/modules/story-world/figures/TimelineStrip.css"),
       "utf8",
     );
+    // More room above than below (T-326): each moment's number reaches 5px above it, and the
+    // scroll area would clip it at the strip's edge.
     expect(css).toMatch(
-      /\.timeline-track\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*padding:\s*var\(--space-3\) var\(--space-4\);/s,
+      /\.timeline-track\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;[^}]*padding:\s*var\(--space-6\) var\(--space-4\) var\(--space-3\);/s,
     );
     expect(css).not.toMatch(/\.timeline-track(?:\s*\{|::)[^}]*(?:overflow|scrollbar)/s);
     expect(css).not.toContain(".timeline-track::-webkit-scrollbar");
