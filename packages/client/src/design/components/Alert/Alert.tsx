@@ -24,7 +24,15 @@ export function Alert({
   return (
     <div
       {...props}
-      className={`design-alert design-alert--${tone} ${className}`.trim()}
+      className={[
+        "design-alert",
+        `design-alert--${tone}`,
+        icon ? "design-alert--icon" : "",
+        action ? "design-alert--action" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       data-tone={tone}
       role={role}
     >
