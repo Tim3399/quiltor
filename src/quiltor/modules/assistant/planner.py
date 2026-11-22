@@ -8,6 +8,7 @@ from typing import Any
 
 from quiltor.modules.assistant.contract import required_proposal_kinds
 from quiltor.modules.assistant.prompts import COMPLEX_ANALYSIS_REQUEST
+from quiltor.modules.assistant.sampling import EvalSampling, apply_sampling
 from quiltor.modules.assistant.schemas import KINDS, json_schema_format, planner_schema
 
 Invoke = Callable[[dict[str, Any]], dict[str, Any]]
@@ -26,7 +27,15 @@ def needs_planner(question: str) -> bool:
     return bool(COMPLEX_ANALYSIS_REQUEST.search(question))
 
 
-def plan(question: str, context: list[Any], invoke: Invoke) -> dict[str, Any]:
+PLANNER_MAX_TOKENS = 500
+
+
+def plan(
+    question: str,
+    context: list[Any],
+    invoke: Invoke,
+    sampling: EvalSampling | None = None,
+) -> dict[str, Any]:
     schema = planner_schema(KINDS)
     summary = json.dumps(
         [
@@ -44,7 +53,7 @@ def plan(question: str, context: list[Any], invoke: Invoke) -> dict[str, Any]:
         "model": "local",
         "stream": False,
         "temperature": 0.1,
-        "max_tokens": 500,
+        "max_tokens": PLANNER_MAX_TOKENS,
         "messages": [
             {
                 "role": "system",
@@ -67,6 +76,7 @@ def plan(question: str, context: list[Any], invoke: Invoke) -> dict[str, Any]:
         ],
         "response_format": json_schema_format(schema),
     }
+    apply_sampling(payload, sampling, max_tokens_ceiling=PLANNER_MAX_TOKENS)
     try:
         result = invoke(payload)
         queries = result.get("searchQueries", [])

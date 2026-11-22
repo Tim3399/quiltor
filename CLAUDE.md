@@ -143,6 +143,8 @@ New content goes into the check part (`parts/edge.mjs`, ids `x-…`) unless it i
 seen. The base world (`parts/base.mjs`) is what the README shows and what ships as the example
 world in the wheel, the Docker image and the desktop app; the check part never ships. Growing
 the base world means taking the README pictures again (`npm run screenshots:readme`).
+A third part, `gold` (`parts/gold.mjs`, ids `g-…`), holds the AI gold set and its expectations
+for the evaluation (T-289); like the check part it never ships.
 
 Specs seed it with `seedExampleWorld` or mock it with `mockExampleWorld`
 (`tests/e2e/support/example-world.ts`) and name its ids through `world.ids`.

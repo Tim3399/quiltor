@@ -138,6 +138,8 @@ extend-ignore-re = [
   "\\(er\\|sie\\|",
   "Papyrus Autor",
   "KI-Suche",
+  # The German articles the gold-set matcher drops from names (tools/evaluation/assistant/goldset_match.py).
+  "ARTICLES_DE = \"der die das den dem des ein eine einen einem\"",
   # The questions of the T-307 real-model runs (tools/evaluation/assistant/run_t307.py).
   "Wer kommt in dieser Welt vor",
   "Wer ist die Hafenmeisterin",

@@ -10,6 +10,7 @@ from typing import Any
 from quiltor.domain.story_world.knowledge import scoped_chapters
 from quiltor.modules.assistant.ports import AssistantProgressStore
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, UNTITLED_CHAPTER
+from quiltor.modules.assistant.sampling import EvalSampling
 
 # Per-group ceiling for batch mode's chapter grouping. Chapters vary a lot in length (a
 # confirmed 277-4679 words across one test manuscript), so groups are built by walking
@@ -187,6 +188,7 @@ def run_batches(
     world_revision: int = 0,
     chapter_ids: list[str] | None = None,
     mode: str = "chat",
+    sampling: EvalSampling | None = None,
     *,
     complete: Callable[..., dict[str, Any]],
     progress: AssistantProgressStore,
@@ -243,6 +245,7 @@ def run_batches(
                 world_id=world_id,
                 world_revision=world_revision,
                 mode=mode,
+                sampling=sampling,
             )
             if result.get("clarification"):
                 known_ids = {str(item.get("id")) for item in clarification_candidates}

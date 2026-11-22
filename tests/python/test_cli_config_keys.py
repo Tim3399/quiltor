@@ -20,6 +20,9 @@ NOT_PERSISTED = {
     "QUILTOR_BUILD_PROFILE",
     # Test-only switch.
     "QUILTOR_TEST_HOOKS",
+    # Evaluation-only switches of the gold-set runner (T-289); refused in hosted and multi-user mode.
+    "QUILTOR_EVAL",
+    "QUILTOR_EVAL_SAMPLING",
 }
 
 

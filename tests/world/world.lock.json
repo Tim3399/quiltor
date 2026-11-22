@@ -1,5 +1,450 @@
 {
   "structure": {
+    "world.evaluation": {
+      "titles": "⟦gold.titles⟧"
+    },
+    "world.evaluation.gold[g-exp-alias-arvid]": {
+      "category": "figure",
+      "chapterId": "g-ch-alias",
+      "id": "g-exp-alias-arvid",
+      "names": "⟦gold.g-arvid.names⟧",
+      "need": "required",
+      "ref": "g-arvid",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-alias-e-distrust]": {
+      "category": "relation",
+      "chapterId": "g-ch-alias",
+      "directed": true,
+      "from": "g-lena",
+      "id": "g-exp-alias-e-distrust",
+      "need": "optional",
+      "ref": "g-e-distrust",
+      "relationshipKind": "general",
+      "synonyms": "⟦gold.g-e-distrust.synonyms⟧",
+      "task": "extract",
+      "to": "g-arvid"
+    },
+    "world.evaluation.gold[g-exp-alias-e-key]": {
+      "category": "relation",
+      "chapterId": "g-ch-alias",
+      "directed": true,
+      "from": "g-arvid",
+      "id": "g-exp-alias-e-key",
+      "need": "required",
+      "ref": "g-e-key",
+      "relationshipKind": "general",
+      "synonyms": "⟦gold.g-e-key.synonyms⟧",
+      "task": "extract",
+      "to": "g-key"
+    },
+    "world.evaluation.gold[g-exp-alias-ev-gate]": {
+      "category": "event",
+      "chapterId": "g-ch-alias",
+      "id": "g-exp-alias-ev-gate",
+      "keys": "⟦gold.g-ev-gate.keys⟧",
+      "need": "required",
+      "ref": "g-ev-gate",
+      "refs": [
+        "g-arvid",
+        "g-fort"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-alias-fort]": {
+      "category": "place",
+      "chapterId": "g-ch-alias",
+      "id": "g-exp-alias-fort",
+      "names": "⟦gold.g-fort.names⟧",
+      "need": "required",
+      "ref": "g-fort",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-alias-key]": {
+      "category": "thing",
+      "chapterId": "g-ch-alias",
+      "id": "g-exp-alias-key",
+      "names": "⟦gold.g-key.names⟧",
+      "need": "required",
+      "ref": "g-key",
+      "task": "extract",
+      "type": "objekt"
+    },
+    "world.evaluation.gold[g-exp-alias-lena]": {
+      "category": "figure",
+      "chapterId": "g-ch-alias",
+      "id": "g-exp-alias-lena",
+      "names": "⟦gold.g-lena.names⟧",
+      "need": "required",
+      "ref": "g-lena",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-alias-p-arvid-gate]": {
+      "category": "presence",
+      "chapterId": "g-ch-alias",
+      "elementId": "g-arvid",
+      "id": "g-exp-alias-p-arvid-gate",
+      "need": "required",
+      "placeId": "g-fort",
+      "ref": "g-p-arvid-gate",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-alias-p-lena-gate]": {
+      "category": "presence",
+      "chapterId": "g-ch-alias",
+      "elementId": "g-lena",
+      "id": "g-exp-alias-p-lena-gate",
+      "need": "required",
+      "placeId": "g-fort",
+      "ref": "g-p-lena-gate",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-mention-arvid]": {
+      "category": "figure",
+      "chapterId": "g-ch-mention",
+      "id": "g-exp-mention-arvid",
+      "names": "⟦gold.g-arvid.names⟧",
+      "need": "required",
+      "ref": "g-arvid",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-mention-ev-meal]": {
+      "category": "event",
+      "chapterId": "g-ch-mention",
+      "id": "g-exp-mention-ev-meal",
+      "keys": "⟦gold.g-ev-meal.keys⟧",
+      "need": "required",
+      "ref": "g-ev-meal",
+      "refs": [
+        "g-lena",
+        "g-arvid",
+        "g-fort"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-mention-fort]": {
+      "category": "place",
+      "chapterId": "g-ch-mention",
+      "id": "g-exp-mention-fort",
+      "names": "⟦gold.g-fort.names⟧",
+      "need": "required",
+      "ref": "g-fort",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-mention-hedda]": {
+      "category": "figure",
+      "chapterId": "g-ch-mention",
+      "id": "g-exp-mention-hedda",
+      "names": "⟦gold.g-hedda.names⟧",
+      "need": "optional",
+      "ref": "g-hedda",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-mention-lena]": {
+      "category": "figure",
+      "chapterId": "g-ch-mention",
+      "id": "g-exp-mention-lena",
+      "names": "⟦gold.g-lena.names⟧",
+      "need": "required",
+      "ref": "g-lena",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-mention-p-arvid-meal]": {
+      "category": "presence",
+      "chapterId": "g-ch-mention",
+      "elementId": "g-arvid",
+      "id": "g-exp-mention-p-arvid-meal",
+      "need": "required",
+      "placeId": "g-fort",
+      "ref": "g-p-arvid-meal",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-mention-p-lena-meal]": {
+      "category": "presence",
+      "chapterId": "g-ch-mention",
+      "elementId": "g-lena",
+      "id": "g-exp-mention-p-lena-meal",
+      "need": "required",
+      "placeId": "g-fort",
+      "ref": "g-p-lena-meal",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-missing-fenn]": {
+      "category": "figure",
+      "id": "g-exp-missing-fenn",
+      "names": "⟦gold.g-fenn.names⟧",
+      "need": "required",
+      "task": "missing",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-missing-ilka]": {
+      "category": "figure",
+      "id": "g-exp-missing-ilka",
+      "names": "⟦gold.g-ilka.names⟧",
+      "need": "required",
+      "task": "missing",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-pronoun-ev-watch]": {
+      "category": "event",
+      "chapterId": "g-ch-pronoun",
+      "id": "g-exp-pronoun-ev-watch",
+      "keys": "⟦gold.g-ev-watch.keys⟧",
+      "need": "required",
+      "ref": "g-ev-watch",
+      "refs": [
+        "g-lena",
+        "g-sandhorn"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-pronoun-lena]": {
+      "category": "figure",
+      "chapterId": "g-ch-pronoun",
+      "id": "g-exp-pronoun-lena",
+      "names": "⟦gold.g-lena.names⟧",
+      "need": "required",
+      "ref": "g-lena",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-pronoun-p-lena-watch]": {
+      "category": "presence",
+      "chapterId": "g-ch-pronoun",
+      "elementId": "g-lena",
+      "id": "g-exp-pronoun-p-lena-watch",
+      "need": "required",
+      "placeId": "g-sandhorn",
+      "ref": "g-p-lena-watch",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-pronoun-sandhorn]": {
+      "category": "place",
+      "chapterId": "g-ch-pronoun",
+      "id": "g-exp-pronoun-sandhorn",
+      "names": "⟦gold.g-sandhorn.names⟧",
+      "need": "required",
+      "ref": "g-sandhorn",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-shift-arvid]": {
+      "category": "figure",
+      "chapterId": "g-ch-shift",
+      "id": "g-exp-shift-arvid",
+      "names": "⟦gold.g-arvid.names⟧",
+      "need": "required",
+      "ref": "g-arvid",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-shift-brack]": {
+      "category": "place",
+      "chapterId": "g-ch-shift",
+      "id": "g-exp-shift-brack",
+      "names": "⟦gold.g-brack.names⟧",
+      "need": "required",
+      "ref": "g-brack",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-shift-e-ally]": {
+      "category": "relation",
+      "chapterId": "g-ch-shift",
+      "directed": false,
+      "from": "g-arvid",
+      "id": "g-exp-shift-e-ally",
+      "need": "required",
+      "ref": "g-e-ally",
+      "relationshipKind": "general",
+      "synonyms": "⟦gold.g-e-ally.synonyms⟧",
+      "task": "extract",
+      "to": "g-tamo"
+    },
+    "world.evaluation.gold[g-exp-shift-e-rival]": {
+      "category": "relation",
+      "chapterId": "g-ch-shift",
+      "directed": false,
+      "from": "g-arvid",
+      "id": "g-exp-shift-e-rival",
+      "need": "required",
+      "ref": "g-e-rival",
+      "relationshipKind": "general",
+      "synonyms": "⟦gold.g-e-rival.synonyms⟧",
+      "task": "extract",
+      "to": "g-tamo"
+    },
+    "world.evaluation.gold[g-exp-shift-ev-command]": {
+      "category": "event",
+      "chapterId": "g-ch-shift",
+      "id": "g-exp-shift-ev-command",
+      "keys": "⟦gold.g-ev-command.keys⟧",
+      "need": "required",
+      "ref": "g-ev-command",
+      "refs": [
+        "g-arvid",
+        "g-tamo"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-shift-fort]": {
+      "category": "place",
+      "chapterId": "g-ch-shift",
+      "id": "g-exp-shift-fort",
+      "names": "⟦gold.g-fort.names⟧",
+      "need": "optional",
+      "ref": "g-fort",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-shift-tamo]": {
+      "category": "figure",
+      "chapterId": "g-ch-shift",
+      "id": "g-exp-shift-tamo",
+      "names": "⟦gold.g-tamo.names⟧",
+      "need": "required",
+      "ref": "g-tamo",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-trip-brack]": {
+      "category": "place",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-brack",
+      "names": "⟦gold.g-brack.names⟧",
+      "need": "required",
+      "ref": "g-brack",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-trip-crew]": {
+      "category": "thing",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-crew",
+      "names": "⟦gold.g-crew.names⟧",
+      "need": "required",
+      "ref": "g-crew",
+      "task": "extract",
+      "type": "organisation"
+    },
+    "world.evaluation.gold[g-exp-trip-ev-board]": {
+      "category": "event",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-ev-board",
+      "keys": "⟦gold.g-ev-board.keys⟧",
+      "need": "required",
+      "ref": "g-ev-board",
+      "refs": [
+        "g-lena",
+        "g-brack",
+        "g-moewe"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-trip-ev-depart]": {
+      "category": "event",
+      "chapterId": "g-ch-trip",
+      "date": "1803-03-14",
+      "id": "g-exp-trip-ev-depart",
+      "keys": "⟦gold.g-ev-depart.keys⟧",
+      "need": "required",
+      "ref": "g-ev-depart",
+      "refs": [
+        "g-lena",
+        "g-fort"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-trip-ev-landing]": {
+      "category": "event",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-ev-landing",
+      "keys": "⟦gold.g-ev-landing.keys⟧",
+      "need": "required",
+      "ref": "g-ev-landing",
+      "refs": [
+        "g-lena",
+        "g-wehl"
+      ],
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-trip-fort]": {
+      "category": "place",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-fort",
+      "names": "⟦gold.g-fort.names⟧",
+      "need": "required",
+      "ref": "g-fort",
+      "task": "extract",
+      "type": "ort"
+    },
+    "world.evaluation.gold[g-exp-trip-lena]": {
+      "category": "figure",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-lena",
+      "names": "⟦gold.g-lena.names⟧",
+      "need": "required",
+      "ref": "g-lena",
+      "task": "extract",
+      "type": "person"
+    },
+    "world.evaluation.gold[g-exp-trip-moewe]": {
+      "category": "thing",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-moewe",
+      "names": "⟦gold.g-moewe.names⟧",
+      "need": "required",
+      "ref": "g-moewe",
+      "task": "extract",
+      "type": "objekt"
+    },
+    "world.evaluation.gold[g-exp-trip-p-lena-board]": {
+      "category": "presence",
+      "chapterId": "g-ch-trip",
+      "elementId": "g-lena",
+      "id": "g-exp-trip-p-lena-board",
+      "need": "required",
+      "placeId": "g-brack",
+      "ref": "g-p-lena-board",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-trip-p-lena-depart]": {
+      "category": "presence",
+      "chapterId": "g-ch-trip",
+      "elementId": "g-lena",
+      "id": "g-exp-trip-p-lena-depart",
+      "need": "required",
+      "placeId": "g-fort",
+      "ref": "g-p-lena-depart",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-trip-p-lena-landing]": {
+      "category": "presence",
+      "chapterId": "g-ch-trip",
+      "elementId": "g-lena",
+      "id": "g-exp-trip-p-lena-landing",
+      "need": "required",
+      "placeId": "g-wehl",
+      "ref": "g-p-lena-landing",
+      "task": "extract"
+    },
+    "world.evaluation.gold[g-exp-trip-wehl]": {
+      "category": "place",
+      "chapterId": "g-ch-trip",
+      "id": "g-exp-trip-wehl",
+      "names": "⟦gold.g-wehl.names⟧",
+      "need": "required",
+      "ref": "g-wehl",
+      "task": "extract",
+      "type": "ort"
+    },
     "world.figures.edges[e10]": {
       "directed": true,
       "from": "mara",
@@ -140,6 +585,38 @@
       "lineStyle": "solid",
       "to": "mara"
     },
+    "world.figures.edges[g-e-ally]": {
+      "directed": false,
+      "from": "g-arvid",
+      "id": "g-e-ally",
+      "label": "⟦edge.g-e-ally.label⟧",
+      "lineStyle": "solid",
+      "to": "g-tamo"
+    },
+    "world.figures.edges[g-e-distrust]": {
+      "directed": true,
+      "from": "g-lena",
+      "id": "g-e-distrust",
+      "label": "⟦edge.g-e-distrust.label⟧",
+      "lineStyle": "solid",
+      "to": "g-arvid"
+    },
+    "world.figures.edges[g-e-key]": {
+      "directed": true,
+      "from": "g-arvid",
+      "id": "g-e-key",
+      "label": "⟦edge.g-e-key.label⟧",
+      "lineStyle": "solid",
+      "to": "g-key"
+    },
+    "world.figures.edges[g-e-rival]": {
+      "directed": false,
+      "from": "g-arvid",
+      "id": "g-e-rival",
+      "label": "⟦edge.g-e-rival.label⟧",
+      "lineStyle": "solid",
+      "to": "g-tamo"
+    },
     "world.figures.mapScale": {
       "unitLabel": "km",
       "unitsPer100px": 0.5
@@ -272,6 +749,175 @@
       "type": "ort",
       "x": 840,
       "y": 770
+    },
+    "world.figures.nodes[g-arvid]": {
+      "accent": "ink",
+      "id": "g-arvid",
+      "label": "⟦el.g-arvid.label⟧",
+      "name": "⟦el.g-arvid.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-arvid.notes⟧"
+      },
+      "sub": "⟦el.g-arvid.sub⟧",
+      "type": "person",
+      "x": 2800,
+      "y": 80
+    },
+    "world.figures.nodes[g-brack]": {
+      "accent": "ink",
+      "id": "g-brack",
+      "label": "⟦el.g-brack.label⟧",
+      "name": "⟦el.g-brack.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-brack.notes⟧"
+      },
+      "sub": "⟦el.g-brack.sub⟧",
+      "type": "ort",
+      "x": 3560,
+      "y": 310
+    },
+    "world.figures.nodes[g-crew]": {
+      "accent": "ink",
+      "id": "g-crew",
+      "label": "⟦el.g-crew.label⟧",
+      "name": "⟦el.g-crew.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-crew.notes⟧"
+      },
+      "sub": "⟦el.g-crew.sub⟧",
+      "type": "organisation",
+      "x": 3560,
+      "y": 540
+    },
+    "world.figures.nodes[g-fort]": {
+      "accent": "ink",
+      "id": "g-fort",
+      "label": "⟦el.g-fort.label⟧",
+      "name": "⟦el.g-fort.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-fort.notes⟧"
+      },
+      "sub": "⟦el.g-fort.sub⟧",
+      "type": "ort",
+      "x": 2800,
+      "y": 310
+    },
+    "world.figures.nodes[g-hedda]": {
+      "accent": "ink",
+      "id": "g-hedda",
+      "label": "⟦el.g-hedda.label⟧",
+      "name": "⟦el.g-hedda.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-hedda.notes⟧"
+      },
+      "sub": "⟦el.g-hedda.sub⟧",
+      "type": "person",
+      "x": 3940,
+      "y": 80
+    },
+    "world.figures.nodes[g-key]": {
+      "accent": "ink",
+      "id": "g-key",
+      "label": "⟦el.g-key.label⟧",
+      "name": "⟦el.g-key.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-key.notes⟧"
+      },
+      "sub": "⟦el.g-key.sub⟧",
+      "type": "objekt",
+      "x": 2800,
+      "y": 540
+    },
+    "world.figures.nodes[g-lena]": {
+      "accent": "ink",
+      "id": "g-lena",
+      "label": "⟦el.g-lena.label⟧",
+      "name": "⟦el.g-lena.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-lena.notes⟧"
+      },
+      "sub": "⟦el.g-lena.sub⟧",
+      "type": "person",
+      "x": 3180,
+      "y": 80
+    },
+    "world.figures.nodes[g-moewe]": {
+      "accent": "ink",
+      "id": "g-moewe",
+      "label": "⟦el.g-moewe.label⟧",
+      "name": "⟦el.g-moewe.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-moewe.notes⟧"
+      },
+      "sub": "⟦el.g-moewe.sub⟧",
+      "type": "objekt",
+      "x": 3180,
+      "y": 540
+    },
+    "world.figures.nodes[g-sandhorn]": {
+      "accent": "ink",
+      "id": "g-sandhorn",
+      "label": "⟦el.g-sandhorn.label⟧",
+      "name": "⟦el.g-sandhorn.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-sandhorn.notes⟧"
+      },
+      "sub": "⟦el.g-sandhorn.sub⟧",
+      "type": "ort",
+      "x": 3180,
+      "y": 310
+    },
+    "world.figures.nodes[g-tamo]": {
+      "accent": "ink",
+      "id": "g-tamo",
+      "label": "⟦el.g-tamo.label⟧",
+      "name": "⟦el.g-tamo.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-tamo.notes⟧"
+      },
+      "sub": "⟦el.g-tamo.sub⟧",
+      "type": "person",
+      "x": 3560,
+      "y": 80
+    },
+    "world.figures.nodes[g-wehl]": {
+      "accent": "ink",
+      "id": "g-wehl",
+      "label": "⟦el.g-wehl.label⟧",
+      "name": "⟦el.g-wehl.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-wehl.notes⟧"
+      },
+      "sub": "⟦el.g-wehl.sub⟧",
+      "type": "ort",
+      "x": 3940,
+      "y": 310
+    },
+    "world.figures.nodes[g-wilm-ghost]": {
+      "accent": "ink",
+      "diedMomentId": "g-t-death",
+      "id": "g-wilm-ghost",
+      "label": "⟦el.g-wilm-ghost.label⟧",
+      "name": "⟦el.g-wilm-ghost.name⟧",
+      "profile": {
+        "fields": [],
+        "notes": "⟦el.g-wilm-ghost.notes⟧"
+      },
+      "sub": "⟦el.g-wilm-ghost.sub⟧",
+      "type": "person",
+      "x": 3940,
+      "y": 540
     },
     "world.figures.nodes[gilde]": {
       "accent": "ink",
@@ -914,6 +1560,60 @@
       "x": 1980,
       "y": 540
     },
+    "world.figures.presence[g-p-arvid-gate]": {
+      "elementId": "g-arvid",
+      "id": "g-p-arvid-gate",
+      "momentId": "g-ev-gate",
+      "placeId": "g-fort"
+    },
+    "world.figures.presence[g-p-arvid-meal]": {
+      "elementId": "g-arvid",
+      "id": "g-p-arvid-meal",
+      "momentId": "g-ev-meal",
+      "placeId": "g-fort"
+    },
+    "world.figures.presence[g-p-ghost-later]": {
+      "elementId": "g-wilm-ghost",
+      "id": "g-p-ghost-later",
+      "momentId": "g-t-later",
+      "placeId": "g-fort"
+    },
+    "world.figures.presence[g-p-lena-board]": {
+      "elementId": "g-lena",
+      "id": "g-p-lena-board",
+      "momentId": "g-ev-board",
+      "placeId": "g-brack"
+    },
+    "world.figures.presence[g-p-lena-depart]": {
+      "elementId": "g-lena",
+      "id": "g-p-lena-depart",
+      "momentId": "g-ev-depart",
+      "placeId": "g-fort"
+    },
+    "world.figures.presence[g-p-lena-gate]": {
+      "elementId": "g-lena",
+      "id": "g-p-lena-gate",
+      "momentId": "g-ev-gate",
+      "placeId": "g-fort"
+    },
+    "world.figures.presence[g-p-lena-landing]": {
+      "elementId": "g-lena",
+      "id": "g-p-lena-landing",
+      "momentId": "g-ev-landing",
+      "placeId": "g-wehl"
+    },
+    "world.figures.presence[g-p-lena-meal]": {
+      "elementId": "g-lena",
+      "id": "g-p-lena-meal",
+      "momentId": "g-ev-meal",
+      "placeId": "g-fort"
+    },
+    "world.figures.presence[g-p-lena-watch]": {
+      "elementId": "g-lena",
+      "id": "g-p-lena-watch",
+      "momentId": "g-ev-watch",
+      "placeId": "g-sandhorn"
+    },
     "world.figures.presence[presence-1]": {
       "elementId": "mara",
       "id": "presence-1",
@@ -1039,6 +1739,75 @@
     "world.figures.timeSystem.weekdays[#5]": {
       "name": "⟦weekday.6.name⟧",
       "shortName": "⟦weekday.6.short⟧"
+    },
+    "world.figures.timeline[g-ev-board]": {
+      "id": "g-ev-board",
+      "note": "⟦moment.g-ev-board.note⟧",
+      "position": 13,
+      "title": "⟦moment.g-ev-board.title⟧"
+    },
+    "world.figures.timeline[g-ev-command]": {
+      "id": "g-ev-command",
+      "note": "⟦moment.g-ev-command.note⟧",
+      "position": 11,
+      "title": "⟦moment.g-ev-command.title⟧"
+    },
+    "world.figures.timeline[g-ev-depart]": {
+      "date": "1803-03-14",
+      "id": "g-ev-depart",
+      "note": "⟦moment.g-ev-depart.note⟧",
+      "position": 12,
+      "title": "⟦moment.g-ev-depart.title⟧"
+    },
+    "world.figures.timeline[g-ev-gate]": {
+      "id": "g-ev-gate",
+      "note": "⟦moment.g-ev-gate.note⟧",
+      "position": 8,
+      "title": "⟦moment.g-ev-gate.title⟧"
+    },
+    "world.figures.timeline[g-ev-landing]": {
+      "id": "g-ev-landing",
+      "note": "⟦moment.g-ev-landing.note⟧",
+      "position": 14,
+      "title": "⟦moment.g-ev-landing.title⟧"
+    },
+    "world.figures.timeline[g-ev-meal]": {
+      "id": "g-ev-meal",
+      "note": "⟦moment.g-ev-meal.note⟧",
+      "position": 10,
+      "title": "⟦moment.g-ev-meal.title⟧"
+    },
+    "world.figures.timeline[g-ev-watch]": {
+      "id": "g-ev-watch",
+      "note": "⟦moment.g-ev-watch.note⟧",
+      "position": 9,
+      "title": "⟦moment.g-ev-watch.title⟧"
+    },
+    "world.figures.timeline[g-t-a]": {
+      "date": "1803-03-14",
+      "id": "g-t-a",
+      "note": "⟦moment.g-t-a.note⟧",
+      "position": 18,
+      "title": "⟦moment.g-t-a.title⟧"
+    },
+    "world.figures.timeline[g-t-b]": {
+      "date": "1803-03-20",
+      "id": "g-t-b",
+      "note": "⟦moment.g-t-b.note⟧",
+      "position": 17,
+      "title": "⟦moment.g-t-b.title⟧"
+    },
+    "world.figures.timeline[g-t-death]": {
+      "id": "g-t-death",
+      "note": "⟦moment.g-t-death.note⟧",
+      "position": 15,
+      "title": "⟦moment.g-t-death.title⟧"
+    },
+    "world.figures.timeline[g-t-later]": {
+      "id": "g-t-later",
+      "note": "⟦moment.g-t-later.note⟧",
+      "position": 16,
+      "title": "⟦moment.g-t-later.title⟧"
     },
     "world.figures.timeline[t1]": {
       "id": "t1",
@@ -1219,6 +1988,217 @@
       },
       "title": "⟦ch.c5.title⟧"
     },
+    "world.manuscript.chapters[g-ch-alias]": {
+      "body": "⟦ch.g-alias.body⟧",
+      "id": "g-ch-alias",
+      "mentions": [
+        {
+          "confidence": 1,
+          "elementId": "g-arvid",
+          "from": 0,
+          "id": "g-m-alias-arvid",
+          "source": "deterministic",
+          "surface": "⟦el.g-arvid.name⟧",
+          "to": 17
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-fort",
+          "from": 0,
+          "id": "g-m-alias-fort",
+          "source": "deterministic",
+          "surface": "⟦el.g-fort.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-key",
+          "from": 0,
+          "id": "g-m-alias-key",
+          "source": "deterministic",
+          "surface": "⟦el.g-key.name⟧",
+          "to": 15
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-lena",
+          "from": 0,
+          "id": "g-m-alias-lena",
+          "source": "deterministic",
+          "surface": "⟦el.g-lena.name⟧",
+          "to": 16
+        }
+      ],
+      "note": "",
+      "title": "⟦ch.g-alias.title⟧"
+    },
+    "world.manuscript.chapters[g-ch-mention]": {
+      "body": "⟦ch.g-mention.body⟧",
+      "id": "g-ch-mention",
+      "mentions": [
+        {
+          "confidence": 1,
+          "elementId": "g-fort",
+          "from": 0,
+          "id": "g-m-mention-fort",
+          "source": "deterministic",
+          "surface": "⟦el.g-fort.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-lena",
+          "from": 0,
+          "id": "g-m-mention-lena",
+          "source": "deterministic",
+          "surface": "⟦el.g-lena.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-arvid",
+          "from": 0,
+          "id": "g-m-mention-arvid",
+          "source": "deterministic",
+          "surface": "⟦el.g-arvid.name⟧",
+          "to": 17
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-hedda",
+          "from": 0,
+          "id": "g-m-mention-hedda",
+          "source": "deterministic",
+          "surface": "⟦el.g-hedda.name⟧",
+          "to": 17
+        }
+      ],
+      "note": "",
+      "title": "⟦ch.g-mention.title⟧"
+    },
+    "world.manuscript.chapters[g-ch-pronoun]": {
+      "body": "⟦ch.g-pronoun.body⟧",
+      "id": "g-ch-pronoun",
+      "mentions": [
+        {
+          "confidence": 1,
+          "elementId": "g-lena",
+          "from": 0,
+          "id": "g-m-pronoun-lena",
+          "source": "deterministic",
+          "surface": "⟦el.g-lena.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-sandhorn",
+          "from": 0,
+          "id": "g-m-pronoun-sandhorn",
+          "source": "deterministic",
+          "surface": "⟦el.g-sandhorn.name⟧",
+          "to": 20
+        }
+      ],
+      "note": "",
+      "title": "⟦ch.g-pronoun.title⟧"
+    },
+    "world.manuscript.chapters[g-ch-shift]": {
+      "body": "⟦ch.g-shift.body⟧",
+      "id": "g-ch-shift",
+      "mentions": [
+        {
+          "confidence": 1,
+          "elementId": "g-tamo",
+          "from": 0,
+          "id": "g-m-shift-tamo",
+          "source": "deterministic",
+          "surface": "⟦el.g-tamo.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-arvid",
+          "from": 0,
+          "id": "g-m-shift-arvid",
+          "source": "deterministic",
+          "surface": "⟦el.g-arvid.name⟧",
+          "to": 17
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-brack",
+          "from": 0,
+          "id": "g-m-shift-brack",
+          "source": "deterministic",
+          "surface": "⟦el.g-brack.name⟧",
+          "to": 17
+        }
+      ],
+      "note": "",
+      "title": "⟦ch.g-shift.title⟧"
+    },
+    "world.manuscript.chapters[g-ch-trip]": {
+      "body": "⟦ch.g-trip.body⟧",
+      "id": "g-ch-trip",
+      "mentions": [
+        {
+          "confidence": 1,
+          "elementId": "g-lena",
+          "from": 0,
+          "id": "g-m-trip-lena",
+          "source": "deterministic",
+          "surface": "⟦el.g-lena.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-fort",
+          "from": 0,
+          "id": "g-m-trip-fort",
+          "source": "deterministic",
+          "surface": "⟦el.g-fort.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-brack",
+          "from": 0,
+          "id": "g-m-trip-brack",
+          "source": "deterministic",
+          "surface": "⟦el.g-brack.name⟧",
+          "to": 17
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-moewe",
+          "from": 0,
+          "id": "g-m-trip-moewe",
+          "source": "deterministic",
+          "surface": "⟦el.g-moewe.name⟧",
+          "to": 17
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-crew",
+          "from": 0,
+          "id": "g-m-trip-crew",
+          "source": "deterministic",
+          "surface": "⟦el.g-crew.name⟧",
+          "to": 16
+        },
+        {
+          "confidence": 1,
+          "elementId": "g-wehl",
+          "from": 0,
+          "id": "g-m-trip-wehl",
+          "source": "deterministic",
+          "surface": "⟦el.g-wehl.name⟧",
+          "to": 16
+        }
+      ],
+      "note": "",
+      "title": "⟦ch.g-trip.title⟧"
+    },
     "world.manuscript.chapters[x-chronicle]": {
       "body": "⟦ch.x-chronicle.body-3⟧",
       "id": "x-chronicle",
@@ -1238,6 +2218,10 @@
     "world.manuscript.structure.folders[act-two]": {
       "id": "act-two",
       "title": "⟦folder.act2⟧"
+    },
+    "world.manuscript.structure.folders[g-folder]": {
+      "id": "g-folder",
+      "title": "⟦folder.g-folder⟧"
     },
     "world.manuscript.structure.items[folder-one]": {
       "folderId": "act-one",
@@ -1306,6 +2290,47 @@
       "kind": "chapter",
       "parentFolderId": "act-two",
       "position": 0
+    },
+    "world.manuscript.structure.items[item-g-ch-alias]": {
+      "chapterId": "g-ch-alias",
+      "id": "item-g-ch-alias",
+      "kind": "chapter",
+      "parentFolderId": "g-folder",
+      "position": 0
+    },
+    "world.manuscript.structure.items[item-g-ch-mention]": {
+      "chapterId": "g-ch-mention",
+      "id": "item-g-ch-mention",
+      "kind": "chapter",
+      "parentFolderId": "g-folder",
+      "position": 2
+    },
+    "world.manuscript.structure.items[item-g-ch-pronoun]": {
+      "chapterId": "g-ch-pronoun",
+      "id": "item-g-ch-pronoun",
+      "kind": "chapter",
+      "parentFolderId": "g-folder",
+      "position": 1
+    },
+    "world.manuscript.structure.items[item-g-ch-shift]": {
+      "chapterId": "g-ch-shift",
+      "id": "item-g-ch-shift",
+      "kind": "chapter",
+      "parentFolderId": "g-folder",
+      "position": 3
+    },
+    "world.manuscript.structure.items[item-g-ch-trip]": {
+      "chapterId": "g-ch-trip",
+      "id": "item-g-ch-trip",
+      "kind": "chapter",
+      "parentFolderId": "g-folder",
+      "position": 4
+    },
+    "world.manuscript.structure.items[item-g-folder]": {
+      "folderId": "g-folder",
+      "id": "item-g-folder",
+      "kind": "folder",
+      "position": 2
     },
     "world.manuscript.structure.items[item-x-chronicle]": {
       "chapterId": "x-chronicle",
@@ -2078,6 +3103,56 @@
       "en": "The Open Coast",
       "translatedFrom": "be4646b13e2a7619"
     },
+    "ch.g-alias.body": {
+      "de": "Hauptmann Selm Arvid kam im ersten Licht nach Fort Kehrwieder. Am Gürtel trug er den Torschlüssel, den ihm sonst niemand anvertraute. Lena Dorn wartete schon am Graben. Sie misstraute ihm, seit er im Winter ohne ein Wort fortgegangen war. „Der Hauptmann ist zurück“, rief einer von der Mauer. Arvid nickte nur und ging zum Tor. „Selm“, sagte Lena leise, „du hättest schreiben können.“ Er antwortete nicht. Mit dem Schlüssel öffnete er das Tor, und das Fort lag offen vor ihnen.",
+      "en": "Captain Selm Arvid came to Fort Kehrwieder with the first light. At his belt he carried the Gate key, which nobody else would have trusted him with. Lena Dorn was already waiting by the moat. She had distrusted him since he left in winter without a word. “The captain is back,” someone called from the wall. Arvid only nodded and walked to the gate. “Selm,” Lena said quietly, “you could have written.” He did not answer. With the key he opened the gate, and the fort lay open before them.",
+      "translatedFrom": "bc7a0d5ed397dcf8"
+    },
+    "ch.g-alias.title": {
+      "de": "Der Hauptmann kehrt zurück",
+      "en": "The captain returns",
+      "translatedFrom": "97b1933259d45a38"
+    },
+    "ch.g-mention.body": {
+      "de": "In der Küche von Fort Kehrwieder schnitt Lena Dorn Brot für die Wache. Selm Arvid saß am Tisch und sah ihr zu. „Wie Großmutter Hedda immer sagte: Wer zuerst isst, hält zuletzt Wache“, sagte Lena. Arvid lachte zum ersten Mal seit Tagen. Draußen schlug die Glocke zur Mittagsstunde.",
+      "en": "In the kitchen of Fort Kehrwieder, Lena Dorn cut bread for the watch. Selm Arvid sat at the table and watched her. “As Grandmother Hedda always said: whoever eats first keeps watch last,” said Lena. Arvid laughed for the first time in days. Outside, the bell struck noon.",
+      "translatedFrom": "ce40dd622586c25c"
+    },
+    "ch.g-mention.title": {
+      "de": "Brot für die Wache",
+      "en": "Bread for the watch",
+      "translatedFrom": "539d480772119d0c"
+    },
+    "ch.g-pronoun.body": {
+      "de": "Lena Dorn stieg die Treppe zum Leuchtfeuer Sandhorn hinauf. Oben zündete sie die Lampe an und wartete. Sie zählte die Schiffe, die draußen vorbeizogen, und schrieb jedes in ihr Buch. Als der Wind drehte, schloss sie das Fenster. Sie blieb bis zum Morgen, dann ging sie hinunter und legte sich schlafen.",
+      "en": "Lena Dorn climbed the stairs of Sandhorn Light. At the top she lit the lamp and waited. She counted the ships passing outside and wrote each one into her book. When the wind turned, she closed the window. She stayed until morning, then she went down and lay down to sleep.",
+      "translatedFrom": "b846cb3086f7ea80"
+    },
+    "ch.g-pronoun.title": {
+      "de": "Nachtwache",
+      "en": "Night watch",
+      "translatedFrom": "f14af5111f562eb8"
+    },
+    "ch.g-shift.body": {
+      "de": "Tamo Reff und Selm Arvid hatten den ganzen Winter zusammen gegen die Schmuggler gestanden. Sie waren Verbündete, und jeder im Hafen Brack wusste es. Doch als der Rat den Befehl über das Fort vergab, wählte er Arvid. Von diesem Tag an sprach Tamo kein freundliches Wort mehr mit ihm. Aus den Verbündeten wurden Rivalen, die einander auf dem Kai aus dem Weg gingen.",
+      "en": "Tamo Reff and Selm Arvid had stood together against the smugglers all winter. They were allies, and everyone in Brack Harbour knew it. But when the council gave out the command of the fort, it chose Arvid. From that day on Tamo never spoke a friendly word to him again. The allies became rivals who avoided each other on the quay.",
+      "translatedFrom": "85727a221d7d8bff"
+    },
+    "ch.g-shift.title": {
+      "de": "Aus Verbündeten werden Rivalen",
+      "en": "Allies turn rivals",
+      "translatedFrom": "792c18aaa98c3d3d"
+    },
+    "ch.g-trip.body": {
+      "de": "Am 14. März 1803 verließ Lena Dorn Fort Kehrwieder vor Sonnenaufgang. Zu Fuß ging sie hinunter zum Hafen Brack, wo die Möwe schon Segel setzte. Die Mannschaft der Möwe nahm sie ohne Fragen an Bord. Zwei Tage lang kreuzten sie gegen den Wind, bis am Horizont die Insel Wehl auftauchte. Lena sprang als Erste an Land. Hinter ihr lag das Fort, vor ihr die Insel, von der niemand zurückkam.",
+      "en": "On 14 March 1803 Lena Dorn left Fort Kehrwieder before sunrise. On foot she went down to Brack Harbour, where the Gull was already setting sail. The Crew of the Gull took her aboard without questions. For two days they beat against the wind until the Isle of Wehl rose on the horizon. Lena was the first to jump ashore. Behind her lay the fort, before her the island nobody came back from.",
+      "translatedFrom": "61044a0a2757c0f7"
+    },
+    "ch.g-trip.title": {
+      "de": "Die Überfahrt",
+      "en": "The crossing",
+      "translatedFrom": "e91d053afbf6384b"
+    },
     "ch.prologue.body": {
       "de": "Dieser Prolog verriet schon auf der ersten Seite, wohin der Atlas führt. Er wurde gestrichen.",
       "en": "This prologue gave away on its first page where the atlas leads. It was cut.",
@@ -2243,6 +3318,26 @@
       "en": "ferries",
       "translatedFrom": "032eaae6c1a25905"
     },
+    "edge.g-e-ally.label": {
+      "de": "verbündet",
+      "en": "allied",
+      "translatedFrom": "f0fbb7cb959380d0"
+    },
+    "edge.g-e-distrust.label": {
+      "de": "misstraut",
+      "en": "distrusts",
+      "translatedFrom": "09a89af3a4d42ee9"
+    },
+    "edge.g-e-key.label": {
+      "de": "trägt",
+      "en": "carries",
+      "translatedFrom": "0738ae99f3db846a"
+    },
+    "edge.g-e-rival.label": {
+      "de": "Rivalen",
+      "en": "rivals",
+      "translatedFrom": "db5b775bb25c753b"
+    },
     "el.ada.label": {
       "de": "Lotsin",
       "en": "Harbour pilot",
@@ -2362,6 +3457,246 @@
       "de": "Der letzte Steg vor dem offenen Wasser.",
       "en": "The last jetty before the open water.",
       "translatedFrom": "8b9e4eff264c62dc"
+    },
+    "el.g-arvid.label": {
+      "de": "Hauptmann",
+      "en": "Captain",
+      "translatedFrom": "5055d8a955c6a38c"
+    },
+    "el.g-arvid.name": {
+      "de": "Selm Arvid",
+      "en": "Selm Arvid",
+      "translatedFrom": "d63f598bc4b82210"
+    },
+    "el.g-arvid.notes": {
+      "de": "Kam nach einem Winter in der Fremde zurück.",
+      "en": "Came back after a winter abroad.",
+      "translatedFrom": "73858a9bf9374582"
+    },
+    "el.g-arvid.sub": {
+      "de": "Hält den Schlüssel zum Fort.",
+      "en": "Holds the key to the fort.",
+      "translatedFrom": "79bb9380b057ee44"
+    },
+    "el.g-brack.label": {
+      "de": "Hafen",
+      "en": "Harbour",
+      "translatedFrom": "079251db5b490245"
+    },
+    "el.g-brack.name": {
+      "de": "Hafen Brack",
+      "en": "Brack Harbour",
+      "translatedFrom": "4aa59534d1c24676"
+    },
+    "el.g-brack.notes": {
+      "de": "Jeder hier kennt jeden.",
+      "en": "Everybody here knows everybody.",
+      "translatedFrom": "76522391142475b1"
+    },
+    "el.g-brack.sub": {
+      "de": "Wo die Möwe festmacht.",
+      "en": "Where the Gull ties up.",
+      "translatedFrom": "4f6100fcf8005dd8"
+    },
+    "el.g-crew.label": {
+      "de": "Mannschaft",
+      "en": "Crew",
+      "translatedFrom": "3a1cb81bb7f687c3"
+    },
+    "el.g-crew.name": {
+      "de": "Mannschaft der Möwe",
+      "en": "Crew of the Gull",
+      "translatedFrom": "1cfebfd1fb08b7f2"
+    },
+    "el.g-crew.notes": {
+      "de": "Bootsmann Fenn führt die Mannschaft, seit der alte Steuermann fort ist.",
+      "en": "Boatswain Fenn has led the crew since the old helmsman left.",
+      "translatedFrom": "1acb8c8a752f2a9f"
+    },
+    "el.g-crew.sub": {
+      "de": "Fragt nicht, wohin die Fahrt geht.",
+      "en": "Never asks where the voyage goes.",
+      "translatedFrom": "c26b1b2b064431c2"
+    },
+    "el.g-fort.label": {
+      "de": "Festung am Graben",
+      "en": "Fortress by the moat",
+      "translatedFrom": "b82284353f6ce9cb"
+    },
+    "el.g-fort.name": {
+      "de": "Fort Kehrwieder",
+      "en": "Fort Kehrwieder",
+      "translatedFrom": "2556d7892c42d7f7"
+    },
+    "el.g-fort.notes": {
+      "de": "Im Keller hat die Schmugglerin Ilka Saar ihre Fässer versteckt.",
+      "en": "The smuggler Ilka Saar has hidden her barrels in its cellar.",
+      "translatedFrom": "ef2ede9a0764da25"
+    },
+    "el.g-fort.sub": {
+      "de": "Bewacht die Einfahrt.",
+      "en": "Guards the harbour mouth.",
+      "translatedFrom": "2a4b210a541221b0"
+    },
+    "el.g-hedda.label": {
+      "de": "Großmutter",
+      "en": "Grandmother",
+      "translatedFrom": "c4f33495231f16f1"
+    },
+    "el.g-hedda.name": {
+      "de": "Hedda",
+      "en": "Hedda",
+      "translatedFrom": "a719690d06c9a033"
+    },
+    "el.g-hedda.notes": {
+      "de": "Wird nur zitiert, tritt nie auf.",
+      "en": "Only ever quoted, never on stage.",
+      "translatedFrom": "f458a430713ff27e"
+    },
+    "el.g-hedda.sub": {
+      "de": "Lebt nur noch in ihren Sprüchen.",
+      "en": "Lives on only in her sayings.",
+      "translatedFrom": "86bd9e484df2edea"
+    },
+    "el.g-key.label": {
+      "de": "Schlüssel",
+      "en": "Key",
+      "translatedFrom": "1fbd7a00cacba0b8"
+    },
+    "el.g-key.name": {
+      "de": "Torschlüssel",
+      "en": "Gate key",
+      "translatedFrom": "7a58527eb241a4d1"
+    },
+    "el.g-key.notes": {
+      "de": "Es gibt nur diesen einen.",
+      "en": "There is only this one.",
+      "translatedFrom": "d06004de40f02b1d"
+    },
+    "el.g-key.sub": {
+      "de": "Öffnet das Tor des Forts.",
+      "en": "Opens the gate of the fort.",
+      "translatedFrom": "95ff353ea785756b"
+    },
+    "el.g-lena.label": {
+      "de": "Wächterin",
+      "en": "Keeper",
+      "translatedFrom": "3061cf9c51544587"
+    },
+    "el.g-lena.name": {
+      "de": "Lena Dorn",
+      "en": "Lena Dorn",
+      "translatedFrom": "871296f4eebf4398"
+    },
+    "el.g-lena.notes": {
+      "de": "Schreibt jedes Schiff in ihr Buch.",
+      "en": "Writes every ship into her book.",
+      "translatedFrom": "d56de4fb5df8087e"
+    },
+    "el.g-lena.sub": {
+      "de": "Hütet das Leuchtfeuer und traut niemandem.",
+      "en": "Tends the light and trusts nobody.",
+      "translatedFrom": "86fd9427cfc25b02"
+    },
+    "el.g-moewe.label": {
+      "de": "Schiff",
+      "en": "Ship",
+      "translatedFrom": "be67b72b0c691391"
+    },
+    "el.g-moewe.name": {
+      "de": "Möwe",
+      "en": "Gull",
+      "translatedFrom": "a7031335653bb700"
+    },
+    "el.g-moewe.notes": {
+      "de": "Segelt auch gegen den Wind.",
+      "en": "Sails even against the wind.",
+      "translatedFrom": "81e03c139f45422a"
+    },
+    "el.g-moewe.sub": {
+      "de": "Ein schneller Zweimaster.",
+      "en": "A fast two-master.",
+      "translatedFrom": "8d9cdd8c1b7d6bea"
+    },
+    "el.g-sandhorn.label": {
+      "de": "Leuchtturm",
+      "en": "Lighthouse",
+      "translatedFrom": "40d415fa11ec0674"
+    },
+    "el.g-sandhorn.name": {
+      "de": "Leuchtfeuer Sandhorn",
+      "en": "Sandhorn Light",
+      "translatedFrom": "36fe803267d67f2f"
+    },
+    "el.g-sandhorn.notes": {
+      "de": "Die Lampe brennt jede Nacht.",
+      "en": "The lamp burns every night.",
+      "translatedFrom": "0271a87e0378adba"
+    },
+    "el.g-sandhorn.sub": {
+      "de": "Steht auf der äußersten Düne.",
+      "en": "Stands on the outermost dune.",
+      "translatedFrom": "fdc9cc009ca97cbb"
+    },
+    "el.g-tamo.label": {
+      "de": "Kapitän",
+      "en": "Skipper",
+      "translatedFrom": "df686ddd1c30606c"
+    },
+    "el.g-tamo.name": {
+      "de": "Tamo Reff",
+      "en": "Tamo Reff",
+      "translatedFrom": "0b5fa6bb1bda03ca"
+    },
+    "el.g-tamo.notes": {
+      "de": "Wollte den Befehl über das Fort.",
+      "en": "Wanted the command of the fort.",
+      "translatedFrom": "3f57e4d82a839d0e"
+    },
+    "el.g-tamo.sub": {
+      "de": "Erst Verbündeter, dann Rivale.",
+      "en": "First an ally, then a rival.",
+      "translatedFrom": "a3eae9b4011914a9"
+    },
+    "el.g-wehl.label": {
+      "de": "Insel",
+      "en": "Island",
+      "translatedFrom": "82f1643a857d54a8"
+    },
+    "el.g-wehl.name": {
+      "de": "Insel Wehl",
+      "en": "Isle of Wehl",
+      "translatedFrom": "f5d0692cf724ca98"
+    },
+    "el.g-wehl.notes": {
+      "de": "Nur bei Westwind zu erreichen.",
+      "en": "Only reachable with a westerly wind.",
+      "translatedFrom": "93fcdecbff73f4b2"
+    },
+    "el.g-wehl.sub": {
+      "de": "Von dort kommt niemand zurück.",
+      "en": "Nobody comes back from there.",
+      "translatedFrom": "f937a2c6a262ed21"
+    },
+    "el.g-wilm-ghost.label": {
+      "de": "Toter Wächter",
+      "en": "Dead keeper",
+      "translatedFrom": "3289bc7d6851002f"
+    },
+    "el.g-wilm-ghost.name": {
+      "de": "Wilm Asch",
+      "en": "Wilm Asch",
+      "translatedFrom": "4413b45c54b7ac58"
+    },
+    "el.g-wilm-ghost.notes": {
+      "de": "Prüfstoff für die Zeitprüfung: anwesend nach seinem Tod.",
+      "en": "Material for the time check: present after his death.",
+      "translatedFrom": "6b51fcaed20c89e8"
+    },
+    "el.g-wilm-ghost.sub": {
+      "de": "Gestorben und doch wieder am Tor gesehen.",
+      "en": "Died, and yet seen at the gate again.",
+      "translatedFrom": "a66d074a4887f0c8"
     },
     "el.gilde.label": {
       "de": "Organisation",
@@ -2948,10 +4283,140 @@
       "en": "II · Map Fog",
       "translatedFrom": "befc3268e349623d"
     },
+    "folder.g-folder": {
+      "de": "Goldset",
+      "en": "Gold set",
+      "translatedFrom": "740d565bd8b6b32d"
+    },
     "folder.x-gone": {
       "de": "Gelöschter Ordner",
       "en": "Deleted folder",
       "translatedFrom": "0b1f0d86feff3a33"
+    },
+    "gold.g-arvid.names": {
+      "de": "Selm Arvid|Arvid|Selm|Hauptmann",
+      "en": "Selm Arvid|Arvid|Selm|Captain",
+      "translatedFrom": "4318c7ae10e46714"
+    },
+    "gold.g-brack.names": {
+      "de": "Hafen Brack|Brack",
+      "en": "Brack Harbour|Brack",
+      "translatedFrom": "884f711179c1533e"
+    },
+    "gold.g-crew.names": {
+      "de": "Mannschaft der Möwe|Mannschaft",
+      "en": "Crew of the Gull|Crew",
+      "translatedFrom": "425e94f5e231b037"
+    },
+    "gold.g-e-ally.synonyms": {
+      "de": "verbündet|Verbündete|Verbündeter|Bündnis|Freunde",
+      "en": "allied|allies|ally|alliance|friends",
+      "translatedFrom": "3cfcd5e1200fd3e5"
+    },
+    "gold.g-e-distrust.synonyms": {
+      "de": "misstraut|Misstrauen|traut nicht",
+      "en": "distrusts|distrust|mistrusts",
+      "translatedFrom": "e83f4ed6b66e8fcb"
+    },
+    "gold.g-e-key.synonyms": {
+      "de": "besitzt|trägt|hält|gehört",
+      "en": "owns|carries|holds|has",
+      "translatedFrom": "7a901103c379d633"
+    },
+    "gold.g-e-rival.synonyms": {
+      "de": "Rivalen|Rivale|rivalisiert|Feinde|verfeindet",
+      "en": "rivals|rival|enemies|feud",
+      "translatedFrom": "1fce20b65a180ab5"
+    },
+    "gold.g-ev-board.keys": {
+      "de": "Bord|Möwe|Einschiffung|Hafen",
+      "en": "aboard|Gull|embark|harbour",
+      "translatedFrom": "94046782f50c5a93"
+    },
+    "gold.g-ev-command.keys": {
+      "de": "Befehl|Rat|Wahl",
+      "en": "command|council|choice",
+      "translatedFrom": "24a6e897453eea3f"
+    },
+    "gold.g-ev-depart.keys": {
+      "de": "Aufbruch|verlässt|Abreise|Abschied",
+      "en": "departure|leaves|farewell",
+      "translatedFrom": "cc1c679bd8f01ff1"
+    },
+    "gold.g-ev-gate.keys": {
+      "de": "Tor|Öffnung|öffnet",
+      "en": "gate|opening|opens",
+      "translatedFrom": "8f5f90bba6046a85"
+    },
+    "gold.g-ev-landing.keys": {
+      "de": "Landung|Ankunft|Insel|Wehl",
+      "en": "landing|arrival|island|Wehl",
+      "translatedFrom": "2f607e02826449aa"
+    },
+    "gold.g-ev-meal.keys": {
+      "de": "Brot|Küche|Mittag|Essen",
+      "en": "bread|kitchen|midday|meal",
+      "translatedFrom": "a79426e4a8afba14"
+    },
+    "gold.g-ev-watch.keys": {
+      "de": "Wache|Nachtwache|Lampe|Leuchtfeuer",
+      "en": "watch|night watch|lamp|light",
+      "translatedFrom": "91c0ce58a6ab2e6b"
+    },
+    "gold.g-fenn.names": {
+      "de": "Fenn|Bootsmann Fenn",
+      "en": "Fenn|Boatswain Fenn",
+      "translatedFrom": "dac39882aa1fdf1e"
+    },
+    "gold.g-fort.names": {
+      "de": "Fort Kehrwieder|Kehrwieder|Fort",
+      "en": "Fort Kehrwieder|Kehrwieder|Fort",
+      "translatedFrom": "bd9e8b01bf7bf387"
+    },
+    "gold.g-hedda.names": {
+      "de": "Hedda|Großmutter Hedda",
+      "en": "Hedda|Grandmother Hedda",
+      "translatedFrom": "76c9fd65ee4c4130"
+    },
+    "gold.g-ilka.names": {
+      "de": "Ilka Saar|Ilka|Saar",
+      "en": "Ilka Saar|Ilka|Saar",
+      "translatedFrom": "2e68cdcbad937603"
+    },
+    "gold.g-key.names": {
+      "de": "Torschlüssel|Schlüssel",
+      "en": "Gate key|Key",
+      "translatedFrom": "2c29416dbb27c4b1"
+    },
+    "gold.g-lena.names": {
+      "de": "Lena Dorn|Lena",
+      "en": "Lena Dorn|Lena",
+      "translatedFrom": "4eed5f1c90d1da35"
+    },
+    "gold.g-moewe.names": {
+      "de": "Möwe|die Möwe",
+      "en": "Gull|the Gull",
+      "translatedFrom": "329438ca2f10ba34"
+    },
+    "gold.g-sandhorn.names": {
+      "de": "Leuchtfeuer Sandhorn|Sandhorn|Leuchtfeuer",
+      "en": "Sandhorn Light|Sandhorn|Lighthouse",
+      "translatedFrom": "1f13b4a411e8d517"
+    },
+    "gold.g-tamo.names": {
+      "de": "Tamo Reff|Tamo|Reff",
+      "en": "Tamo Reff|Tamo|Reff",
+      "translatedFrom": "dcd897868e1935b7"
+    },
+    "gold.g-wehl.names": {
+      "de": "Insel Wehl|Wehl",
+      "en": "Isle of Wehl|Wehl",
+      "translatedFrom": "207445ab66b23a2b"
+    },
+    "gold.titles": {
+      "de": "Hauptmann|Bootsmann|Großmutter|Schmugglerin|Kapitän",
+      "en": "Captain|Boatswain|Grandmother|Smuggler|Skipper",
+      "translatedFrom": "823461b16fe3f931"
     },
     "mara.notes.drive.h": {
       "de": "Was sie antreibt",
@@ -2987,6 +4452,116 @@
       "de": "Iven Rook kennt den Zugang zum Gezeitenarchiv. Er hilft ihr bei der Öffnung des Atlas, verschweigt aber seine Verbindung zur Gilde. Tilo Krey bringt sie über das Wasser, wenn es sonst niemand tut.",
       "en": "Iven Rook knows the way into the Tidal Archive. He helps her with the Opening of the Atlas but keeps quiet about his ties to the Guild. Tilo Krey takes her across the water when nobody else will.",
       "translatedFrom": "1f4b7c92c45de149"
+    },
+    "moment.g-ev-board.note": {
+      "de": "Im Hafen Brack.",
+      "en": "In Brack Harbour.",
+      "translatedFrom": "168c56c9ff0e7b88"
+    },
+    "moment.g-ev-board.title": {
+      "de": "An Bord der Möwe",
+      "en": "Aboard the Gull",
+      "translatedFrom": "d1699a474a5afed2"
+    },
+    "moment.g-ev-command.note": {
+      "de": "Arvid statt Tamo.",
+      "en": "Arvid instead of Tamo.",
+      "translatedFrom": "6674a3b8948c6b62"
+    },
+    "moment.g-ev-command.title": {
+      "de": "Der Rat vergibt den Befehl",
+      "en": "The council gives out the command",
+      "translatedFrom": "0d1f0d0f85c25f3a"
+    },
+    "moment.g-ev-depart.note": {
+      "de": "Vor Sonnenaufgang.",
+      "en": "Before sunrise.",
+      "translatedFrom": "56fa943910ba95db"
+    },
+    "moment.g-ev-depart.title": {
+      "de": "Lena verlässt das Fort",
+      "en": "Lena leaves the fort",
+      "translatedFrom": "ca3fade37a118973"
+    },
+    "moment.g-ev-gate.note": {
+      "de": "Der Hauptmann ist zurück im Fort.",
+      "en": "The captain is back in the fort.",
+      "translatedFrom": "072053c6326d8c57"
+    },
+    "moment.g-ev-gate.title": {
+      "de": "Arvid öffnet das Tor",
+      "en": "Arvid opens the gate",
+      "translatedFrom": "28f41bfa9815617c"
+    },
+    "moment.g-ev-landing.note": {
+      "de": "Lena springt als Erste an Land.",
+      "en": "Lena is the first ashore.",
+      "translatedFrom": "66d4064ad830e317"
+    },
+    "moment.g-ev-landing.title": {
+      "de": "Landung auf Wehl",
+      "en": "Landing on Wehl",
+      "translatedFrom": "d53b81c0abb0a9ec"
+    },
+    "moment.g-ev-meal.note": {
+      "de": "Lena und Arvid in der Küche.",
+      "en": "Lena and Arvid in the kitchen.",
+      "translatedFrom": "e6970b657f394e00"
+    },
+    "moment.g-ev-meal.title": {
+      "de": "Mittagsbrot im Fort",
+      "en": "Midday bread in the fort",
+      "translatedFrom": "1c7fce3207fdda50"
+    },
+    "moment.g-ev-watch.note": {
+      "de": "Die Lampe auf Sandhorn brennt.",
+      "en": "The lamp on Sandhorn burns.",
+      "translatedFrom": "5426e079dcb602ef"
+    },
+    "moment.g-ev-watch.title": {
+      "de": "Lenas Nachtwache",
+      "en": "Lena's night watch",
+      "translatedFrom": "7e6c45aa51faafe5"
+    },
+    "moment.g-t-a.note": {
+      "de": "Steht nach dem zwanzigsten März und trägt den vierzehnten.",
+      "en": "Stands after the twentieth of March and carries the fourteenth.",
+      "translatedFrom": "a2302f32c885e4f8"
+    },
+    "moment.g-t-a.title": {
+      "de": "Früher datiert, später eingeordnet",
+      "en": "Dated earlier, placed later",
+      "translatedFrom": "d1b8519f821e2fe9"
+    },
+    "moment.g-t-b.note": {
+      "de": "Steht vor dem vierzehnten März und trägt den zwanzigsten.",
+      "en": "Stands before the fourteenth of March and carries the twentieth.",
+      "translatedFrom": "756d66443b4f8cdd"
+    },
+    "moment.g-t-b.title": {
+      "de": "Später datiert, früher eingeordnet",
+      "en": "Dated later, placed earlier",
+      "translatedFrom": "1a12a9853a669754"
+    },
+    "moment.g-t-death.note": {
+      "de": "Wilm Asch stirbt am Tor des Forts.",
+      "en": "Wilm Asch dies at the gate of the fort.",
+      "translatedFrom": "5016ff9d3abdedde"
+    },
+    "moment.g-t-death.title": {
+      "de": "Wilm Aschs Tod",
+      "en": "Wilm Asch's death",
+      "translatedFrom": "350877533de5e308"
+    },
+    "moment.g-t-later.note": {
+      "de": "Nach seinem Tod steht er wieder Wache.",
+      "en": "After his death he keeps watch again.",
+      "translatedFrom": "268842066deaa444"
+    },
+    "moment.g-t-later.title": {
+      "de": "Wilm Asch am Tor",
+      "en": "Wilm Asch at the gate",
+      "translatedFrom": "ea8f57cee0953a84"
     },
     "moment.t1.note": {
       "de": "Mara erreicht die Stadt und sucht das Archiv.",
