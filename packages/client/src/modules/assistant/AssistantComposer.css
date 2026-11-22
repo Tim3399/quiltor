@@ -1,6 +1,6 @@
 .assistant-drawer > footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-7);
   padding: var(--space-10) var(--space-12);
   border-top: 1px solid var(--line);
@@ -38,8 +38,16 @@
   width: 100%;
   margin-top: var(--space-5);
 }
-.assistant-composer-input {
+/* The field's own margin and the generic `.ui-field > textarea` rule (taller, resizable)
+   used to win here: the box grew, its margin pushed the send button below the field's
+   edge, and the note underneath was cut off (T-329). Both are taken back for the composer
+   only; .ui-field itself stays as it is. */
+.assistant-composer-field {
+  margin: 0;
+}
+.assistant-composer-field > .assistant-composer-input {
   width: 100%;
+  min-height: 0;
   height: 58px;
   resize: none;
 }
