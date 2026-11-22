@@ -176,7 +176,7 @@
   min-height: var(--control-touch);
   display: grid;
   grid-area: main;
-  grid-template-columns: var(--space-16) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: var(--space-6);
   padding-inline: var(--space-6);
