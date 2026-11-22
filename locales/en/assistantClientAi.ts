@@ -27,7 +27,7 @@ export const assistantClientAi = {
   assistantErrorChapterTooLong:
     "This chapter is too long to analyse. Split it into several chapters, for example at scene breaks, and then update the world chapter by chapter.",
   assistantErrorExtractionIncomplete:
-    "The chapter could not be analysed in full. Nothing was kept.",
+    "The chapter could not be analysed in full, for example because a part or the whole request ran out of time. Nothing was kept.",
   assistantErrorExtractionPartFailed:
     "The analysis stopped in a later part of the chapter. Nothing was kept; a new attempt starts again with the first part.",
   assistantEngineErrorUnknown: "Your own engine could not run the request.",

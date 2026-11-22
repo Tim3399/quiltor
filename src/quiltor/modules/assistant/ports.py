@@ -57,6 +57,11 @@ class InferenceTimeoutError(RuntimeError):
         )
 
 
+class InferenceDeadlineError(InferenceTimeoutError):
+    """A job, or one part of an extraction, ran out of its time (T-330, D-238): not one answer
+    that was late, but the time the whole work may take."""
+
+
 class InferenceUnavailableError(RuntimeError):
     pass
 

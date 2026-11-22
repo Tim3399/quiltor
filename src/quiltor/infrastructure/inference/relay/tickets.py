@@ -39,6 +39,9 @@ DELIVER_SECONDS = 20.0
 ANSWER_SECONDS = {"webllm": 300.0, "cloud": 120.0}
 #: Seconds one client job may take across all its calls.
 JOB_SECONDS = 20 * 60.0
+#: Seconds one client job may take altogether when it runs in parts (T-330, D-238): each part
+#: has JOB_SECONDS of its own, the job no more than this.
+JOB_TOTAL_SECONDS = 2 * 60 * 60.0
 #: Open tickets at once in this process; one client job holds at most one.
 TICKET_CAPACITY = 256
 FAILURE_LIMIT = 5
@@ -336,6 +339,7 @@ __all__ = [
     "DELIVER_SECONDS",
     "FAILURE_LIMIT",
     "JOB_SECONDS",
+    "JOB_TOTAL_SECONDS",
     "JobBinding",
     "RelayAnswerTimeout",
     "RelayCancelled",

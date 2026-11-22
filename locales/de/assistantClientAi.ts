@@ -31,7 +31,7 @@ export const assistantClientAi = {
   assistantErrorChapterTooLong:
     "Dieses Kapitel ist für die Auswertung zu lang. Teile es in mehrere Kapitel, zum Beispiel an Szenenwechseln, und aktualisiere die Welt dann kapitelweise.",
   assistantErrorExtractionIncomplete:
-    "Das Kapitel ließ sich nicht vollständig auswerten. Es wurde nichts übernommen.",
+    "Das Kapitel ließ sich nicht vollständig auswerten, zum Beispiel weil die Zeit für einen Teil oder den ganzen Auftrag abgelaufen ist. Es wurde nichts übernommen.",
   assistantErrorExtractionPartFailed:
     "Die Auswertung brach in einem späteren Teil des Kapitels ab. Es wurde nichts übernommen; ein neuer Versuch beginnt wieder beim ersten Teil.",
   assistantEngineErrorUnknown: "Die eigene Engine konnte den Auftrag nicht ausführen.",

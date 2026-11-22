@@ -38,6 +38,7 @@ from quiltor.modules.assistant.ports import (
     ChapterTooLongError,
     ExtractionIncompleteError,
     ExtractionPartFailedError,
+    InferenceDeadlineError,
     InferenceTimeoutError,
     InferenceUnavailableError,
     InferenceValidationError,
@@ -696,6 +697,39 @@ class ExtractionPartsTests(CompletionBudgetTests):
             )
         self.assertIn("part 2", str(raised.exception))
         self.assertEqual(classify_assistant_error(raised.exception), "extraction_part_failed")
+
+    def test_a_part_out_of_time_ends_the_run_as_incomplete_without_a_retry(self):
+        # D-238: past the time of a part or of the job the chapter is not finished; that is
+        # extraction_incomplete, and a retry would only take the same time again.
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        invoke = inference.invoke
+        attempts = {"part 2": 0}
+
+        def late(payload):
+            if len(inference.calls) >= 1:
+                attempts["part 2"] += 1
+                raise InferenceDeadlineError(20 * 60.0)
+            return invoke(payload)
+
+        inference.invoke = late
+        with self.assertRaises(ExtractionIncompleteError) as raised:
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertIn("part 2", str(raised.exception))
+        self.assertEqual(attempts["part 2"], 1)
+        self.assertEqual(classify_assistant_error(raised.exception), "extraction_incomplete")
+
+    def test_every_part_opens_its_own_time(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        opened: list[int] = []
+        inference.start_part = lambda: opened.append(len(inference.calls))
+        runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        self.assertEqual(opened, list(range(len(inference.calls))))
 
     def test_a_cancelled_job_starts_no_further_part(self):
         manuscript, chapter_id, _ = marked_chapter(2000)

@@ -32,6 +32,7 @@ from quiltor.modules.assistant.jobs import AssistantJobRunner
 from quiltor.modules.assistant.ports import (
     ClientJobRunning,
     IncompleteInferenceResponse,
+    InferenceDeadlineError,
     InferenceTimeoutError,
     InferenceUnavailableError,
     InferenceValidationError,
@@ -171,6 +172,38 @@ class RelayDeliveryTests(RelayTestCase):
                 error = call.error
                 self.assertIsInstance(error, InferenceTimeoutError)
                 self.assertEqual(cast(InferenceTimeoutError, error).timeout_seconds, seconds)
+
+    def test_each_part_of_an_extraction_has_twenty_minutes(self):
+        # D-238: a part past its 20 minutes ends; the next part starts its own 20 minutes.
+        call = Call(self.engine)
+        ticket = present(self.pick_up())
+        self.answer(ticket.token, _output("{}"))
+        call.join()
+        self.clock.advance(19 * 60)
+        self.engine.start_part()
+        self.clock.advance(19 * 60)
+        call = Call(self.engine)
+        ticket = present(self.pick_up())
+        self.answer(ticket.token, _output("{}"))
+        call.join()
+        self.assertIsNone(call.error)
+        self.clock.advance(2 * 60)
+        call = Call(self.engine)
+        call.join()
+        self.assertIsInstance(call.error, InferenceDeadlineError)
+        self.assertEqual(cast(InferenceDeadlineError, call.error).timeout_seconds, 20 * 60.0)
+
+    def test_a_job_in_parts_has_two_hours_altogether(self):
+        # D-238: however many parts, the job ends after two hours.
+        for _ in range(6):
+            self.engine.start_part()
+            self.clock.advance(19 * 60)
+        self.engine.start_part()
+        self.clock.advance(7 * 60)
+        call = Call(self.engine)
+        call.join()
+        self.assertIsInstance(call.error, InferenceDeadlineError)
+        self.assertEqual(cast(InferenceDeadlineError, call.error).timeout_seconds, 2 * 60 * 60.0)
 
     def test_a_ticket_answers_once(self):
         call = Call(self.engine)

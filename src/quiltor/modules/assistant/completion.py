@@ -48,6 +48,7 @@ from quiltor.modules.assistant.ports import (
     ExtractionIncompleteError,
     ExtractionPartFailedError,
     InferenceContextTooLargeError,
+    InferenceDeadlineError,
     InferenceEngine,
     InferenceTimeoutError,
     InferenceUnavailableError,
@@ -586,6 +587,9 @@ def complete_request(
             else figures
         )
         done = len(results)
+        start_part = getattr(runtime.inference, "start_part", None)
+        if callable(start_part):
+            start_part()
         result = _run_part(
             lambda current=current, world=world, done=done: once(current, world, done), index
         )
@@ -643,8 +647,14 @@ def _run_part(call: Callable[[], dict[str, Any]], index: int) -> dict[str, Any]:
     try:
         try:
             return call()
+        except InferenceDeadlineError:
+            raise
         except InferenceTimeoutError:
             return call()
+    except InferenceDeadlineError as exc:
+        # Each part has its time and the job has its time (D-238); past either, the chapter
+        # is not finished, and a retry would only take the same time again.
+        raise ExtractionIncompleteError(f"part {index}: {exc}") from exc
     except (WorldTooLargeError, ChapterTooLongError, ExtractionIncompleteError):
         raise
     except InferenceUnavailableError as exc:

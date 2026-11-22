@@ -168,7 +168,7 @@ export const assistant = {
   batchSummary:
     "{chapters} Kapitel in {groups} Gruppen verarbeitet, {proposals} Vorschläge vorbereitet. Jeder Vorschlag kann einzeln geprüft und übernommen werden.",
   chapterGroupLabel: "Kapitel {index}/{total}: {titles}",
-  chapterGroupPartLabel: "Kapitel {index}/{total}: {titles}, Teil {part}/{parts}",
+  chapterGroupPartLabel: "Kapitel {index}/{total}: {titles}, Teil {part} von {parts}",
   extractionEmpty:
     "In der gewählten Kapitelauswahl wurde kein neuer prüfbarer Weltzustand gefunden.",
   errorAssistantPremiumRequired:
