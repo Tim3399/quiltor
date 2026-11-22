@@ -48,6 +48,7 @@ import http.server
 import ipaddress
 import json
 import os
+import re
 import socket
 import socketserver
 import sqlite3
@@ -57,7 +58,7 @@ import time
 import traceback
 import webbrowser
 from typing import Any, Literal, cast
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from quiltor.application import ApplicationError, PdfRendererError
 from quiltor.bootstrap import LOOPBACK_HOSTS, WebApplication, WebWorldContext, build_web_application
@@ -279,6 +280,25 @@ def _safe_traceback(exc: BaseException) -> str:
 # Populates api_routes.GET / api_routes.SAVE. At import time rather than on the
 # first request, so a broken route module fails at startup instead of as a 404.
 api_routes.load()
+
+
+# Vite names its bundles `<name>-<8 chars of hash>.<ext>` under /assets/. A name like that
+# changes whenever the content does, so the browser may keep it for good.
+HASHED_ASSET = re.compile(r"^/assets/[^/]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$")
+CACHE_REVALIDATE = "no-cache"
+CACHE_IMMUTABLE = "public, max-age=31536000, immutable"
+
+
+def static_cache_control(path: str) -> str:
+    """The Cache-Control of a file served out of dist/ (T-354).
+
+    Without it a browser may cache index.html heuristically and keep running the previous
+    client after a deploy. index.html and every file whose name carries no content hash
+    (favicon, theme-boot.js, icons) are revalidated on each use -- they answer 304 from
+    Last-Modified, so it costs a round trip, not a download. Only a hashed bundle is
+    immutable.
+    """
+    return CACHE_IMMUTABLE if HASHED_ASSET.match(path) else CACHE_REVALIDATE
 
 
 def is_html(content_type: str) -> bool:
@@ -600,6 +620,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # otherwise frame the local server and steer the author's clicks.
             if html:
                 self.send_header("X-Frame-Options", "DENY")
+            # Only on a file that is actually being sent: an error page or a redirect
+            # must not be remembered as if it were the asset.
+            cache_control = getattr(self, "_static_cache_control", None)
+            if cache_control is not None and self._response_status in (200, 304):
+                self.send_header("Cache-Control", cache_control)
             # Any Set-Cookie headers queued by the auth routes ride along on whatever
             # response actually gets sent (send_json/send_pdf/redirect/static fallback).
             for key, value in getattr(self, "_pending_cookies", None) or []:
@@ -922,7 +947,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         Vite client out of dist/. The fallback for anything not an API route."""
         if self.path.split("?")[0] == "/":
             self.path = "/index.html"
-        super().do_GET()
+        self._static_cache_control = static_cache_control(unquote(self.path.split("?", 1)[0]))
+        try:
+            super().do_GET()
+        finally:
+            self._static_cache_control = None
 
     def _dispatch(self, table: dict, *, on_miss) -> None:
         started = time.monotonic()
