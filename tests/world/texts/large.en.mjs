@@ -450,7 +450,6 @@ export const texts = {
   "large.map.sub": "The whole north coast with its harbours, villages and islands.",
   "large.map.notes": "A large map on which every place of the novel is marked.",
 
-  "large.label.person": "Person",
   "large.label.organisation": "Organisation",
   "large.label.objekt": "Object",
   "large.label.ort": "Place",
@@ -603,4 +602,7 @@ export const texts = {
   "large.ch.26": "The Wreck in the Bay",
   "large.ch.27": "Festival of the Tides",
   "large.ch.28": "The New Map",
+
+  "large.field.role": "Occupation",
+  "large.field.home": "Home",
 };

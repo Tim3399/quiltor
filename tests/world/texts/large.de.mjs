@@ -596,7 +596,6 @@ export const texts = {
   "large.map.sub": "Die ganze Nordküste mit ihren Häfen, Dörfern und Inseln.",
   "large.map.notes": "Eine große Karte, auf der alle Orte des Romans eingezeichnet sind.",
 
-  "large.label.person": "Person",
   "large.label.organisation": "Organisation",
   "large.label.objekt": "Gegenstand",
   "large.label.ort": "Ort",
@@ -749,4 +748,7 @@ export const texts = {
   "large.ch.26": "Das Wrack in der Bucht",
   "large.ch.27": "Fest der Gezeiten",
   "large.ch.28": "Die neue Karte",
+
+  "large.field.role": "Beruf",
+  "large.field.home": "Wohnort",
 };

@@ -3,7 +3,7 @@
 // treating them as models.
 
 export type WorldLanguage = "de" | "en";
-export type WorldPart = "base" | "edge";
+export type WorldPart = "base" | "edge" | "gold" | "large";
 
 /** A chapter as the world writes it into the manuscript payload. */
 export interface ExampleWorldChapter {
