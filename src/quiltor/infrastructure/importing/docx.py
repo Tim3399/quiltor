@@ -240,18 +240,42 @@ def _properties(rpr: ET.Element | None) -> dict[str, bool]:
 
 
 _MAPPED_RPR = {f"{W}b", f"{W}i", f"{W}rStyle"}
-# The look of a whole text -- typeface, size, colour, kerning -- and the proofing switches
-# Word writes on its own. Quiltor sets its own typography, so dropping these loses nothing
-# an author put into the text. This holds for the base styles only (see `_styles`).
+# The proofing switches: which language a spell checker uses and whether it checks at all.
+# Word sets them on its own (another language detected, text pasted in), they change nothing
+# a reader sees, so dropping them is no loss wherever they stand (F-337-1).
+_PROOFING_RPR = frozenset({f"{W}lang", f"{W}noProof"})
+# The look of a whole text -- typeface, size, colour, kerning. Quiltor sets its own
+# typography, so dropping these loses nothing an author put into the text. This holds for
+# the base styles only (see `_styles`); on a run or another style the author chose them.
 _BASE_LOOK_RPR = {
     f"{W}rFonts",
     f"{W}sz",
     f"{W}szCs",
     f"{W}color",
     f"{W}kern",
-    f"{W}lang",
-    f"{W}noProof",
+    *_PROOFING_RPR,
 }
+# Markers that carry no text: where a bookmark, an editing permission, a spelling error, a
+# comment range or a move begins or ends. Word writes them between runs and, when they span
+# whole paragraphs, between paragraphs in w:body (F-334-1). Between runs the paragraph reader
+# passes over them already, as it reads only w:r; in w:body this list admits them. The
+# content of a move (w:moveFrom, w:moveTo) is not a marker and stays refused.
+_INVISIBLE_MARKERS = frozenset(
+    f"{W}{name}"
+    for name in (
+        "bookmarkStart",
+        "bookmarkEnd",
+        "permStart",
+        "permEnd",
+        "proofErr",
+        "commentRangeStart",
+        "commentRangeEnd",
+        "moveFromRangeStart",
+        "moveFromRangeEnd",
+        "moveToRangeStart",
+        "moveToRangeEnd",
+    )
+)
 
 
 def _unsupported_rpr(rpr: ET.Element | None, ignored: frozenset | set = frozenset()) -> bool:
@@ -427,8 +451,10 @@ def _paragraph_units(
     }
     if any(element.tag in forbidden for element in body.iter()):
         raise UnsupportedManuscriptContent("The DOCX contains unsupported body structures.")
-    if any(child.tag not in {f"{W}p", f"{W}sectPr"} for child in body):
+    if any(child.tag not in {f"{W}p", f"{W}sectPr", *_INVISIBLE_MARKERS} for child in body):
         raise UnsupportedManuscriptContent("The DOCX contains unsupported body structures.")
+    # A comment over whole paragraphs starts in w:body; it is still a comment the author loses.
+    warnings["comments"] += len(body.findall(f"{W}commentRangeStart"))
     paragraphs = body.findall(f"{W}p")
     if len(paragraphs) > MAX_PARAGRAPHS:
         raise ManuscriptLimitExceeded("The DOCX contains too many paragraphs.")
@@ -494,7 +520,7 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             properties.update(styles.explicit_properties(rstyle))
         properties.update(_properties(rpr))
         if (
-            _unsupported_rpr(rpr)
+            _unsupported_rpr(rpr, _PROOFING_RPR)
             or styles.has_unsupported_formatting(rstyle)
             or styles.defaults_unsupported
         ):

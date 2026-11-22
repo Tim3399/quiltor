@@ -18,7 +18,7 @@ from quiltor.application.manuscript_import import (
     ManuscriptWarningsUnacknowledged,
     UnsupportedManuscriptContent,
 )
-from quiltor.infrastructure.importing.docx import parse_docx
+from quiltor.infrastructure.importing.docx import parse_docx, parse_docx_units
 from quiltor.infrastructure.importing.text_formats import parse_markdown_units
 from quiltor.infrastructure.persistence.manuscript_import import SQLiteManuscriptImportRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript
@@ -244,6 +244,81 @@ class DocxParserTests(unittest.TestCase):
 
         parsed = parse_docx("word-symbol.docx", (WORD_FIXTURES / "word-symbol.docx").read_bytes())
         self.assertIn("Kompassrose \ufffd und Windrichtung ⊥", parsed.chapters[0].body)
+
+    def test_a_word_file_with_a_bookmark_and_a_language_mark_imports_without_warning(self):
+        """F2: Word ends a bookmark over whole paragraphs in w:body, and marks a paragraph in
+        another proofing language and a name excluded from proofing on the runs. Nothing of
+        that is lost, so the file imports with no warning (F-334-1, F-337-1)."""
+
+        payload = (WORD_FIXTURES / "word-markers.docx").read_bytes()
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            xml = archive.read("word/document.xml")
+        self.assertIn(b"</w:p><w:bookmarkEnd", xml)
+        self.assertIn(b'<w:lang w:val="en-US"', xml)
+        self.assertIn(b"<w:noProof/>", xml)
+        parsed = parse_docx("word-markers.docx", payload)
+        self.assertEqual([chapter.title for chapter in parsed.chapters], ["Die Ankunft"])
+        self.assertTrue(parsed.chapters[0].body.startswith("Der Morgen lag still über dem Hafen."))
+        self.assertIn("»Du bist spät«, sagte Iven Rook.", parsed.chapters[0].body)
+        self.assertEqual(parsed.warnings, ())
+        self.assertEqual(parse_docx_units("word-markers.docx", payload).warnings, ())
+
+    def test_invisible_markers_between_paragraphs_are_skipped(self):
+        for marker in (
+            '<w:bookmarkStart w:id="1" w:name="Szene"/>',
+            '<w:bookmarkEnd w:id="1"/>',
+            '<w:permStart w:id="2" w:edGrp="everyone"/>',
+            '<w:permEnd w:id="2"/>',
+            '<w:proofErr w:type="spellStart"/>',
+            '<w:commentRangeEnd w:id="3"/>',
+            '<w:moveFromRangeStart w:id="4" w:name="m"/>',
+            '<w:moveFromRangeEnd w:id="4"/>',
+            '<w:moveToRangeStart w:id="5" w:name="m"/>',
+            '<w:moveToRangeEnd w:id="5"/>',
+        ):
+            with self.subTest(marker=marker):
+                body = (
+                    paragraph("Kapitel", style="Heading1")
+                    + paragraph("Der Morgen lag still.")
+                    + marker
+                    + paragraph("Mara blieb stehen.")
+                )
+                parsed = parse_docx("Marker.docx", docx(document(body), styles=STYLES))
+                self.assertEqual(
+                    parsed.chapters[0].body, "Der Morgen lag still.\n\nMara blieb stehen."
+                )
+                self.assertEqual(parsed.warnings, ())
+
+    def test_a_comment_range_between_paragraphs_still_counts_as_a_comment(self):
+        body = (
+            paragraph("Kapitel", style="Heading1")
+            + '<w:commentRangeStart w:id="3"/>'
+            + paragraph("Der Morgen lag still.")
+        )
+        parsed = parse_docx("Kommentar.docx", docx(document(body), styles=STYLES))
+        self.assertEqual(parsed.warnings, ({"code": "comments", "count": 1},))
+
+    def test_moved_text_between_paragraphs_is_still_refused(self):
+        body = paragraph("Der Morgen lag still.") + '<w:moveFrom w:id="6"><w:p/></w:moveFrom>'
+        with self.assertRaises(UnsupportedManuscriptContent):
+            parse_docx("Verschoben.docx", docx(document(body), styles=STYLES))
+
+    def test_proofing_marks_on_a_run_are_no_loss_but_its_typeface_is(self):
+        for run_properties, lost in (
+            ('<w:rPr><w:lang w:val="en-US"/></w:rPr>', []),
+            ("<w:rPr><w:noProof/></w:rPr>", []),
+            ('<w:rPr><w:lang w:val="en-US"/><w:noProof/><w:i/></w:rPr>', []),
+            ('<w:rPr><w:rFonts w:ascii="Courier New"/></w:rPr>', [1]),
+            ('<w:rPr><w:lang w:val="en-US"/><w:sz w:val="40"/></w:rPr>', [1]),
+        ):
+            with self.subTest(run_properties=run_properties):
+                body = paragraph("Kapitel", style="Heading1") + paragraph(
+                    "She said nothing.", run_properties=run_properties
+                )
+                parsed = parse_docx("Sprache.docx", docx(document(body), styles=STYLES))
+                self.assertEqual(
+                    [w["count"] for w in parsed.warnings if w["code"] == "formatting"], lost
+                )
 
     def test_character_style_adds_to_inherited_paragraph_formatting(self):
         body = (
