@@ -353,26 +353,26 @@ def remaining_manuscript(
     manuscript: dict[str, Any],
     chapter_ids: list[str] | None,
     sent: list[Any],
-    origin: dict[str, list[int]],
-) -> tuple[dict[str, Any], bool, dict[str, list[int]]]:
+    origin: dict[str, list[list[int]]],
+) -> tuple[dict[str, Any], bool, dict[str, list[list[int]]]]:
     """The manuscript with what ``sent`` carried to the model taken out of the scoped chapters,
-    whether anything of them is left, and for every part left the index of the part it came from
-    in the original chapter. A part cut short leaves its tail, from its last whole word on."""
+    whether anything of them is left, and for every part left the paragraphs of the original
+    chapter it holds. A part cut short leaves its tail, from its last whole word on."""
     covered: dict[str, str] = {chunk.id: chunk.text for chunk in sent}
     scoped = {str(chapter.get("id")) for chapter in scoped_chapters(manuscript, chapter_ids)}
     chapters: list[dict[str, Any]] = []
     left = False
-    next_origin: dict[str, list[int]] = {}
+    next_origin: dict[str, list[list[int]]] = {}
     for chapter in manuscript.get("chapters") or []:
         chapter_id = str(chapter.get("id"))
         if chapter_id not in scoped:
             chapters.append(chapter)
             continue
         pieces: list[str] = []
-        sources: list[int] = []
+        sources: list[list[int]] = []
         known = origin.get(chapter_id, [])
         for index, part in enumerate(chapter_parts(str(chapter.get("body") or ""))):
-            source = known[index] if index < len(known) else index
+            source = known[index] if index < len(known) else [index]
             done = covered.get(f"chapter:{chapter_id}:{index}")
             if done is None:
                 pieces.append(part)
@@ -384,18 +384,44 @@ def remaining_manuscript(
                 if tail:
                     pieces.append(tail)
                     sources.append(source)
-        rest = {**chapter, "body": "\n\n".join(pieces)}
+        body = "\n\n".join(pieces)
+        rest = {**chapter, "body": body}
         if f"chapter-note:{chapter_id}" in covered:
             rest["note"] = ""
         left = left or bool(pieces) or bool(str(rest.get("note") or "").strip())
         chapters.append(rest)
-        # The joined pieces split into parts again; a piece never spans two of them, since
-        # every piece is at most one part long and parts break only between paragraphs.
-        next_origin[chapter_id] = sources
+        next_origin[chapter_id] = _part_sources(body, pieces, sources)
     return {**manuscript, "chapters": chapters}, left, next_origin
 
 
-def _with_original_ids(value: Any, origin: dict[str, list[int]]) -> Any:
+def _part_sources(body: str, pieces: list[str], sources: list[list[int]]) -> list[list[int]]:
+    """For every part the joined pieces split into again, the original paragraphs it holds.
+    Splitting may merge several pieces into one part, so a part is mapped by where it lies."""
+    spans = []
+    position = 0
+    for piece in pieces:
+        spans.append((position, position + len(piece)))
+        position += len(piece) + 2
+    result: list[list[int]] = []
+    cursor = 0
+    for part in chapter_parts(body):
+        start = body.find(part, cursor)
+        start = cursor if start < 0 else start
+        end = start + len(part)
+        cursor = end
+        held = sorted(
+            {
+                paragraph
+                for (first, last), source in zip(spans, sources, strict=True)
+                if first < end and last > start
+                for paragraph in source
+            }
+        )
+        result.append(held or (sources[-1] if sources else [0]))
+    return result
+
+
+def _with_original_ids(value: Any, origin: dict[str, list[list[int]]]) -> Any:
     """``value`` with every chunk id of a later part pointing at its paragraph in the original
     chapter, so evidence from part k leads to the right place (T-330)."""
     if isinstance(value, str):
@@ -404,7 +430,7 @@ def _with_original_ids(value: Any, origin: dict[str, list[int]]) -> Any:
             sources = origin[match["chapter"]]
             index = int(match["index"])
             if index < len(sources):
-                return f"chapter:{match['chapter']}:{sources[index]}"
+                return f"chapter:{match['chapter']}:{sources[index][0]}"
         return value
     if isinstance(value, list):
         return [_with_original_ids(item, origin) for item in value]
@@ -541,7 +567,9 @@ def complete_request(
     if not parts:
         return once(manuscript, figures, 0)
     origin = {
-        str(chapter.get("id")): list(range(len(chapter_parts(str(chapter.get("body") or "")))))
+        str(chapter.get("id")): [
+            [index] for index in range(len(chapter_parts(str(chapter.get("body") or ""))))
+        ]
         for chapter in scoped_chapters(manuscript, chapter_ids)
     }
     results: list[dict[str, Any]] = []
@@ -561,8 +589,28 @@ def complete_request(
         result = _run_part(
             lambda current=current, world=world, done=done: once(current, world, done), index
         )
-        results.append(_with_original_ids(result, origin))
         sent = runtime._extraction_context
+        result = _with_original_ids(result, origin)
+        if sent is not None:
+            # What of the chapters this part carried, as paragraphs of the original chapter:
+            # the trace shows the coverage without the prompt (T-330).
+            carried = []
+            for chunk in sent:
+                match = _CHAPTER_CHUNK.match(chunk.id)
+                if chunk.kind != "chapter" or not match:
+                    continue
+                held = origin.get(match["chapter"], [])
+                position = int(match["index"])
+                paragraphs = held[position] if position < len(held) else [position]
+                carried.append(
+                    {
+                        "paragraphs": [f"chapter:{match['chapter']}:{item}" for item in paragraphs],
+                        "chars": len(chunk.text),
+                    }
+                )
+            step = {"step": "extraction_sent", "part": index, "chunks": carried}
+            result = {**result, "agentTrace": [*(result.get("agentTrace") or []), step]}
+        results.append(result)
         if sent is None:
             # Answered before any prompt was built (a clarification, a refusal): one reply.
             break

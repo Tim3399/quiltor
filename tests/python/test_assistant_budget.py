@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
+from quiltor.domain.story_world.knowledge import build_knowledge, chapter_parts, retrieve
 from quiltor.infrastructure.inference.relay.engine import RelayInferenceEngine
 from quiltor.infrastructure.inference.relay.tickets import RelayTicketStore
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
@@ -529,6 +529,18 @@ class ExtractionPartsTests(CompletionBudgetTests):
                 sent = "\n".join(m["content"] for call in inference.calls for m in call["messages"])
                 missing = [marker for marker in markers if marker not in sent]
                 self.assertEqual(missing, [])
+                # The trace names every paragraph of the original chapter as carried.
+                carried = {
+                    paragraph
+                    for step in result["agentTrace"]
+                    if step.get("step") == "extraction_sent"
+                    for chunk in step["chunks"]
+                    for paragraph in chunk["paragraphs"]
+                }
+                paragraphs = chapter_parts(manuscript["chapters"][0]["body"])
+                self.assertEqual(
+                    carried, {f"chapter:{chapter_id}:{i}" for i in range(len(paragraphs))}
+                )
                 self.assertGreater(len(inference.calls), 1)
                 self.assert_calls_fit(inference)
                 self.assertEqual(result["mode"], "world_extraction")
