@@ -1,6 +1,8 @@
 .design-alert {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Columns follow the slots that are present. A fixed icon/copy/action template
+     put the action into the flexible column when there was no icon. */
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--spacing-transition-feedback-gap);
   padding: var(--spacing-card-padding-block) var(--spacing-card-padding-inline);
@@ -9,6 +11,18 @@
   background: var(--panel);
   color: var(--ink);
   line-height: 1.45;
+}
+
+.design-alert--icon {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.design-alert--action {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.design-alert--icon.design-alert--action {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .design-alert--info {
@@ -61,12 +75,20 @@
 }
 
 @media (max-width: 480px) {
-  .design-alert {
+  .design-alert--action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .design-alert--icon.design-alert--action {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .design-alert__action {
-    grid-column: 2;
+  .design-alert--action .design-alert__action {
+    grid-column: 1;
     justify-self: start;
+  }
+
+  .design-alert--icon.design-alert--action .design-alert__action {
+    grid-column: 2;
   }
 }
