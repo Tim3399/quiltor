@@ -1290,6 +1290,41 @@ describe("resizing a map with a scale", () => {
   });
 });
 
+describe("applying a measured scale", () => {
+  it("returns to measuring distances, where the legend shows the new scale", () => {
+    const onChange = vi.fn();
+    render(
+      <ControlledPlaces
+        initialState={{
+          nodes: [{ id: "hafen", type: "ort", name: "Hafen", x: 0, y: 0 }],
+          edges: [],
+        }}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Distanz messen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Auf der Karte messen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), { clientX: 0, clientY: 0 });
+    fireEvent.click(screen.getByRole("button", { name: "Testfläche" }), {
+      clientX: 300,
+      clientY: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Länge der Strecke"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Einheit"), { target: { value: "km" } });
+    fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
+
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Übernehmen" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Pro Ort werden die drei nächsten Distanzen angezeigt. Klicke zwei Orte für eine weitere Strecke.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Einheit" })).toHaveValue("km");
+    expect(screen.getByRole("button", { name: "Auf der Karte messen" })).toBeInTheDocument();
+  });
+});
+
 describe("a calibration does not outlive its level", () => {
   // Two levels: the world, and the harbour with its market inside.
   const levels: FigureState = {
