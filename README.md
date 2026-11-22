@@ -145,7 +145,7 @@ Selbstständige Autorinnen und Autoren fallen praktisch immer unter diese Small-
 
 Für kommerzielle Nutzung oberhalb dieser Grenze ist eine individuelle Vereinbarung erforderlich:
 
-**<tim.ratermann@outlook.de>**
+**[lizenz@quiltor.app](mailto:lizenz@quiltor.app)**
 
 Details: [COMMERCIAL.md](COMMERCIAL.md)
 

@@ -145,7 +145,7 @@ Self-employed authors are effectively always within the small-business threshold
 
 Commercial use above that threshold requires an individual agreement:
 
-**<tim.ratermann@outlook.de>**
+**[license@quiltor.app](mailto:license@quiltor.app)**
 
 Details: [COMMERCIAL.md](COMMERCIAL.md)
 
