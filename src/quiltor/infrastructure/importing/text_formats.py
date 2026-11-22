@@ -67,7 +67,7 @@ def parse_markdown_units(file_name: str, payload: bytes) -> ParsedUnitManuscript
             warnings["formatting"] += 1
             units.append(ImportUnit(len(units), token.content, (), False))
         elif token.type == "hr":
-            warnings["formatting"] += 1
+            # A rule is a scene break and comes through as one, so nothing is lost (T-337).
             # The book layout (isSceneBreak) recognises only this spelling; markdown-it's own
             # `markup` differs per source form (and is one marker too long).
             units.append(ImportUnit(len(units), SCENE_BREAK, (), False))

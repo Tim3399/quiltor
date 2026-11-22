@@ -311,6 +311,7 @@ class MarkdownSceneBreakTests(unittest.TestCase):
                 source = f"{before}\n\n{form}\n\n{after}\n".encode()
                 parsed = parse_markdown_units("kapitel.md", source)
                 self.assertEqual([unit.text for unit in parsed.units], [before, "* * *", after])
+                self.assertEqual(parsed.warnings, ())
 
 
 class ManuscriptImportRepositoryTests(unittest.TestCase):
