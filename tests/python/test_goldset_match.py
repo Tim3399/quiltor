@@ -477,7 +477,7 @@ class RulesHeldByNoOtherTest(unittest.TestCase):
         event = {"id": "g-ev", "category": "event", "keywords": ["Tor"], "refs": ["g-arvid"]}
         result = gm.match_task(
             task([ARVID, event]),
-            [create("Selm Arvid"), moment("Arvid am Morgen", note="Das Tor steht offen")],
+            [create("Selm Arvid"), moment("Arvid am Morgen", note="Das Tor ist geschlossen")],
         )
         self.assertEqual(counts(result, "event"), {"tp": 0, "fp": 1, "fn": 1})
 
