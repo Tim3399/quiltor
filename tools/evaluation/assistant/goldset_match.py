@@ -85,6 +85,47 @@ def contains_sequence(haystack: Sequence[str], needle: Sequence[str]) -> bool:
     )
 
 
+# German word forms (plan 4.5). No stemmer: the haystack word may carry a genitive ending (-s,
+# -es; the apostrophe-s forms tokenise to the bare word), and a long enough key may stand inside a
+# compound. Both sides lose their umlauts first.
+COMPOUND_MIN_KEY = 4
+GENITIVE_ENDINGS = ("es", "s")
+_UMLAUTS = str.maketrans({"ä": "a", "ö": "o", "ü": "u"})
+
+
+def fold(word: str) -> str:
+    """The comparable form of one token: umlauts to their base letter (ß is ss already)."""
+    return word.translate(_UMLAUTS)
+
+
+def word_matches(word: str, key: str, compound: bool) -> bool:
+    """Whether the haystack `word` stands for `key`: the same word, its genitive, or (for a key
+    of at least four characters, when `compound` is allowed) a compound that starts or ends in it.
+    """
+    if word == key:
+        return True
+    if any(word == key + ending for ending in GENITIVE_ENDINGS):
+        return True
+    return (
+        compound and len(key) >= COMPOUND_MIN_KEY and (word.startswith(key) or word.endswith(key))
+    )
+
+
+def contains_form(haystack: Sequence[str], needle: Sequence[str], compound: bool = False) -> bool:
+    """`contains_sequence` over German word forms. `compound` only counts for a one-word needle."""
+    if not needle:
+        return False
+    # "Arvid's" tokenises to "arvid", "s": the key is the word itself, so rule a holds already.
+    words = [fold(word) for word in haystack]
+    keys = [fold(word) for word in needle]
+    compound = compound and len(keys) == 1
+    width = len(keys)
+    return any(
+        all(word_matches(words[i + j], keys[j], compound) for j in range(width))
+        for i in range(len(words) - width + 1)
+    )
+
+
 # --- dates -------------------------------------------------------------------------------------
 
 
@@ -399,12 +440,13 @@ def _match_events(gold, proposals, named, ledger: _Ledger) -> None:
         note = tokens(moment.get("note"))
         for gold_index, entry in enumerate(entries):
             keyword = any(
-                contains_sequence(title, tokens(item)) for item in entry.get("keywords") or []
+                contains_form(title, tokens(item), compound=True)
+                for item in entry.get("keywords") or []
             )
             if not keyword:
                 continue
             reference = any(
-                contains_sequence(title, name) or contains_sequence(note, name)
+                contains_form(title, name) or contains_form(note, name)
                 for ref in entry.get("refs") or []
                 for name in names_by_id.get(ref, [])
             )
