@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import {
   createContext,
   type HTMLAttributes,
@@ -47,7 +47,7 @@ export function Menu({
   const root = useRef<HTMLDivElement>(null);
   const focusInitialItem = useCallback(() => {
     const items = [
-      ...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []),
+      ...(root.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])') ?? []),
     ];
     items[initialFocus === "last" ? items.length - 1 : 0]?.focus();
   }, [initialFocus]);
@@ -58,7 +58,7 @@ export function Menu({
     onKeyDown?.(event);
     if (event.defaultPrevented) return;
     const items = [
-      ...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []),
+      ...(root.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])') ?? []),
     ];
     const index = items.indexOf(document.activeElement as HTMLElement);
     if (event.key === "Escape") {
@@ -117,6 +117,11 @@ export interface MenuItemProps {
   disabled?: boolean;
   tone?: "neutral" | "danger";
   selected?: boolean;
+  /**
+   * Makes the item a switch: ticked when on, an empty slot when off. The label
+   * names the setting and stays the same in both states.
+   */
+  checked?: boolean;
   closeOnSelect?: boolean;
 }
 
@@ -129,13 +134,15 @@ export function MenuItem({
   disabled = false,
   tone = "neutral",
   selected = false,
+  checked,
   closeOnSelect = true,
 }: MenuItemProps) {
   const context = useContext(MenuContext);
   return (
     <button
       type="button"
-      role="menuitem"
+      role={checked === undefined ? "menuitem" : "menuitemcheckbox"}
+      aria-checked={checked}
       disabled={disabled}
       tabIndex={-1}
       data-tone={tone}
@@ -146,10 +153,16 @@ export function MenuItem({
         if (closeOnSelect) context?.closeAfterSelect();
       }}
     >
-      {icon && (
+      {checked !== undefined ? (
         <span className="ui-menu__icon" aria-hidden="true">
-          {icon}
+          {checked ? <Check /> : null}
         </span>
+      ) : (
+        icon && (
+          <span className="ui-menu__icon" aria-hidden="true">
+            {icon}
+          </span>
+        )
       )}
       <span className="ui-menu__label">{label !== undefined ? label : children}</span>
       {shortcut && <kbd className="ui-menu__shortcut">{shortcut}</kbd>}

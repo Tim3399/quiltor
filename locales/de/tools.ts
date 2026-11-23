@@ -149,5 +149,7 @@ export const tools = {
   showMinimap: "Übersichtskarte einblenden",
   hideMinimap: "Übersichtskarte ausblenden",
   graphControlsLabel: "Kartensteuerung",
+  lockArrangement: "Anordnen sperren",
+  unlockArrangement: "Anordnen freigeben",
   minimapLabel: "Übersichtskarte",
 } as const;

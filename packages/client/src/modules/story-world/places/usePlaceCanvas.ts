@@ -20,6 +20,7 @@ import type { PlaceGroundNode } from "./PlaceGround";
 import type { MapBox, PlaceMapFlowNode } from "./PlaceMapNode";
 import { type PlaceFlowNode, placePosition } from "./PlaceNode";
 import {
+  atMapEdge,
   createGroundNode,
   createMeasurementPoints,
   createMeasurePointNodes,
@@ -68,6 +69,11 @@ export type PlaceCanvasController = {
   setBoundToGround: (bound: boolean) => void;
   /** Whether this level has a picture to be held to at all. */
   hasGround: boolean;
+  /**
+   * True while a zoom-out has just run into the map's edge. Short-lived: it
+   * clears itself, and as soon as the view leaves the edge or is let go.
+   */
+  mapEdgeReached: boolean;
   /** How far the view may travel, when it is being held. */
   translateExtent: CoordinateExtent | undefined;
   /** How far out it may go, so the sheet always fills the surface. */
@@ -83,6 +89,9 @@ export type PlaceCanvasController = {
   onNodeDrag: (event: MouseEvent | TouchEvent, node: PlaceFlowNode) => void;
   onNodeDragStop: (event: MouseEvent | TouchEvent, node: PlaceFlowNode) => void;
 };
+
+/** How long the map-edge hint stays before it goes by itself. */
+const MAP_EDGE_HINT_MS = 6000;
 
 export function usePlaceCanvas({
   state,
@@ -213,6 +222,22 @@ export function usePlaceCanvas({
     ];
   }, [boundToGround, levelGround]);
   const latestGroundRef = useLatest(levelGround);
+
+  // The hint belongs to the moment of arriving at the edge, not to the edge:
+  // a view that opens on it, or rests there, has nothing new to say.
+  const [mapEdgeReached, setMapEdgeReached] = useState(false);
+  const wasAtMapEdge = useRef(false);
+  useEffect(() => {
+    if (!boundToGround || minZoom === undefined) {
+      wasAtMapEdge.current = false;
+      setMapEdgeReached(false);
+    }
+  }, [boundToGround, minZoom]);
+  useEffect(() => {
+    if (!mapEdgeReached) return undefined;
+    const timer = window.setTimeout(() => setMapEdgeReached(false), MAP_EDGE_HINT_MS);
+    return () => window.clearTimeout(timer);
+  }, [mapEdgeReached]);
 
   // Arriving on a level should show what is on it, at the size it deserves:
   // without this you land at whatever zoom the level above happened to be at,
@@ -743,9 +768,14 @@ export function usePlaceCanvas({
       const zoom = instance.getZoom();
       setViewportZoom(zoom);
       setZoomTier(semanticZoomTier(zoom));
+      wasAtMapEdge.current = atMapEdge(zoom, minZoom);
     },
     onMove: (viewport) => {
       const zoom = Math.round(viewport.zoom * 10_000) / 10_000;
+      const atEdge = atMapEdge(zoom, minZoom);
+      if (atEdge && !wasAtMapEdge.current) setMapEdgeReached(true);
+      if (!atEdge) setMapEdgeReached(false);
+      wasAtMapEdge.current = atEdge;
       setViewportZoom((current) => (current === zoom ? current : zoom));
       setZoomTier((current) => {
         const next = semanticZoomTier(zoom);
@@ -759,6 +789,7 @@ export function usePlaceCanvas({
     boundToGround,
     setBoundToGround,
     hasGround: Boolean(levelGround),
+    mapEdgeReached,
     translateExtent,
     minZoom,
     onSurfaceResize: setSurface,

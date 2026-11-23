@@ -11,6 +11,7 @@ import { StoryGraphCanvas } from "../StoryGraphCanvas";
 import { PlaceGround } from "./PlaceGround";
 import { PlaceLevelTrail } from "./PlaceLevelTrail";
 import { type ActivePlaceMapChromeProps, PlaceMapChromeOverlay } from "./PlaceMapChromeOverlay";
+import { PlaceMapEdgeHint } from "./PlaceMapEdgeHint";
 import { PlaceMapFrameProvider } from "./PlaceMapFrameContext";
 import { PlaceMapNode } from "./PlaceMapNode";
 import { measureClickTarget } from "./placeCanvasModel";
@@ -149,6 +150,9 @@ export function PlaceCanvas({
           <>
             {measuring || calibrating ? null : levelTrail}
             {mapTools}
+            {controller.mapEdgeReached ? (
+              <PlaceMapEdgeHint onZoomOutFurther={() => controller.setBoundToGround(false)} />
+            ) : null}
             {controller.dragPreview ? (
               <div
                 className="place-drag-preview"

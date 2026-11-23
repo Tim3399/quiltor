@@ -6,7 +6,7 @@ import {
   type MiniMapProps,
   type Node,
 } from "@xyflow/react";
-import { Map as MapIcon } from "lucide-react";
+import { Lock, LockOpen, Map as MapIcon } from "lucide-react";
 import { useI18n } from "../../i18n";
 import "./GraphViewportChrome.css";
 
@@ -33,11 +33,17 @@ export function GraphViewportChrome<NodeType extends Node>({
   minimapVisible,
   onMinimapVisibleChange,
   fitViewOptions,
+  interactive = true,
   onInteractiveChange,
 }: GraphViewportChromeProps<NodeType>) {
   const { t } = useI18n();
   const supportsMinimap = minimapProps !== false;
   const toggleLabel = minimapVisible ? t("hideMinimap") : t("showMinimap");
+  // The dock's own padlock stands for the arrangement alone -- whether things can
+  // be moved, selected and connected -- and says so in its name. It was React
+  // Flow's, with an English tooltip, and next to a menu switch that limits the
+  // view to the map a padlock read as the same setting.
+  const lockLabel = interactive ? t("lockArrangement") : t("unlockArrangement");
 
   return (
     <>
@@ -45,8 +51,19 @@ export function GraphViewportChrome<NodeType extends Node>({
         position="bottom-left"
         aria-label={t("graphControlsLabel")}
         fitViewOptions={fitViewOptions}
-        onInteractiveChange={onInteractiveChange}
+        showInteractive={false}
       >
+        {onInteractiveChange && (
+          <ControlButton
+            className="graph-arrangement-lock"
+            aria-label={lockLabel}
+            aria-pressed={!interactive}
+            title={lockLabel}
+            onClick={() => onInteractiveChange(!interactive)}
+          >
+            {interactive ? <LockOpen aria-hidden="true" /> : <Lock aria-hidden="true" />}
+          </ControlButton>
+        )}
         {supportsMinimap && (
           <ControlButton
             className="graph-minimap-toggle"

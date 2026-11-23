@@ -5,8 +5,6 @@ import {
   Image,
   ImageOff,
   ImagePlus,
-  Lock,
-  LockOpen,
   MapPinPlus,
   MoreHorizontal,
   Redo2,
@@ -133,8 +131,8 @@ export function PlaceToolbar({
                 />
                 <MenuItem
                   disabled={!hasGround}
-                  icon={boundToGround ? <Lock /> : <LockOpen />}
-                  label={boundToGround ? t("unbindFromMap") : t("bindToMap")}
+                  checked={boundToGround}
+                  label={t("limitViewToMap")}
                   onSelect={() => onBoundToGroundChange(!boundToGround)}
                 />
               </DropdownMenu>

@@ -9,19 +9,8 @@ import { StoryGraphCanvas } from "./StoryGraphCanvas";
 vi.mock("@xyflow/react", () => ({
   BackgroundVariant: { Lines: "lines" },
   Background: () => <div data-testid="background" />,
-  Controls: ({
-    children,
-    onInteractiveChange,
-  }: {
-    children?: ReactNode;
-    onInteractiveChange?: (interactive: boolean) => void;
-  }) => (
-    <div data-testid="controls">
-      {children}
-      <button type="button" onClick={() => onInteractiveChange?.(false)}>
-        Testschloss
-      </button>
-    </div>
+  Controls: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="controls">{children}</div>
   ),
   ControlButton: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
@@ -132,7 +121,18 @@ describe("whether the surface lets nodes be dragged", () => {
 
   it("keeps nodes still under a closed lock, whatever the caller says", () => {
     canvas({ nodesDraggable: true });
-    fireEvent.click(screen.getByRole("button", { name: "Testschloss" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anordnen sperren" }));
     expect(screen.getByTestId("react-flow")).toHaveAttribute("data-nodes-draggable", "false");
+  });
+
+  it("names the dock padlock by what it does and shows its state", () => {
+    canvas({});
+    const lock = screen.getByRole("button", { name: "Anordnen sperren" });
+    expect(lock).toHaveAttribute("aria-pressed", "false");
+    expect(lock).toHaveAttribute("title", "Anordnen sperren");
+    fireEvent.click(lock);
+    const locked = screen.getByRole("button", { name: "Anordnen freigeben" });
+    expect(locked).toHaveAttribute("aria-pressed", "true");
+    expect(locked).toHaveAttribute("title", "Anordnen freigeben");
   });
 });
