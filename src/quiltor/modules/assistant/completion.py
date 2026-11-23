@@ -86,6 +86,8 @@ class CompletionRuntime(Protocol):
     _invocation_metrics: list[dict[str, Any]]
     # The chunks the last world-extraction call carried; None before one is built (T-330).
     _extraction_context: list[Any] | None
+    # The written-out ids and omitted counts of a selected world, for the trace (T-344).
+    _extraction_world: dict[str, Any] | None
     # Set by the hull before each part: how many parts it may still make; None outside one.
     _extraction_parts_left: int | None
     # Set by an extraction call: the parts the remaining chapters still need, this one included.
@@ -563,6 +565,7 @@ def complete_request(
 
     def once(current: dict[str, Any], world: dict[str, Any], done: int) -> dict[str, Any]:
         runtime._extraction_context = None
+        runtime._extraction_world = None
         runtime._extraction_parts_left = MAX_EXTRACTION_PARTS - done if parts else None
         return _complete_once(
             runtime,
@@ -629,7 +632,12 @@ def complete_request(
                         "chars": len(chunk.text),
                     }
                 )
-            step = {"step": "extraction_sent", "part": index, "chunks": carried}
+            step = {
+                "step": "extraction_sent",
+                "part": index,
+                "chunks": carried,
+                **({"world": runtime._extraction_world} if runtime._extraction_world else {}),
+            }
             result = {**result, "agentTrace": [*(result.get("agentTrace") or []), step]}
         results.append(result)
         if sent is None:
@@ -1080,6 +1088,15 @@ def _complete_once(
     if extraction_mode:
         # What of the manuscript this call carries; complete_request sends the rest (T-330).
         runtime._extraction_context = list(context)
+        # What of a selected world it wrote out, and what it left out (T-344).
+        runtime._extraction_world = (
+            {
+                "written": [str(item.get("id")) for item in world.state.get("elements") or []],
+                "omitted": dict(world.state.get("omitted") or {}),
+            }
+            if world.state.get("selected")
+            else None
+        )
         parts_left = getattr(runtime, "_extraction_parts_left", None)
         if parts_left is not None:
             manuscript_kinds = {"chapter", "chapter-note"}

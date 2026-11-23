@@ -319,6 +319,17 @@ class WorldSelectionTests(CompletionBudgetTests):
                         self.assertTrue(
                             world_of(content)["_header"].startswith(SELECTED_WORLD_HEADER)
                         )
+                    # The trace names what each part wrote out, so a real run can be checked.
+                    written = [
+                        step["world"]["written"]
+                        for step in result["agentTrace"]
+                        if step.get("step") == "extraction_sent"
+                    ]
+                    shown = [
+                        [item["id"] for item in world_of(content).get("elements") or []]
+                        for content in self.prompts(inference)
+                    ]
+                    self.assertEqual(written, shown)
 
     def test_every_figure_a_part_names_is_written_out_in_that_part(self):
         figures = grown_world(170)
