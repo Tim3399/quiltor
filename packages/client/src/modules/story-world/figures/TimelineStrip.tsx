@@ -91,6 +91,8 @@ export function TimelineStrip({
               size="compact"
               className={`timeline-moment-button ${activeId === moment.id ? "active" : ""}`}
               aria-pressed={activeId === moment.id}
+              // A title longer than the button ends in an ellipsis; the whole one stays here.
+              title={moment.title}
               onClick={() => onSelect(moment.id)}
             >
               <span className="timeline-moment-copy">

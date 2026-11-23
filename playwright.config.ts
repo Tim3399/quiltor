@@ -26,6 +26,8 @@ const singleViewportSpecs = [
   // A browser engine's job runs against a Quiltor of its own with QUILTOR_TEST_HOOKS=1 (T-61
   // part 8a); the relay and the slot limit are the same at every viewport.
   "**/assistant-client-relay.spec.ts",
+  // Sets each window width it measures itself (T-326); the three projects would repeat it.
+  "**/timeline-strip-layout.spec.ts",
 ];
 
 export default defineConfig({
