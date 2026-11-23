@@ -491,3 +491,14 @@ export function createGroundNode({
     },
   };
 }
+
+/**
+ * Whether the view sits on the zoom floor that holds it to the map.
+ *
+ * The flow clamps at the floor, so "at" has to allow for rounding: a zoom of
+ * 0.4999 against a floor of 0.5 is the edge, not a point still short of it.
+ * Nothing limits the view without a floor, so no floor is never an edge.
+ */
+export function atMapEdge(zoom: number, minZoom: number | undefined): boolean {
+  return minZoom !== undefined && zoom <= minZoom * 1.001;
+}

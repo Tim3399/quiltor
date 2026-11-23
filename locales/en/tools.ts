@@ -146,5 +146,7 @@ export const tools = {
   showMinimap: "Show overview map",
   hideMinimap: "Hide overview map",
   graphControlsLabel: "Map controls",
+  lockArrangement: "Lock arrangement",
+  unlockArrangement: "Unlock arrangement",
   minimapLabel: "Overview map",
 } as const;

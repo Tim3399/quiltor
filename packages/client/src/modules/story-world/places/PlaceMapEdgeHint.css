@@ -1,0 +1,10 @@
+.place-map-edge-hint {
+  position: absolute;
+  z-index: var(--z-float-legend);
+  bottom: var(--space-14);
+  left: 50%;
+  max-width: calc(100% - var(--space-28));
+  transform: translateX(-50%);
+  align-items: center;
+  box-shadow: var(--shadow);
+}
