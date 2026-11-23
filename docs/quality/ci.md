@@ -654,6 +654,27 @@ release now runs the full matrix once, beside its own gate, instead of twice at 
 cross-platform browser slots), the triggers, the concurrency, the allowed step conditions and
 that a full-mode run skips nothing.
 
+### Verdict, profile and attempt (T-345)
+
+The gate writes four values, as `browser-e2e` outputs, as `workflow_call` outputs and in the
+artifact `test-verdict` (`verdict.json`, with the source revision beside them):
+
+| Value         | Meaning                                                                                                                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verdict`     | `full-success`: every job of the full matrix ran and passed. `reduced-success`: a reduced run passed. `tree-reused`: reserved for a run that ends early because a run on the same tree already tested it (T-341 part D, not built yet). Empty: the gate was red. |
+| `profile`     | `full` or `integration`: the profile the verdict was reached with. The runs API does not return a dispatch's inputs, so this is the one machine-readable place for it.                                                                                           |
+| `run_id`      | The run that produced the verdict. In a call from `release.yml` it is the release run.                                                                                                                                                                           |
+| `run_attempt` | The attempt of that run in which the tests passed. "Re-run failed jobs" keeps the attempt of the jobs it does not re-run, so a release whose tests passed only on a second attempt says so (D-147).                                                              |
+
+Only `full-success` with `full` is release evidence. `tree-reused` carries no `-success` on
+purpose: it tested nothing itself, and no prefix or glob test may take it for a pass.
+`VERDICT_TERM` in `workflow_contract.py` is an equality for the same reason.
+
+The release manifest (schema 8) carries the values themselves under `testEvidence`
+(`verdict`, `profile`, `runId`, `runAttempt`), not a pointer to the artifact: artifacts expire.
+`release_manifest.py` refuses to create or load a manifest whose evidence is anything other than
+`full-success` and `full`, so a release SHA without a green full matrix still gets no manifest.
+
 ### Browser jobs start beside `frontend` (T-46)
 
 `browser-e2e-shards`, `cross-platform-browser` and `cross-platform-smoke` used to have

@@ -61,7 +61,13 @@ class ManifestError(ValueError):
     pass
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
+# T-345: the test evidence a release is built on, as values, not as a pointer to an artifact that
+# expires. Only the full matrix's full-success is evidence (D-147); reduced-success and
+# tree-reused (a run that tested nothing itself) are refused, and so is any other profile.
+RELEASE_VERDICT = "full-success"
+RELEASE_PROFILE = "full"
+TEST_EVIDENCE_FIELDS = ("verdict", "profile", "runId", "runAttempt")
 WRITING_DATA_REGISTRY = REPO_ROOT / "src/quiltor/modules/writing_assistance/registry.py"
 _UNSET: Any = object()
 
@@ -262,6 +268,32 @@ def _artifact_records(version: str, artifacts: list[Path], repo_root: Path) -> l
     ]
 
 
+def test_evidence(value: object) -> dict[str, object]:
+    """
+    Return the canonical test evidence, or refuse a release that has none.
+
+    runAttempt is the attempt that produced the verdict: a re-run of later jobs keeps the
+    attempt of the tests it builds on, so a verdict reached only on a re-run is named as one.
+    """
+
+    if not isinstance(value, Mapping) or set(value) != set(TEST_EVIDENCE_FIELDS):
+        raise ManifestError(
+            "release test evidence must carry exactly " + ", ".join(TEST_EVIDENCE_FIELDS)
+        )
+    if value["verdict"] != RELEASE_VERDICT:
+        raise ManifestError(
+            f"release test verdict is {value['verdict']!r}, not {RELEASE_VERDICT}; "
+            "only a green full matrix is release evidence"
+        )
+    if value["profile"] != RELEASE_PROFILE:
+        raise ManifestError(f"release test profile is {value['profile']!r}, not {RELEASE_PROFILE}")
+    for field in ("runId", "runAttempt"):
+        number = value[field]
+        if type(number) is not int or number < 1:
+            raise ManifestError(f"release test {field} must be a positive integer, not {number!r}")
+    return {field: value[field] for field in TEST_EVIDENCE_FIELDS}
+
+
 def create(
     version: str,
     source_revision: str,
@@ -269,15 +301,18 @@ def create(
     artifacts: list[Path],
     repo_root: Path = REPO_ROOT,
     *,
+    tests: Mapping[str, object],
     data: dict[str, Any] | None = _UNSET,
 ) -> dict[str, object]:
     _validate_identity(version, source_revision)
+    evidence = test_evidence(tests)
     image_output = image_records(images)
     artifact_output = _artifact_records(version, artifacts, repo_root)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "version": version,
         "sourceRevision": source_revision,
+        "testEvidence": evidence,
         "profiles": _published_profiles(repo_root),
         "artifacts": artifact_output,
         "images": image_output,
@@ -363,6 +398,7 @@ def load(
         "schemaVersion",
         "version",
         "sourceRevision",
+        "testEvidence",
         "profiles",
         "artifacts",
         "images",
@@ -373,6 +409,7 @@ def load(
     if not isinstance(manifest, dict) or set(manifest) != expected_keys:
         raise ManifestError("release manifest has missing or unknown fields")
     _validate_identity(manifest["version"], manifest["sourceRevision"])
+    evidence = test_evidence(manifest["testEvidence"])
     images = _canonical_loaded_images(manifest["images"])
     artifacts = _canonical_loaded_artifacts(manifest["version"], manifest["artifacts"], repo_root)
     locks = dependency_lock_records()
@@ -382,6 +419,7 @@ def load(
         "schemaVersion": SCHEMA_VERSION,
         "version": manifest["version"],
         "sourceRevision": manifest["sourceRevision"],
+        "testEvidence": evidence,
         "profiles": _published_profiles(repo_root),
         "artifacts": artifacts,
         "images": images,
@@ -505,6 +543,10 @@ def _parser() -> argparse.ArgumentParser:
     create_command.add_argument("--web-image", required=True)
     create_command.add_argument("--backup-image", required=True)
     create_command.add_argument("--artifact", action="append", type=Path, required=True)
+    create_command.add_argument("--test-verdict", required=True)
+    create_command.add_argument("--test-profile", required=True)
+    create_command.add_argument("--test-run-id", type=int, required=True)
+    create_command.add_argument("--test-run-attempt", type=int, required=True)
     create_command.add_argument("--output", type=Path, required=True)
     verify_command = commands.add_parser("verify")
     verify_command.add_argument("--manifest", type=Path, required=True)
@@ -541,6 +583,12 @@ def main(argv: list[str] | None = None, *, repo_root: Path = REPO_ROOT) -> int:
                 },
                 args.artifact,
                 repo_root,
+                tests={
+                    "verdict": args.test_verdict,
+                    "profile": args.test_profile,
+                    "runId": args.test_run_id,
+                    "runAttempt": args.test_run_attempt,
+                },
             )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
