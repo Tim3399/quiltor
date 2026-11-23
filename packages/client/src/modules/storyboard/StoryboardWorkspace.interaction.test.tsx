@@ -43,7 +43,23 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
     onNodeDragStop,
     nodeClickDistance,
     nodeDragThreshold,
+    nodesDraggable,
+    nodesConnectable,
+    elementsSelectable,
+    zoomOnScroll,
+    zoomOnPinch,
+    zoomOnDoubleClick,
+    panOnDrag,
+    panOnScroll,
   }: {
+    nodesDraggable?: boolean;
+    nodesConnectable?: boolean;
+    elementsSelectable?: boolean;
+    zoomOnScroll?: boolean;
+    zoomOnPinch?: boolean;
+    zoomOnDoubleClick?: boolean;
+    panOnDrag?: boolean;
+    panOnScroll?: boolean;
     children?: ReactNode;
     connectionLineType?: string;
     defaultEdgeOptions?: { type?: string };
@@ -100,6 +116,16 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
         data-elevate-nodes-on-select={String(elevateNodesOnSelect)}
         data-node-click-distance={nodeClickDistance}
         data-node-drag-threshold={nodeDragThreshold}
+        data-nodes-draggable={String(nodesDraggable)}
+        data-nodes-connectable={String(nodesConnectable)}
+        data-elements-selectable={String(elementsSelectable)}
+        data-navigation={JSON.stringify([
+          zoomOnScroll,
+          zoomOnPinch,
+          zoomOnDoubleClick,
+          panOnDrag,
+          panOnScroll,
+        ])}
       >
         <output aria-label="Flow-Positionen">
           {JSON.stringify(
@@ -306,6 +332,25 @@ describe("StoryboardWorkspace interactions", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("offers the arrangement lock, which stops dragging, connecting and selecting but not zoom or pan", () => {
+    render(<Harness />);
+
+    const flow = screen.getByTestId("storyboard-flow");
+    const navigation = flow.getAttribute("data-navigation");
+    expect(flow).toHaveAttribute("data-nodes-draggable", "true");
+    expect(flow).toHaveAttribute("data-nodes-connectable", "true");
+    expect(flow).toHaveAttribute("data-elements-selectable", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Anordnen sperren" }));
+    expect(flow).toHaveAttribute("data-nodes-draggable", "false");
+    expect(flow).toHaveAttribute("data-nodes-connectable", "false");
+    expect(flow).toHaveAttribute("data-elements-selectable", "false");
+    expect(flow).toHaveAttribute("data-navigation", navigation);
+
+    fireEvent.click(screen.getByRole("button", { name: "Anordnen freigeben" }));
+    expect(flow).toHaveAttribute("data-nodes-draggable", "true");
   });
 
   it("deletes a selected card and its connections as one toolbar history step", () => {

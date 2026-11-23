@@ -23,6 +23,7 @@ import {
   graphRelationshipEdgeTypes,
   isGraphDeleteShortcut,
   positionGraphRelationshipEdgeLabels,
+  useArrangementLock,
 } from "../graph";
 import type { ElementNote, ElementNoteTarget } from "../notes";
 import { type WorldReferenceCandidate, worldReferenceKey } from "../world-references";
@@ -126,6 +127,7 @@ function StoryboardWorkspaceInner({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(true);
   const [minimapVisible, setMinimapVisible] = useState(true);
+  const { interactive, setInteractive, arrangementProps } = useArrangementLock();
   const [query, setQuery] = useState("");
   const [flowNodes, setFlowNodes] = useState<StoryboardFlowNode[]>([]);
   const flow = useRef<ReactFlowInstance<StoryboardFlowNode, Edge> | null>(null);
@@ -830,7 +832,7 @@ function StoryboardWorkspaceInner({
                   return edge ? { ...current, edges: [...current.edges, edge] } : current;
                 });
               }}
-              nodesConnectable
+              {...arrangementProps()}
               nodeDragThreshold={6}
               nodeClickDistance={6}
               snapToGrid
@@ -907,6 +909,8 @@ function StoryboardWorkspaceInner({
               <GraphViewportChrome<StoryboardFlowNode>
                 minimapVisible={minimapVisible}
                 onMinimapVisibleChange={setMinimapVisible}
+                interactive={interactive}
+                onInteractiveChange={setInteractive}
                 minimapProps={{
                   nodeColor: (node) => cardKindColor(node.data.cardKind),
                 }}
