@@ -166,6 +166,12 @@ class _BlockingRuntime:
     def reload(self) -> None:
         pass
 
+    def close(self) -> None:
+        # A real client runtime ends its wait when the runner closes it; without this the
+        # runner cannot release the job, its join times out and the thread outlives the
+        # test, still writing to the queue file while tearDown removes it (T-357).
+        self.release.set()
+
     def complete(self, question, *args, **kwargs):
         self.started.set()
         self.release.wait(timeout=5)
@@ -179,20 +185,25 @@ class ClientJobRunnerTests(unittest.TestCase):
         create_world_file(self.data)
         self.server = _BlockingRuntime()
         self.clients: dict[str, _BlockingRuntime] = {}
+        self.runners: list[AssistantJobRunner] = []
 
     def tearDown(self) -> None:
         self.server.release.set()
         for runtime in self.clients.values():
             runtime.release.set()
-        # Let the released jobs finish before the queue file goes (Windows locks it).
-        time.sleep(0.5)
+        # Close every runner again now that all runtimes are released: close() joins the
+        # workers, so no thread still holds the queue file when it goes (Windows locks it).
+        for runner in self.runners:
+            runner.close(timeout=10)
+        alive = [t.name for t in threading.enumerate() if t.name.startswith("quiltor-assistant")]
+        self.assertEqual(alive, [], "a job thread outlived its runner")
         self.tmp.cleanup()
 
     def _runner(self, *, factory: bool = True) -> AssistantJobRunner:
         def client_runtime(job: dict[str, Any], request: dict[str, Any]) -> _BlockingRuntime:
             return self.clients.setdefault(job["_ownerSub"], _BlockingRuntime())
 
-        return AssistantJobRunner(
+        runner = AssistantJobRunner(
             self.server,
             store_factory=lambda: AssistantJobStore(self.data / "assistant-jobs.sqlite3"),
             interaction_logger=FakeInteractionLogger(),
@@ -201,6 +212,8 @@ class ClientJobRunnerTests(unittest.TestCase):
             metrics=TestMetrics(),
             client_runtime_factory=client_runtime if factory else None,
         )
+        self.runners.append(runner)
+        return runner
 
     def _wait_started(self, owner: str) -> None:
         deadline = time.monotonic() + 4
