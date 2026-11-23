@@ -39,6 +39,8 @@ BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
 TEST_WORKFLOW = REPO_ROOT / ".github/workflows/test.yml"
 WRITING_DATA_WORKFLOW = REPO_ROOT / ".github/workflows/writing-data.yml"
+# T-345: the evidence a release manifest is built on, as test.yml's gate writes it.
+TEST_EVIDENCE = {"verdict": "full-success", "profile": "full", "runId": 42, "runAttempt": 2}
 
 
 class VersionArithmeticTests(unittest.TestCase):
@@ -910,12 +912,13 @@ class ReleaseManifestTests(unittest.TestCase):
                     self._images(),
                     self._artifacts(artifact_root, repo_root=repo_root),
                     repo_root,
+                    tests=TEST_EVIDENCE,
                 )
                 self.assertEqual(release_manifest.native_targets(repo_root), targets)
                 self.assertEqual(manifest["profiles"], profiles)
                 self.assertEqual([item["name"] for item in manifest["artifacts"]], names)
                 self.assertEqual({item["scheme"] for item in manifest["signatures"]}, schemes)
-                self.assertEqual(manifest["schemaVersion"], 7)
+                self.assertEqual(manifest["schemaVersion"], 8)
                 self.assertEqual(manifest["dataAssets"], release_manifest.data_asset_records())
                 self.assertEqual(manifest["sourceRevision"], "a" * 40)
                 self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["artifacts"]))
@@ -973,7 +976,9 @@ class ReleaseManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 release_manifest.ManifestError, "missing Quiltor-3.3.1.dmg"
             ):
-                release_manifest.create("3.3.1", "a" * 40, self._images(), artifacts, repo_root)
+                release_manifest.create(
+                    "3.3.1", "a" * 40, self._images(), artifacts, repo_root, tests=TEST_EVIDENCE
+                )
 
     def test_files_cli_lists_only_canonical_artifacts_and_signature_records(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -986,6 +991,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self._images(),
                 self._artifacts(artifact_root, repo_root=repo_root),
                 repo_root,
+                tests=TEST_EVIDENCE,
             )
             manifest_path = artifact_root / "release-manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -1015,6 +1021,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 "a" * 40,
                 self._images(),
                 self._artifacts(root),
+                tests=TEST_EVIDENCE,
             )
             (root / "quiltor-3.3.1.tar.gz").unlink()
             path = root / "release-manifest.json"
@@ -1034,6 +1041,7 @@ class ReleaseManifestTests(unittest.TestCase):
                     "a" * 40,
                     self._images(),
                     artifacts,
+                    tests=TEST_EVIDENCE,
                 )
 
     def test_mac_attestation_requires_native_verification_and_notarization(self):
@@ -1066,6 +1074,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self._images(),
                 self._artifacts(artifact_root, repo_root=repo_root),
                 repo_root,
+                tests=TEST_EVIDENCE,
             )
             self._attest_signatures(manifest, artifact_root)
             manifest_path = artifact_root / "release-manifest.json"
@@ -1091,6 +1100,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self._images(),
                 artifacts,
                 repo_root,
+                tests=TEST_EVIDENCE,
             )
             self._attest_signatures(manifest, artifact_root)
             manifest_path = artifact_root / "release-manifest.json"
@@ -1108,6 +1118,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 "a" * 40,
                 self._images(),
                 self._artifacts(root),
+                tests=TEST_EVIDENCE,
             )
             manifest_path = root / "release-manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -1125,25 +1136,28 @@ class ReleaseManifestTests(unittest.TestCase):
                     "backup-service": "ghcr.io/example/quiltor-backup:3.3.1",
                 },
                 [],
+                tests=TEST_EVIDENCE,
             )
 
     def test_manifest_rejects_unnamed_or_misbound_oci_images(self):
         with self.assertRaisesRegex(release_manifest.ManifestError, "named"):
             # Deliberately the wrong shape: values without their image names.
-            release_manifest.create("3.3.1", "a" * 40, cast(Any, self._images().values()), [])
+            release_manifest.create(
+                "3.3.1", "a" * 40, cast(Any, self._images().values()), [], tests=TEST_EVIDENCE
+            )
         swapped = self._images()
         swapped["web-self-hosted"], swapped["backup-service"] = (
             swapped["backup-service"],
             swapped["web-self-hosted"],
         )
         with self.assertRaisesRegex(release_manifest.ManifestError, "repository"):
-            release_manifest.create("3.3.1", "a" * 40, swapped, [])
+            release_manifest.create("3.3.1", "a" * 40, swapped, [], tests=TEST_EVIDENCE)
 
     def test_loaded_manifest_rejects_role_contract_or_digest_retargeting(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest: dict[str, Any] = release_manifest.create(
-                "3.3.1", "a" * 40, self._images(), self._artifacts(root)
+                "3.3.1", "a" * 40, self._images(), self._artifacts(root), tests=TEST_EVIDENCE
             )
             manifest_path = root / "release-manifest.json"
             for field, value, error in (
@@ -1166,8 +1180,12 @@ class ReleaseManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifacts = self._artifacts(root)
-            first = release_manifest.create("3.3.1", "a" * 40, self._images("1", "2"), artifacts)
-            second = release_manifest.create("3.3.1", "a" * 40, self._images("3", "4"), artifacts)
+            first = release_manifest.create(
+                "3.3.1", "a" * 40, self._images("1", "2"), artifacts, tests=TEST_EVIDENCE
+            )
+            second = release_manifest.create(
+                "3.3.1", "a" * 40, self._images("3", "4"), artifacts, tests=TEST_EVIDENCE
+            )
             self.assertNotEqual(first["images"], second["images"])
             manifest_path = root / "first-run-manifest.json"
             manifest_path.write_text(json.dumps(first), encoding="utf-8")
@@ -1175,6 +1193,102 @@ class ReleaseManifestTests(unittest.TestCase):
                 release_manifest.load(manifest_path)["images"],
                 release_manifest.image_records(self._images("1", "2")),
             )
+
+    def test_the_manifest_carries_the_test_evidence_as_values(self):
+        """T-345: verdict, profile, run and attempt are in the manifest, not behind an artifact."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = release_manifest.create(
+                "3.3.1", "a" * 40, self._images(), self._artifacts(root), tests=TEST_EVIDENCE
+            )
+            self.assertEqual(manifest["testEvidence"], TEST_EVIDENCE)
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertEqual(release_manifest.load(manifest_path)["testEvidence"], TEST_EVIDENCE)
+
+    def test_no_manifest_without_a_green_full_matrix(self):
+        """D-147: a release SHA without full-success of the full profile gets no manifest."""
+        refused = (
+            ("a reduced run", {"verdict": "reduced-success"}, "not full-success"),
+            ("a run that reused a tree", {"verdict": "tree-reused"}, "not full-success"),
+            ("a red gate", {"verdict": ""}, "not full-success"),
+            ("the integration profile", {"profile": "integration"}, "not full"),
+            ("no run", {"runId": 0}, "runId must be a positive integer"),
+            ("an attempt as text", {"runAttempt": "1"}, "runAttempt must be a positive integer"),
+            ("an attempt as a bool", {"runAttempt": True}, "runAttempt must be a positive"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = self._artifacts(root)
+            good = release_manifest.create(
+                "3.3.1", "a" * 40, self._images(), artifacts, tests=TEST_EVIDENCE
+            )
+            manifest_path = root / "manifest.json"
+            for name, change, error in refused:
+                evidence = {**TEST_EVIDENCE, **change}
+                with self.subTest(name=name, step="create"):
+                    with self.assertRaisesRegex(release_manifest.ManifestError, error):
+                        release_manifest.create(
+                            "3.3.1", "a" * 40, self._images(), artifacts, tests=evidence
+                        )
+                with self.subTest(name=name, step="load"):
+                    manifest_path.write_text(
+                        json.dumps({**good, "testEvidence": evidence}), encoding="utf-8"
+                    )
+                    with self.assertRaisesRegex(release_manifest.ManifestError, error):
+                        release_manifest.load(manifest_path)
+            for name, evidence in (
+                ("no evidence", None),
+                (
+                    "the attempt missing",
+                    {k: v for k, v in TEST_EVIDENCE.items() if k != "runAttempt"},
+                ),
+                ("an extra field", {**TEST_EVIDENCE, "artifact": "test-verdict"}),
+            ):
+                with self.subTest(name=name):
+                    with self.assertRaisesRegex(release_manifest.ManifestError, "exactly"):
+                        release_manifest.create(
+                            "3.3.1", "a" * 40, self._images(), artifacts, tests=cast(Any, evidence)
+                        )
+            without = {key: value for key, value in good.items() if key != "testEvidence"}
+            manifest_path.write_text(json.dumps(without), encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "missing or unknown"):
+                release_manifest.load(manifest_path)
+
+    def test_the_command_line_writes_the_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = self._artifacts(root)
+            images = self._images()
+            output = root / "release-manifest.json"
+            argv = [
+                "create",
+                "--version",
+                "3.3.1",
+                "--source-revision",
+                "a" * 40,
+                "--web-image",
+                images["web-self-hosted"],
+                "--backup-image",
+                images["backup-service"],
+                *[part for artifact in artifacts for part in ("--artifact", str(artifact))],
+                "--test-verdict",
+                "full-success",
+                "--test-profile",
+                "full",
+                "--test-run-id",
+                "42",
+                "--test-run-attempt",
+                "2",
+                "--output",
+                str(output),
+            ]
+            self.assertEqual(release_manifest.main(argv), 0)
+            written = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(written["testEvidence"], TEST_EVIDENCE)
+            reduced = [("reduced-success" if part == "full-success" else part) for part in argv]
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertNotEqual(release_manifest.main(reduced), 0)
 
 
 def _github_number(value):
@@ -3501,7 +3615,15 @@ def assert_bash32(script, where):
     assert match is None, f"{where} uses {match.group(0)!r}, which bash 3.2 (macOS) lacks"
 
 
-def run_gate_script(workflow, values):
+# The run values the gate reads from the github context; the names avoid the attempt variable.
+RUN_VALUES = {"SOURCE_REVISION": "b" * 40, "TEST_RUN_ID": "4711", "TEST_RUN_ATTEMPT": "3"}
+
+
+def _gate_output(verdict, profile):
+    return f"verdict={verdict}\nprofile={profile}\nrun_id=4711\nrun_attempt=3\n"
+
+
+def run_gate_record(workflow, values) -> tuple[int, str, str, str | None]:
     """
     Run browser-e2e's real gate script under bash with the given environment.
 
@@ -3522,18 +3644,33 @@ def run_gate_script(workflow, values):
         output = Path(directory) / "output"
         output.write_bytes(b"")
         # bash on Windows reads a POSIX path; as_posix() keeps C:/... which Git Bash accepts.
-        assignments = {**values, "GITHUB_OUTPUT": output.as_posix()}
+        assignments = {**RUN_VALUES, **values, "GITHUB_OUTPUT": output.as_posix()}
         preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in assignments.items())
-        # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+        # Bytes, not text: text mode on Windows would write \r\n, which bash rejects. The gate
+        # writes verdict.json into its working directory, so that is the temporary one.
         completed = subprocess.run(
-            [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+            [bash, "-s"],
+            input=(preamble + body).encode(),
+            capture_output=True,
+            check=False,
+            cwd=directory,
         )
         written = output.read_text(encoding="utf-8")
+        verdict_file = Path(directory) / "verdict.json"
+        recorded = verdict_file.read_text(encoding="utf-8") if verdict_file.exists() else None
     return (
         completed.returncode,
         completed.stdout.decode(errors="replace") + completed.stderr.decode(errors="replace"),
         written,
+        recorded,
     )
+
+
+def run_gate_script(workflow, values) -> tuple[int, str, str]:
+    """run_gate_record without verdict.json: (exit code, output, GITHUB_OUTPUT text)."""
+
+    code, output, written, _ = run_gate_record(workflow, values)
+    return code, output, written
 
 
 def gate_values(full_matrix, selected=None, results=None):
@@ -3723,7 +3860,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         """Full mode with a deselected job is red; a reduced run with a chosen skip passes."""
         code, output, written = run_gate_script(self.workflow, gate_values("true"))
         self.assertEqual(code, 0, output)
-        self.assertEqual(written, "verdict=full-success\n")
+        self.assertEqual(written, _gate_output("full-success", "full"))
 
         values = gate_values("true", selected={"cross-platform-native": "false"}, results={})
         code, output, written = run_gate_script(self.workflow, values)
@@ -3740,7 +3877,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         code, output, written = run_gate_script(self.workflow, values)
         self.assertEqual(code, 0, output)
         self.assertIn("portable-core: skipped, not selected by the plan", output)
-        self.assertEqual(written, "verdict=reduced-success\n")
+        self.assertEqual(written, _gate_output("reduced-success", "integration"))
 
         values = gate_values("true", results={"frontend": "failure"})
         code, output, written = run_gate_script(self.workflow, values)
@@ -3752,6 +3889,90 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         code, output, written = run_gate_script(self.workflow, values)
         self.assertEqual(code, 1, output)
         self.assertEqual(written, "")
+
+    def test_t345_the_gate_records_profile_run_and_attempt(self):
+        """verdict.json carries what the outputs carry; a red gate writes no file."""
+        code, output, _, recorded = run_gate_record(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        assert recorded is not None, "a green gate must write verdict.json"
+        self.assertEqual(
+            json.loads(recorded),
+            {
+                "schemaVersion": 1,
+                "verdict": "full-success",
+                "profile": "full",
+                "sourceRevision": "b" * 40,
+                "runId": 4711,
+                "runAttempt": 3,
+            },
+        )
+        code, output, _, recorded = run_gate_record(self.workflow, gate_values("false"))
+        self.assertEqual(code, 0, output)
+        assert recorded is not None, "a green gate must write verdict.json"
+        self.assertEqual(json.loads(recorded)["profile"], "integration")
+        self.assertEqual(json.loads(recorded)["verdict"], "reduced-success")
+        values = gate_values("true", results={"frontend": "failure"})
+        code, output, written, recorded = run_gate_record(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual((written, recorded), ("", None), "a red gate records nothing")
+
+    def test_t345_verdict_vocabulary(self):
+        """Three verdicts; only full-success passes VERDICT_TERM, and tree-reused is no success."""
+        self.assertEqual(
+            workflow_contract.VERDICTS, ("full-success", "reduced-success", "tree-reused")
+        )
+        self.assertEqual(workflow_contract.PROFILES, ("full", "integration"))
+        self.assertNotIn("success", workflow_contract.TREE_REUSED)
+        self.assertEqual(
+            workflow_contract.VERDICT_TERM, "needs.tests.outputs.verdict == 'full-success'"
+        )
+        self.assertEqual(release_manifest.RELEASE_VERDICT, workflow_contract.FULL_SUCCESS)
+        self.assertEqual(release_manifest.RELEASE_PROFILE, workflow_contract.PROFILES[0])
+
+    def test_t345_gate_evidence_mutations(self):
+        validate = workflow_contract.validate_full_matrix_verdict
+        attempt = ".".join(("github", "run_attempt"))
+        for name, original, replacement, error in (
+            (
+                "the profile output dropped",
+                "      profile: ${{ steps.gate.outputs.profile }}\n",
+                "",
+                "missing its verdict",
+            ),
+            (
+                "the attempt no longer from the run",
+                "          TEST_RUN_ATTEMPT: ${{ " + attempt + " }}\n",
+                "          TEST_RUN_ATTEMPT: '1'\n",
+                "missing its verdict",
+            ),
+            (
+                "the full profile for a reduced run",
+                "            verdict=reduced-success\n            profile=integration\n",
+                "            verdict=reduced-success\n            profile=full\n",
+                "must end with the verdict",
+            ),
+            (
+                "the artifact step removed",
+                "      - name: Keep the verdict as an artifact\n",
+                "      - name: Keep the verdict elsewhere\n",
+                "missing its verdict",
+            ),
+            (
+                "the artifact kept after a red gate",
+                "      - name: Keep the verdict as an artifact\n        uses:",
+                "      - name: Keep the verdict as an artifact\n        if: always()\n        uses:",
+                "missing its verdict",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+        coverage = workflow_contract.validate_full_matrix_coverage
+        self.assert_mutation_fails(
+            coverage,
+            "        value: ${{ jobs.browser-e2e.outputs.run_attempt }}\n",
+            "        value: ${{ jobs.browser-e2e.outputs.run_id }}\n",
+            "must output verdict",
+        )
 
     def test_c7_no_push_trigger(self):
         self.assert_mutation_fails(
@@ -4051,6 +4272,31 @@ class ReleaseSingleEntryContractTests(unittest.TestCase):
                 web_if,
                 web_if.replace("      && needs.tests.outputs.verdict == 'full-success'\n", ""),
                 "web-image must run only on: needs.tests.outputs.verdict",
+            ),
+            # T-345: the manifest carries the tests' evidence
+            (
+                "the manifest without the attempt",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                '            --test-run-attempt "$TEST_RUN_ATTEMPT"\n',
+                "",
+                "evidence to the manifest: --test-run-attempt",
+            ),
+            (
+                "the manifest's verdict not from the tests",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                "          TEST_VERDICT: ${{ needs.tests.outputs.verdict }}\n",
+                "          TEST_VERDICT: full-success\n",
+                "evidence to the manifest: TEST_VERDICT",
+            ),
+            (
+                "the manifest's profile not from the tests",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                "          TEST_PROFILE: ${{ needs.tests.outputs.profile }}\n",
+                "          TEST_PROFILE: full\n",
+                "evidence to the manifest: TEST_PROFILE",
             ),
             # C-7
             (
@@ -4755,6 +5001,7 @@ class WritingDataReleaseContractTests(unittest.TestCase):
             ReleaseManifestTests._images(),
             ReleaseManifestTests._artifacts(artifact_root),
             data=data,
+            tests=TEST_EVIDENCE,
         )
         ReleaseManifestTests._attest_signatures(manifest, artifact_root)
         path = artifact_root / "release-manifest.json"
@@ -4765,7 +5012,7 @@ class WritingDataReleaseContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = self._manifest(Path(directory), WRITING_DATA_PIN)
             manifest = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(manifest["schemaVersion"], 7)
+            self.assertEqual(manifest["schemaVersion"], 8)
             self.assertEqual(
                 manifest["dataAssets"],
                 [

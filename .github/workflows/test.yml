@@ -8,6 +8,13 @@ permissions:
 # browser-e2e job reports full-success. A separate run of this workflow is never release
 # evidence.
 #
+# The verdict (T-345, "Verdict" in docs/quality/ci.md) is one of three values. full-success:
+# every job of the full matrix ran and passed. reduced-success: a reduced run passed.
+# tree-reused: reserved for a run that ends early because a run on the same tree already
+# tested it -- it tested nothing itself, so it is never full-success and never release
+# evidence. Beside the verdict the gate records the profile (full or integration), the run and
+# its attempt, as outputs and in the artifact test-verdict (verdict.json).
+#
 # Pull requests run Linux completely and a smoke test on Windows and macOS; a manual run and a
 # caller asking for it run the full Windows and macOS matrix. The `plan` job decides that in one
 # place -- see "Matrix" in docs/quality/ci.md. On a pull request it also selects the job groups
@@ -47,6 +54,15 @@ on:
       verdict:
         description: "full-success only when every job the full matrix requires succeeded"
         value: ${{ jobs.browser-e2e.outputs.verdict }}
+      profile:
+        description: "full or integration: the profile the verdict was reached with"
+        value: ${{ jobs.browser-e2e.outputs.profile }}
+      run_id:
+        description: "The run that produced the verdict"
+        value: ${{ jobs.browser-e2e.outputs.run_id }}
+      run_attempt:
+        description: "The attempt of that run that produced the verdict"
+        value: ${{ jobs.browser-e2e.outputs.run_attempt }}
 
 # Pull requests cancel their superseded runs. Every other run -- a dispatch, or the call from
 # release.yml for a push to main -- gets a group of its own, so no run can cancel another run's
@@ -520,14 +536,22 @@ jobs:
     permissions: {}
     # The one verdict a caller may build on. A called workflow concludes success even when every
     # job inside it was skipped, so release.yml reads this output, not the call's conclusion. It
-    # is written only after every check below passed; a red gate leaves it empty.
+    # is written only after every check below passed; a red gate leaves it empty. Beside it (T-345)
+    # stand the profile the run tested with, and the run and attempt that produced the verdict --
+    # in a call those are the caller's, the same numbers release.yml writes into the manifest.
     outputs:
       verdict: ${{ steps.gate.outputs.verdict }}
+      profile: ${{ steps.gate.outputs.profile }}
+      run_id: ${{ steps.gate.outputs.run_id }}
+      run_attempt: ${{ steps.gate.outputs.run_attempt }}
     steps:
       - name: Require every selected job
         id: gate
         env:
           FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}
+          SOURCE_REVISION: ${{ github.sha }}
+          TEST_RUN_ID: ${{ github.run_id }}
+          TEST_RUN_ATTEMPT: ${{ github.run_attempt }}
           PLAN_RESULT: ${{ needs.plan.result }}
           RESULT_BACKEND: ${{ needs['backend'].result }}
           SELECTED_BACKEND: ${{ needs.plan.outputs.run_python != 'false' }}
@@ -596,10 +620,28 @@ jobs:
           fi
           if [ "$FULL_MATRIX" = "true" ]; then
             verdict=full-success
+            profile=full
           else
             verdict=reduced-success
+            profile=integration
           fi
-          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          printf '{"schemaVersion":1,"verdict":"%s","profile":"%s","sourceRevision":"%s","runId":%s,"runAttempt":%s}\n' \
+            "$verdict" "$profile" "$SOURCE_REVISION" "$TEST_RUN_ID" "$TEST_RUN_ATTEMPT" > verdict.json
+          {
+            echo "verdict=$verdict"
+            echo "profile=$profile"
+            echo "run_id=$TEST_RUN_ID"
+            echo "run_attempt=$TEST_RUN_ATTEMPT"
+          } >> "$GITHUB_OUTPUT"
+      # The same values as a file, so a later run can read them without this run's logs. An
+      # artifact expires; the manifest carries the values themselves, not a pointer to this file.
+      - name: Keep the verdict as an artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-verdict
+          path: verdict.json
+          if-no-files-found: error
+          overwrite: true
 
   # When a platform has no baseline set, visual-baseline.spec.ts skips itself there -- and
   # the suite reports green while comparing not a single pixel. This check names the gap

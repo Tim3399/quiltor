@@ -617,11 +617,21 @@ jobs:
         env:
           MACOS_DIRECT: ${{ needs.version-check.outputs.macos_direct }}
           WINDOWS_DIRECT: ${{ needs.version-check.outputs.windows_direct }}
+          # T-345: the called matrix's evidence, as values. The attempt is the one the tests ran
+          # in; a re-run of this job alone keeps it.
+          TEST_VERDICT: ${{ needs.tests.outputs.verdict }}
+          TEST_PROFILE: ${{ needs.tests.outputs.profile }}
+          TEST_RUN_ID: ${{ needs.tests.outputs.run_id }}
+          TEST_RUN_ATTEMPT: ${{ needs.tests.outputs.run_attempt }}
         run: |
           set -euo pipefail
           args=(
             --version "${{ needs.version-check.outputs.version }}"
             --source-revision "$GITHUB_SHA"
+            --test-verdict "$TEST_VERDICT"
+            --test-profile "$TEST_PROFILE"
+            --test-run-id "$TEST_RUN_ID"
+            --test-run-attempt "$TEST_RUN_ATTEMPT"
             --web-image "${{ needs.web-image.outputs.image }}"
             --backup-image "${{ needs.backup-image.outputs.image }}"
             --artifact "release-assets/quiltor-${{ needs.version-check.outputs.version }}-py3-none-any.whl"

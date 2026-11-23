@@ -1657,11 +1657,50 @@ FULL_MATRIX_EXPANSIONS = {
 # macos-15 and every macOS browser slot together; Release Build's macos-direct needs the tests.
 MACOS_CONCURRENT_LIMIT = 5
 TEST_TRIGGERS = ("pull_request", "workflow_dispatch", "workflow_call")
+# T-345: the three verdicts. Only FULL_SUCCESS is release evidence. TREE_REUSED is reserved for a
+# run that ends early because a run on the same tree already tested it (T-341 part D); it tested
+# nothing itself, so it carries no "-success" a glob or a prefix test could take for a pass.
+FULL_SUCCESS = "full-success"
+REDUCED_SUCCESS = "reduced-success"
+TREE_REUSED = "tree-reused"
+VERDICTS = (FULL_SUCCESS, REDUCED_SUCCESS, TREE_REUSED)
+# The profile a verdict was reached with, machine-readable in the outputs and in verdict.json.
+PROFILES = ("full", "integration")
 VERDICT_OUTPUT = (
     "    outputs:\n"
     "      verdict:\n"
     '        description: "full-success only when every job the full matrix requires succeeded"\n'
     "        value: ${{ jobs.browser-e2e.outputs.verdict }}\n"
+    "      profile:\n"
+    '        description: "full or integration: the profile the verdict was reached with"\n'
+    "        value: ${{ jobs.browser-e2e.outputs.profile }}\n"
+    "      run_id:\n"
+    '        description: "The run that produced the verdict"\n'
+    "        value: ${{ jobs.browser-e2e.outputs.run_id }}\n"
+    "      run_attempt:\n"
+    '        description: "The attempt of that run that produced the verdict"\n'
+    "        value: ${{ jobs.browser-e2e.outputs.run_attempt }}\n"
+)
+GATE_OUTPUTS = (
+    "    outputs:\n"
+    "      verdict: ${{ steps.gate.outputs.verdict }}\n"
+    "      profile: ${{ steps.gate.outputs.profile }}\n"
+    "      run_id: ${{ steps.gate.outputs.run_id }}\n"
+    "      run_attempt: ${{ steps.gate.outputs.run_attempt }}\n"
+)
+GATE_RUN_ENV = (
+    "          SOURCE_REVISION: ${{ github.sha }}\n"
+    "          TEST_RUN_ID: ${{ github.run_id }}\n"
+    "          TEST_RUN_ATTEMPT: ${{ github.run_attempt }}\n"
+)
+VERDICT_ARTIFACT_STEP = (
+    "      - name: Keep the verdict as an artifact\n"
+    "        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7\n"
+    "        with:\n"
+    "          name: test-verdict\n"
+    "          path: verdict.json\n"
+    "          if-no-files-found: error\n"
+    "          overwrite: true\n"
 )
 TEST_CONCURRENCY = (
     "\nconcurrency:\n"
@@ -1678,17 +1717,28 @@ FULL_MODE_CHECK = (
     "          }\n"
 )
 # The end of the gate script: no verdict unless every check passed, full-success only in full
-# mode. A red gate leaves the output empty, and an empty verdict builds nothing.
+# mode, and the profile always the one the verdict was reached with. A red gate leaves the output
+# and verdict.json empty, and an empty verdict builds nothing.
 GATE_TAIL = (
     '          if [ "$status" -ne 0 ]; then\n'
     "            exit 1\n"
     "          fi\n"
     '          if [ "$FULL_MATRIX" = "true" ]; then\n'
     "            verdict=full-success\n"
+    "            profile=full\n"
     "          else\n"
     "            verdict=reduced-success\n"
+    "            profile=integration\n"
     "          fi\n"
-    '          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"\n'
+    '          printf \'{"schemaVersion":1,"verdict":"%s","profile":"%s","sourceRevision":"%s",'
+    '"runId":%s,"runAttempt":%s}\\n\' \\\n'
+    '            "$verdict" "$profile" "$SOURCE_REVISION" "$TEST_RUN_ID" "$TEST_RUN_ATTEMPT" > verdict.json\n'
+    "          {\n"
+    '            echo "verdict=$verdict"\n'
+    '            echo "profile=$profile"\n'
+    '            echo "run_id=$TEST_RUN_ID"\n'
+    '            echo "run_attempt=$TEST_RUN_ATTEMPT"\n'
+    '          } >> "$GITHUB_OUTPUT"\n'
 )
 
 
@@ -1769,22 +1819,32 @@ def validate_full_matrix_verdict(sources: dict[Path, str]) -> None:
 
     In full mode every filtered job outside REDUCED_ONLY must be selected and the reduced-only
     ones must not be. The verdict is the last thing the gate does; a red gate leaves it empty.
+    T-345: the gate writes the profile, the run and its attempt beside the verdict, and a second
+    step keeps them as the artifact test-verdict; it runs only when the gate passed.
     """
 
     aggregator = _job_body(sources[WORKFLOW_ROOT / "test.yml"], "browser-e2e")
     for evidence in (
         "    permissions: {}\n",
-        "    outputs:\n      verdict: ${{ steps.gate.outputs.verdict }}\n",
+        GATE_OUTPUTS,
         "        id: gate\n",
         "          FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}\n",
+        GATE_RUN_ENV,
         FULL_MODE_CHECK,
+        VERDICT_ARTIFACT_STEP,
     ):
         if evidence not in aggregator:
             raise WorkflowContractError(f"browser-e2e is missing its verdict: {evidence.strip()}")
     if aggregator.count("permissions:") != 1:
         raise WorkflowContractError("browser-e2e may hold no permissions: permissions: {}")
-    if len(re.findall(r"^      - (?:name|id|uses|run):", aggregator, re.MULTILINE)) != 1:
-        raise WorkflowContractError("browser-e2e must be one step, the gate")
+    if len(re.findall(r"^      - (?:name|id|uses|run):", aggregator, re.MULTILINE)) != 2:
+        raise WorkflowContractError(
+            "browser-e2e must be two steps, the gate and the verdict artifact"
+        )
+    gate, _, artifact = aggregator.partition("      - name: Keep the verdict as an artifact\n")
+    # The upload carries no if:, so it runs only after a green gate and never keeps a red one.
+    if re.search(r"^        if:", artifact.partition("\n  #")[0], re.MULTILINE):
+        raise WorkflowContractError("the verdict artifact may run only after a green gate, no if:")
     for name in FILTERED_JOBS:
         expected = "false" if name in REDUCED_ONLY else "true"
         line = f'          full_mode {name} "$SELECTED_{_env_name(name)}" {expected}\n'
@@ -1793,8 +1853,8 @@ def validate_full_matrix_verdict(sources: dict[Path, str]) -> None:
                 f"browser-e2e must require selected={expected} for {name} in full mode: "
                 + line.strip()
             )
-    # A job's body runs up to the next job header and so carries that job's leading comment.
-    script_end = re.sub(r"(?:\n  #[^\n]*|\n[ \t]*)*\Z", "", aggregator)
+    # The gate step ends where the artifact step's leading comment begins.
+    script_end = re.sub(r"(?:\n      #[^\n]*|\n[ \t]*)*\Z", "", gate)
     if not script_end.endswith(GATE_TAIL.rstrip("\n")):
         raise WorkflowContractError(
             "browser-e2e must end with the verdict, written only after every check passed"
@@ -2291,8 +2351,20 @@ def validate_preflight_coverage(
 # T-35: release.yml is the single entry point for pushes to main and builds only on the called
 # full test matrix's verdict. C-3 to C-12, C-15 (a, b), C-16, C-17 and C-19 hold that shape.
 
-VERDICT_TERM = "needs.tests.outputs.verdict == 'full-success'"
+# The one verdict a release builds on. An equality, never a prefix or a negation: reduced-success
+# and tree-reused (T-345) must both fail it, and so must an empty verdict.
+VERDICT_TERM = f"needs.tests.outputs.verdict == '{FULL_SUCCESS}'"
 RELEASE_TERM = "needs.release-plan.outputs.release == 'true'"
+MANIFEST_TEST_EVIDENCE = (
+    "          TEST_VERDICT: ${{ needs.tests.outputs.verdict }}\n",
+    "          TEST_PROFILE: ${{ needs.tests.outputs.profile }}\n",
+    "          TEST_RUN_ID: ${{ needs.tests.outputs.run_id }}\n",
+    "          TEST_RUN_ATTEMPT: ${{ needs.tests.outputs.run_attempt }}\n",
+    '            --test-verdict "$TEST_VERDICT"\n',
+    '            --test-profile "$TEST_PROFILE"\n',
+    '            --test-run-id "$TEST_RUN_ID"\n',
+    '            --test-run-attempt "$TEST_RUN_ATTEMPT"\n',
+)
 NOT_DRY_RUN = "needs.release-plan.outputs.dry_run == 'false'"
 ARTIFACT_JOBS = ("web-image", "backup-image", "python-package", "macos-direct", "windows-direct")
 ARTIFACT_NEEDS = frozenset(
@@ -2479,8 +2551,15 @@ def validate_artifact_edges(sources: dict[Path, str]) -> None:
                 raise WorkflowContractError(f"release.yml:{name} must run only on: {term}")
     if "tests" in _needs(_job_body(build, "release-gate")):
         raise WorkflowContractError("release-gate runs beside the tests and may not need them")
-    if VERDICT_TERM not in (_and_terms(_job_condition(_job_body(build, "release-manifest"))) or []):
+    manifest = _job_body(build, "release-manifest")
+    if VERDICT_TERM not in (_and_terms(_job_condition(manifest)) or []):
         raise WorkflowContractError("release-manifest must run only on: " + VERDICT_TERM)
+    # T-345: the manifest carries the called matrix's verdict, profile, run and attempt as values.
+    for evidence in MANIFEST_TEST_EVIDENCE:
+        if manifest.count(evidence) != 1:
+            raise WorkflowContractError(
+                f"release-manifest must hand the tests' evidence to the manifest: {evidence.strip()}"
+            )
     complete = _job_body(build, "release-complete")
     for evidence in (
         "    if: ${{ always() && needs.release-plan.outputs.release == 'true' }}\n",
