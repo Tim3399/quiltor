@@ -996,10 +996,77 @@ REDUCED_MATRIX_GUARD = (
     "if: needs.plan.outputs.full_matrix != 'true' && needs.plan.outputs.run_browser == 'true'"
 )
 FULL_MATRIX_DECISION = (
-    "FULL_MATRIX: ${{ inputs.full_matrix == true "
+    "FULL_MATRIX: ${{ inputs.full_matrix == true || inputs.profile == 'full' "
     "|| (github.event_name == 'push' && github.ref == 'refs/heads/main') "
-    "|| (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}"
+    "|| (github.event_name != 'pull_request' && format('{0}', inputs.profile) == '' "
+    "&& format('{0}', inputs.full_matrix) != 'false') }}"
 )
+# T-341 part B: a dispatch chooses a profile, integration by default; a call (release.yml) keeps
+# the boolean full_matrix. The raise step can only turn integration into full.
+PROFILE_INPUT = (
+    "      profile:\n"
+    '        description: "integration (Linux, Windows Core and Smoke) or full (every system)"\n'
+    "        type: choice\n"
+    "        options:\n"
+    "          - integration\n"
+    "          - full\n"
+    "        default: integration\n"
+)
+PLAN_FULL_MATRIX_OUTPUT = (
+    "      full_matrix: ${{ steps.raise.outputs.full_matrix == 'true' && 'true' "
+    "|| steps.decide.outputs.full_matrix }}\n"
+)
+PLAN_NATIVE_MACOS_OUTPUT = (
+    "      native_macos: ${{ (steps.raise.outputs.full_matrix == 'true' "
+    "|| steps.decide.outputs.full_matrix == 'true') && 'true' || 'false' }}\n"
+)
+# Core leaves macOS out of the integration profile only; in full mode it excludes nothing.
+NATIVE_MACOS_EXCLUDE = (
+    "        os: [macos-15, windows-2025]\n"
+    "        # The integration profile leaves macOS out (T-341 part B); 'none' excludes nothing.\n"
+    "        exclude:\n"
+    "          - os: ${{ needs.plan.outputs.native_macos == 'true' && 'none' || 'macos-15' }}\n"
+)
+RAISE_CONDITION = (
+    "steps.decide.outputs.full_matrix != 'true' && github.event_name == 'workflow_dispatch' "
+    "&& inputs.profile == 'integration'"
+)
+# Full first, the decision after it: anything that fails on the way leaves the run full. The
+# head's copy only names the base; the base's copy decides, by the base's rules.
+RAISE_STEP = (
+    "      - id: raise\n"
+    "        name: Raise the profile on a native change\n"
+    f"        if: {RAISE_CONDITION}\n"
+    "        env:\n"
+    "          BRANCH: ${{ github.ref_name }}\n"
+    "        run: |\n"
+    '          echo "full_matrix=true" >> "$GITHUB_OUTPUT"\n'
+    '          head="$RUNNER_TEMP/profile-head"\n'
+    '          base="$RUNNER_TEMP/profile-base"\n'
+    '          mkdir -p "$head/.github" "$head/distribution/tooling" "$base/.github"'
+    ' "$base/distribution/tooling"\n'
+    '          if git show HEAD:.github/test-paths.json > "$head/.github/test-paths.json" &&\n'
+    "            git show HEAD:distribution/tooling/path_filter.py"
+    ' > "$head/distribution/tooling/path_filter.py" &&\n'
+    '            commit=$(python "$head/distribution/tooling/path_filter.py" base'
+    ' --repository . --head HEAD --branch "$BRANCH") &&\n'
+    '            git show "$commit:.github/test-paths.json" > "$base/.github/test-paths.json" &&\n'
+    '            git show "$commit:distribution/tooling/path_filter.py"'
+    ' > "$base/distribution/tooling/path_filter.py"; then\n'
+    '            python "$base/distribution/tooling/path_filter.py" profile --repository .'
+    ' --head HEAD --branch "$BRANCH" --expect-base "$commit" --output "$GITHUB_OUTPUT"'
+    ' --summary "$GITHUB_STEP_SUMMARY" ||\n'
+    '              echo "::warning::the base\'s profile rules failed, running the full matrix"\n'
+    "          else\n"
+    '            echo "::warning::no integration base with readable profile rules,'
+    ' running the full matrix"\n'
+    '            echo "- Profile raised to full: no integration base with readable profile rules"'
+    ' >> "$GITHUB_STEP_SUMMARY"\n'
+    "          fi\n"
+)
+# The branches a run may be measured from (D-236, D-241, F-341-8): the working branch, main,
+# the release lines and every version line int/v*. Task branches (int/T-...) never count.
+INTEGRATION_BASES = ["agent-team-einrichtung", "main", "release/*", "int/v*"]
 
 
 def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
@@ -1007,39 +1074,41 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
     One job decides between the full and the reduced matrix, and main always gets the full one.
 
     This is the interface a caller -- later release.yml through workflow_call -- relies on:
-    a boolean input `full_matrix` on workflow_dispatch and workflow_call, and a `plan` job whose
-    output every matrix job reads instead of looking at the event itself.
+    a boolean input `full_matrix` on workflow_call, a choice `profile` on workflow_dispatch
+    (T-341 part B), and a `plan` job whose output every matrix job reads instead of looking at
+    the event itself.
     """
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
-    triggers = workflow.partition("\njobs:")[0]
-    for trigger in ("workflow_dispatch", "workflow_call"):
-        block = re.search(
-            rf"^  {trigger}:\n((?:    .*\n|\n)*)",
-            triggers + "\n",
-            re.MULTILINE,
+    call = _trigger_inputs(workflow, "workflow_call")
+    field = re.search(r"^      full_matrix:\n((?:        .*\n)*)", call, re.MULTILINE)
+    fields = field.group(1) if field else ""
+    if "        type: boolean\n" not in fields or "        default: true\n" not in fields:
+        raise WorkflowContractError(
+            "test.yml workflow_call must declare the boolean input full_matrix, default true"
         )
-        body = block.group(1) if block else ""
-        field = re.search(r"^      full_matrix:\n((?:        .*\n)*)", body, re.MULTILINE)
-        fields = field.group(1) if field else ""
-        if "        type: boolean\n" not in fields or "        default: true\n" not in fields:
-            raise WorkflowContractError(
-                f"test.yml {trigger} must declare the boolean input full_matrix, default true"
-            )
+    dispatch = _trigger_inputs(workflow, "workflow_dispatch")
+    call_inputs = call.partition("    outputs:\n")[0]
+    if PROFILE_INPUT not in dispatch or "full_matrix:" in dispatch or "profile:" in call_inputs:
+        raise WorkflowContractError(
+            "test.yml workflow_dispatch must declare the choice input profile, integration or "
+            "full, default integration, and neither trigger may declare the other's input"
+        )
 
     plan = _job_body(workflow, "plan")
     for evidence in (
-        "full_matrix: ${{ steps.decide.outputs.full_matrix }}",
+        PLAN_FULL_MATRIX_OUTPUT,
         FULL_MATRIX_DECISION,
         'echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"',
     ):
         if evidence not in plan:
             raise WorkflowContractError(f"the plan job is missing its matrix decision: {evidence}")
     # T-33 decided without checkout or actions. The path filter (T-37) needs exactly two:
-    # a sparse checkout of the history, and the locked Python to run the base's filter,
-    # both only on a pull request in reduced mode. validate_path_filter holds the rest.
+    # a sparse checkout of the history, and the locked Python to run the base's filter, both
+    # only on a pull request in reduced mode or on a manual run of the integration profile
+    # (T-341 part B). validate_path_filter and validate_profile_raise hold the rest.
     for step in re.split(r"^      - ", plan, flags=re.MULTILINE)[1:]:
-        if "uses:" in step and f"if: {PATH_FILTER_CONDITION}\n" not in step:
+        if "uses:" in step and f"if: {PLAN_CHECKOUT_CONDITION}\n" not in step:
             raise WorkflowContractError(
                 "the plan job may use actions only for the path filter, on its condition"
             )
@@ -1070,6 +1139,11 @@ def validate_full_matrix_switch(sources: dict[Path, str]) -> None:
 
 PATH_FILTER_CONDITION = (
     "steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'"
+)
+# The checkout and Python serve the path filter and the raise step (T-341 part B).
+PLAN_CHECKOUT_CONDITION = (
+    "steps.decide.outputs.full_matrix != 'true' && "
+    "(github.event_name == 'pull_request' || inputs.profile == 'integration')"
 )
 # The filter step runs the base's script on the base's configuration (F-37-3). A pull request
 # that rewrites either is judged by the rules it replaces; a base without them writes nothing,
@@ -1174,14 +1248,16 @@ OPTIONAL_JOBS = {
             "      spike: ${{ inputs.llama_spike == true }}\n"
         ),
     },
-    # The probe runs only in a reduced run: full_matrix == false is part of the decision.
+    # The probe runs only in the integration profile, and only when the raise step left it there:
+    # the full matrix already holds the five macOS jobs the plan allows (T-341 part B).
     "desktop-csp-probe": {
         "input": "desktop_csp_probe",
         "start": "plan",
         "condition": "needs.plan.outputs.desktop_csp_probe == 'true'",
         "decision": (
             "DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && "
-            "inputs.desktop_csp_probe == true && inputs.full_matrix == false }}"
+            "inputs.desktop_csp_probe == true && inputs.profile == 'integration' && "
+            "steps.raise.outputs.full_matrix == 'false' }}"
         ),
     },
 }
@@ -1407,15 +1483,20 @@ def validate_path_filter(sources: dict[Path, str], tracked: list[str] | None = N
             "the plan job needs one run_<group> output per test-paths group, each "
             "true in full mode and false only on the filter's literal 'false'"
         )
-    if plan.count(f"if: {PATH_FILTER_CONDITION}\n") != 3:
+    if plan.count(f"if: {PATH_FILTER_CONDITION}\n") != 1 or (
+        plan.count(f"if: {PLAN_CHECKOUT_CONDITION}\n") != 2
+    ):
         raise WorkflowContractError(
-            "the path filter's checkout, Python and run must each be guarded by: "
+            "the path filter's run must be guarded by: "
             + PATH_FILTER_CONDITION
+            + "; its checkout and Python by: "
+            + PLAN_CHECKOUT_CONDITION
         )
     for evidence in (
         "      - id: filter\n",
         PATH_FILTER_COMMAND,
-        "          fetch-depth: 2\n",
+        "          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}\n",
+        "          filter: ${{ github.event_name != 'pull_request' && 'blob:none' || '' }}\n",
         PATH_FILTER_SPARSE,
         "          persist-credentials: false\n",
     ):
@@ -1705,8 +1786,10 @@ VERDICT_ARTIFACT_STEP = (
 TEST_CONCURRENCY = (
     "\nconcurrency:\n"
     "  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', github.ref) "
+    "|| format('{0}', inputs.profile) != '' && format('test-{0}-{1}', github.ref, inputs.profile) "
     "|| format('test-run-{0}', github.run_id) }}\n"
-    "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n"
+    "  cancel-in-progress: ${{ github.event_name == 'pull_request' "
+    "|| inputs.profile == 'integration' }}\n"
 )
 FULL_MODE_CHECK = (
     "          full_mode() {\n"
@@ -1751,6 +1834,13 @@ def _matrix_expansions(name: str, body: str) -> int:
     if block is None:
         raise WorkflowContractError(f"test.yml:{name} has a strategy without a readable matrix")
     lines = block.group(1)
+    if name == "cross-platform-native":
+        if NATIVE_MACOS_EXCLUDE not in "        os:" + lines.partition("        os:")[2]:
+            raise WorkflowContractError(
+                f"test.yml:{name} must leave macOS out only through the profile: "
+                + NATIVE_MACOS_EXCLUDE.strip()
+            )
+        lines = lines.replace(NATIVE_MACOS_EXCLUDE.partition("\n")[2], "")
     if lines.startswith("        include:\n"):
         rows = lines.removeprefix("        include:\n")
         if re.search(r"^        \S", rows, re.MULTILINE):
@@ -1863,6 +1953,44 @@ def validate_full_matrix_verdict(sources: dict[Path, str]) -> None:
         raise WorkflowContractError("browser-e2e may write its verdict in exactly one place")
 
 
+def validate_profile_raise(sources: dict[Path, str]) -> None:
+    """
+    C-21 (T-341 part B): a manual integration run is raised to full on a native change.
+
+    The raise step writes full first and runs the base's filter on the base's rules, so it can
+    only raise. Its output and the matrix that reads it are held here; the configuration names
+    the fixed list of integration bases and a native group.
+    """
+
+    workflow = sources[WORKFLOW_ROOT / "test.yml"]
+    plan = _job_body(workflow, "plan")
+    for evidence in (PLAN_FULL_MATRIX_OUTPUT, PLAN_NATIVE_MACOS_OUTPUT, RAISE_STEP):
+        if evidence not in plan:
+            raise WorkflowContractError(f"the plan job is missing its profile raise: {evidence}")
+    if plan.count("steps.raise.outputs.full_matrix") != 3:
+        raise WorkflowContractError(
+            "only full_matrix, native_macos and the probe may read the raise step's output"
+        )
+    if plan.index("      - id: raise\n") < plan.index("      - name: Check out the path filter\n"):
+        raise WorkflowContractError("the raise step needs the checkout before it")
+    if plan.index("      - id: probe\n") < plan.index("      - id: raise\n"):
+        raise WorkflowContractError("the probe decision needs the raise step before it")
+    if NATIVE_MACOS_EXCLUDE not in _job_body(workflow, "cross-platform-native"):
+        raise WorkflowContractError(
+            "Core must leave macOS out only through the profile: " + NATIVE_MACOS_EXCLUDE.strip()
+        )
+    smoke = _job_body(workflow, "cross-platform-smoke")
+    if "        os: [windows-2025]\n" not in smoke or "macos" in smoke.partition("    steps:")[0]:
+        raise WorkflowContractError("the integration smoke test runs on Windows only")
+    config = path_filter.load_config(REPO_ROOT / ".github" / "test-paths.json")
+    if list(config.integration_bases) != INTEGRATION_BASES:
+        raise WorkflowContractError(
+            "test-paths.json integration_bases must be exactly " + ", ".join(INTEGRATION_BASES)
+        )
+    if config.native is None:
+        raise WorkflowContractError("test-paths.json must declare the native group")
+
+
 def validate_test_triggers(sources: dict[Path, str]) -> None:
     """C-7, test.yml half: no push trigger. A push to main reaches the tests through release.yml."""
 
@@ -1881,10 +2009,11 @@ def validate_test_triggers(sources: dict[Path, str]) -> None:
 
 def validate_test_concurrency(sources: dict[Path, str]) -> None:
     """
-    C-8, test.yml half: only pull requests share a group and cancel superseded runs.
+    C-8, test.yml half: pull requests and manual integration runs cancel superseded runs.
 
-    Every other run -- a dispatch, or release.yml's call for a push to main -- has a group of its
-    own, so a newer push can no longer cancel the tests of an older one.
+    A manual run shares a group per ref and profile; only the integration profile cancels
+    (T-341 part B). A call from release.yml has no profile input and a group of its own, so a
+    newer push or dispatch can never cancel the release's tests.
     """
 
     workflow = sources[WORKFLOW_ROOT / "test.yml"]
@@ -3020,6 +3149,7 @@ def validate_repository(repo_root: Path = REPO_ROOT) -> None:
         validate_windows_port_range(sources)
         validate_windows_playwright_install(sources)
         validate_full_matrix_switch(sources)
+        validate_profile_raise(sources)
         validate_path_filter(sources)
         validate_frontend_gates_once(sources)
         validate_preflight_coverage(sources)

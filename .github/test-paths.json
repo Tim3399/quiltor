@@ -1,6 +1,19 @@
 {
   "schemaVersion": 1,
-  "$comment": "Which job groups of .github/workflows/test.yml a pull request needs, by changed path. Evaluated by distribution/tooling/path_filter.py in the plan job and checked by workflow_contract.py. A file takes the union of every rule it matches; a file no rule and no untested entry matches runs everything. Main, workflow_dispatch and workflow_call (release mode) never read this file. See \"Path filter\" in docs/quality/ci.md.",
+  "$comment": "Which job groups of .github/workflows/test.yml a pull request needs, by changed path. Evaluated by distribution/tooling/path_filter.py in the plan job and checked by workflow_contract.py. A file takes the union of every rule it matches; a file no rule and no untested entry matches runs everything. Main, workflow_dispatch and workflow_call (release mode) never read the groups and rules. A manual run of the integration profile reads integration_bases and native from its base's copy to decide whether it is raised to full (T-341 part B). See \"Path filter\" and \"Profiles\" in docs/quality/ci.md.",
+  "integration_bases": ["agent-team-einrichtung", "main", "release/*", "int/v*"],
+  "native": {
+    "patterns": [
+      "src/quiltor/hosts/desktop/**",
+      "Cargo.toml",
+      "Cargo.lock",
+      "crates/**",
+      "rust-toolchain.toml",
+      "distribution/**"
+    ],
+    "exclude": ["distribution/tooling/**", "distribution/assets/**"],
+    "reason": "Code that behaves differently on Windows and macOS: the desktop host, the Rust core and its toolchain, installers, packages and toolchains.json (D-241). A change here since the run's base raises the integration profile to full; a pure version bump does not (D-236)."
+  },
   "groups": {
     "checks": "frontend job, npm run check: contracts, architecture, design, i18n, formatting, every linter",
     "python": "backend job, and the backend suite in cross-platform-native",

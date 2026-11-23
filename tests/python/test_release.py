@@ -1876,8 +1876,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 True,
                 True,
             ),
-            ("workflow_dispatch with the default", "workflow_dispatch", "refs/heads/x", True, True),
-            ("workflow_dispatch with false", "workflow_dispatch", "refs/heads/x", False, False),
+            ("workflow_call with false", "workflow_dispatch", "refs/heads/x", False, False),
             ("pull request", "pull_request", "refs/pull/1/merge", None, False),
             (
                 "workflow_call with false from a pull request",
@@ -1887,12 +1886,22 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 False,
             ),
         )
-        for name, event, ref, full_matrix, expected in cases:
+        # A dispatch passes the profile (T-341 part B), never full_matrix.
+        dispatches = (
+            ("workflow_dispatch with the default", "integration", False),
+            ("workflow_dispatch with full", "full", True),
+        )
+        cases += tuple(
+            (name, "workflow_dispatch", "refs/heads/x", None, expected, profile)
+            for name, profile, expected in dispatches
+        )
+        for name, event, ref, full_matrix, expected, *profile in cases:
             with self.subTest(name=name):
                 context = {
                     "github.event_name": event,
                     "github.ref": ref,
                     "inputs.full_matrix": full_matrix,
+                    "inputs.profile": profile[0] if profile else None,
                 }
                 self.assertIs(
                     _github_truthy(evaluate_github_expression(expression, context)), expected
@@ -1931,9 +1940,35 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "workflow_dispatch input removed",
-                "  workflow_dispatch:\n    inputs:\n      full_matrix:",
-                "  workflow_dispatch:\n    inputs:\n      everything:",
-                "workflow_dispatch must declare the boolean input full_matrix",
+                '      profile:\n        description: "integration',
+                '      everything:\n        description: "integration',
+                "workflow_dispatch must declare the choice input profile",
+            ),
+            (
+                "workflow_dispatch defaults to full",
+                "          - full\n        default: integration\n",
+                "          - full\n        default: full\n",
+                "workflow_dispatch must declare the choice input profile",
+            ),
+            (
+                "workflow_dispatch keeps the boolean beside the profile",
+                '      profile:\n        description: "integration',
+                "      full_matrix:\n        type: boolean\n"
+                '      profile:\n        description: "integration',
+                "neither trigger may declare the other's input",
+            ),
+            (
+                "a dispatch of the full profile is reduced",
+                "inputs.full_matrix == true || inputs.profile == 'full' || ",
+                "inputs.full_matrix == true || ",
+                "plan job is missing its matrix decision",
+            ),
+            (
+                "the raise step lowers the matrix",
+                "full_matrix: ${{ steps.raise.outputs.full_matrix == 'true' && 'true' "
+                "|| steps.decide.outputs.full_matrix }}",
+                "full_matrix: ${{ steps.raise.outputs.full_matrix || steps.decide.outputs.full_matrix }}",
+                "plan job is missing its matrix decision",
             ),
             (
                 "a matrix job reads the event itself",
@@ -1952,7 +1987,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "plan job checks out unconditionally",
                 "      - name: Check out the path filter\n"
                 "        if: steps.decide.outputs.full_matrix != 'true' && "
-                "github.event_name == 'pull_request'\n",
+                "(github.event_name == 'pull_request' || inputs.profile == 'integration')\n",
                 "      - name: Check out the path filter\n",
                 "may use actions only for the path filter",
             ),
@@ -1961,15 +1996,15 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "      - id: filter\n",
                 "      - name: Extra\n"
                 "        if: steps.decide.outputs.full_matrix != 'true' && "
-                "github.event_name == 'pull_request'\n"
+                "(github.event_name == 'pull_request' || inputs.profile == 'integration')\n"
                 "        uses: actions/setup-node@v7\n"
                 "      - id: filter\n",
                 "only checkout and setup-python",
             ),
             (
                 "plan job gains a write permission",
-                "      contents: read # the sparse checkout",
-                "      pull-requests: write\n      contents: read # the sparse checkout",
+                "      contents: read # the checkout",
+                "      pull-requests: write\n      contents: read # the checkout",
                 "repository contents and nothing else",
             ),
         )
@@ -2729,13 +2764,12 @@ def _as_output(value):
     return "" if value is None else str(value)
 
 
-def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filter_outputs=None):
+def simulate_plan(workflow, event, ref, full_matrix_input, profile_input=None, raised=False):
     """
-    Run test.yml's real expressions for one event: plan, every job condition, the gate.
+    The plan job's decision: its steps' context and the full_matrix and native_macos outputs.
 
-    Returns the jobs that run, whether the frontend's client steps run, and the browser-e2e
-    gate's verdict. `filter_outputs` replaces what the path filter step writes, to model a
-    filter that wrote nothing.
+    `profile_input` is what a dispatch passes (a call passes `full_matrix_input` instead);
+    `raised` is what the raise step decides when it runs: True for a native change or no base.
     """
 
     plan = workflow_contract._job_body(workflow, "plan")
@@ -2745,11 +2779,47 @@ def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filte
         "github.event_name": event,
         "github.ref": ref,
         "inputs.full_matrix": full_matrix_input,
+        "inputs.profile": profile_input,
     }
     full = _as_output(
         _github_truthy(evaluate_github_expression(_expression(decision.group(1)), context))
     )
-    steps = {"steps.decide.outputs.full_matrix": full, "github.event_name": event}
+    steps = {**context, "steps.decide.outputs.full_matrix": full}
+    raise_step = re.search(r"^      - id: raise\n(?:        .*\n)*?        if: (.+)\n", plan, re.M)
+    assert raise_step is not None, "the plan job has no conditional raise step"
+    if _github_truthy(evaluate_github_expression(raise_step.group(1), steps)):
+        steps["steps.raise.outputs.full_matrix"] = "true" if raised else "false"
+    outputs = {}
+    for name in ("full_matrix", "native_macos"):
+        line = re.search(rf"^      {name}: ([^\n]+)$", plan, re.M)
+        assert line is not None, f"the plan job has no {name} output"
+        outputs[f"needs.plan.outputs.{name}"] = _as_output(
+            evaluate_github_expression(_expression(line.group(1)), steps)
+        )
+    return plan, steps, outputs
+
+
+def simulate_test_workflow(
+    workflow,
+    event,
+    ref,
+    full_matrix_input,
+    paths,
+    filter_outputs=None,
+    profile_input=None,
+    raised=False,
+):
+    """
+    Run test.yml's real expressions for one event: plan, every job condition, the gate.
+
+    Returns the jobs that run, whether the frontend's client steps run, and the browser-e2e
+    gate's verdict. `filter_outputs` replaces what the path filter step writes, to model a
+    filter that wrote nothing.
+    """
+
+    plan, steps, plan_outputs = simulate_plan(
+        workflow, event, ref, full_matrix_input, profile_input, raised
+    )
     filter_step = re.search(
         r"^      - id: filter\n(?:        .*\n)*?        if: (.+)\n", plan, re.M
     )
@@ -2761,7 +2831,7 @@ def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filte
             filter_outputs = {group: _as_output(run) for group, run in chosen.items()}
         for group, value in filter_outputs.items():
             steps[f"steps.filter.outputs.run_{group}"] = value
-    outputs = {"needs.plan.outputs.full_matrix": full}
+    outputs = dict(plan_outputs)
     for name, line in re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", plan, re.MULTILINE):
         outputs[f"needs.plan.outputs.{name}"] = _as_output(
             evaluate_github_expression(_expression(line), steps)
@@ -2835,6 +2905,8 @@ class PathFilterContractTests(unittest.TestCase):
             cls.addClassCleanup(patcher.stop)
 
     def simulate(self, event, ref, full_matrix_input, paths, workflow=None, **options):
+        if event == "workflow_dispatch" and full_matrix_input in ("integration", "full"):
+            options["profile_input"], full_matrix_input = full_matrix_input, None
         return simulate_test_workflow(
             workflow or self.workflow, event, ref, full_matrix_input, paths, **options
         )
@@ -2854,8 +2926,8 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
-                "workflow_dispatch with the default",
-                ("workflow_dispatch", "refs/heads/x", True),
+                "workflow_dispatch of the full profile",
+                ("workflow_dispatch", "refs/heads/x", "full"),
                 ["docs/plans/x.md"],
                 FULL_JOBS,
                 True,
@@ -2876,7 +2948,14 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             # Reduced without a pull request: nothing to diff, so every group runs.
             (
-                "workflow_dispatch with false",
+                "workflow_dispatch with the default, the integration profile",
+                ("workflow_dispatch", "refs/heads/x", "integration"),
+                ["docs/plans/x.md"],
+                REDUCED_ALL_JOBS,
+                True,
+            ),
+            (
+                "workflow_call with false",
                 ("workflow_dispatch", "refs/heads/x", False),
                 ["docs/plans/x.md"],
                 REDUCED_ALL_JOBS,
@@ -2988,6 +3067,192 @@ class PathFilterContractTests(unittest.TestCase):
                 self.assertIs(client_steps, client)
                 self.assertEqual(failures, [], "a job the plan chose to skip fails the gate")
 
+    def test_a_raised_integration_run_is_the_full_matrix(self):
+        """T-341 part B: a native change, or no base, turns integration into full."""
+
+        running, client_steps, failures = self.simulate(
+            "workflow_dispatch", "refs/heads/x", "integration", [], raised=True
+        )
+        self.assertEqual((running, client_steps, failures), (FULL_JOBS, True, []))
+        _, _, outputs = simulate_plan(
+            self.workflow, "workflow_dispatch", "refs/heads/x", None, "integration", True
+        )
+        self.assertEqual(outputs["needs.plan.outputs.native_macos"], "true")
+
+    def test_the_raise_step_never_lowers_the_matrix(self):
+        """The step runs only on a manual integration run; nothing it writes reduces full."""
+
+        for name, event, full_matrix_input, profile in (
+            ("push to main", "push", None, None),
+            ("release call from a dry run", "workflow_dispatch", None, None),
+            ("dispatch of full", "workflow_dispatch", None, "full"),
+            ("pull request", "pull_request", None, None),
+            ("call with false", "workflow_dispatch", False, None),
+        ):
+            with self.subTest(name=name):
+                for raised in (False, True):
+                    _, steps, outputs = simulate_plan(
+                        self.workflow, event, "refs/heads/x", full_matrix_input, profile, raised
+                    )
+                    self.assertNotIn("steps.raise.outputs.full_matrix", steps)
+                    self.assertEqual(
+                        outputs["needs.plan.outputs.full_matrix"],
+                        steps["steps.decide.outputs.full_matrix"],
+                    )
+
+    def test_the_integration_profile_keeps_the_jobs_that_found_recent_failures(self):
+        """
+        The backward probe of the plan (section 4): T-322 (vitest in frontend), T-330 and
+        T-334 (backend), T-338 (the Linux browser slots) all run in the integration profile,
+        and Core keeps Windows while leaving macOS out.
+        """
+
+        running, client_steps, failures = self.simulate(
+            "workflow_dispatch", "refs/heads/x", "integration", []
+        )
+        self.assertEqual(failures, [])
+        self.assertTrue(client_steps, "frontend runs vitest (T-322)")
+        for job in ("frontend", "backend", "browser-e2e-shards", "cross-platform-native"):
+            self.assertIn(job, running)
+        self.assertNotIn("cross-platform-browser", running)
+        self.assertIn("cross-platform-smoke", running)
+        _, _, outputs = simulate_plan(
+            self.workflow, "workflow_dispatch", "refs/heads/x", None, "integration"
+        )
+        native = workflow_contract._job_body(self.workflow, "cross-platform-native")
+        exclude = re.search(r"^          - os: (\$\{\{ .+ \}\})$", native, re.M)
+        assert exclude is not None
+        self.assertEqual(
+            evaluate_github_expression(_expression(exclude.group(1)), outputs), "macos-15"
+        )
+        _, _, full = simulate_plan(self.workflow, "workflow_dispatch", "refs/heads/x", None, "full")
+        self.assertEqual(evaluate_github_expression(_expression(exclude.group(1)), full), "none")
+        smoke = workflow_contract._job_body(self.workflow, "cross-platform-smoke")
+        self.assertIn("        os: [windows-2025]\n", smoke)
+
+    def test_the_concurrency_cancels_only_integration_dispatches_and_pull_requests(self):
+        block = re.search(
+            r"^concurrency:\n  group: (.+)\n  cancel-in-progress: (.+)$", self.workflow, re.M
+        )
+        assert block is not None
+        group, cancel = (_expression(part) for part in block.groups())
+        for name, event, profile, full_matrix, expected_group, expected_cancel in (
+            ("pull request", "pull_request", None, None, "test-pr-refs/heads/x", True),
+            (
+                "integration",
+                "workflow_dispatch",
+                "integration",
+                None,
+                "test-refs/heads/x-integration",
+                True,
+            ),
+            ("full", "workflow_dispatch", "full", None, "test-refs/heads/x-full", False),
+            ("release call from a dry run", "workflow_dispatch", None, True, "test-run-7", False),
+            ("release call from a push", "push", None, True, "test-run-7", False),
+        ):
+            with self.subTest(name=name):
+                context = {
+                    "github.event_name": event,
+                    "github.ref": "refs/heads/x",
+                    "github.run_id": "7",
+                    "inputs.profile": profile,
+                    "inputs.full_matrix": full_matrix,
+                }
+                self.assertEqual(evaluate_github_expression(group, context), expected_group)
+                self.assertIs(
+                    _github_truthy(evaluate_github_expression(cancel, context)), expected_cancel
+                )
+
+    def test_c21_raise_mutations(self):
+        """Every part of the raise contract is load-bearing (T-341 part B)."""
+
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_profile_raise(sources)
+        for name, original, replacement, error in (
+            (
+                "the step no longer writes full first",
+                '          echo "full_matrix=true" >> "$GITHUB_OUTPUT"\n          head=',
+                "          head=",
+                "missing its profile raise",
+            ),
+            (
+                "the head's copy decides",
+                'python "$base/distribution/tooling/path_filter.py" profile',
+                'python "$head/distribution/tooling/path_filter.py" profile',
+                "missing its profile raise",
+            ),
+            (
+                "the base's choice is not compared",
+                ' --expect-base "$commit"',
+                "",
+                "missing its profile raise",
+            ),
+            (
+                "a failed decision fails the plan",
+                '              echo "::warning::the base\'s profile rules failed, running the full matrix"\n',
+                "              exit 1\n",
+                "missing its profile raise",
+            ),
+            (
+                "the raise runs on a pull request too",
+                "github.event_name == 'workflow_dispatch' && inputs.profile == 'integration'\n",
+                "inputs.profile == 'integration'\n",
+                "missing its profile raise",
+            ),
+            (
+                "Core keeps macOS in the integration profile",
+                "          - os: ${{ needs.plan.outputs.native_macos == 'true' && 'none' || 'macos-15' }}\n",
+                "          - os: none\n",
+                "Core must leave macOS out only through the profile",
+            ),
+            (
+                "native_macos ignores the raise",
+                "      native_macos: ${{ (steps.raise.outputs.full_matrix == 'true' || ",
+                "      native_macos: ${{ (",
+                "missing its profile raise",
+            ),
+            (
+                "the smoke test runs on macOS again",
+                "        os: [windows-2025]\n",
+                "        os: [macos-15, windows-2025]\n",
+                "smoke test runs on Windows only",
+            ),
+            (
+                "a job reads the raise directly",
+                "      desktop_csp_probe: ${{ steps.probe.outputs.desktop_csp_probe }}\n",
+                "      desktop_csp_probe: ${{ steps.probe.outputs.desktop_csp_probe }}\n"
+                "      raised: ${{ steps.raise.outputs.full_matrix }}\n",
+                "only full_matrix, native_macos and the probe",
+            ),
+        ):
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                self.assertIn(original, mutated[TEST_WORKFLOW])
+                mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_profile_raise(mutated)
+        moved = dict(sources)
+        workflow = moved[TEST_WORKFLOW]
+        probe = workflow[
+            workflow.index("      # Only a workflow_dispatch declares the input; a call") :
+        ]
+        probe = probe[: probe.index("\n\n  backend:") + 1]
+        workflow = workflow.replace(probe, "")
+        moved[TEST_WORKFLOW] = workflow.replace(
+            "      # The path filter reads paths only",
+            probe + "      # The path filter reads paths only",
+            1,
+        )
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "probe decision needs"
+        ):
+            workflow_contract.validate_profile_raise(moved)
+        with patch.object(workflow_contract, "INTEGRATION_BASES", ["main", "int/*"]):
+            with self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError, "integration_bases must be exactly"
+            ):
+                workflow_contract.validate_profile_raise(sources)
+
     def test_a_filter_that_wrote_nothing_runs_everything(self):
         for outputs in ({}, {"browser": ""}, {"browser": "maybe"}):
             with self.subTest(outputs=outputs):
@@ -3068,7 +3333,13 @@ class PathFilterContractTests(unittest.TestCase):
                 "        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'\n"
                 "        run: |",
                 "        if: github.event_name == 'pull_request'\n        run: |",
-                "must each be guarded",
+                "the path filter's run must be guarded",
+            ),
+            (
+                "the checkout of the history is dropped",
+                "          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}\n",
+                "          fetch-depth: 2\n",
+                "path filter step is missing",
             ),
             (
                 "the filter runs the pull request's own script",
@@ -3151,7 +3422,7 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the plan starts the desktop probe outside a dispatch",
-                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false",
+                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.profile == 'integration'",
                 "inputs.desktop_csp_probe != false",
                 "must start desktop-csp-probe on dispatch only",
             ),
@@ -3170,7 +3441,13 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the desktop probe runs beside the full matrix",
-                " && inputs.full_matrix == false }}",
+                " && inputs.profile == 'integration' && steps.raise.outputs.full_matrix == 'false' }}",
+                " }}",
+                "must start desktop-csp-probe on dispatch only",
+            ),
+            (
+                "the desktop probe runs beside a raised matrix",
+                " && steps.raise.outputs.full_matrix == 'false' }}",
                 " }}",
                 "must start desktop-csp-probe on dispatch only",
             ),
@@ -3785,7 +4062,8 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             native, native.replace("os: [macos-15, windows-2025]", "os: [windows-2025]")
         )
         with self.assertRaisesRegex(
-            workflow_contract.WorkflowContractError, "cross-platform-native expands to 1 jobs"
+            workflow_contract.WorkflowContractError,
+            "cross-platform-native must leave macOS out only through the profile",
         ):
             validate(mutated)
 
@@ -3993,14 +4271,25 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         for name, original, replacement in (
             (
                 "one group per ref again",
-                "  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', "
-                "github.ref) || format('test-run-{0}', github.run_id) }}\n",
-                "  group: test-${{ github.ref }}\n",
+                "|| format('{0}', inputs.profile) != '' && format('test-{0}-{1}', github.ref, "
+                "inputs.profile) || format('test-run-{0}', github.run_id) }}\n",
+                "|| format('test-{0}', github.ref) }}\n",
             ),
             (
                 "every run cancels",
-                "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+                "  cancel-in-progress: ${{ github.event_name == 'pull_request' "
+                "|| inputs.profile == 'integration' }}\n",
                 "  cancel-in-progress: true\n",
+            ),
+            (
+                "a full dispatch cancels",
+                "|| inputs.profile == 'integration' }}\n",
+                "|| inputs.profile != '' }}\n",
+            ),
+            (
+                "the release call shares the dispatch group",
+                "|| format('{0}', inputs.profile) != '' && ",
+                "|| format('{0}', inputs.full_matrix) != '' && ",
             ),
             (
                 "a second, job-level concurrency",

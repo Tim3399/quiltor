@@ -5,6 +5,9 @@ Decide which job groups of test.yml a pull request needs, from the paths it chan
     path_filter.py plan --merge <rev> [--repository <dir>] [--output <file>]
     path_filter.py plan --base <rev> --head <rev> [--repository <dir>] [--output <file>]
     path_filter.py check
+    path_filter.py base --head <rev> --branch <name> [--repository <dir>]
+    path_filter.py profile --head <rev> --branch <name> --expect-base <commit>
+                           [--repository <dir>] [--output <file>] [--summary <file>]
 
 `plan` runs in the plan job of test.yml and writes one `run_<group>=true|false` line per
 group. It is fail-safe: a path no rule knows, an empty change list, or a diff that cannot be
@@ -16,6 +19,12 @@ at least one rule or in a justified untested entry. workflow_contract.py calls t
 Standard library only: the plan job runs it before any dependency is installed. It runs the
 copy from the pull request's base, next to the base's configuration, and points --repository at
 the checkout, so a pull request cannot change the rules it is judged by.
+
+`base` and `profile` decide whether a manual run of the integration profile is raised to full
+(T-341 part B). `base` names the nearest fork point from the fixed `integration_bases` list;
+`profile`, run from the copy in that base, picks the base again by the base's own rules and
+raises to full when the change since then touches the `native` group, when the two picks
+disagree, or when no base exists. It writes `full_matrix=...` and never lowers a profile.
 """
 
 from __future__ import annotations
@@ -48,10 +57,40 @@ class Rule:
 
 
 @dataclass(frozen=True)
+class Native:
+    patterns: tuple[str, ...]
+    exclude: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
 class Config:
     groups: tuple[str, ...]
     rules: tuple[Rule, ...]
     untested: tuple[Rule, ...]
+    # T-341 part B. Empty in a configuration from before it: such a base raises to full.
+    integration_bases: tuple[str, ...] = ()
+    native: Native | None = None
+
+
+@dataclass(frozen=True)
+class Base:
+    """The fork point a run is measured from: the nearest one among the integration bases."""
+
+    branch: str
+    commit: str
+    distance: int
+    first_parent: int
+
+
+# A file whose changed lines are all version lines is a version bump, not a native change
+# (D-236 point 2). Every other changed line, a new dependency say, counts.
+VERSION_FILES = ("Cargo.toml", "crates/*/Cargo.toml", "Cargo.lock", "package.json", "VERSION")
+VERSION_LINE = re.compile(r'\s*(?:version\s*=\s*"[^"]*"|"version"\s*:\s*"[^"]*",?)\s*')
+VERSION_FILE_LINE = re.compile(r"\s*[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.+-]*\s*")
+# The name of a version line. An int branch named otherwise is no candidate for any base.
+VERSION_LINE_BRANCH = re.compile(r"int/v[0-9]+\.[0-9]+\.[0-9]+")
+REMOTE = "refs/remotes/origin/"
 
 
 @functools.cache
@@ -157,7 +196,25 @@ def parse_config(document: object) -> Config:
         untested.append(
             Rule("untested", _patterns(entry, where), frozenset(), _reason(entry, where))
         )
-    return Config(tuple(groups), tuple(rules), tuple(untested))
+    bases = document.get("integration_bases", [])
+    if not isinstance(bases, list) or not all(isinstance(base, str) and base for base in bases):
+        raise PathFilterError("integration_bases must be a list of branch patterns")
+    for base in bases:
+        glob_to_regex(base)
+    native = None
+    if "native" in document:
+        entry = document["native"]
+        if not isinstance(entry, dict):
+            raise PathFilterError("native is not an object")
+        exclude = entry.get("exclude", [])
+        if not isinstance(exclude, list):
+            raise PathFilterError("native exclude must be a list of patterns")
+        for pattern in exclude:
+            if not isinstance(pattern, str):
+                raise PathFilterError("native has an exclude pattern that is not a string")
+            glob_to_regex(pattern)
+        native = Native(_patterns(entry, "native"), tuple(exclude), _reason(entry, "native"))
+    return Config(tuple(groups), tuple(rules), tuple(untested), tuple(bases), native)
 
 
 def load_config(path: Path = CONFIG) -> Config:
@@ -258,6 +315,139 @@ def merge_range(merge: str, cwd: Path | None = None) -> tuple[str, str]:
     return base, merge
 
 
+def _git(arguments: Sequence[str], cwd: Path | None) -> str:
+    result = subprocess.run(
+        ["git", *arguments], cwd=cwd or REPO_ROOT, capture_output=True, check=True
+    )
+    return result.stdout.decode("utf-8").strip()
+
+
+def remote_branches(cwd: Path | None = None) -> list[str]:
+    """The branches of origin as the checkout knows them, without the origin/ prefix."""
+
+    refs = _git(["for-each-ref", "--format=%(refname)", REMOTE], cwd).splitlines()
+    return [ref.removeprefix(REMOTE) for ref in refs if ref and ref != REMOTE + "HEAD"]
+
+
+def select_base(
+    patterns: Sequence[str], head: str, branch: str, cwd: Path | None = None
+) -> Base | None:
+    """
+    The nearest fork point of `head` from a branch matching one of `patterns`.
+
+    The run's own branch never counts, and neither does a candidate that already contains the
+    head (its fork point is the head itself). The fewest commits between fork point and head
+    win; a tie goes to the branch name that sorts first. None when no candidate is left.
+    """
+
+    tip = _git(["rev-parse", "--verify", f"{head}^{{commit}}"], cwd)
+    best: Base | None = None
+    for name in sorted(remote_branches(cwd)):
+        if name == branch or not any(glob_to_regex(p).fullmatch(name) for p in patterns):
+            continue
+        try:
+            commit = _git(["merge-base", tip, REMOTE + name], cwd)
+        except subprocess.CalledProcessError:
+            continue  # no common ancestor
+        if not commit or commit == tip:
+            continue
+        distance = int(_git(["rev-list", "--count", f"{commit}..{tip}"], cwd))
+        if best is None or distance < best.distance:
+            first_parent = int(
+                _git(["rev-list", "--first-parent", "--count", f"{commit}..{tip}"], cwd)
+            )
+            best = Base(name, commit, distance, first_parent)
+    return best
+
+
+def is_native(native: Native, path: str) -> bool:
+    return any(glob_to_regex(p).fullmatch(path) for p in native.patterns) and not any(
+        glob_to_regex(p).fullmatch(path) for p in native.exclude
+    )
+
+
+def version_only(base: str, head: str, path: str, cwd: Path | None = None) -> bool:
+    """True when every line `path` changes between the commits is a version line."""
+
+    if not any(glob_to_regex(pattern).fullmatch(path) for pattern in VERSION_FILES):
+        return False
+    diff = _git(["diff", "-U0", "--no-renames", base, head, "--", path], cwd)
+    changed = [
+        line[1:]
+        for line in diff.splitlines()
+        if line[:1] in "+-" and not line.startswith(("+++", "---"))
+    ]
+    pattern = VERSION_FILE_LINE if path == "VERSION" else VERSION_LINE
+    return bool(changed) and all(pattern.fullmatch(text) for text in changed)
+
+
+def native_changes(config: Config, base: str, head: str, cwd: Path | None = None) -> list[str]:
+    """The changed paths that raise a run to full: native, and more than a version bump."""
+
+    if config.native is None:
+        raise PathFilterError("the configuration has no native group")
+    native = config.native
+    return [
+        path
+        for path in changed_paths(base, head, cwd=cwd)
+        if is_native(native, path) and not version_only(base, head, path, cwd)
+    ]
+
+
+def decide_profile(
+    config: Config, head: str, branch: str, expect_base: str | None, cwd: Path | None = None
+) -> tuple[bool, list[str]]:
+    """
+    Whether a run of the integration profile becomes full, and the lines that say why.
+
+    Only ever raises: no base, a base other than `expect_base`, a configuration without the
+    rules, or a native change since the base all mean full.
+    """
+
+    notes: list[str] = []
+    if branch.startswith("int/") and not VERSION_LINE_BRANCH.fullmatch(branch):
+        notes.append(
+            f"::warning::{branch} is an int branch outside int/v<x.y.z>; no other run takes it "
+            "as its base, so a task branched from it is measured from an older fork point"
+        )
+    if not config.integration_bases or config.native is None:
+        notes.append("::warning::the base has no profile rules, raised to full")
+        return True, notes
+    base = select_base(config.integration_bases, head, branch, cwd)
+    if base is None:
+        notes.append("::warning::no integration base found, raised to full")
+        return True, notes
+    notes.append(
+        f"Base: {base.branch} at {base.commit[:12]}, {base.distance} commits "
+        f"({base.first_parent} first-parent)"
+    )
+    if expect_base is not None and base.commit != expect_base:
+        notes.append(
+            f"::warning::the head's rules chose {expect_base[:12]}, the base's rules "
+            f"{base.commit[:12]}; raised to full"
+        )
+        return True, notes
+    hits = native_changes(config, base.commit, head, cwd)
+    if not hits:
+        notes.append("Profile: integration, no native change since the base")
+        return False, notes
+    shown = ", ".join(hits[:10]) + (" ..." if len(hits) > 10 else "")
+    notes.append(f"::notice::profile raised to full by native paths: {shown}")
+    if base.distance > base.first_parent:
+        notes.append(
+            f"::warning::the native change may come from merged branches: {base.distance} "
+            f"commits since {base.branch}, {base.first_parent} of them first-parent"
+        )
+    return True, notes
+
+
+def _summary_line(note: str) -> str:
+    """A workflow command as plain Markdown: `::warning::text` becomes `- text`."""
+
+    text = re.sub(r"^::[a-z]+::", "", note)
+    return f"- {text}\n"
+
+
 def tracked_paths(cwd: Path | None = None) -> list[str]:
     result = subprocess.run(
         ["git", "ls-files", "-z"], cwd=cwd or REPO_ROOT, capture_output=True, check=True
@@ -293,6 +483,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     plan_command.add_argument("--output")
     commands.add_parser("check")
+    for name in ("base", "profile"):
+        command = commands.add_parser(name)
+        command.add_argument("--head", required=True)
+        command.add_argument("--branch", required=True)
+        command.add_argument("--repository")
+        if name == "profile":
+            command.add_argument("--expect-base", required=True)
+            command.add_argument("--output")
+            command.add_argument("--summary")
     args = parser.parse_args(argv)
 
     try:
@@ -311,6 +510,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     repository = Path(args.repository) if args.repository else None
+    if args.command == "base":
+        try:
+            base = select_base(config.integration_bases, args.head, args.branch, repository)
+        except (OSError, subprocess.CalledProcessError, UnicodeDecodeError) as error:
+            print(f"error: cannot find the integration base: {error}", file=sys.stderr)
+            return 1
+        if base is None:
+            print("error: no integration base found", file=sys.stderr)
+            return 1
+        print(base.commit)
+        return 0
+    if args.command == "profile":
+        return _profile(config, args, repository)
     try:
         if args.merge:
             base, head = merge_range(args.merge, cwd=repository)
@@ -329,6 +541,26 @@ def main(argv: list[str] | None = None) -> int:
         shown = ", ".join(reasons[:10]) + (" ..." if len(reasons) > 10 else "")
         print(f"::notice::running everything, no rule for: {shown}")
     _write(decision, args.output)
+    return 0
+
+
+def _profile(config: Config, args: argparse.Namespace, repository: Path | None) -> int:
+    """The profile command: full unless every step of the decision succeeded."""
+
+    try:
+        full, notes = decide_profile(config, args.head, args.branch, args.expect_base, repository)
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError, PathFilterError) as error:
+        full, notes = True, [f"::warning::cannot decide the profile, raised to full: {error}"]
+    for note in notes:
+        print(note)
+    line = f"full_matrix={'true' if full else 'false'}\n"
+    if args.summary:
+        with open(args.summary, "a", encoding="utf-8") as handle:
+            handle.write("".join(_summary_line(note) for note in notes))
+    if args.output:
+        with open(args.output, "a", encoding="utf-8") as handle:
+            handle.write(line)
+    sys.stdout.write(line)
     return 0
 
 
