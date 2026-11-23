@@ -39,6 +39,8 @@ _JPEG_SIGNATURE = b"\xff\xd8"
 _JPEG_FRAME_MARKERS = frozenset(
     marker for marker in range(0xC0, 0xD0) if marker not in {0xC4, 0xC8, 0xCC}
 )
+_JPEG_APP1 = 0xE1
+_EXIF_ORIENTATION_TAG = 0x0112
 _JPEG_STANDALONE_MARKERS = frozenset({0x01, *range(0xD0, 0xD8)})
 
 
@@ -94,7 +96,16 @@ def _png_dimensions(payload: bytes) -> tuple[int, int]:
 
 
 def _jpeg_dimensions(payload: bytes) -> tuple[int, int]:
+    """Frame size as a browser will show it, so EXIF quarter turns swap it.
+
+    A frame header holds the sensor's pixels. A browser applies the Exif
+    orientation when it draws an `<img>`, so a phone photo taken upright is
+    stored 4000 by 3000 and shown 3000 by 4000. The frame built from the stored
+    size would then be turned on its side around a picture that is not.
+    """
+
     position = 2
+    quarter_turn = False
     limit = len(payload)
     while position + 1 < limit:
         if payload[position] != 0xFF:
@@ -115,12 +126,47 @@ def _jpeg_dimensions(payload: bytes) -> tuple[int, int]:
         if marker in _JPEG_FRAME_MARKERS:
             if position + 7 > limit:
                 break
-            return (
-                int.from_bytes(payload[position + 5 : position + 7], "big"),
-                int.from_bytes(payload[position + 3 : position + 5], "big"),
+            width = int.from_bytes(payload[position + 5 : position + 7], "big")
+            height = int.from_bytes(payload[position + 3 : position + 5], "big")
+            return (height, width) if quarter_turn else (width, height)
+        if marker == _JPEG_APP1:
+            quarter_turn = quarter_turn or _exif_is_quarter_turn(
+                payload[position + 2 : position + length]
             )
         position += length
     raise UnsupportedImage("JPEG carries no frame header.")
+
+
+def _exif_is_quarter_turn(segment: bytes) -> bool:
+    """Whether an APP1 body is Exif whose orientation (tag 0x0112) is 5 to 8.
+
+    Anything unreadable counts as no rotation: a damaged Exif block must not
+    cost a picture whose frame header is fine.
+    """
+
+    if not segment.startswith(b"Exif\x00\x00"):
+        return False
+    tiff = segment[6:]
+    if tiff[:2] == b"II":
+        order = "little"
+    elif tiff[:2] == b"MM":
+        order = "big"
+    else:
+        return False
+    if len(tiff) < 8 or int.from_bytes(tiff[2:4], order) != 0x2A:
+        return False
+    directory = int.from_bytes(tiff[4:8], order)
+    if directory + 2 > len(tiff):
+        return False
+    entries = int.from_bytes(tiff[directory : directory + 2], order)
+    for index in range(entries):
+        start = directory + 2 + index * 12
+        if start + 12 > len(tiff):
+            return False
+        if int.from_bytes(tiff[start : start + 2], order) == _EXIF_ORIENTATION_TAG:
+            # A SHORT stored inline: the value sits in the first two value bytes.
+            return int.from_bytes(tiff[start + 8 : start + 10], order) in range(5, 9)
+    return False
 
 
 def _webp_dimensions(payload: bytes) -> tuple[int, int]:
