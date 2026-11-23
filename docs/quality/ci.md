@@ -20,6 +20,31 @@ the columns below. Medians, in minutes.
   dependencies and the browser download comes from the job logs of 20 jobs across five runs
   (timestamp of the first `Downloading Chrome for Testing` line).
 
+## Minutes per job, system and workflow (T-341)
+
+`tools/dev/ci-minutes.mjs` measures what CI costs rather than how long it takes. It reads every
+job of every run in a window through `gh api` (read-only) and sums them per operating system,
+workflow, trigger, job and attempt:
+
+```bash
+node tools/dev/ci-minutes.mjs --days 30
+node tools/dev/ci-minutes.mjs --days 30 --dump > jobs.json   # save the jobs once
+node tools/dev/ci-minutes.mjs --from-file jobs.json --json    # recount without the network
+```
+
+- A job counts as GitHub bills it: rounded up to a whole minute, at least one, skipped jobs not
+  at all. **L-min** is that number in Linux minutes: Windows counts twice, macOS ten times.
+- Every attempt after the first is a **rerun**.
+- The red-run line ignores the gate job `browser-e2e`, which runs on Linux and turns red
+  whenever any required job does. With it counted, nearly every red run would look Linux-red
+  (F-341-1).
+- `tools/dev/ci-minutes.test.mjs` holds the arithmetic against fixed API answers.
+
+**Docs-only runs (plan P6), measured 2026-11-23:** of the 173 manual Test runs from 23 October to
+22 November, 1 changed nothing but `docs/` or `knowledgebase/` against its base (the base rule of
+D-241); counting any `*.md` except a README as documentation gives the same 1. A docs-only path
+group therefore saves next to nothing in minutes; it is kept for the rule, not the money.
+
 ## Wall clock per run
 
 | Workflow      | Event                 | Runs | Median | Max  |
