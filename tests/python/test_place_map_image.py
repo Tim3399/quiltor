@@ -65,7 +65,68 @@ def jpeg_with_orientation(width: int, height: int, orientation: int, **kwargs) -
     return plain[:2] + exif_segment(orientation, **kwargs) + plain[2:]
 
 
+def tiff_block(orientation: int, *, big_endian: bool = False) -> bytes:
+    """The bare TIFF block PNG (`eXIf`) and WebP (`EXIF`) carry, built here."""
+
+    return exif_segment(orientation, big_endian=big_endian)[10:]
+
+
+def png_with_orientation(width: int, height: int, orientation: int, **kwargs) -> bytes:
+    """A header-only PNG with an eXIf chunk between IHDR and IDAT (own fixture)."""
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return len(body).to_bytes(4, "big") + kind + body + b"\x00\x00\x00\x00"
+
+    ihdr = width.to_bytes(4, "big") + height.to_bytes(4, "big") + b"\x08\x02\x00\x00\x00"
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"eXIf", tiff_block(orientation, **kwargs))
+        + chunk(b"IDAT", b"\x00")
+        + chunk(b"IEND", b"")
+    )
+
+
+def webp_with_orientation(width: int, height: int, orientation: int, **kwargs) -> bytes:
+    """A VP8X WebP with the EXIF flag and an EXIF chunk after the image data."""
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return kind + len(body).to_bytes(4, "little") + body + b"\x00" * (len(body) & 1)
+
+    vp8x = (
+        b"\x08\x00\x00\x00" + (width - 1).to_bytes(3, "little") + (height - 1).to_bytes(3, "little")
+    )
+    body = (
+        b"WEBP"
+        + chunk(b"VP8X", vp8x)
+        + chunk(b"VP8 ", b"\x00" * 11)
+        + chunk(b"EXIF", tiff_block(orientation, **kwargs))
+    )
+    return b"RIFF" + len(body).to_bytes(4, "little") + body
+
+
 class MapImageIdentificationTests(unittest.TestCase):
+    def test_png_and_webp_exif_orientations_follow_the_jpeg_rule(self):
+        """Browsers rotate those too, so 6 and 8 swap and 1 keeps the size."""
+
+        for build in (png_with_orientation, webp_with_orientation):
+            for big_endian in (False, True):
+                for orientation, expected in ((1, (1600, 900)), (6, (900, 1600)), (8, (900, 1600))):
+                    with self.subTest(
+                        build=build.__name__, orientation=orientation, big_endian=big_endian
+                    ):
+                        found = identify(build(1600, 900, orientation, big_endian=big_endian))
+                        self.assertEqual((found.width, found.height), expected)
+
+    def test_png_and_webp_with_damaged_exif_keep_their_stored_size(self):
+        png = png_with_orientation(1600, 900, 6)
+        cut = png.replace(tiff_block(6), tiff_block(6)[:12])
+        self.assertEqual(identify(cut).width, 1600)
+        webp = webp_with_orientation(1600, 900, 6)
+        # A chunk that claims more bytes than the file holds ends the walk.
+        broken = webp[:-8] + b"EXIF" + (4000).to_bytes(4, "little") + b"II"
+        self.assertEqual(identify(broken).width, 1600)
+
     def test_reads_real_png_and_webp_from_the_repository(self):
         """Hand-built headers can agree with a bug; shipped files cannot."""
 
