@@ -217,12 +217,14 @@ def _styles(archive: zipfile.ZipFile) -> _StyleBook:
         normalized_name = re.sub(r"[\s_-]", "", name).casefold()
         # The default paragraph style and Heading 1 carry the look of body text and chapter
         # titles, which Quiltor replaces with its own; Word fills them in every file it saves.
-        base_look = element.get(f"{W}default") in {"1", "true"} or normalized_name in _HEADING_ONE
+        is_heading_one = normalized_name in _HEADING_ONE
+        base_look = element.get(f"{W}default") in {"1", "true"} or is_heading_one
+        ignored = _HEADING_ONE_LOOK_RPR if is_heading_one else _BASE_LOOK_RPR
         styles[style_id] = (
             name,
             based.get(f"{W}val") if based is not None else None,
             _properties(style_rpr),
-            _unsupported_rpr(style_rpr, _BASE_LOOK_RPR if base_look else set())
+            _unsupported_rpr(style_rpr, ignored if base_look else set())
             or (not base_look and _unsupported_style_ppr(style_ppr, normalized_name)),
         )
     return _StyleBook(styles, defaults, _unsupported_rpr(default_rpr, _BASE_LOOK_RPR))
@@ -255,6 +257,11 @@ _BASE_LOOK_RPR = {
     f"{W}kern",
     *_PROOFING_RPR,
 }
+# Word 2007/2010 and LibreOffice also write the complex-script counterparts of bold and
+# italic into Heading 1 (w:bCs, w:iCs). Quiltor sets the chapter title in its own type, so the
+# style's weight is not kept either way and nothing an author wrote is lost (T-350). Only the
+# chapter title style: in a body style or on a run they would still mean bold Arabic or Hebrew.
+_HEADING_ONE_LOOK_RPR = frozenset({*_BASE_LOOK_RPR, f"{W}bCs", f"{W}iCs"})
 # Markers that carry no text: where a bookmark, an editing permission, a spelling error, a
 # comment range or a move begins or ends. Word writes them between runs and, when they span
 # whole paragraphs, between paragraphs in w:body (F-334-1). Between runs the paragraph reader
