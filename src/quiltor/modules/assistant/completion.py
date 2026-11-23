@@ -72,6 +72,7 @@ from quiltor.modules.assistant.proposals import missing_items, set_deterministic
 from quiltor.modules.assistant.references import resolve_reference
 from quiltor.modules.assistant.schemas import KINDS, json_schema_format, reply_schema
 from quiltor.modules.assistant.tool_loop import run_tool_loop, tool_instructions
+from quiltor.modules.assistant.world_selection import select_world_state
 
 
 class CompletionRuntime(Protocol):
@@ -991,23 +992,23 @@ def _complete_once(
             keep_all_entries=True,
         )
         if world is None:
-            # T-330: the world keeps every entry, so the manuscript gives way. What does not fit
-            # here goes to the model in a later part (complete_request); only a world that
-            # leaves the manuscript less than MIN_MANUSCRIPT_SHARE is refused, and fewer
-            # chapters would not help it.
-            world = fit_world_state(
+            # T-344: the whole world does not fit beside the manuscript. The manuscript takes a
+            # fixed half of what is free and is not packed again; the world is chosen for
+            # exactly that text -- every element by name, what the text mentions written out.
+            # Nothing is refused: the resolver, which reads the whole world, stops duplicates.
+            context = pack(budget.free // 2, True)
+            used = count(serialized(context))
+            # Everything this call carries counts: the chapter and the excerpts beside it.
+            carried_text = "\n".join(chunk.text for chunk in context)
+            world = select_world_state(
                 figures,
                 contract,
-                target=budget.free - MIN_MANUSCRIPT_SHARE,
+                text=carried_text,
+                manuscript=manuscript,
+                chapter_ids=list(chapter_ids or []),
+                target=budget.free - used,
                 count=count,
-                relevant=relevant,
-                keep_all_entries=True,
             )
-            if world is None:
-                raise WorldTooLargeError(
-                    "The world state alone leaves the model no room for the manuscript."
-                )
-            context = pack(budget.free - world.tokens, True)
         elif len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
             context = pack(budget.free - world.tokens, False)
     else:
