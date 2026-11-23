@@ -22,6 +22,13 @@
   font-size: var(--font-size-numeric-legacy-compact);
 }
 
+/* A field's own bottom margin spaces a form's stack; in this row it only lifted the field
+   above the line "pro 100px" and the button stand on (T-325). */
+.places-scale-value-field,
+.places-scale-unit-field {
+  margin: 0;
+}
+
 .places-scale-value {
   width: 64px;
   padding: var(--space-4) var(--space-6);

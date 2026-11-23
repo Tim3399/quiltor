@@ -114,6 +114,9 @@ function PlacesWorkspaceInner({
     target: { kind: "map"; id: string } | { kind: "level" };
     ends: MeasureTarget[];
     preview?: { x: number; y: number };
+    /** Started from measuring distances: applying returns there, where the legend shows
+     * the scale just set. Otherwise the mode ended without a word. */
+    fromMeasuring?: boolean;
   } | null>(null);
   const calibrating = calibration !== null;
   // What the canvas draws a line between: the stretch while calibrating, else the distances.
@@ -229,9 +232,9 @@ function PlacesWorkspaceInner({
       setMeasuring(false);
       setMeasureTargets([]);
       setRescaleHint(null);
-      setCalibration({ target, ends: [] });
+      setCalibration({ target, ends: [], fromMeasuring: measuring });
     },
-    [],
+    [measuring],
   );
   const mapImageUrl = useCallback(
     (imageId: string) => quiltorClient.application.placeMaps.sourceUrl(imageId),
@@ -763,6 +766,7 @@ function PlacesWorkspaceInner({
                   onEnd: addCalibrationEnd,
                   onApply: (scale) => {
                     applyCalibration(calibration.target, scale);
+                    if (calibration.fromMeasuring) setMeasuring(true);
                     setCalibration(null);
                   },
                   onCancel: () => setCalibration(null),
