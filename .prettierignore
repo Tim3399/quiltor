@@ -15,3 +15,6 @@ playwright-report
 .claude/agents
 .claude/output-styles
 team/roles
+
+# A markdown fixture whose five scene separators must stay as written (T-364)
+tests/fixtures/real-files/scene-separators.md

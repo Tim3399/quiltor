@@ -15,7 +15,10 @@
     // German manuscripts a test feeds to the importer. They are author material and serve as
     // input (CLAUDE.md, "The German half"), so their structure, such as a second `#` chapter, is
     // deliberate and not a documentation defect.
-    "tests/fixtures/manuscript-import/**"
+    "tests/fixtures/manuscript-import/**",
+    // The same for the one markdown file of the real-files folder: its five different scene
+    // separators are the point of it (T-364). The folder's README stays linted.
+    "tests/fixtures/real-files/scene-separators.md"
   ],
   "config": {
     "default": true,
