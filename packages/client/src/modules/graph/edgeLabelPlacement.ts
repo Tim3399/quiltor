@@ -40,6 +40,11 @@ export type GraphEdgeLabelPlacementOptions = {
   clearance?: number;
   /** Legacy name: now controls the maximum candidate spacing along the path. */
   normalStep?: number;
+  /**
+   * Label areas that are already placed and stay where they are. New labels keep off them
+   * as they keep off each other; they are not placed again and are not returned.
+   */
+  reserved?: readonly GraphRect[];
 };
 
 type LineSegment = {
@@ -318,11 +323,15 @@ function scoreCandidate(
 ): CandidateScore {
   let collisions = 0;
   let totalOverlapArea = 0;
-  for (const rect of [...obstacles, ...placedLabels]) {
-    const area = overlapArea(bounds, expandRect(rect, clearance));
-    if (area <= 0) continue;
-    collisions += 1;
-    totalOverlapArea += area;
+  // Two passes instead of one over a merged copy: this runs per candidate, per label,
+  // per pointer move while a card is dragged.
+  for (const group of [obstacles, placedLabels]) {
+    for (const rect of group) {
+      const area = overlapArea(bounds, expandRect(rect, clearance));
+      if (area <= 0) continue;
+      collisions += 1;
+      totalOverlapArea += area;
+    }
   }
   const centerX = bounds.x + bounds.width / 2;
   const centerY = bounds.y + bounds.height / 2;
@@ -386,7 +395,7 @@ export function placeGraphEdgeLabels(
   const step = Math.max(1, nonNegative(options.normalStep ?? DEFAULT_PATH_STEP, DEFAULT_PATH_STEP));
   const normalizedObstacles = obstacles.map(normalizedRect).sort(compareRects);
   const placements = new Map<string, GraphEdgeLabelPlacement>();
-  const placedBounds: GraphRect[] = [];
+  const placedBounds: GraphRect[] = (options.reserved ?? []).map(normalizedRect);
 
   for (const request of [...requests].sort((first, second) => first.id.localeCompare(second.id))) {
     if (placements.has(request.id)) throw new Error(`Duplicate graph edge label id: ${request.id}`);

@@ -113,9 +113,12 @@ export function useFigureCanvas({
     () => presenceByPlace(state.nodes, presence, timeline, activeMomentId),
     [state.nodes, presence, timeline, activeMomentId],
   );
+  // A detail card does not read the zoom: its compact sizes and its overview scale only apply
+  // in the other tiers. Handing it the zoom rebuilt every card on every step of the wheel.
+  const cardZoom = zoomTier === "detail" ? 1 : viewportZoom;
   const derivedNodes = useMemo(
-    () => createFigureFlowNodes(state.nodes, zoomTier, viewportZoom),
-    [state.nodes, zoomTier, viewportZoom],
+    () => createFigureFlowNodes(state.nodes, zoomTier, cardZoom),
+    [state.nodes, zoomTier, cardZoom],
   );
   // Read only, by the derivedNodes effect below.
   const nodeContextRef = useLatest({ timeline, activeMomentId, guestsByPlace });

@@ -1,5 +1,6 @@
 import { Handle, type MiniMapNodeProps, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Skull, Star } from "lucide-react";
+import { memo } from "react";
 import { useI18n } from "../../../i18n";
 import { cardKindColor, GRAPH_CONNECTION_HANDLES } from "../../graph";
 import type { FigureKind, FigureNode as FigureNodeModel } from "../model";
@@ -17,9 +18,21 @@ export type FigureCardData = {
 
 export type FigureFlowNode = Node<FigureCardData>;
 
-export const figureNodeTypes = { story: StoryNode };
+/**
+ * A card renders from its data and its selection alone. React Flow also hands it the
+ * position and the drag state, which change on every pointer move of a drag and would
+ * render the whole card again for nothing.
+ */
+export function storyNodePropsEqual(
+  previous: NodeProps<FigureFlowNode>,
+  next: NodeProps<FigureFlowNode>,
+): boolean {
+  return (
+    previous.id === next.id && previous.data === next.data && previous.selected === next.selected
+  );
+}
 
-export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
+export const StoryNode = memo(function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
   const { t } = useI18n();
   const item = data.figure;
   return (
@@ -97,7 +110,9 @@ export function StoryNode({ data, selected }: NodeProps<FigureFlowNode>) {
       />
     </StoryNodeCard>
   );
-}
+}, storyNodePropsEqual);
+
+export const figureNodeTypes = { story: StoryNode };
 
 export function FigureMiniMapNode({
   x,
