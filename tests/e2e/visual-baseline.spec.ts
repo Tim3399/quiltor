@@ -250,8 +250,7 @@ for (const theme of ["light", "dark"] as const) {
           return Math.abs(workspace.width - canvas.width);
         })
         .toBeLessThanOrEqual(1);
-      await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-      await page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }).click();
+      await page.getByRole("button", { name: "Zeit", exact: true, pressed: true }).click();
       await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
       await fitUntilSettled(page);
     }

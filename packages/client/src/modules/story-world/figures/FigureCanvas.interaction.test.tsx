@@ -84,6 +84,7 @@ function controller(edges: Edge[] = []): FigureCanvasController {
     addNode: vi.fn(),
     alignAllNodes: vi.fn(),
     centerOnNode: vi.fn(),
+    shiftViewport: vi.fn(),
     onConnect: vi.fn(),
     onInit: vi.fn(),
     onMove: vi.fn(),

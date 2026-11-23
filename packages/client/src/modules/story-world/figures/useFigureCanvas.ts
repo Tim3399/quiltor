@@ -60,6 +60,9 @@ export type FigureCanvasController = {
   addNode: (kind: FigureKind) => void;
   alignAllNodes: () => void;
   centerOnNode: (node: FigureNode) => void;
+  /** Moves the viewport up by `dy` screen pixels without zooming. A docked strip above the
+   *  canvas that grows by `dy` would otherwise push every node down by as much. */
+  shiftViewport: (dy: number) => void;
   onConnect: (connection: Connection) => void;
   onInit: (instance: ReactFlowInstance<FigureFlowNode, Edge>) => void;
   onMove: (viewport: Viewport) => void;
@@ -317,6 +320,12 @@ export function useFigureCanvas({
   const centerOnNode = useCallback((node: FigureNode) => {
     window.setTimeout(() => flow.current?.setCenter(node.x, node.y, { zoom: 1, duration: 350 }), 0);
   }, []);
+  const shiftViewport = useCallback((dy: number) => {
+    const instance = flow.current;
+    if (!instance || !dy) return;
+    const viewport = instance.getViewport();
+    instance.setViewport({ ...viewport, y: viewport.y - dy });
+  }, []);
 
   return {
     nodes,
@@ -328,6 +337,7 @@ export function useFigureCanvas({
     addNode,
     alignAllNodes,
     centerOnNode,
+    shiftViewport,
     onConnect,
     onInit: (instance) => {
       flow.current = instance;

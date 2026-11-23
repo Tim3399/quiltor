@@ -7,8 +7,9 @@ import { expect, test } from "./support/world-fixture";
  *
  * The user's screenshot: the first moment "Ankunft im Nordh" cut off by the edge of the
  * track, an empty sliver beside it where the new-moment field had been squeezed, and the
- * moment's number stuck to the top edge. Each width below leaves the strip a different room
- * beside the minimap; at every one of them the strip has to keep its parts readable.
+ * moment's number stuck to the top edge. Since T-328 the strip is docked above the canvas and
+ * spans its whole width, so the minimap no longer narrows it; the open inspector still does.
+ * At every width below the strip has to keep its parts readable.
  */
 const WIDTHS = [1100, 1180, 1280, 1366, 1440];
 
@@ -90,3 +91,79 @@ for (const width of WIDTHS) {
     expect(n.top, `number above the strip: ${where}`).toBeGreaterThan(s.top);
   });
 }
+
+/**
+ * T-328: the strip docked above the canvas. Every change of its height moves the canvas's
+ * top edge, and without a correction every node would jump by as much -- 58px when showing
+ * it, 80px when choosing a moment at desk width, 136px at hand width.
+ */
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`A node stays in place while the docked strip changes height at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const world = await seedExampleWorld(page, { open: false });
+    await page.goto(`/?world=${world.id}`);
+    await page.getByRole("button", { name: "Figuren", exact: true }).click();
+    const strip = page.locator(".timeline-strip");
+    await expect(strip).toBeVisible();
+    const node = page.locator(".story-node").first();
+    await expect(node).toBeVisible();
+    const position = async () => {
+      const box = await node.boundingBox();
+      return box ? { x: box.x, y: box.y } : null;
+    };
+    const near = async (expected: { x: number; y: number } | null, step: string) => {
+      const now = await position();
+      expect(now, step).not.toBeNull();
+      expect(Math.abs((now?.x ?? 0) - (expected?.x ?? 0)), step).toBeLessThanOrEqual(1);
+      expect(Math.abs((now?.y ?? 0) - (expected?.y ?? 0)), step).toBeLessThanOrEqual(1);
+    };
+    const start = await position();
+    const heightBefore = (await strip.boundingBox())?.height ?? 0;
+
+    await strip.getByRole("button", { name: world.text("moment.t1.title") }).click();
+    await expect.poll(async () => (await strip.boundingBox())?.height ?? 0).not.toBe(heightBefore);
+    await near(start, "after choosing a moment");
+
+    await strip.getByRole("button", { name: "Gesamtsicht", exact: true }).click();
+    await expect.poll(async () => (await strip.boundingBox())?.height ?? 0).toBe(heightBefore);
+    await near(start, "back in the overview");
+
+    const toggle = page.getByRole("button", { name: "Zeit", exact: true });
+    await toggle.click();
+    await expect(strip).toHaveCount(0);
+    await near(start, "after hiding the strip");
+
+    await toggle.click();
+    await expect(strip).toBeVisible();
+    await near(start, "after showing it again");
+  });
+}
+
+test("At hand width the strip sits directly on the map and leaves it at least 60%", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const world = await seedExampleWorld(page, { open: false });
+  await page.goto(`/?world=${world.id}`);
+  await page.getByRole("button", { name: "Figuren", exact: true }).click();
+  const strip = page.locator(".timeline-strip");
+  await strip.getByRole("button", { name: world.text("moment.t1.title") }).click();
+  const [stage, stripBox, map] = await Promise.all([
+    page.locator(".figure-stage").boundingBox(),
+    strip.boundingBox(),
+    page.locator(".figure-stage > .flow-area").boundingBox(),
+  ]);
+  const where = JSON.stringify({ stage, stripBox, map });
+  expect(stage && stripBox && map, where).toBeTruthy();
+  if (!stage || !stripBox || !map) return;
+  expect(
+    Math.abs(map.y - (stripBox.y + stripBox.height)),
+    `gap under the strip: ${where}`,
+  ).toBeLessThanOrEqual(1);
+  expect(map.height / stage.height, `map share: ${where}`).toBeGreaterThanOrEqual(0.6 - 0.005);
+});

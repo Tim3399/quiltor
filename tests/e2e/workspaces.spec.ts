@@ -72,11 +72,11 @@ async function expectOverlayInsideViewport(overlay: Locator, page: Page, label: 
         const settledViewport = page.viewportSize();
         return Boolean(
           settledBox &&
-            settledViewport &&
-            settledBox.x >= 0 &&
-            settledBox.y >= 0 &&
-            settledBox.x + settledBox.width <= settledViewport.width + 1 &&
-            settledBox.y + settledBox.height <= settledViewport.height + 1,
+          settledViewport &&
+          settledBox.x >= 0 &&
+          settledBox.y >= 0 &&
+          settledBox.x + settledBox.width <= settledViewport.width + 1 &&
+          settledBox.y + settledBox.height <= settledViewport.height + 1,
         );
       },
       { message: `${label} is fully inside the viewport after the opening animation` },
@@ -2596,8 +2596,7 @@ test("The minimap tells element kinds apart and the grid can be released", async
     Math.abs((minimapAfterToggle?.y ?? 0) - (minimapBeforeToggle?.y ?? 0)),
   ).toBeLessThanOrEqual(1);
 
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await page.getByRole("button", { name: "Zeit", exact: true }).click();
   const minimapWithTimeline = await minimap.boundingBox();
   const timeline = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
   const controls = await page.getByLabel("Kartensteuerung").boundingBox();
@@ -2761,8 +2760,7 @@ test("The timeline strip plays back relationship states and times of death", asy
   ).toBeVisible();
   const controlsBeforeTimeline = await page.locator(".react-flow__controls").boundingBox();
   const minimapBeforeTimeline = await page.locator(".react-flow__minimap").boundingBox();
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await page.getByRole("button", { name: "Zeit", exact: true }).click();
   const stripBox = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
   const controlsBox = await page.locator(".react-flow__controls").boundingBox();
   const minimapBox = await page.locator(".react-flow__minimap").boundingBox();

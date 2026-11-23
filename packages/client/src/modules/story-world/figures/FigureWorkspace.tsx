@@ -1,6 +1,6 @@
 import { Panel, ReactFlowProvider } from "@xyflow/react";
 import { UserRound, X } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Checkbox,
   ConfirmDialog,
@@ -32,6 +32,7 @@ import {
   resolveRelationship,
 } from "./relationships";
 import { TimelineStrip } from "./TimelineStrip";
+import { useDockedStripOffset } from "./useDockedStripOffset";
 import { useFigureCanvas } from "./useFigureCanvas";
 import { WorldOverviewPanel } from "./WorldOverviewPanel";
 
@@ -125,6 +126,8 @@ function FigureWorkspaceInner({
     onEnsureRelationshipsVisible: () => setRelationshipsVisible(true),
     onConnectionError: setConnectionError,
   });
+  const timelineStripRef = useRef<HTMLElement>(null);
+  useDockedStripOffset(timelineStripRef, timelineOpen, canvas.shiftViewport);
   // Read only, by the navigation-target effect.
   const centerOnNodeRef = useLatest(canvas.centerOnNode);
 
@@ -260,103 +263,10 @@ function FigureWorkspaceInner({
           onSelect={selectNode}
           onReveal={canvas.centerOnNode}
         />
-        <FigureCanvas
-          controller={canvas}
-          connecting={connecting}
-          playing={playing}
-          onCancelConnecting={() => setConnecting(false)}
-          onSelectNode={selectNode}
-          onSelectEdge={(id) => {
-            if (state.edges.some((edge) => edge.id === id)) setSelectedEdgeId(id);
-          }}
-          onOpenNodeMenu={(node, x, y, trigger) => {
-            selectNode(node.id);
-            setNodeMenu({ id: node.id, x, y, trigger });
-          }}
-          onClearSelection={() => {
-            setSelectedId(null);
-            setSelectedEdgeId(null);
-            setNodeMenu(null);
-          }}
-          edgeInspector={
-            selectedEdge && visibleSelectedEdge && selectedEdgeLabel ? (
-              <Panel position="top-right" className="graph-edge-inspector-panel">
-                <GraphEdgeInspector
-                  sourceLabel={
-                    state.nodes.find((node) => node.id === visibleSelectedEdge.from)?.name ??
-                    t("unknown")
-                  }
-                  targetLabel={
-                    state.nodes.find((node) => node.id === visibleSelectedEdge.to)?.name ??
-                    t("unknown")
-                  }
-                  value={selectedEdgeLabel.value}
-                  directed={!!visibleSelectedEdge.directed}
-                  lineStyle={graphEdgeLineStyle(visibleSelectedEdge)}
-                  color={
-                    visibleSelectedEdge.color ??
-                    (visibleSelectedEdge.style === "gold" ? "gold" : "auto")
-                  }
-                  semanticControls={
-                    <Checkbox
-                      containerClassName="graph-edge-inspector__kinship"
-                      label={t("kinship")}
-                      hint={t("kinshipHint")}
-                      checked={graphRelationshipKind(visibleSelectedEdge) === "kinship"}
-                      onChange={(event) =>
-                        patchSelectedEdge({
-                          relationshipKind: event.target.checked ? "kinship" : "general",
-                        })
-                      }
-                    />
-                  }
-                  labels={{
-                    title: t("relationship"),
-                    label: t("nameRelationship"),
-                    labelPlaceholder: t("nameRelationship"),
-                    directed: t("directed"),
-                    reverse: t("reverseDirection"),
-                    conflict: t("relationConflict"),
-                    lineStyle: t("edgeLineStyle"),
-                    lineStyleOptions: {
-                      solid: t("edgeLineSolid"),
-                      dashed: t("edgeLineDashed"),
-                      dotted: t("edgeLineDotted"),
-                    },
-                    color: t("edgeColor"),
-                    colorOptions: {
-                      auto: t("edgeColorAuto"),
-                      ink: t("edgeColorInk"),
-                      gold: t("edgeColorGold"),
-                      rose: t("edgeColorRose"),
-                      moss: t("edgeColorMoss"),
-                      blue: t("edgeColorBlue"),
-                    },
-                  }}
-                  labelPlaceholder={selectedEdgeLabel.inherited || t("nameRelationship")}
-                  toggleConflict={toggleEdgeConflict}
-                  reverseConflict={reverseEdgeConflict}
-                  onLabelChange={(label) => patchSelectedEdge({ label })}
-                  onLineStyleChange={(lineStyle) => patchSelectedEdge({ lineStyle })}
-                  onColorChange={(color) => patchSelectedEdge({ color })}
-                  onDirectedChange={(directed) => {
-                    if (toggleEdgeConflict) return;
-                    patchSelectedEdge({ directed: directed });
-                  }}
-                  onReverse={() => {
-                    if (reverseEdgeConflict) return;
-                    patchSelectedEdge({
-                      from: visibleSelectedEdge.to,
-                      to: visibleSelectedEdge.from,
-                    });
-                  }}
-                />
-              </Panel>
-            ) : undefined
-          }
-        >
+        <div className="figure-stage">
           {timelineOpen && (
             <TimelineStrip
+              rootRef={timelineStripRef}
               timeline={timeline}
               activeId={activeMomentId}
               playing={playing}
@@ -401,7 +311,102 @@ function FigureWorkspaceInner({
               }
             />
           )}
-        </FigureCanvas>
+          <FigureCanvas
+            controller={canvas}
+            connecting={connecting}
+            playing={playing}
+            onCancelConnecting={() => setConnecting(false)}
+            onSelectNode={selectNode}
+            onSelectEdge={(id) => {
+              if (state.edges.some((edge) => edge.id === id)) setSelectedEdgeId(id);
+            }}
+            onOpenNodeMenu={(node, x, y, trigger) => {
+              selectNode(node.id);
+              setNodeMenu({ id: node.id, x, y, trigger });
+            }}
+            onClearSelection={() => {
+              setSelectedId(null);
+              setSelectedEdgeId(null);
+              setNodeMenu(null);
+            }}
+            edgeInspector={
+              selectedEdge && visibleSelectedEdge && selectedEdgeLabel ? (
+                <Panel position="top-right" className="graph-edge-inspector-panel">
+                  <GraphEdgeInspector
+                    sourceLabel={
+                      state.nodes.find((node) => node.id === visibleSelectedEdge.from)?.name ??
+                      t("unknown")
+                    }
+                    targetLabel={
+                      state.nodes.find((node) => node.id === visibleSelectedEdge.to)?.name ??
+                      t("unknown")
+                    }
+                    value={selectedEdgeLabel.value}
+                    directed={!!visibleSelectedEdge.directed}
+                    lineStyle={graphEdgeLineStyle(visibleSelectedEdge)}
+                    color={
+                      visibleSelectedEdge.color ??
+                      (visibleSelectedEdge.style === "gold" ? "gold" : "auto")
+                    }
+                    semanticControls={
+                      <Checkbox
+                        containerClassName="graph-edge-inspector__kinship"
+                        label={t("kinship")}
+                        hint={t("kinshipHint")}
+                        checked={graphRelationshipKind(visibleSelectedEdge) === "kinship"}
+                        onChange={(event) =>
+                          patchSelectedEdge({
+                            relationshipKind: event.target.checked ? "kinship" : "general",
+                          })
+                        }
+                      />
+                    }
+                    labels={{
+                      title: t("relationship"),
+                      label: t("nameRelationship"),
+                      labelPlaceholder: t("nameRelationship"),
+                      directed: t("directed"),
+                      reverse: t("reverseDirection"),
+                      conflict: t("relationConflict"),
+                      lineStyle: t("edgeLineStyle"),
+                      lineStyleOptions: {
+                        solid: t("edgeLineSolid"),
+                        dashed: t("edgeLineDashed"),
+                        dotted: t("edgeLineDotted"),
+                      },
+                      color: t("edgeColor"),
+                      colorOptions: {
+                        auto: t("edgeColorAuto"),
+                        ink: t("edgeColorInk"),
+                        gold: t("edgeColorGold"),
+                        rose: t("edgeColorRose"),
+                        moss: t("edgeColorMoss"),
+                        blue: t("edgeColorBlue"),
+                      },
+                    }}
+                    labelPlaceholder={selectedEdgeLabel.inherited || t("nameRelationship")}
+                    toggleConflict={toggleEdgeConflict}
+                    reverseConflict={reverseEdgeConflict}
+                    onLabelChange={(label) => patchSelectedEdge({ label })}
+                    onLineStyleChange={(lineStyle) => patchSelectedEdge({ lineStyle })}
+                    onColorChange={(color) => patchSelectedEdge({ color })}
+                    onDirectedChange={(directed) => {
+                      if (toggleEdgeConflict) return;
+                      patchSelectedEdge({ directed: directed });
+                    }}
+                    onReverse={() => {
+                      if (reverseEdgeConflict) return;
+                      patchSelectedEdge({
+                        from: visibleSelectedEdge.to,
+                        to: visibleSelectedEdge.from,
+                      });
+                    }}
+                  />
+                </Panel>
+              ) : undefined
+            }
+          />
+        </div>
         {inspectorOpen && (
           <SidePanel
             className={`figure-inspector ${selected ? "has-selection" : ""}`}

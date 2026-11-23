@@ -203,7 +203,7 @@ export function FigureCanvas({
       nodes={nodes}
       edges={positionedEdges}
       zoomTier={zoomTier}
-      className={`graph-edge-surface ${children ? "has-timeline" : ""} ${edgeInspector ? "has-edge-inspector" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
+      className={`graph-edge-surface ${edgeInspector ? "has-edge-inspector" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
       showGrid={controller.snapToGrid}
       gridSize={GRID_SIZE}
       overlay={

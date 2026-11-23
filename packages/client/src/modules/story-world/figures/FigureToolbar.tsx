@@ -141,6 +141,16 @@ export function FigureToolbar({
                   }}
                 />
               </WorkspaceToolbarGroup>
+              {/* Visible and stateful rather than a menu entry (T-328): the strip is docked above
+                  the canvas now, and this is the one way to show or hide it. */}
+              <WorkspaceToolbarGroup label={t("timeToggle")}>
+                <ToolbarButton
+                  label={t("timeToggle")}
+                  icon={<Clock3 />}
+                  aria-pressed={timelineOpen}
+                  onClick={() => onTimelineOpenChange(!timelineOpen)}
+                />
+              </WorkspaceToolbarGroup>
               <WorkspaceToolbarGroup label={t("figureViewMenu")}>
                 <DropdownMenu
                   label={t("figureViewMenu")}
@@ -171,11 +181,6 @@ export function FigureToolbar({
                     onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
                   />
                   <MenuSeparator />
-                  <MenuItem
-                    icon={<Clock3 />}
-                    label={timelineOpen ? t("hideTimeline") : t("showTimeline")}
-                    onSelect={() => onTimelineOpenChange(!timelineOpen)}
-                  />
                   <MenuItem
                     icon={<MapPin />}
                     label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
