@@ -114,6 +114,38 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+// T-324: the help button was the control height while its neighbours added their frame
+// around it, so it stood shorter and off their line.
+test("The help button is as tall as the theme and language switches and on their line", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "This test owns its viewports.");
+  await page.addInitScript(() => localStorage.setItem("quiltor-interface-language", "de"));
+  await page.route("**/api/whoami", (route) => route.fulfill({ json: { ok: false } }));
+  await page.route("**/api/worlds", (route) => route.fulfill({ json: { ok: true, worlds: [] } }));
+  for (const width of [1280, 900, 390]) {
+    await test.step(`${width} px`, async () => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: "Welt öffnen" })).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const help = page.getByRole("button", { name: "Hilfe", exact: true });
+      const theme = page.getByRole("radiogroup", { name: "Darstellung" });
+      const helpBox = (await help.boundingBox())!;
+      const themeBox = (await theme.boundingBox())!;
+      // Taken before the assertions, so a red run still leaves the picture of what broke.
+      await page
+        .locator(".gate-preferences")
+        .screenshot({ path: testInfo.outputPath(`gate-preferences-${width}.png`) });
+      expect(Math.abs(helpBox.height - themeBox.height)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(helpBox.width - helpBox.height)).toBeLessThanOrEqual(0.5);
+      if (Math.abs(helpBox.y - themeBox.y) < themeBox.height) {
+        expect(Math.abs(helpBox.y - themeBox.y)).toBeLessThanOrEqual(0.5);
+      }
+    });
+  }
+});
+
 for (const scenario of [
   { width: 320, height: 568, enlarged: false },
   { width: 390, height: 844, enlarged: true },
