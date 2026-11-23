@@ -127,13 +127,18 @@ def _check(value: Any, schema: dict[str, Any], path: str, depth: int, out: list[
     if "anyOf" in schema:
         # At least one branch. The schemas give every branch a distinct required enum
         # discriminator (schema_lint enforces it), so no value matches two.
+        chosen: list[Violation] | None = None
         for branch in schema["anyOf"]:
             trial: list[Violation] = []
             _check(value, branch, path, depth + 1, trial)
             if not trial:
                 break
+            if _discriminator_matches(value, branch):
+                chosen = trial
         else:
-            out.append(Violation(path, "anyOf"))
+            # The value names its branch through the discriminator, so that branch's own
+            # violations are the cause; a bare "anyOf" would hide which field broke (T-363).
+            out.extend(chosen or [Violation(path, "anyOf")])
     if isinstance(value, str):
         _check_string(value, schema, path, out)
     elif isinstance(value, list):
@@ -145,6 +150,19 @@ def _check(value: Any, schema: dict[str, Any], path: str, depth: int, out: list[
             out.append(Violation(path, "minimum"))
         if "maximum" in schema and value > schema["maximum"]:
             out.append(Violation(path, "maximum"))
+
+
+def _discriminator_matches(value: Any, branch: dict[str, Any]) -> bool:
+    """Whether ``value`` carries the single-value enum a branch is told apart by."""
+
+    if not isinstance(value, dict):
+        return False
+    properties = branch.get("properties") or {}
+    for name in branch.get("required") or []:
+        enum = (properties.get(name) or {}).get("enum")
+        if isinstance(enum, list) and len(enum) == 1 and name in value:
+            return _canonical(value[name]) == _canonical(enum[0])
+    return False
 
 
 def _check_string(value: str, schema: dict[str, Any], path: str, out: list[Violation]) -> None:

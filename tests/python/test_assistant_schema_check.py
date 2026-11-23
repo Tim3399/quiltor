@@ -104,6 +104,15 @@ class KeywordTests(unittest.TestCase):
         violations = check(reply(proposals=[{"kind": "x"}]), reply_schema())
         self.assertEqual([str(item) for item in violations], ["$.proposals[0] anyOf"])
 
+    def test_a_tool_step_names_the_field_inside_the_branch_its_action_chose(self):
+        # T-363: a grammar-bound engine never sees uniqueItems or maxLength, so the full check
+        # is where such a reply breaks; the report must say where, not only "$.step anyOf".
+        schema = tool_step_schema(read_tool_catalog(), KINDS)
+        step = {"step": {"action": "final", "final": reply(citations=["c-1", "c-1"])}}
+        self.assertEqual(
+            [str(item) for item in check(step, schema)], ["$.step.final.citations uniqueItems"]
+        )
+
     def test_a_schema_deeper_than_the_limit_is_refused(self):
         nested = {"type": "array"}
         for _ in range(70):
