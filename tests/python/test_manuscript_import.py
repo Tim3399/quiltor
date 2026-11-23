@@ -303,6 +303,64 @@ class DocxParserTests(unittest.TestCase):
         with self.assertRaises(UnsupportedManuscriptContent):
             parse_docx("Verschoben.docx", docx(document(body), styles=STYLES))
 
+    def test_tracked_moves_inside_a_paragraph_are_refused(self):
+        # Word writes a tracked move in the paragraph: the old place in w:moveFrom, the new one
+        # in w:moveTo. Both hold runs, so reading them would bring the text in twice (F-334-2).
+        for tag in ("moveFrom", "moveTo"):
+            with self.subTest(tag=tag):
+                body = paragraph("Kapitel", style="Heading1") + (
+                    f'<w:p><w:{tag} w:id="6" w:author="A"><w:r><w:t>Der Morgen lag still.</w:t>'
+                    f"</w:r></w:{tag}></w:p>"
+                )
+                with self.assertRaises(UnsupportedManuscriptContent):
+                    parse_docx("Verschoben.docx", docx(document(body), styles=STYLES))
+        both = (
+            '<w:p><w:moveFromRangeStart w:id="4" w:name="m"/><w:moveFrom w:id="5">'
+            "<w:r><w:t>Der Morgen lag still.</w:t></w:r></w:moveFrom>"
+            '<w:moveFromRangeEnd w:id="4"/><w:moveTo w:id="7"><w:r><w:t>Der Morgen lag still.'
+            "</w:t></w:r></w:moveTo></w:p>"
+        )
+        with self.assertRaises(UnsupportedManuscriptContent):
+            parse_docx(
+                "Verschoben.docx",
+                docx(document(paragraph("K", style="Heading1") + both), styles=STYLES),
+            )
+
+    def test_complex_script_weight_in_heading_one_is_no_loss_but_in_body_text_it_is(self):
+        # Word 2007/2010 and LibreOffice write w:bCs and w:iCs next to w:b and w:i into
+        # Heading 1 (T-350). The title is set in Quiltor's own type, so nothing is lost there.
+        styles = f"""<w:styles xmlns:w="{W}">
+          <w:style w:type="paragraph" w:default="1" w:styleId="Standard"><w:name w:val="Normal"/></w:style>
+          <w:style w:type="paragraph" w:styleId="berschrift1"><w:name w:val="heading 1"/>
+            <w:basedOn w:val="Standard"/><w:pPr><w:keepNext/></w:pPr>
+            <w:rPr><w:rFonts w:ascii="Cambria"/><w:b/><w:bCs/><w:i/><w:iCs/><w:color w:val="365F91"/>
+              <w:sz w:val="28"/><w:szCs w:val="28"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Fett"><w:name w:val="Fett"/>
+            <w:basedOn w:val="Standard"/><w:rPr><w:b/><w:bCs/></w:rPr></w:style>
+        </w:styles>"""
+        title = paragraph("Kapitel", style="berschrift1")
+        text = paragraph("Der Morgen lag still.", style="Standard")
+        clean = parse_docx("Titel.docx", docx(document(title + text * 3), styles=styles))
+        self.assertEqual(clean.warnings, ())
+        bold_body = parse_docx(
+            "Fett.docx", docx(document(title + paragraph("Text", style="Fett")), styles=styles)
+        )
+        self.assertEqual(bold_body.warnings, ({"code": "formatting", "count": 1},))
+        bold_normal = styles.replace(
+            '<w:name w:val="Normal"/>', '<w:name w:val="Normal"/><w:rPr><w:bCs/></w:rPr>'
+        )
+        normal = parse_docx("Standard.docx", docx(document(title + text), styles=bold_normal))
+        # Two paragraphs warn: the text, and the title, which is based on Normal.
+        self.assertEqual(normal.warnings, ({"code": "formatting", "count": 2},))
+        on_run = parse_docx(
+            "Lauf.docx",
+            docx(
+                document(title + paragraph("Text", run_properties="<w:rPr><w:bCs/></w:rPr>")),
+                styles=styles,
+            ),
+        )
+        self.assertEqual(on_run.warnings, ({"code": "formatting", "count": 1},))
+
     def test_proofing_marks_on_a_run_are_no_loss_but_its_typeface_is(self):
         for run_properties, lost in (
             ('<w:rPr><w:lang w:val="en-US"/></w:rPr>', []),
