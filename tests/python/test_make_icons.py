@@ -22,6 +22,18 @@ class WebIconTests(unittest.TestCase):
     def test_the_checked_in_web_icons_match_the_app_icon(self):
         self.assertEqual(make_icons.check_web_icons(), [])
 
+    def test_index_links_every_icon_by_its_current_digest(self):
+        # T-323: the same URL for a new icon kept the old logo in every browser's cache.
+        self.assertEqual(make_icons.check_icon_links(), [])
+
+    def test_an_icon_link_without_the_current_digest_is_named(self):
+        with tempfile.TemporaryDirectory() as directory:
+            index = Path(directory) / "index.html"
+            index.write_text('<link rel="icon" href="./favicon.ico" />', encoding="utf-8")
+            problems = make_icons.check_icon_links(index)
+        self.assertEqual(len(problems), 3)
+        self.assertIn("favicon.ico?v=", problems[0])
+
     def test_a_web_icon_that_no_longer_shows_the_app_icon_is_named(self):
         with tempfile.TemporaryDirectory() as directory:
             web = Path(directory)
