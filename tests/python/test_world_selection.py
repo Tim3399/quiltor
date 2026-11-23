@@ -211,13 +211,19 @@ def grown_world(size: int) -> dict[str, Any]:
         number += 1
     presence = figures.setdefault("presence", [])
     number = 0
+    # One entry per element and moment, as the story world requires.
+    taken = {(entry.get("elementId"), entry.get("momentId")) for entry in presence}
     while len(presence) < math.ceil(0.5 * size):
+        element, moment = rng.choice(people), rng.choice(moments)
+        if (element, moment) in taken:
+            continue
+        taken.add((element, moment))
         presence.append(
             {
                 "id": f"g-p{number:04d}",
-                "elementId": rng.choice(people),
+                "elementId": element,
                 "placeId": rng.choice(sites),
-                "momentId": rng.choice(moments),
+                "momentId": moment,
             }
         )
         number += 1
@@ -481,6 +487,14 @@ class WorldSelectionTests(CompletionBudgetTests):
             written = {item["name"] for item in state.get("elements") or []}
             # Every figure the part names is visible: listed, or written out.
             self.assertEqual({names[ident] for ident in named} - listed - written, set())
+
+    def test_the_grown_worlds_are_valid_story_worlds(self):
+        # The proof world is also what a real run stores through the server.
+        from quiltor.domain.story_world.validation import valid_figures
+
+        for size in (170, 1000):
+            with self.subTest(size=size):
+                self.assertTrue(valid_figures(grown_world(size)))
 
     def test_names_are_parts_only_for_figures(self):
         from quiltor.modules.assistant.world_selection import mentioned_elements
