@@ -146,12 +146,14 @@ def _resolve_proposal_attempt(
     figures: dict[str, Any],
     question: str,
     world_revision: int,
+    keep_ambiguous: bool = False,
 ) -> ProposalResolutionResult:
     first = resolve_proposals(
         value,
         figures,
         question,
         world_revision=world_revision,
+        keep_ambiguous=keep_ambiguous,
     )
 
     if first.clarification is not None:
@@ -185,6 +187,7 @@ def _resolve_proposal_attempt(
         figures,
         question,
         world_revision=world_revision,
+        keep_ambiguous=keep_ambiguous,
     )
     return ProposalResolutionResult(
         [*first.proposals, *final.proposals] if resolve_only_additions else final.proposals,
@@ -192,6 +195,7 @@ def _resolve_proposal_attempt(
         (*first.decisions, *final.decisions),
         final.clarification,
         first.discarded + final.discarded,
+        {**first.ambiguous, **final.ambiguous},
     )
 
 
@@ -225,6 +229,7 @@ def _proposal_envelopes(
     proposals: list[dict[str, Any]],
     sources: Sequence[Mapping[str, Any]],
     decisions: list[Any],
+    ambiguous: Mapping[str, list[dict[str, str]]] | None = None,
 ) -> list[dict[str, Any]]:
     operation_for_kind = {
         "create_element": "element",
@@ -254,6 +259,17 @@ def _proposal_envelopes(
             if decision is not None
             else None
         )
+        choices = (ambiguous or {}).get(str(proposal.get("tempId") or ""))
+        if choices is not None:
+            # The author chooses which element is meant, or a new one (T-344, D-244).
+            resolution = {
+                "operation": "element",
+                "outcome": "ambiguous",
+                "status": "ambiguous",
+                "resolvedId": None,
+                "candidateIds": [item["id"] for item in choices],
+                "candidates": choices,
+            }
         envelopes.append(
             {
                 "proposal": proposal,
@@ -1182,6 +1198,7 @@ def _complete_once(
         figures,
         resolution_question,
         world_revision,
+        keep_ambiguous=extraction_mode,
     )
     if resolution.clarification is not None:
         return _resolution_clarification_reply(resolution, trace, language)
@@ -1189,6 +1206,7 @@ def _complete_once(
     satisfied_kinds = set(resolution.satisfied_kinds)
     resolution_decisions = list(resolution.decisions)
     discarded_proposals = resolution.discarded
+    ambiguous_choices = dict(resolution.ambiguous)
     trace.extend(decision_trace(item) for item in resolution.decisions)
     if not mutation_requested:
         parsed["proposals"] = []
@@ -1203,6 +1221,7 @@ def _complete_once(
             figures,
             resolution_question,
             world_revision,
+            keep_ambiguous=extraction_mode,
         )
         if deterministic_resolution.clarification is not None:
             return _resolution_clarification_reply(deterministic_resolution, trace, language)
@@ -1214,6 +1233,7 @@ def _complete_once(
             parsed["proposals"] = deterministic_resolution.proposals
             satisfied_kinds |= set(deterministic_resolution.satisfied_kinds)
             resolution_decisions.extend(deterministic_resolution.decisions)
+            ambiguous_choices.update(deterministic_resolution.ambiguous)
             discarded_proposals += deterministic_resolution.discarded
             trace.extend(decision_trace(item) for item in deterministic_resolution.decisions)
             trace.append(
@@ -1244,12 +1264,14 @@ def _complete_once(
                 figures,
                 resolution_question,
                 world_revision,
+                keep_ambiguous=extraction_mode,
             )
             if repair_resolution.clarification is not None:
                 return _resolution_clarification_reply(repair_resolution, trace, language)
             parsed["proposals"] = repair_resolution.proposals
             satisfied_kinds = set(repair_resolution.satisfied_kinds)
             resolution_decisions = list(repair_resolution.decisions)
+            ambiguous_choices = dict(repair_resolution.ambiguous)
             discarded_proposals += repair_resolution.discarded
             trace.extend(decision_trace(item) for item in repair_resolution.decisions)
             if not mutation_requested:
@@ -1274,6 +1296,7 @@ def _complete_once(
             figures,
             resolution_question,
             world_revision,
+            keep_ambiguous=extraction_mode,
         )
         if forced_resolution.clarification is not None:
             return _resolution_clarification_reply(forced_resolution, trace, language)
@@ -1340,7 +1363,7 @@ def _complete_once(
     if extraction_mode:
         parsed["mode"] = WORLD_EXTRACTION_MODE
         parsed["proposalEnvelopes"] = _proposal_envelopes(
-            parsed["proposals"], parsed["sources"], resolution_decisions
+            parsed["proposals"], parsed["sources"], resolution_decisions, ambiguous_choices
         )
     if discarded_proposals or discarded_citations:
         trace.append(

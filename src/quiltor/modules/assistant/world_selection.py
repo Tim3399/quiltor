@@ -24,50 +24,9 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
+from quiltor.domain.story_world.name_parts import NAME_PART_TYPES, name_parts
 from quiltor.modules.assistant.contract import FittedWorld, structured_world_state
 
-#: Types whose names are matched by their parts as well (D-244, F-344-7).
-NAME_PART_TYPES = frozenset({"person", "tier"})
-#: Words of a name that never stand for it on their own. German, because they read German text.
-NAME_PART_STOPWORDS = frozenset(
-    {
-        "der",
-        "die",
-        "das",
-        "den",
-        "dem",
-        "des",
-        "von",
-        "vom",
-        "zu",
-        "zum",
-        "zur",
-        "am",
-        "im",
-        "an",
-        "auf",
-        "und",
-        "van",
-        "de",
-        "la",
-        "le",
-    }
-)
-#: Forms of address before a name part ("Frau Brandt", "Kapitänin Estrand"). German, like the
-#: manuscripts they read; a first or last name alone works in any language.
-HONORIFICS = (
-    "frau",
-    "herr",
-    "fräulein",
-    "kapitän",
-    "kapitänin",
-    "meister",
-    "meisterin",
-    "doktor",
-    "dr.",
-    "mutter",
-    "vater",
-)
 #: Moments either side of the chapter's storyTime span (D-244, F-344-8).
 WINDOW = 5
 #: Share of the world budget the register may take before it is cut by relevance.
@@ -92,13 +51,6 @@ class SelectedWorld(FittedWorld):
 
 def _dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
-
-
-def name_parts(name: str) -> list[str]:
-    """The words of a figure's name that may stand for it alone: three letters or more and
-    not a function word ("Oda", "Brandt" for "Oda Brandt")."""
-    words = re.findall(r"[^\W\d_][\w'\u2019-]*", name)
-    return [word for word in words if len(word) >= 3 and word.casefold() not in NAME_PART_STOPWORDS]
 
 
 def _aliases(node: Mapping[str, Any]) -> list[str]:
@@ -389,14 +341,11 @@ def select_world_state(
 
 
 __all__ = [
-    "HONORIFICS",
-    "NAME_PART_TYPES",
     "SELECTED_WORLD_HEADER",
     "SelectedWorld",
     "chapter_anchor",
     "element_surfaces",
     "mentioned_elements",
     "moment_window",
-    "name_parts",
     "select_world_state",
 ]
