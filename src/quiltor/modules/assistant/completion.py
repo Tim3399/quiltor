@@ -72,6 +72,7 @@ from quiltor.modules.assistant.proposals import missing_items, set_deterministic
 from quiltor.modules.assistant.references import resolve_reference
 from quiltor.modules.assistant.schemas import KINDS, json_schema_format, reply_schema
 from quiltor.modules.assistant.tool_loop import run_tool_loop, tool_instructions
+from quiltor.modules.assistant.world_selection import select_world_state
 
 
 class CompletionRuntime(Protocol):
@@ -85,6 +86,8 @@ class CompletionRuntime(Protocol):
     _invocation_metrics: list[dict[str, Any]]
     # The chunks the last world-extraction call carried; None before one is built (T-330).
     _extraction_context: list[Any] | None
+    # The written-out ids and omitted counts of a selected world, for the trace (T-344).
+    _extraction_world: dict[str, Any] | None
     # Set by the hull before each part: how many parts it may still make; None outside one.
     _extraction_parts_left: int | None
     # Set by an extraction call: the parts the remaining chapters still need, this one included.
@@ -145,12 +148,14 @@ def _resolve_proposal_attempt(
     figures: dict[str, Any],
     question: str,
     world_revision: int,
+    keep_ambiguous: bool = False,
 ) -> ProposalResolutionResult:
     first = resolve_proposals(
         value,
         figures,
         question,
         world_revision=world_revision,
+        keep_ambiguous=keep_ambiguous,
     )
 
     if first.clarification is not None:
@@ -184,6 +189,7 @@ def _resolve_proposal_attempt(
         figures,
         question,
         world_revision=world_revision,
+        keep_ambiguous=keep_ambiguous,
     )
     return ProposalResolutionResult(
         [*first.proposals, *final.proposals] if resolve_only_additions else final.proposals,
@@ -191,6 +197,7 @@ def _resolve_proposal_attempt(
         (*first.decisions, *final.decisions),
         final.clarification,
         first.discarded + final.discarded,
+        {**first.ambiguous, **final.ambiguous},
     )
 
 
@@ -224,6 +231,7 @@ def _proposal_envelopes(
     proposals: list[dict[str, Any]],
     sources: Sequence[Mapping[str, Any]],
     decisions: list[Any],
+    ambiguous: Mapping[str, list[dict[str, str]]] | None = None,
 ) -> list[dict[str, Any]]:
     operation_for_kind = {
         "create_element": "element",
@@ -253,6 +261,17 @@ def _proposal_envelopes(
             if decision is not None
             else None
         )
+        choices = (ambiguous or {}).get(str(proposal.get("tempId") or ""))
+        if choices is not None:
+            # The author chooses which element is meant, or a new one (T-344, D-244).
+            resolution = {
+                "operation": "element",
+                "outcome": "ambiguous",
+                "status": "ambiguous",
+                "resolvedId": None,
+                "candidateIds": [item["id"] for item in choices],
+                "candidates": choices,
+            }
         envelopes.append(
             {
                 "proposal": proposal,
@@ -546,6 +565,7 @@ def complete_request(
 
     def once(current: dict[str, Any], world: dict[str, Any], done: int) -> dict[str, Any]:
         runtime._extraction_context = None
+        runtime._extraction_world = None
         runtime._extraction_parts_left = MAX_EXTRACTION_PARTS - done if parts else None
         return _complete_once(
             runtime,
@@ -612,7 +632,12 @@ def complete_request(
                         "chars": len(chunk.text),
                     }
                 )
-            step = {"step": "extraction_sent", "part": index, "chunks": carried}
+            step = {
+                "step": "extraction_sent",
+                "part": index,
+                "chunks": carried,
+                **({"world": runtime._extraction_world} if runtime._extraction_world else {}),
+            }
             result = {**result, "agentTrace": [*(result.get("agentTrace") or []), step]}
         results.append(result)
         if sent is None:
@@ -991,23 +1016,23 @@ def _complete_once(
             keep_all_entries=True,
         )
         if world is None:
-            # T-330: the world keeps every entry, so the manuscript gives way. What does not fit
-            # here goes to the model in a later part (complete_request); only a world that
-            # leaves the manuscript less than MIN_MANUSCRIPT_SHARE is refused, and fewer
-            # chapters would not help it.
-            world = fit_world_state(
+            # T-344: the whole world does not fit beside the manuscript. The manuscript takes a
+            # fixed half of what is free and is not packed again; the world is chosen for
+            # exactly that text -- every element by name, what the text mentions written out.
+            # Nothing is refused: the resolver, which reads the whole world, stops duplicates.
+            context = pack(budget.free // 2, True)
+            used = count(serialized(context))
+            # Everything this call carries counts: the chapter and the excerpts beside it.
+            carried_text = "\n".join(chunk.text for chunk in context)
+            world = select_world_state(
                 figures,
                 contract,
-                target=budget.free - MIN_MANUSCRIPT_SHARE,
+                text=carried_text,
+                manuscript=manuscript,
+                chapter_ids=list(chapter_ids or []),
+                target=budget.free - used,
                 count=count,
-                relevant=relevant,
-                keep_all_entries=True,
             )
-            if world is None:
-                raise WorldTooLargeError(
-                    "The world state alone leaves the model no room for the manuscript."
-                )
-            context = pack(budget.free - world.tokens, True)
         elif len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
             context = pack(budget.free - world.tokens, False)
     else:
@@ -1063,6 +1088,15 @@ def _complete_once(
     if extraction_mode:
         # What of the manuscript this call carries; complete_request sends the rest (T-330).
         runtime._extraction_context = list(context)
+        # What of a selected world it wrote out, and what it left out (T-344).
+        runtime._extraction_world = (
+            {
+                "written": [str(item.get("id")) for item in world.state.get("elements") or []],
+                "omitted": dict(world.state.get("omitted") or {}),
+            }
+            if world.state.get("selected")
+            else None
+        )
         parts_left = getattr(runtime, "_extraction_parts_left", None)
         if parts_left is not None:
             manuscript_kinds = {"chapter", "chapter-note"}
@@ -1181,6 +1215,7 @@ def _complete_once(
         figures,
         resolution_question,
         world_revision,
+        keep_ambiguous=extraction_mode,
     )
     if resolution.clarification is not None:
         return _resolution_clarification_reply(resolution, trace, language)
@@ -1188,6 +1223,7 @@ def _complete_once(
     satisfied_kinds = set(resolution.satisfied_kinds)
     resolution_decisions = list(resolution.decisions)
     discarded_proposals = resolution.discarded
+    ambiguous_choices = dict(resolution.ambiguous)
     trace.extend(decision_trace(item) for item in resolution.decisions)
     if not mutation_requested:
         parsed["proposals"] = []
@@ -1202,6 +1238,7 @@ def _complete_once(
             figures,
             resolution_question,
             world_revision,
+            keep_ambiguous=extraction_mode,
         )
         if deterministic_resolution.clarification is not None:
             return _resolution_clarification_reply(deterministic_resolution, trace, language)
@@ -1213,6 +1250,7 @@ def _complete_once(
             parsed["proposals"] = deterministic_resolution.proposals
             satisfied_kinds |= set(deterministic_resolution.satisfied_kinds)
             resolution_decisions.extend(deterministic_resolution.decisions)
+            ambiguous_choices.update(deterministic_resolution.ambiguous)
             discarded_proposals += deterministic_resolution.discarded
             trace.extend(decision_trace(item) for item in deterministic_resolution.decisions)
             trace.append(
@@ -1243,12 +1281,14 @@ def _complete_once(
                 figures,
                 resolution_question,
                 world_revision,
+                keep_ambiguous=extraction_mode,
             )
             if repair_resolution.clarification is not None:
                 return _resolution_clarification_reply(repair_resolution, trace, language)
             parsed["proposals"] = repair_resolution.proposals
             satisfied_kinds = set(repair_resolution.satisfied_kinds)
             resolution_decisions = list(repair_resolution.decisions)
+            ambiguous_choices = dict(repair_resolution.ambiguous)
             discarded_proposals += repair_resolution.discarded
             trace.extend(decision_trace(item) for item in repair_resolution.decisions)
             if not mutation_requested:
@@ -1273,6 +1313,7 @@ def _complete_once(
             figures,
             resolution_question,
             world_revision,
+            keep_ambiguous=extraction_mode,
         )
         if forced_resolution.clarification is not None:
             return _resolution_clarification_reply(forced_resolution, trace, language)
@@ -1339,7 +1380,7 @@ def _complete_once(
     if extraction_mode:
         parsed["mode"] = WORLD_EXTRACTION_MODE
         parsed["proposalEnvelopes"] = _proposal_envelopes(
-            parsed["proposals"], parsed["sources"], resolution_decisions
+            parsed["proposals"], parsed["sources"], resolution_decisions, ambiguous_choices
         )
     if discarded_proposals or discarded_citations:
         trace.append(

@@ -25,6 +25,8 @@ export type AssistantEntry = {
   dismissed?: number[];
   proposalEdits?: Record<number, AssistantProposal>;
   claimStatuses?: Record<number, AssistantClaimStatus>;
+  /** The author's choice for an ambiguous proposal: a candidate's id or "new" (T-344). */
+  candidateChoices?: Record<number, string>;
   proposalErrors?: Record<number, AssistantProposalSkipReason>;
 };
 

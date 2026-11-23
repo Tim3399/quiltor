@@ -1,3 +1,9 @@
+import {
+  candidateBlock,
+  chosenElements,
+  resolvedToExisting,
+  withChosenElements,
+} from "./candidateChoice";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Translate } from "../../i18n";
 import { quiltorClient } from "../../platform";
@@ -309,27 +315,43 @@ export function useAssistantConversation({
   const apply = useCallback(
     (entryId: string, proposals: AssistantProposal[], indices: number[]) => {
       const entry = entriesRef.current.find((item) => item.id === entryId);
+      const choices = entry?.candidateChoices || {};
       const accepted = proposals
         .map((proposal, offset) => ({ proposal, index: indices[offset] }))
         .filter(
-          ({ index }) =>
+          ({ index, proposal }) =>
             index !== undefined &&
             entry !== undefined &&
             !entry.applied.includes(index) &&
             !entry.dismissed?.includes(index) &&
             (entry?.mode !== "world_extraction" ||
-              entry.claimStatuses?.[index] === "objective_fact"),
+              entry.claimStatuses?.[index] === "objective_fact") &&
+            // An ambiguous element waits for the author's choice, and so does what hangs on it.
+            !(entry.reply && candidateBlock(entry.reply, choices, index, proposal)),
         );
       if (!accepted.length) return;
-      const result = onApply(accepted.map(({ proposal }) => proposal));
-      const acceptedIndices = result.appliedIndices.map((offset) => accepted[offset].index);
+      // A candidate chosen: nothing is created, and what hangs on the proposal points at it.
+      const chosen = entry?.reply
+        ? chosenElements(entry.reply, choices)
+        : new Map<string, string>();
+      const existing = accepted.filter(
+        ({ index }) => !!entry?.reply && resolvedToExisting(entry.reply, choices, index),
+      );
+      const sent = accepted.filter((item) => !existing.includes(item));
+      const result = sent.length
+        ? onApply(sent.map(({ proposal }) => withChosenElements(proposal, chosen)))
+        : { appliedIndices: [], skipped: [] };
+      const acceptedIndices = [
+        ...result.appliedIndices.map((offset) => sent[offset].index),
+        ...existing.map(({ index }) => index),
+      ];
       persistEntries((current) =>
         current.map((entry) => {
           if (entry.id !== entryId) return entry;
           const proposalErrors = { ...entry.proposalErrors };
           for (const { index } of accepted) delete proposalErrors[index];
           for (const { index, reason } of result.skipped)
-            proposalErrors[accepted[index].index] = reason;
+            proposalErrors[sent[index].index] = reason;
           return {
             ...entry,
             applied: [...new Set([...entry.applied, ...acceptedIndices])],
@@ -384,6 +406,21 @@ export function useAssistantConversation({
     [persistEntries],
   );
 
+  const chooseCandidate = useCallback(
+    (entryId: string, index: number, choice: string) =>
+      persistEntries((current) =>
+        current.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                candidateChoices: { ...(entry.candidateChoices || {}), [index]: choice },
+              }
+            : entry,
+        ),
+      ),
+    [persistEntries],
+  );
+
   const clear = useCallback(() => persistEntries(() => []), [persistEntries]);
 
   return {
@@ -396,6 +433,7 @@ export function useAssistantConversation({
     dismiss,
     edit,
     classifyClaim,
+    chooseCandidate,
     clear,
   };
 }

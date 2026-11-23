@@ -33,6 +33,8 @@ export interface AssistantProposalEnvelope {
     status: string;
     resolvedId?: string | null;
     candidateIds: string[];
+    /** For an ambiguous element of an extraction: the elements it may be (T-344). */
+    candidates?: { id: string; name: string; kind: string }[];
   };
   confidence?: number;
   claimStatus?: AssistantClaimStatus;

@@ -69,6 +69,13 @@ export const assistant = {
   proposalGroupTimeline: "Timeline",
   proposalGroupPresence: "Anwesenheit",
   applyGroup: "Gruppe übernehmen",
+  candidateChoiceLabel: "Welches Element ist gemeint?",
+  candidateUnchosen: "Noch nicht gewählt",
+  candidateCreateNew: "Neu anlegen",
+  candidateChoiceHint:
+    "Der Name passt zu mehreren Elementen. Wähle, welches gemeint ist; bis dahin wird nichts angelegt.",
+  candidateDependentHint:
+    "Hängt an einem Vorschlag, bei dem noch zu wählen ist, welches Element gemeint ist.",
   claimStatusLabel: "Aussage einordnen",
   claimUnresolved: "Ungeklärt / mehrdeutig",
   claimObjectiveFact: "Objektiver Weltfakt",

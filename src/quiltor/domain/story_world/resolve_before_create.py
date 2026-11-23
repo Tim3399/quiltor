@@ -14,10 +14,11 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from quiltor.domain.json_values import JsonObject, as_array, as_object
 from quiltor.domain.story_world.entity_resolution import normalize_entity_name, resolve_entity
+from quiltor.domain.story_world.name_parts import name_part_owners
 
 ResolutionProofStatus = Literal["not_found", "resolved", "ambiguous", "invalid"]
 EnsureOperation = Literal["element", "relationship", "timeline_moment", "presence", "alias"]
@@ -415,6 +416,36 @@ def ensure_element(
         value["type"] = entity_type
     if "aliases" in value:
         value["aliases"] = canonical_aliases
+    if not resolved_ids:
+        # A figure named by one part of its name ("Oda", "Frau Brandt"): that figure when the
+        # part is one figure's only, a choice for the author when it is several figures'
+        # (T-344, D-243). A new full name stays a new element.
+        raw_nodes: object = context.story_world.get("nodes")
+        nodes = (
+            [
+                cast(Mapping[str, Any], item)
+                for item in cast(list[object], raw_nodes)
+                if isinstance(item, Mapping)
+            ]
+            if isinstance(raw_nodes, list)
+            else []
+        )
+        owners = name_part_owners(
+            nodes,
+            name,
+            entity_type if isinstance(entity_type, str) else None,
+        )
+        if len(owners) > 1:
+            return _decision(
+                context,
+                "element",
+                "ambiguous",
+                mention,
+                status="ambiguous",
+                candidate_ids=owners,
+            )
+        if len(owners) == 1:
+            resolved_ids = {owners[0]}
     if not resolved_ids:
         value.setdefault("type", "person")
         return _decision(

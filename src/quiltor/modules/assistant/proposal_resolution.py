@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from quiltor.domain.story_world.resolve_before_create import (
@@ -28,6 +28,8 @@ class ProposalResolutionResult:
     decisions: tuple[EnsureDecision, ...]
     clarification: dict[str, Any] | None
     discarded: int
+    #: For a kept ambiguous element (extraction), its tempId and the elements it may be.
+    ambiguous: dict[str, list[dict[str, str]]] = field(default_factory=dict)
 
 
 _PROFILE_KEYS = ("alter", "rolle", "aussehen", "herkunft", "stimme", "notes")
@@ -288,8 +290,14 @@ def resolve_proposals(
     question: str = "",
     *,
     world_revision: int = 0,
+    keep_ambiguous: bool = False,
 ) -> ProposalResolutionResult:
-    """Resolve every create-like proposal against persisted and earlier staged state."""
+    """Resolve every create-like proposal against persisted and earlier staged state.
+
+    With ``keep_ambiguous`` (world extraction, T-344) an ambiguous element stays a proposal of
+    its own, with the elements it may be, for the author to choose; any other ambiguous
+    proposal is dropped alone. Without it, the first ambiguity turns the whole reply into a
+    clarification, as a chat question needs."""
 
     if not isinstance(value, list):
         return ProposalResolutionResult([], frozenset(), (), None, 0)
@@ -304,6 +312,7 @@ def resolve_proposals(
     seen_temporary: set[str] = set()
     resolved_temporary_elements: dict[str, str] = {}
     resolved_temporary_moments: dict[str, str] = {}
+    ambiguous: dict[str, list[dict[str, str]]] = {}
     discarded = max(0, len(value) - 20)
 
     for index, raw in enumerate(value[:20]):
@@ -340,7 +349,15 @@ def resolve_proposals(
             decision = ensure_element(context, candidate)
             if decision.resolved_id is not None:
                 resolved_temporary_elements[temp_id] = decision.resolved_id
-            if decision.outcome == "create" and decision.canonical is not None:
+            if decision.outcome == "ambiguous" and keep_ambiguous:
+                # Nothing is created until the author has chosen; what hangs on the tempId
+                # keeps pointing at it.
+                resolved_temporary_elements[temp_id] = temp_id
+                ambiguous[temp_id] = _clarification_candidates(
+                    context.story_world, decision.proof.candidate_ids
+                )
+                proposal = {"kind": kind, "tempId": temp_id, "element": candidate}
+            elif decision.outcome == "create" and decision.canonical is not None:
                 resolved_temporary_elements[temp_id] = temp_id
                 proposal = {
                     "kind": kind,
@@ -430,7 +447,10 @@ def resolve_proposals(
 
         if decision is not None:
             decisions.append(decision)
-            if decision.outcome == "ambiguous":
+            if decision.outcome == "ambiguous" and keep_ambiguous and proposal is None:
+                discarded += 1
+                continue
+            if decision.outcome == "ambiguous" and not keep_ambiguous:
                 candidates = _clarification_candidates(
                     context.story_world, decision.proof.candidate_ids
                 )
@@ -450,6 +470,13 @@ def resolve_proposals(
         if proposal is None or any(value is None for value in proposal.values()):
             if decision is None or decision.outcome not in {"existing", "unchanged", "update"}:
                 discarded += 1
+            continue
+        if str(proposal.get("tempId") or "") in ambiguous:
+            # Which element is meant is the author's choice; the duplicate check would answer
+            # it with "no". It is staged under its tempId so that what hangs on it stays;
+            # nothing is created until the author chooses.
+            accepted.append(proposal)
+            staged_elements.append(proposal)
             continue
         valid = validate_proposals([proposal], context.story_world, "")
         if not valid and proposal.get("kind") != "update_element":
@@ -478,6 +505,7 @@ def resolve_proposals(
         tuple(decisions),
         None,
         discarded,
+        ambiguous,
     )
 
 

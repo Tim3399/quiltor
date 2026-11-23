@@ -1,3 +1,4 @@
+import { CREATE_NEW, candidateBlock } from "./candidateChoice";
 import { Bot, Check, EyeOff, Pencil, RotateCw } from "lucide-react";
 import type { RefObject } from "react";
 import {
@@ -52,6 +53,7 @@ export function AssistantConversation({
   onDismiss,
   onStartEdit,
   onClassifyClaim,
+  onChooseCandidate = () => {},
 }: {
   entries: AssistantEntry[];
   sending: boolean;
@@ -70,6 +72,7 @@ export function AssistantConversation({
   onDismiss: (entryId: string, index: number) => void;
   onStartEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
   onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
+  onChooseCandidate?: (entryId: string, index: number, choice: string) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -109,6 +112,7 @@ export function AssistantConversation({
           onDismiss={onDismiss}
           onStartEdit={onStartEdit}
           onClassifyClaim={onClassifyClaim}
+          onChooseCandidate={onChooseCandidate}
         />
       ))}
       {sending && batchProgress && (
@@ -155,6 +159,7 @@ function AssistantExchange({
   onDismiss,
   onStartEdit,
   onClassifyClaim,
+  onChooseCandidate = () => {},
 }: {
   entry: AssistantEntry;
   figures: FigureState;
@@ -169,6 +174,7 @@ function AssistantExchange({
   onDismiss: (entryId: string, index: number) => void;
   onStartEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
   onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
+  onChooseCandidate?: (entryId: string, index: number, choice: string) => void;
 }) {
   const { t } = useI18n();
   const reply = entry.reply;
@@ -266,12 +272,14 @@ function AssistantExchange({
               dismissedIndices={entry.dismissed || []}
               proposalEdits={entry.proposalEdits || {}}
               claimStatuses={entry.claimStatuses || {}}
+              candidateChoices={entry.candidateChoices || {}}
               proposalErrors={entry.proposalErrors || {}}
               onNavigate={onNavigate}
               onApply={onApply}
               onDismiss={onDismiss}
               onStartEdit={onStartEdit}
               onClassifyClaim={onClassifyClaim}
+              onChooseCandidate={onChooseCandidate}
             />
           )}
           {!!reply.agentTrace?.length && (
@@ -355,12 +363,14 @@ function ProposalList({
   dismissedIndices,
   proposalEdits,
   claimStatuses,
+  candidateChoices = {},
   proposalErrors,
   onNavigate,
   onApply,
   onDismiss,
   onStartEdit,
   onClassifyClaim,
+  onChooseCandidate = () => {},
 }: {
   entryId: string;
   reply: AssistantReply;
@@ -369,12 +379,14 @@ function ProposalList({
   dismissedIndices: number[];
   proposalEdits: Record<number, AssistantProposal>;
   claimStatuses: Record<number, AssistantClaimStatus>;
+  candidateChoices?: Record<number, string>;
   proposalErrors: Record<number, AssistantProposalSkipReason>;
   onNavigate: (target: { workspace: Workspace; id: string }) => void;
   onApply: (entryId: string, proposals: AssistantProposal[], indices: number[]) => void;
   onDismiss: (entryId: string, index: number) => void;
   onStartEdit: (entryId: string, index: number, proposal: AssistantProposal) => void;
   onClassifyClaim: (entryId: string, index: number, claimStatus: AssistantClaimStatus) => void;
+  onChooseCandidate?: (entryId: string, index: number, choice: string) => void;
 }) {
   const { t } = useI18n();
   const proposals = reply.proposals;
@@ -387,8 +399,12 @@ function ProposalList({
     claimStatuses[index] || reply.proposalEnvelopes?.[index]?.claimStatus || "unresolved";
   const pending = (indices: number[]) =>
     indices.filter((index) => !appliedIndices.includes(index) && !dismissedIndices.includes(index));
+  const blocked = (index: number) =>
+    candidateBlock(reply, candidateChoices, index, proposals[index]);
   const applicable = (indices: number[]) =>
-    pending(indices).filter((index) => !extraction || claimStatus(index) === "objective_fact");
+    pending(indices).filter(
+      (index) => (!extraction || claimStatus(index) === "objective_fact") && !blocked(index),
+    );
   const groupTitle = (id: string) => {
     if (id === "elements") return t("proposalGroupElements");
     if (id === "updates") return t("proposalGroupUpdates");
@@ -438,7 +454,9 @@ function ProposalList({
               const applied = appliedIndices.includes(index);
               const dismissed = dismissedIndices.includes(index);
               const envelope = reply.proposalEnvelopes?.[index];
-              const canApply = !extraction || claimStatus(index) === "objective_fact";
+              const block = blocked(index);
+              const candidates = envelope?.resolution?.candidates;
+              const canApply = (!extraction || claimStatus(index) === "objective_fact") && !block;
               return (
                 <div
                   className={`assistant-proposal ${applied ? "is-applied" : ""} ${dismissed ? "is-dismissed" : ""}`}
@@ -471,6 +489,30 @@ function ProposalList({
                           ))}
                         </ChipList>
                       </Disclosure>
+                    )}
+                    {extraction && !applied && !dismissed && !!candidates?.length && (
+                      <div className="assistant-claim-review">
+                        <span>{t("candidateChoiceLabel")}</span>
+                        <ListboxSelect
+                          label={t("candidateChoiceLabel")}
+                          value={candidateChoices[index] || ""}
+                          options={[
+                            { value: "", label: t("candidateUnchosen") },
+                            ...candidates.map((candidate) => ({
+                              value: candidate.id,
+                              label: candidate.name,
+                            })),
+                            { value: CREATE_NEW, label: t("candidateCreateNew") },
+                          ]}
+                          onChange={(choice) => {
+                            if (choice) onChooseCandidate(entryId, index, choice);
+                          }}
+                        />
+                        {block === "choose" && <small>{t("candidateChoiceHint")}</small>}
+                      </div>
+                    )}
+                    {extraction && !applied && !dismissed && block === "dependent" && (
+                      <small>{t("candidateDependentHint")}</small>
                     )}
                     {extraction && !applied && !dismissed && (
                       <div className="assistant-claim-review">
@@ -524,11 +566,15 @@ function ProposalList({
                       icon={applied ? <Check /> : undefined}
                       disabled={applied || dismissed || grouped || !canApply}
                       title={
-                        !canApply
-                          ? t("classifyObjectiveBeforeApply")
-                          : grouped
-                            ? t("packageOnlyTogetherHelp")
-                            : undefined
+                        block === "choose"
+                          ? t("candidateChoiceHint")
+                          : block === "dependent"
+                            ? t("candidateDependentHint")
+                            : !canApply
+                              ? t("classifyObjectiveBeforeApply")
+                              : grouped
+                                ? t("packageOnlyTogetherHelp")
+                                : undefined
                       }
                       onClick={() => onApply(entryId, [proposal], [index])}
                     >

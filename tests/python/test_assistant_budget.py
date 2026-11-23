@@ -580,17 +580,19 @@ class ExtractionPartsTests(CompletionBudgetTests):
                 # The chapter is covered here too (review r1, note on section 5).
                 self.assertEqual([m for m in markers if m not in sent], [])
 
-    def test_a_world_too_large_on_its_own_is_refused_as_such(self):
+    def test_a_world_too_large_for_the_window_is_chosen_from_not_refused(self):
+        # T-344: what T-330 refused as world_too_large now reaches the model with a selection.
         runtime, inference = self.relay(0.9)
-        with self.assertRaises(WorldTooLargeError):
-            runtime.complete(
-                EXTRACTION,
-                MANUSCRIPT,
-                generated_world(1500),
-                chapter_ids=["c-arrival"],
-                mode="world_extraction",
-            )
-        self.assertEqual(inference.calls, [])
+        runtime.complete(
+            EXTRACTION,
+            MANUSCRIPT,
+            generated_world(1500),
+            chapter_ids=["c-arrival"],
+            mode="world_extraction",
+        )
+        self.assertGreater(len(inference.calls), 0)
+        self.assert_calls_fit(inference)
+        self.assertIn('"selected": true', self.sent_text(inference))
 
     # -- Round 2 of the plan (F-330-1, F-330-3, F-330-4) ------------------------------------
 
@@ -856,20 +858,21 @@ class ExtractionPartsTests(CompletionBudgetTests):
         self.assertEqual(kinds.count("create_relationship"), 1)
         self.assertEqual(kinds.count("create_timeline_moment"), 1)
 
-    def test_a_world_that_leaves_less_than_the_minimum_share_is_refused(self):
-        # Between RAG_FLOOR and MIN_MANUSCRIPT_SHARE: a chapter that must go in parts is refused
-        # at once, instead of being carried a few hundred tokens at a time (F-330-1).
-        manuscript, chapter_id, _ = marked_chapter(2000)
+    def test_a_world_that_leaves_less_than_the_minimum_share_is_chosen_from(self):
+        # T-330 refused this world (F-330-1); since T-344 the part gets a selection of it and
+        # the chapter still reaches the model in full (D-243: never refuse).
+        manuscript, chapter_id, markers = marked_chapter(2000)
         runtime, inference = self.relay(0.9)
-        with self.assertRaises(WorldTooLargeError):
-            runtime.complete(
-                EXTRACTION,
-                manuscript,
-                generated_world(190),
-                chapter_ids=[chapter_id],
-                mode="world_extraction",
-            )
-        self.assertEqual(inference.calls, [])
+        runtime.complete(
+            EXTRACTION,
+            manuscript,
+            generated_world(190),
+            chapter_ids=[chapter_id],
+            mode="world_extraction",
+        )
+        self.assertGreater(len(inference.calls), 0)
+        self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
+        self.assert_calls_fit(inference)
 
     def test_the_part_limit_in_the_loop_is_an_error_when_the_estimate_falls_short(self):
         # The estimate guards the limit before each call; should it ever fall short, the loop
