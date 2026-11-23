@@ -89,10 +89,29 @@ def _png_dimensions(payload: bytes) -> tuple[int, int]:
     # offset: 8 signature bytes, 4 length, 4 type, then two big-endian widths.
     if len(payload) < 24 or payload[12:16] != b"IHDR":
         raise UnsupportedImage("PNG header is incomplete.")
-    return (
-        int.from_bytes(payload[16:20], "big"),
-        int.from_bytes(payload[20:24], "big"),
-    )
+    width = int.from_bytes(payload[16:20], "big")
+    height = int.from_bytes(payload[20:24], "big")
+    # The eXIf chunk holds a bare TIFF block. Browsers turn the picture by it,
+    # exactly as they do for a JPEG, so the frame has to follow.
+    if _png_has_quarter_turn(payload):
+        return height, width
+    return width, height
+
+
+def _png_has_quarter_turn(payload: bytes) -> bool:
+    position = 8
+    limit = len(payload)
+    while position + 8 <= limit:
+        length = int.from_bytes(payload[position : position + 4], "big")
+        kind = payload[position + 4 : position + 8]
+        body = position + 8
+        if kind == b"eXIf":
+            return _tiff_is_quarter_turn(payload[body : body + length])
+        if kind == b"IEND":
+            break
+        # Length, type, body and the four byte CRC.
+        position = body + length + 4
+    return False
 
 
 def _jpeg_dimensions(payload: bytes) -> tuple[int, int]:
@@ -146,7 +165,16 @@ def _exif_is_quarter_turn(segment: bytes) -> bool:
 
     if not segment.startswith(b"Exif\x00\x00"):
         return False
-    tiff = segment[6:]
+    return _tiff_is_quarter_turn(segment[6:])
+
+
+def _tiff_is_quarter_turn(tiff: bytes) -> bool:
+    """The orientation test shared by every container that embeds Exif.
+
+    JPEG wraps the TIFF block in an APP1 segment behind an `Exif` marker, PNG
+    (`eXIf`) and WebP (`EXIF`) store it bare. Unreadable data is no rotation.
+    """
+
     if tiff[:2] == b"II":
         order = "little"
     elif tiff[:2] == b"MM":
@@ -189,11 +217,30 @@ def _webp_dimensions(payload: bytes) -> tuple[int, int]:
         # Extended: flags, then the canvas size as two 24 bit values, less one.
         if len(payload) < 30:
             raise UnsupportedImage("WebP extended header is incomplete.")
-        return (
-            int.from_bytes(payload[24:27], "little") + 1,
-            int.from_bytes(payload[27:30], "little") + 1,
-        )
+        width = int.from_bytes(payload[24:27], "little") + 1
+        height = int.from_bytes(payload[27:30], "little") + 1
+        if _webp_has_quarter_turn(payload):
+            return height, width
+        return width, height
     raise UnsupportedImage("WebP variant is not supported.")
+
+
+def _webp_has_quarter_turn(payload: bytes) -> bool:
+    # The RIFF chunks follow the 12 byte header; each body is padded to even.
+    position = 12
+    limit = len(payload)
+    while position + 8 <= limit:
+        kind = payload[position : position + 4]
+        length = int.from_bytes(payload[position + 4 : position + 8], "little")
+        body = position + 8
+        if kind == b"EXIF":
+            data = payload[body : body + length]
+            # Some writers keep the JPEG style `Exif` prefix the format forbids.
+            if data.startswith(b"Exif\x00\x00"):
+                data = data[6:]
+            return _tiff_is_quarter_turn(data)
+        position = body + length + (length & 1)
+    return False
 
 
 __all__ = [
