@@ -390,7 +390,7 @@ function describeLongChapters(api, world) {
  * `late` marks every checkpoint that lies in the last fifth. These become entries of the gold
  * set once that part exists (T-289).
  */
-export const CHECKPOINTS = [
+const CHECKPOINTS = [
   { id: "a-figur-wenke", chapterId: "x-kettenwache", kind: "figur", elementId: "x-wenke" },
   {
     id: "a-figur-hinrik",

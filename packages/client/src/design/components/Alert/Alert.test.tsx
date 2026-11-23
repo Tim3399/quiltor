@@ -30,12 +30,12 @@ describe("Alert", () => {
     expect(css).not.toMatch(
       /\.design-alert\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto/,
     );
-    const { container, rerender } = render(<Alert action={<button>Undo</button>}>Moved.</Alert>);
+    const { container, rerender } = render(<Alert action={<button type="button">Undo</button>}>Moved.</Alert>);
     const root = container.firstElementChild as HTMLElement;
     expect(root).toHaveClass("design-alert--action");
     expect(root).not.toHaveClass("design-alert--icon");
     rerender(
-      <Alert icon={<span />} action={<button>Undo</button>}>
+      <Alert icon={<span />} action={<button type="button">Undo</button>}>
         Moved.
       </Alert>,
     );

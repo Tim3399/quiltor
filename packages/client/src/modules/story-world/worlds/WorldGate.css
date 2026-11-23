@@ -208,9 +208,9 @@
   .world-list-actions {
     display: grid;
     grid-template-columns: repeat(
-      auto-fit,
-      minmax(min(100%, max(7.5rem, calc((100% - var(--space-8)) / 2))), 1fr)
-    );
+        auto-fit,
+        minmax(min(100%, max(7.5rem, calc((100% - var(--space-8)) / 2))), 1fr)
+      );
   }
   .world-filter {
     width: 100%;

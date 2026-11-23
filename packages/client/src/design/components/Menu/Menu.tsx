@@ -141,8 +141,11 @@ export function MenuItem({
   return (
     <button
       type="button"
-      role={checked === undefined ? "menuitem" : "menuitemcheckbox"}
-      aria-checked={checked}
+      // A switch carries aria-checked; a plain item has no such state. One object, so the
+      // role and its state cannot drift apart.
+      {...(checked === undefined
+        ? { role: "menuitem" }
+        : { role: "menuitemcheckbox", "aria-checked": checked })}
       disabled={disabled}
       tabIndex={-1}
       data-tone={tone}

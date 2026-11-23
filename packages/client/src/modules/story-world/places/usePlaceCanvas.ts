@@ -225,19 +225,25 @@ export function usePlaceCanvas({
 
   // The hint belongs to the moment of arriving at the edge, not to the edge:
   // a view that opens on it, or rests there, has nothing new to say.
-  const [mapEdgeReached, setMapEdgeReached] = useState(false);
+  const [edgeArrival, setMapEdgeReached] = useState(false);
   const wasAtMapEdge = useRef(false);
+  // Without a bound there is no edge: the hint is derived away rather than reset
+  // from an effect, and the arrival memory starts over.
+  const edgeExists = boundToGround && minZoom !== undefined;
+  const mapEdgeReached = edgeArrival && edgeExists;
   useEffect(() => {
-    if (!boundToGround || minZoom === undefined) {
-      wasAtMapEdge.current = false;
-      setMapEdgeReached(false);
-    }
-  }, [boundToGround, minZoom]);
+    if (!edgeExists) wasAtMapEdge.current = false;
+  }, [edgeExists]);
   useEffect(() => {
-    if (!mapEdgeReached) return undefined;
-    const timer = window.setTimeout(() => setMapEdgeReached(false), MAP_EDGE_HINT_MS);
+    if (!edgeArrival) return undefined;
+    // An arrival outlives a lost bound only until the next tick, so rebinding
+    // does not bring back a hint from before.
+    const timer = window.setTimeout(
+      () => setMapEdgeReached(false),
+      edgeExists ? MAP_EDGE_HINT_MS : 0,
+    );
     return () => window.clearTimeout(timer);
-  }, [mapEdgeReached]);
+  }, [edgeArrival, edgeExists]);
 
   // Arriving on a level should show what is on it, at the size it deserves:
   // without this you land at whatever zoom the level above happened to be at,
