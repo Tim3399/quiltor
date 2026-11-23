@@ -18,8 +18,40 @@ vi.mock("@xyflow/react", () => ({
     </button>
   ),
   MiniMap: () => <div data-testid="minimap" />,
-  ReactFlow: ({ children, nodesDraggable }: { children: ReactNode; nodesDraggable?: boolean }) => (
-    <div data-testid="react-flow" data-nodes-draggable={String(nodesDraggable)}>
+  ReactFlow: ({
+    children,
+    nodesDraggable,
+    nodesConnectable,
+    elementsSelectable,
+    zoomOnScroll,
+    zoomOnPinch,
+    zoomOnDoubleClick,
+    panOnDrag,
+    panOnScroll,
+  }: {
+    children: ReactNode;
+    nodesDraggable?: boolean;
+    nodesConnectable?: boolean;
+    elementsSelectable?: boolean;
+    zoomOnScroll?: boolean;
+    zoomOnPinch?: boolean;
+    zoomOnDoubleClick?: boolean;
+    panOnDrag?: boolean;
+    panOnScroll?: boolean;
+  }) => (
+    <div
+      data-testid="react-flow"
+      data-nodes-draggable={String(nodesDraggable)}
+      data-nodes-connectable={String(nodesConnectable)}
+      data-elements-selectable={String(elementsSelectable)}
+      data-navigation={JSON.stringify([
+        zoomOnScroll,
+        zoomOnPinch,
+        zoomOnDoubleClick,
+        panOnDrag,
+        panOnScroll,
+      ])}
+    >
       {children}
     </div>
   ),
@@ -123,6 +155,21 @@ describe("whether the surface lets nodes be dragged", () => {
     canvas({ nodesDraggable: true });
     fireEvent.click(screen.getByRole("button", { name: "Anordnen sperren" }));
     expect(screen.getByTestId("react-flow")).toHaveAttribute("data-nodes-draggable", "false");
+  });
+
+  it("locks dragging, connecting and selecting under a closed lock and leaves zoom and pan alone", () => {
+    canvas({});
+    const flow = screen.getByTestId("react-flow");
+    const navigation = flow.getAttribute("data-navigation");
+    fireEvent.click(screen.getByRole("button", { name: "Anordnen sperren" }));
+    expect(flow).toHaveAttribute("data-nodes-draggable", "false");
+    expect(flow).toHaveAttribute("data-nodes-connectable", "false");
+    expect(flow).toHaveAttribute("data-elements-selectable", "false");
+    expect(flow).toHaveAttribute("data-navigation", navigation);
+    fireEvent.click(screen.getByRole("button", { name: "Anordnen freigeben" }));
+    expect(flow).toHaveAttribute("data-nodes-draggable", "true");
+    expect(flow).toHaveAttribute("data-nodes-connectable", "true");
+    expect(flow).toHaveAttribute("data-elements-selectable", "true");
   });
 
   it("names the dock padlock by what it does and shows its state", () => {

@@ -9,7 +9,7 @@ import {
 } from "@xyflow/react";
 import { type DOMAttributes, type ReactNode, useEffect, useRef, useState } from "react";
 import { useLatest } from "../../shared/hooks/useLatest";
-import { GraphViewportChrome } from "../graph";
+import { GraphViewportChrome, useArrangementLock } from "../graph";
 import type { SemanticZoomTier } from "./figures/relationships";
 
 export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType extends Edge = Edge> {
@@ -68,16 +68,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   surfaceListeners,
 }: StoryGraphCanvasProps<NodeType, EdgeType>) {
   const [minimapVisible, setMinimapVisible] = useState(true);
-  /**
-   * Whether the surface may be rearranged, held here rather than in React Flow.
-   *
-   * Its dock has a lock, and its node renderer reads `nodesDraggable` from the
-   * props it was rendered with rather than from the store the lock writes to.
-   * So the lock could take away selecting and connecting and left dragging
-   * exactly as it was -- everything still moved under a closed padlock. Holding
-   * the state here and passing it down is what makes the button mean something.
-   */
-  const [interactive, setInteractive] = useState(true);
+  const { interactive, setInteractive, arrangementProps } = useArrangementLock();
   const hasVisibleMinimap = minimapProps !== false && minimapVisible;
   const surface = useRef<HTMLDivElement>(null);
   // Read only, by the ResizeObserver below.
@@ -111,9 +102,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
         minZoom={minZoom}
         maxZoom={2.2}
         deleteKeyCode={null}
-        nodesDraggable={interactive && (flowProps.nodesDraggable ?? true)}
-        nodesConnectable={interactive && (flowProps.nodesConnectable ?? true)}
-        elementsSelectable={interactive && (flowProps.elementsSelectable ?? true)}
+        {...arrangementProps(flowProps)}
       >
         {showGrid && zoomTier !== "overview" && (
           <Background
