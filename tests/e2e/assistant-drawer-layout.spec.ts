@@ -168,3 +168,47 @@ test("the world update and its scope share one line with their whole names", asy
   expect(Math.abs((updateBox?.y ?? 0) - (scopeBox?.y ?? 0))).toBeLessThanOrEqual(1);
   await expectControlsAtControlHeight(page);
 });
+
+// T-329: the generic field rule made the composer's box taller and resizable, and the field's
+// margin put the send button below the box's edge; the note under them was cut off.
+test("the send button ends on the message field's edge and the note stays whole", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "wide", "The drawer is a side panel only when wide.");
+  await capabilities(page);
+  const world = await createTestWorld(page, "Assistent Eingabezeile");
+  for (const height of [900, 700]) {
+    await page.setViewportSize({ width: 1280, height });
+    await page.goto(`/?world=${world.id}`);
+    const drawer = await openAssistant(page);
+    const field = drawer.getByRole("textbox", { name: "Nachricht an den lokalen Assistenten" });
+    const send = drawer.getByRole("button", { name: "Nachricht senden" });
+    const geometry = await page.evaluate(
+      ([fieldHandle, sendHandle, drawerHandle]) => {
+        const note = drawerHandle!.querySelector("footer > small")!;
+        const box = (element: Element) => element.getBoundingClientRect();
+        return {
+          fieldBottom: box(fieldHandle!).bottom,
+          sendBottom: box(sendHandle!).bottom,
+          resize: getComputedStyle(fieldHandle!).resize,
+          noteBottom: box(note).bottom,
+          noteCut: note.scrollHeight > note.clientHeight + 1,
+          drawerBottom: box(drawerHandle!).bottom,
+        };
+      },
+      [
+        await field.elementHandle(),
+        await send.elementHandle(),
+        await drawer.elementHandle(),
+      ] as const,
+    );
+    // Taken before the assertions, so a red run still leaves the picture of what broke.
+    await page
+      .locator(".assistant-drawer > footer")
+      .screenshot({ path: testInfo.outputPath(`composer-${height}.png`) });
+    expect(Math.abs(geometry.sendBottom - geometry.fieldBottom)).toBeLessThanOrEqual(0.5);
+    expect(geometry.resize).toBe("none");
+    expect(geometry.noteCut).toBe(false);
+    expect(geometry.noteBottom).toBeLessThanOrEqual(geometry.drawerBottom + 0.5);
+  }
+});
