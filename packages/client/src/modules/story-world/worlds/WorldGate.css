@@ -22,6 +22,17 @@
   gap: var(--space-8);
   margin-bottom: var(--space-24);
 }
+/* The help button stands beside two segmented controls, whose frame adds padding and a
+   1px border on each side around the same control height. The button takes that outer
+   size, square, from the same tokens, so all three are one size and on one line (T-324).
+   Stretching to the row does not work: in a flex row aspect-ratio cannot carry a
+   stretched height over to the width, and the button collapsed to its icon. */
+.gate-preferences .world-help {
+  --world-help-size: calc(var(--control-regular) + 2 * var(--spacing-optical-base) + 2px);
+  align-self: center;
+  width: var(--world-help-size);
+  height: var(--world-help-size);
+}
 .world-gate > section > header {
   display: flex;
   align-items: flex-start;
@@ -197,9 +208,9 @@
   .world-list-actions {
     display: grid;
     grid-template-columns: repeat(
-        auto-fit,
-        minmax(min(100%, max(7.5rem, calc((100% - var(--space-8)) / 2))), 1fr)
-      );
+      auto-fit,
+      minmax(min(100%, max(7.5rem, calc((100% - var(--space-8)) / 2))), 1fr)
+    );
   }
   .world-filter {
     width: 100%;
