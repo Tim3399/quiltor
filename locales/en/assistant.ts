@@ -67,6 +67,13 @@ export const assistant = {
   proposalGroupTimeline: "Timeline",
   proposalGroupPresence: "Presence",
   applyGroup: "Apply group",
+  candidateChoiceLabel: "Which element is meant?",
+  candidateUnchosen: "Not chosen yet",
+  candidateCreateNew: "Create new",
+  candidateChoiceHint:
+    "The name fits several elements. Choose which one is meant; nothing is created until then.",
+  candidateDependentHint:
+    "Depends on a proposal where you still have to choose which element is meant.",
   claimStatusLabel: "Classify statement",
   claimUnresolved: "Unresolved / ambiguous",
   claimObjectiveFact: "Objective world fact",

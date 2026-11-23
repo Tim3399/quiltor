@@ -341,6 +341,85 @@ describe("assistant conversation content", () => {
     ]);
   });
 
+  it("lets the author choose which element an ambiguous name means before anything is created", async () => {
+    // T-344: "Herr Brandt" fits Oda and Karl Brandt. Nothing is created until the author
+    // chooses; then what hangs on the proposal points at the chosen element.
+    const ambiguous = {
+      kind: "create_element" as const,
+      tempId: "new:brandt",
+      element: { type: "person" as const, name: "Herr Brandt" },
+    };
+    const dependent = {
+      kind: "create_relationship" as const,
+      relationship: { from: "new:brandt", to: "tarek" },
+    };
+    vi.mocked(api.chat).mockResolvedValue(
+      reply({
+        mode: "world_extraction",
+        proposals: [ambiguous, dependent],
+        proposalGroups: [
+          { id: "elements", proposalIndexes: [0] },
+          { id: "relationships", proposalIndexes: [1] },
+        ],
+        proposalEnvelopes: [
+          {
+            proposal: ambiguous,
+            claimStatus: "objective_fact",
+            evidence: [],
+            resolution: {
+              operation: "element",
+              outcome: "ambiguous",
+              status: "ambiguous",
+              resolvedId: null,
+              candidateIds: ["oda", "karl"],
+              candidates: [
+                { id: "oda", name: "Oda Brandt", kind: "person" },
+                { id: "karl", name: "Karl Brandt", kind: "person" },
+              ],
+            },
+          },
+          { proposal: dependent, claimStatus: "objective_fact", evidence: [] },
+        ],
+      }),
+    );
+    const { onApply } = setup();
+    await screen.findByText("Was soll ich in der Welt nachtragen?");
+    fireEvent.click(screen.getByRole("button", { name: "Welt aktualisieren" }));
+
+    const [applyElement, applyRelationship] = await screen.findAllByRole("button", {
+      name: "Übernehmen",
+    });
+    expect(applyElement).toBeDisabled();
+    expect(applyRelationship).toBeDisabled();
+    expect(
+      screen.getAllByText(
+        "Der Name passt zu mehreren Elementen. Wähle, welches gemeint ist; bis dahin wird nichts angelegt.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "Hängt an einem Vorschlag, bei dem noch zu wählen ist, welches Element gemeint ist.",
+      ).length,
+    ).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Welches Element ist gemeint?" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Oda Brandt" }));
+    await waitFor(() => expect(applyRelationship).not.toBeDisabled());
+
+    fireEvent.click(applyRelationship);
+    expect(onApply).toHaveBeenCalledWith([
+      expect.objectContaining({
+        kind: "create_relationship",
+        relationship: expect.objectContaining({ from: "oda", to: "tarek" }),
+      }),
+    ]);
+    onApply.mockClear();
+    fireEvent.click(applyElement);
+    // The chosen element exists: applying the proposal creates nothing.
+    expect(onApply).not.toHaveBeenCalled();
+    expect(await screen.findAllByText("Übernommen")).not.toHaveLength(0);
+  });
+
   it("edits a proposal before applying it", async () => {
     vi.mocked(api.chat).mockResolvedValue(
       reply({

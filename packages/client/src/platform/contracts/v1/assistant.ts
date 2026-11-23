@@ -83,6 +83,7 @@ export function decodeAssistantReplyV1(wire: AssistantReplyWireV1): AssistantRep
         ? {
             ...envelope.resolution,
             candidateIds: [...envelope.resolution.candidateIds],
+            candidates: envelope.resolution.candidates?.map((candidate) => ({ ...candidate })),
           }
         : undefined,
     })),

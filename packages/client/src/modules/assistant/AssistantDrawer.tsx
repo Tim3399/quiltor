@@ -87,6 +87,7 @@ export function AssistantDrawer({
     dismiss,
     edit,
     classifyClaim,
+    chooseCandidate,
     clear,
   } = useAssistantConversation({
     worldId,
@@ -255,6 +256,7 @@ export function AssistantDrawer({
           setProposalEdit({ entryId, index, draft: structuredClone(proposal) })
         }
         onClassifyClaim={classifyClaim}
+        onChooseCandidate={chooseCandidate}
       />
       {proposalEdit && entries.some((entry) => entry.id === proposalEdit.entryId) && (
         <AssistantProposalEditor
