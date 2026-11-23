@@ -884,6 +884,19 @@ test("the large part's frozen entries do not depend on the parts before it", () 
     };
   };
   assert.deepEqual(entries(["large"]), entries(PARTS));
+
+  // F-339-14: the probe hides the real positions, so check them in the real world too:
+  // l-t-<n> sits at (moments before the large part) + n - 1, alone and after every part.
+  for (const include of [["large"], PARTS]) {
+    const timeline = buildExampleWorld("de", { include }).figures.timeline;
+    const before = timeline.filter((moment) => !moment.id.startsWith("l-t-")).length;
+    const large = timeline.filter((moment) => moment.id.startsWith("l-t-"));
+    assert.ok(large.length > 0, "the large part has moments");
+    for (const moment of large) {
+      const n = Number(moment.id.slice("l-t-".length));
+      assert.equal(moment.position, before + n - 1, `${moment.id} in ${include.join("+")}`);
+    }
+  }
 });
 
 test("the lock freezes the German and the English text of every large chapter", () => {
