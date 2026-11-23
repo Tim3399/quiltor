@@ -2760,6 +2760,17 @@ def validate_bootstrap_never_on_main(sources: dict[Path, str]) -> None:
     triggers = bootstrap.partition("\njobs:")[0]
     if not re.search(r"^  push:\n    branches-ignore: \[main\]\n", triggers, re.MULTILINE):
         raise WorkflowContractError("visual-baselines-bootstrap.yml must ignore pushes to main")
+    # T-341 P3: the push trigger is path-filtered, but deleting a platform's images is the
+    # documented way to accept a design change -- that deletion must still start the run.
+    for required in (
+        "tests/e2e/visual-baseline.spec.ts-snapshots/**",
+        "tests/e2e/visual-baseline.spec.ts",
+        "packages/client/**",
+    ):
+        if f'\n      - "{required}"\n' not in triggers:
+            raise WorkflowContractError(
+                f"visual-baselines-bootstrap.yml push paths must include {required}"
+            )
     gap = _steps(_job_body(bootstrap, "gap"))
     if not gap or gap[0] != BOOTSTRAP_GUARD:
         raise WorkflowContractError("the bootstrap gap job must refuse main in its first step")
