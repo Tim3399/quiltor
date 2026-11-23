@@ -624,7 +624,7 @@ export const texts = {
   "large.trait.01": "Kennt jede Untiefe zwischen den Inseln.",
   "large.trait.02": "Spricht wenig und hört alles.",
   "large.trait.03": "Hat einen Bruder, der auf See geblieben ist.",
-  "large.trait.04": "Schuldet der Gilde mehr, als sie je zurückzahlen kann.",
+  "large.trait.04": "Schuldet der Gilde mehr, als je zurückgezahlt werden kann.",
   "large.trait.05": "Sammelt alte Karten und zeigt sie niemandem.",
   "large.trait.06": "Ist vor zehn Jahren aus dem Süden gekommen.",
   "large.trait.07": "Führt ein Tagebuch, in dem jedes Schiff steht.",

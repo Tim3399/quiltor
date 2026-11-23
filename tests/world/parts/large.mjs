@@ -12,8 +12,10 @@
 // With `probe` a chapter's body is its fingerprint and German word count, so the lock
 // freezes the plan without carrying 80,000 words (F-339-6).
 
+import { createHash } from "node:crypto";
 import { planBook, planDigest, renderChapter } from "../large/generate.mjs";
 import { PLACE_NAMES, SEGMENT_S1, texts as germanTexts } from "../texts/large.de.mjs";
+import { texts as englishTexts } from "../texts/large.en.mjs";
 
 const pad = (number, width) => String(number).padStart(width, "0");
 
@@ -28,6 +30,12 @@ export const CHAPTERS = Array.from({ length: 28 }, (_, index) => {
   const words = number === 3 ? 2500 : number === 17 ? 9000 : 2635;
   return { id, number, seed: BOOK.seed * 1000 + number, words };
 });
+
+/** Whether each first name of texts/large.de.mjs is a woman's (f) or a man's (m). */
+const FIRST_NAME_GENDER = "fmfmfmfmfmfmfmfmfmfmffmfmfmfmffmfmffmfmf";
+// The roles of texts/large.<lang>.mjs alternate: odd numbers are a woman's form, even a man's.
+const roleFor = (index, gender) =>
+  `large.role.${pad(2 * (index % 10) + (gender === "f" ? 1 : 2), 2)}`;
 
 const PEOPLE = Array.from({ length: 80 }, (_, index) => ({
   id: `l-p-${pad(index + 1, 2)}`,
@@ -44,7 +52,7 @@ const germanName = (person) =>
   `${germanTexts[`large.first.${pad(person.first + 1, 2)}`]} ${germanTexts[`large.family.${pad(person.family + 1, 2)}`]}`;
 
 /** The plan of every chapter, made once: it depends on nothing but the German bank. */
-const PLAN = planBook({
+export const PLAN = planBook({
   seed: BOOK.seed,
   bank: BANK,
   people: PEOPLE.map(germanName),
@@ -56,6 +64,48 @@ const EDGE_COUNT = 250;
 const MOMENT_COUNT = 300;
 const PRESENCE_COUNT = 150;
 const CARDS_PER_BOARD = 150;
+
+/**
+ * The relationships: every pair once, in either direction (validate_world reports a pair
+ * twice as structurally duplicate, F-339-10). Between actors the kinds of a person to a
+ * person or a group; to a place "lives in"; to an object "owns".
+ */
+const RELATIONSHIPS = (() => {
+  const actors = [...PEOPLE.map((person) => person.id), ...ORGANISATIONS];
+  const between = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15];
+  const seen = new Set();
+  const edges = [];
+  for (let step = 0; edges.length < EDGE_COUNT; step += 1) {
+    const index = edges.length;
+    const from = actors[step % actors.length];
+    const kind = index % 5;
+    const pool = kind === 4 ? PLACES : kind === 3 ? THINGS : actors;
+    const to = pool[(step * 7 + 3 + Math.floor(step / actors.length) * 11) % pool.length];
+    const pair = [from, to].sort().join("|");
+    if (to === from || seen.has(pair)) continue;
+    seen.add(pair);
+    const rel = kind === 4 ? 13 : kind === 3 ? 14 : between[index % between.length];
+    edges.push({
+      id: `l-e-${pad(index + 1, 3)}`,
+      from,
+      to,
+      label: `large.rel.${pad(rel, 2)}`,
+      directed: kind >= 3 || index % 3 !== 0,
+      lineStyle: index % 4 === 0 ? "dashed" : "solid",
+    });
+  }
+  return edges;
+})();
+
+const sha16 = (text) => createHash("sha256").update(text).digest("hex").slice(0, 16);
+
+/** A chapter in probe mode: segment, plan, German length and the hash of both texts. */
+function probeBody(plan) {
+  const names = PEOPLE.map(germanName);
+  const de = renderChapter(plan.tokens, (key) => germanTexts[key], names, PLACE_NAMES);
+  const en = renderChapter(plan.tokens, (key) => englishTexts[key], names, PLACE_NAMES);
+  return `⟦large-body ${BOOK.segment} plan:${planDigest(plan.tokens)} de:${sha16(de)} en:${sha16(en)} ${plan.words}⟧`;
+}
 
 export function describeLarge(api, world) {
   const { t, probe } = api;
@@ -80,8 +130,12 @@ export function describeLarge(api, world) {
     ...extra,
   });
   const nodes = [];
+  const seenOfGender = { f: 0, m: 0 };
   PEOPLE.forEach((person, index) => {
-    const role = `large.role.${pad((index % 20) + 1, 2)}`;
+    // The German role takes the form that fits the person's first name (F-339-13); each
+    // gender walks through its ten roles in turn.
+    const gender = FIRST_NAME_GENDER[person.first];
+    const role = roleFor(seenOfGender[gender]++, gender);
     const node = element(
       person.id,
       "person",
@@ -173,22 +227,7 @@ export function describeLarge(api, world) {
 
   // Relationships, moments and presence, chosen with a fixed step so the lists stay stable.
   const actors = [...PEOPLE.map((person) => person.id), ...ORGANISATIONS, ...THINGS];
-  figures.edges.push(
-    ...Array.from({ length: EDGE_COUNT }, (_, index) => {
-      const from = actors[index % actors.length];
-      const toPool = index % 5 === 4 ? PLACES : actors;
-      let to = toPool[(index * 7 + 3) % toPool.length];
-      if (to === from) to = toPool[(index * 7 + 4) % toPool.length];
-      return {
-        id: `l-e-${pad(index + 1, 3)}`,
-        from,
-        to,
-        label: t(`large.rel.${pad((index % 15) + 1, 2)}`),
-        directed: index % 3 !== 0,
-        lineStyle: index % 4 === 0 ? "dashed" : "solid",
-      };
-    }),
-  );
+  figures.edges.push(...RELATIONSHIPS.map((edge) => ({ ...edge, label: t(edge.label) })));
   const start = figures.timeline.length;
   figures.timeline.push(
     ...Array.from({ length: MOMENT_COUNT }, (_, index) => ({
@@ -196,7 +235,9 @@ export function describeLarge(api, world) {
       title: t(`large.moment.${pad((index % 20) + 1, 2)}`),
       note: t("large.momentNote"),
       time: 2000 + index * 2,
-      position: start + index,
+      // Frozen relative to the part, so a moment added to an earlier part changes nothing
+      // here (F-339-11).
+      position: probe ? `⟦position l-t +${index}⟧` : start + index,
       precision: "day",
     })),
   );
@@ -215,15 +256,17 @@ export function describeLarge(api, world) {
     id: `item-${FOLDER}`,
     kind: "folder",
     folderId: FOLDER,
-    position: manuscript.structure.items.filter((item) => item.kind === "folder").length,
+    position: probe
+      ? "⟦position l-novel +0⟧"
+      : manuscript.structure.items.filter((item) => item.kind === "folder").length,
   });
   for (const [position, chapter] of CHAPTERS.entries()) {
     const plan = PLAN[position];
     // Rendering asks for every key the plan draws, so each counts as used, also in probe mode.
     const text = renderChapter(plan.tokens, t, peopleNames, placeNames);
-    const body = probe
-      ? `⟦large-body ${BOOK.segment} ${planDigest(plan.tokens)} ${plan.words}⟧`
-      : text;
+    // The lock freezes the plan, the German length and the text of both languages, so a
+    // changed renderer shows as a changed chapter (F-339-12).
+    const body = probe ? probeBody(plan) : text;
     manuscript.chapters.push({
       id: chapter.id,
       title: t(`large.ch.${pad(chapter.number, 2)}`),
@@ -298,6 +341,11 @@ export function describeLarge(api, world) {
 
   return world;
 }
+
+/** The gender of each person's first name, by id: f or m. */
+export const PERSON_GENDER = Object.fromEntries(
+  PEOPLE.map((person) => [person.id, FIRST_NAME_GENDER[person.first]]),
+);
 
 /** The entries of the large part that the catalog and the typed ids name one by one. */
 export const NAMED = new Set([
