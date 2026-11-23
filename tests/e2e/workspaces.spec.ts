@@ -72,11 +72,11 @@ async function expectOverlayInsideViewport(overlay: Locator, page: Page, label: 
         const settledViewport = page.viewportSize();
         return Boolean(
           settledBox &&
-          settledViewport &&
-          settledBox.x >= 0 &&
-          settledBox.y >= 0 &&
-          settledBox.x + settledBox.width <= settledViewport.width + 1 &&
-          settledBox.y + settledBox.height <= settledViewport.height + 1,
+            settledViewport &&
+            settledBox.x >= 0 &&
+            settledBox.y >= 0 &&
+            settledBox.x + settledBox.width <= settledViewport.width + 1 &&
+            settledBox.y + settledBox.height <= settledViewport.height + 1,
         );
       },
       { message: `${label} is fully inside the viewport after the opening animation` },

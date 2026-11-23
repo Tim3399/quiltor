@@ -36,5 +36,5 @@ export function useDockedStripOffset(
     const observer = new ResizeObserver(() => apply(element.offsetHeight));
     observer.observe(element);
     return () => observer.disconnect();
-  }, [open, shiftRef, stripRef]);
+  }, [open, stripRef]);
 }
