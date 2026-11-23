@@ -519,6 +519,13 @@ class ProfileTests(unittest.TestCase):
     def base(self, branch, bases=BASES):
         return path_filter.select_base(bases, "HEAD", branch, cwd=self.repo)
 
+    def found_base(self, branch):
+        """The base the test expects to exist, narrowed for the type checker."""
+        found = self.base(branch)
+        self.assertIsNotNone(found)
+        assert found is not None
+        return found
+
     def decide(self, branch, expect_base="", configuration=None):
         if expect_base == "":
             found = self.base(branch)
@@ -533,7 +540,7 @@ class ProfileTests(unittest.TestCase):
         self.publish("int/v3.27.0")
         self.git("switch", "-q", "-c", "dev/T-1")
         self.commit("docs/task.md", "task")
-        base = self.base("dev/T-1")
+        base = self.found_base("dev/T-1")
         self.assertEqual((base.branch, base.commit, base.distance), ("int/v3.27.0", line_start, 1))
 
     def test_a_task_branching_mid_line_is_measured_from_its_fork_point_not_from_version(self):
@@ -548,7 +555,7 @@ class ProfileTests(unittest.TestCase):
         self.publish("int/v3.27.0")
         self.git("switch", "-q", "dev/T-2")
         self.assertEqual((self.repo / "VERSION").read_text(encoding="utf-8"), "3.26.0\n")
-        base = self.base("dev/T-2")
+        base = self.found_base("dev/T-2")
         self.assertEqual((base.branch, base.commit, base.distance), ("int/v3.27.0", fork, 1))
 
     def test_a_task_line_and_the_own_branch_are_never_candidates(self):
@@ -558,7 +565,7 @@ class ProfileTests(unittest.TestCase):
         self.git("switch", "-q", "-c", "int/v3.27.0")
         self.commit("docs/own.md", "own")
         self.publish("int/v3.27.0")
-        base = self.base("int/v3.27.0")
+        base = self.found_base("int/v3.27.0")
         self.assertEqual(base.branch, "agent-team-einrichtung")
         self.assertNotEqual(base.commit, sibling)
         self.assertEqual(base.distance, 2)
@@ -569,7 +576,7 @@ class ProfileTests(unittest.TestCase):
         self.commit("docs/a.md", "a")
         self.publish("int/v3.27.0")
         self.commit("src/quiltor/hosts/desktop/window.py", "native")
-        base = self.base("int/v3.27.0")
+        base = self.found_base("int/v3.27.0")
         self.assertEqual((base.branch, base.distance), ("agent-team-einrichtung", 2))
 
     def test_a_candidate_that_contains_the_head_is_skipped(self):
@@ -577,7 +584,7 @@ class ProfileTests(unittest.TestCase):
         self.commit("docs/x.md", "x")
         self.publish("agent-team-einrichtung")  # already merged: its fork point is the head
         self.publish("release/3.26.x", "HEAD~1")
-        base = self.base("dev/T-3")
+        base = self.found_base("dev/T-3")
         self.assertEqual((base.branch, base.distance), ("release/3.26.x", 1))
 
     def test_no_candidate_is_no_base_and_a_full_run(self):
@@ -711,6 +718,8 @@ class ProfileTests(unittest.TestCase):
     def test_the_repository_declares_the_profile_rules(self):
         configuration = path_filter.load_config()
         self.assertEqual(list(configuration.integration_bases), BASES)
+        self.assertIsNotNone(configuration.native)
+        assert configuration.native is not None
         self.assertEqual(
             (list(configuration.native.patterns), list(configuration.native.exclude)),
             (NATIVE["patterns"], NATIVE["exclude"]),
