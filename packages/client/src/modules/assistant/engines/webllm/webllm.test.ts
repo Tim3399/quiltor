@@ -168,6 +168,62 @@ describe("webllm executor", () => {
     finish({ choices: [{ message: { content: "{}" } }] });
     await expect(pending).rejects.toThrow();
   });
+
+  // T-349: web-llm disposes its grammar matcher when a second generation starts on the same
+  // engine ("Cannot pass deleted object as a pointer of type GrammarMatcher"). The fake engine
+  // fails the same way whenever two generations overlap.
+  function engineFailingOnOverlap() {
+    let running = 0;
+    const finishers: ((value: WebllmCompletion) => void)[] = [];
+    const engine = engineAnswering(async () => {
+      running += 1;
+      try {
+        if (running > 1) {
+          throw named(
+            "BindingError",
+            "Cannot pass deleted object as a pointer of type GrammarMatcher",
+          );
+        }
+        return await new Promise<WebllmCompletion>((resolve) => finishers.push(resolve));
+      } finally {
+        running -= 1;
+      }
+    });
+    const answer = (content: string) =>
+      finishers.shift()?.({ choices: [{ message: { content } }] });
+    return { engine, answer };
+  }
+
+  it("runs one generation at a time on an engine", async () => {
+    const { engine, answer } = engineFailingOnOverlap();
+    const executor = executorFor(engine);
+    const first = executor.execute(PAYLOAD, new AbortController().signal);
+    const second = executor.execute(PAYLOAD, new AbortController().signal);
+    await vi.waitFor(() => expect(engine.chat.completions.create).toHaveBeenCalledTimes(1));
+    answer('{"n":1}');
+    await expect(first).resolves.toMatchObject({ content: '{"n":1}' });
+    await vi.waitFor(() => expect(engine.chat.completions.create).toHaveBeenCalledTimes(2));
+    answer('{"n":2}');
+    await expect(second).resolves.toMatchObject({ content: '{"n":2}' });
+  });
+
+  it("starts the next generation only after an aborted one has returned", async () => {
+    const { engine, answer } = engineFailingOnOverlap();
+    const executor = executorFor(engine);
+    const controller = new AbortController();
+    const aborted = executor.execute(PAYLOAD, controller.signal);
+    await vi.waitFor(() => expect(engine.chat.completions.create).toHaveBeenCalledTimes(1));
+    controller.abort();
+    const next = executor.execute(PAYLOAD, new AbortController().signal);
+    // The interrupted generation has not returned yet: the next one must not start.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(engine.chat.completions.create).toHaveBeenCalledTimes(1);
+    answer("{}");
+    await expect(aborted).rejects.toThrow();
+    await vi.waitFor(() => expect(engine.chat.completions.create).toHaveBeenCalledTimes(2));
+    answer('{"ok":true}');
+    await expect(next).resolves.toMatchObject({ content: '{"ok":true}' });
+  });
 });
 
 describe("webllm model store", () => {

@@ -32,6 +32,9 @@ export function webllmRequest(payload: ServerPayload, grammar: boolean): WebllmC
   return request;
 }
 
+/** Per engine, the generation the next one waits for (T-349). */
+const turns = new WeakMap<object, Promise<void>>();
+
 /** The relay's error for what WebLLM threw. */
 function webllmFailure(error: unknown): ClientEngineResult {
   const name = error instanceof Error ? error.name : "";
@@ -60,36 +63,62 @@ export function createWebllmExecutor(
         return webllmFailure(error);
       }
       if (!engine) return { error: { code: "engine_unavailable", detail: "model not loaded" } };
-      signal.throwIfAborted();
-      const stop = () => engine.interruptGenerate();
-      signal.addEventListener("abort", stop, { once: true });
+      // One generation at a time on an engine (T-349): web-llm disposes its grammar matcher
+      // when a second one starts, and the first then fails with "Cannot pass deleted object
+      // as a pointer of type GrammarMatcher". An aborted generation frees the engine only once
+      // it has returned, not when the abort was asked for.
+      const previous = turns.get(engine) ?? Promise.resolve();
+      let release: () => void = () => {};
+      const mine = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      turns.set(
+        engine,
+        previous.then(() => mine),
+      );
+      await previous;
       try {
-        const reply = await engine.chat.completions.create(webllmRequest(payload, grammar));
-        signal.throwIfAborted();
-        const choice = reply.choices?.[0];
-        const content = choice?.message?.content;
-        if (typeof content !== "string") {
-          return { error: { code: "engine_unavailable", detail: "no content" } };
-        }
-        const usage = reply.usage;
-        return {
-          content: content.replace(THINK_BLOCK, ""),
-          finishReason: choice?.finish_reason === "length" ? "length" : "stop",
-          ...(usage
-            ? {
-                usage: {
-                  promptTokens: usage.prompt_tokens,
-                  completionTokens: usage.completion_tokens,
-                },
-              }
-            : {}),
-        };
-      } catch (error) {
-        if (signal.aborted) throw signal.reason ?? error;
-        return webllmFailure(error);
+        return await generate(engine, payload, signal);
       } finally {
-        signal.removeEventListener("abort", stop);
+        release();
       }
     },
   };
+
+  async function generate(
+    engine: NonNullable<Awaited<ReturnType<ModelStore["engine"]>>>,
+    payload: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<ClientEngineResult> {
+    signal.throwIfAborted();
+    const stop = () => engine.interruptGenerate();
+    signal.addEventListener("abort", stop, { once: true });
+    try {
+      const reply = await engine.chat.completions.create(webllmRequest(payload, grammar));
+      signal.throwIfAborted();
+      const choice = reply.choices?.[0];
+      const content = choice?.message?.content;
+      if (typeof content !== "string") {
+        return { error: { code: "engine_unavailable", detail: "no content" } };
+      }
+      const usage = reply.usage;
+      return {
+        content: content.replace(THINK_BLOCK, ""),
+        finishReason: choice?.finish_reason === "length" ? "length" : "stop",
+        ...(usage
+          ? {
+              usage: {
+                promptTokens: usage.prompt_tokens,
+                completionTokens: usage.completion_tokens,
+              },
+            }
+          : {}),
+      };
+    } catch (error) {
+      if (signal.aborted) throw signal.reason ?? error;
+      return webllmFailure(error);
+    } finally {
+      signal.removeEventListener("abort", stop);
+    }
+  }
 }
