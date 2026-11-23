@@ -183,6 +183,10 @@ class RelayDeliveryTests(RelayTestCase):
         self.engine.start_part()
         self.clock.advance(19 * 60)
         call = Call(self.engine)
+        # Still waiting for its answer: the part opened its own time. (Checked before picking
+        # the ticket up: the fake clock stands, so a ticket that never comes would wait forever.)
+        call.thread.join(0.5)
+        self.assertTrue(call.thread.is_alive(), call.error)
         ticket = present(self.pick_up())
         self.answer(ticket.token, _output("{}"))
         call.join()

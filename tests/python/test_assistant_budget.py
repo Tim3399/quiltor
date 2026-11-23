@@ -725,10 +725,15 @@ class ExtractionPartsTests(CompletionBudgetTests):
         manuscript, chapter_id, _ = marked_chapter(2000)
         runtime, inference = self.relay(0.9)
         opened: list[int] = []
-        inference.start_part = lambda: opened.append(len(inference.calls))
-        runtime.complete(
-            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
-        )
+        with mock.patch.object(
+            inference,
+            "start_part",
+            create=True,
+            side_effect=lambda: opened.append(len(inference.calls)),
+        ):
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
         self.assertEqual(opened, list(range(len(inference.calls))))
 
     def test_a_cancelled_job_starts_no_further_part(self):
