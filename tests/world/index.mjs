@@ -12,27 +12,31 @@ import { fileURLToPath } from "node:url";
 import { describeWorld } from "./parts/base.mjs";
 import { describeEdge } from "./parts/edge.mjs";
 import { describeGold } from "./parts/gold.mjs";
+import { describeLarge } from "./parts/large.mjs";
 import { texts as baseDe } from "./texts/base.de.mjs";
 import { texts as baseEn } from "./texts/base.en.mjs";
 import { texts as edgeDe } from "./texts/edge.de.mjs";
 import { texts as edgeEn } from "./texts/edge.en.mjs";
 import { texts as goldDe } from "./texts/gold.de.mjs";
 import { texts as goldEn } from "./texts/gold.en.mjs";
+import { texts as largeDe } from "./texts/large.de.mjs";
+import { texts as largeEn } from "./texts/large.en.mjs";
 
 export const LANGUAGES = ["de", "en"];
 
 /** The parts of the world in build order; `base` is always built first. */
-export const PARTS = ["base", "edge", "gold"];
+export const PARTS = ["base", "edge", "gold", "large"];
 
 /** The dictionary of every part, per language. */
 export const PART_DICTIONARIES = {
   base: { de: baseDe, en: baseEn },
   edge: { de: edgeDe, en: edgeEn },
   gold: { de: goldDe, en: goldEn },
+  large: { de: largeDe, en: largeEn },
 };
 
 /** What each part appends to the world built so far. */
-const DESCRIBE = { edge: describeEdge, gold: describeGold };
+const DESCRIBE = { edge: describeEdge, gold: describeGold, large: describeLarge };
 
 /** Every text of a language, all parts together. A key that two parts share is an error. */
 function dictionary(lang, parts) {
@@ -100,6 +104,7 @@ export function buildExampleWorld(
 
   const api = {
     lang,
+    probe,
     t,
     reference: (text, id, target, surfaceKey) => ({
       id,

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
@@ -18,6 +19,11 @@ import {
 } from "./index.mjs";
 import { LOCK_FILE, lockBytes, lockDifferences, renderLock } from "./lock.mjs";
 import { measurementWorlds, TIME_CHECK_ELEMENTS, TIME_CHECK_MOMENTS } from "./parts/gold.mjs";
+import { BOOK, CHAPTERS as LARGE_CHAPTERS } from "./parts/large.mjs";
+import { exportWorld } from "./export.mjs";
+import { misplacedPlaceholders, planBook, wordCount } from "./large/generate.mjs";
+import { SEGMENT_S1 as LARGE_S1_DE } from "./texts/large.de.mjs";
+import { SEGMENT_S1 as LARGE_S1_EN } from "./texts/large.en.mjs";
 import { renderShipFiles, SHIP_DIRECTORY, SHIP_FORMAT } from "./ship.mjs";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -392,7 +398,7 @@ test("the check part only appends: the base world is a prefix of every list", ()
 });
 
 /** The id prefix of every part after the base world. */
-const PART_PREFIX = { edge: "x-", gold: "g-" };
+const PART_PREFIX = { edge: "x-", gold: "g-", large: "l-" };
 
 test("every id of a later part starts with its prefix, and no base id does", () => {
   const baseIds = new Set(worldIds(buildExampleWorld("de")));
@@ -717,4 +723,112 @@ test("the gold set agrees with itself: its own entries as proposals score F1 = 1
       }
     }
   }
+});
+
+// The large part (T-339): a world of realistic size, generated from a closed sentence bank.
+
+const SCENE = "\n\n***\n\n";
+const largeChapters = (world) =>
+  world.manuscript.chapters.filter((chapter) => chapter.id.startsWith("l-"));
+
+test("the large part generates the same chapters on every run", () => {
+  // Two separate processes: the plan is made once per process, so only a second process
+  // shows whether it depends on anything but the seeds and the bank.
+  const exportScript = join(repositoryRoot, "tests/world/export.mjs");
+  for (const lang of LANGUAGES) {
+    const [first, second] = [1, 2].map(() => {
+      const run = spawnSync(
+        process.execPath,
+        [exportScript, "--include", "base,large", "--lang", lang],
+        { encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
+      );
+      assert.equal(run.status, 0, String(run.stderr));
+      return createHash("sha256").update(run.stdout).digest("hex");
+    });
+    assert.equal(first, second, `${lang}: two runs differ`);
+    assert.equal(
+      first,
+      createHash("sha256")
+        .update(exportWorld({ include: ["base", "large"], lang }))
+        .digest("hex"),
+      `${lang}: the export differs from the world this process builds`,
+    );
+  }
+});
+
+test("the generator uses every sentence of its segment, whatever the seed", () => {
+  // About twice as many draws as the bank has sentences: free draws alone would leave one in
+  // seven out.
+  const bank = LARGE_S1_DE.map((de, index) => ({ key: `s${index}`, de }));
+  for (const seed of [1, 2, 3]) {
+    const [plan] = planBook({
+      seed,
+      bank,
+      people: ["Anke Ahlers"],
+      places: ["Sellin"],
+      chapters: [{ id: "probe", seed, words: 2 * wordCount(LARGE_S1_DE.join(" ")) }],
+    });
+    const used = new Set(plan.tokens.filter((token) => token.key).map((token) => token.key));
+    assert.equal(used.size, bank.length, `seed ${seed}: ${bank.length - used.size} unused`);
+  }
+});
+
+test("the large part has the lengths its budget and import tests rely on", () => {
+  const chapters = largeChapters(buildExampleWorld("de", { include: ["large"] }));
+  assert.equal(chapters.length, 28);
+  const words = Object.fromEntries(
+    chapters.map((chapter) => [chapter.id, wordCount(chapter.body)]),
+  );
+  for (const { id, words: target } of LARGE_CHAPTERS) {
+    // A chapter ends with the first sentence that reaches its target.
+    assert.ok(words[id] >= target && words[id] < target + 40, `${id}: ${words[id]} words`);
+  }
+  assert.ok(words["l-ch-typical"] >= 2000 && words["l-ch-typical"] <= 3000);
+  assert.ok(words["l-ch-long"] >= 8000 && words["l-ch-long"] <= 10000);
+  const total = Object.values(words).reduce((sum, count) => sum + count, 0);
+  assert.ok(total >= 80000 && total < 81000, `the novel has ${total} words`);
+  for (const chapter of chapters) {
+    assert.ok(chapter.body.includes(SCENE), `${chapter.id} has no scene break`);
+  }
+});
+
+test("the large part's probe body is its German length, in both languages", () => {
+  for (const lang of LANGUAGES) {
+    const probe = largeChapters(buildExampleWorld(lang, { include: ["large"], probe: true }));
+    const german = largeChapters(buildExampleWorld("de", { include: ["large"] }));
+    for (const [index, chapter] of probe.entries()) {
+      const match = /^⟦large-body (s\d+) ([0-9a-f]{16}) (\d+)⟧$/.exec(chapter.body);
+      assert.ok(match, `${lang} ${chapter.id}: ${chapter.body.slice(0, 40)}`);
+      assert.equal(match[1], BOOK.segment);
+      assert.equal(Number(match[3]), wordCount(german[index].body), chapter.id);
+    }
+  }
+});
+
+test("every large-part document lies far above the size proxies compress at", () => {
+  const world = buildExampleWorld("de", { include: ["large"] });
+  for (const name of ["manuscript", "figures", "storyboards"]) {
+    const bytes = Buffer.byteLength(JSON.stringify(world[name]));
+    assert.ok(bytes > 50_000, `${name}: ${bytes} bytes`);
+  }
+});
+
+test("the sentence bank's two languages match and its placeholders stand where German allows", () => {
+  assert.equal(LARGE_S1_EN.length, LARGE_S1_DE.length);
+  const holes = (text) => (text.match(/\{(figur|ort)\}/g) ?? []).join(",");
+  for (const [index, sentence] of LARGE_S1_DE.entries()) {
+    assert.equal(holes(LARGE_S1_EN[index]), holes(sentence), `s1.${index + 1}`);
+  }
+  assert.deepEqual(misplacedPlaceholders(LARGE_S1_DE), []);
+  assert.deepEqual(
+    misplacedPlaceholders(["Man sah {figur} am Kai.", "Das Haus von {figur} brannte."]),
+    ["Man sah {figur} am Kai.", "Das Haus von {figur} brannte."],
+  );
+});
+
+test("the large part exports its novel as Markdown and text", () => {
+  const markdown = exportWorld({ include: ["base", "large"], format: "md", folder: "l-novel" });
+  const text = exportWorld({ include: ["base", "large"], format: "txt", folder: "l-novel" });
+  assert.equal((markdown.match(/^# /gm) ?? []).length, 28);
+  assert.ok(wordCount(text) > 80000);
 });
