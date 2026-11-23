@@ -7,6 +7,7 @@ many for the second, and the cases that matter show in the second.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import unittest
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve
+from quiltor.domain.story_world.knowledge import build_knowledge, chapter_parts, retrieve
 from quiltor.infrastructure.inference.relay.engine import RelayInferenceEngine
 from quiltor.infrastructure.inference.relay.tickets import RelayTicketStore
 from quiltor.infrastructure.inference.token_cache import BoundedTokenCountCache
@@ -32,7 +33,17 @@ from quiltor.modules.assistant.contract import (
     structured_world_state,
     task_contract,
 )
-from quiltor.modules.assistant.ports import InferenceValidationError
+from quiltor.modules.assistant.jobs import classify_assistant_error
+from quiltor.modules.assistant.ports import (
+    ChapterTooLongError,
+    ExtractionIncompleteError,
+    ExtractionPartFailedError,
+    InferenceDeadlineError,
+    InferenceTimeoutError,
+    InferenceUnavailableError,
+    InferenceValidationError,
+    WorldTooLargeError,
+)
 
 EXAMPLE = json.loads(
     (Path(__file__).resolve().parents[2] / "src/quiltor/resources/example_world/de.json").read_text(
@@ -461,6 +472,453 @@ class CompletionWiringTests(CompletionBudgetTests):
         content = inference.calls[0]["messages"][-1]["content"]
         for node in world["nodes"]:
             self.assertIn(node["name"], content)
+
+
+def marked_chapter(words: int) -> tuple[dict[str, Any], str, list[str]]:
+    """The example manuscript with its first chapter replaced by ``words`` words of its own prose,
+    a unique marker every 25 words and a paragraph break every 100: the markers prove which part
+    of the chapter reached the model."""
+    prose = " ".join(str(chapter.get("body") or "") for chapter in MANUSCRIPT["chapters"]).split()
+    markers: list[str] = []
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for index in range(words):
+        if index % 25 == 0:
+            markers.append(f"M{index:05d}")
+            current.append(markers[-1])
+        else:
+            current.append(prose[index % len(prose)])
+        if len(current) == 100:
+            paragraphs.append(" ".join(current))
+            current = []
+    if current:
+        paragraphs.append(" ".join(current))
+    manuscript = json.loads(json.dumps(MANUSCRIPT))
+    manuscript["chapters"][0]["body"] = "\n\n".join(paragraphs)
+    # Mentions point into the old text by offset; the new text has none of them.
+    manuscript["chapters"][0]["mentions"] = []
+    return manuscript, str(manuscript["chapters"][0]["id"]), markers
+
+
+class ExtractionPartsTests(CompletionBudgetTests):
+    """T-330: world extraction covers a whole chapter in parts, each fitting the browser's window,
+    and refuses only a world that cannot fit on its own. Counted with the relay's counter."""
+
+    def relay(self, calibration: float, replies: int = 60):
+        return self.runtime(*([REPLY] * replies), tokens_per_char=calibration * 1.1 / 3)
+
+    def prompt_tokens(self, inference: Any, call: dict[str, Any]) -> int:
+        return inference.count_tokens("".join(m["content"] for m in call["messages"]))
+
+    def assert_calls_fit(self, inference: Any) -> None:
+        for call in inference.calls:
+            self.assertLessEqual(
+                self.prompt_tokens(inference, call) + call["max_tokens"],
+                RUNTIME_CONFIG.context_tokens - RUNTIME_CONFIG.template_reserve,
+            )
+
+    def test_a_long_chapter_reaches_the_model_in_full(self):
+        for words in (2000, 9000):
+            with self.subTest(words=words):
+                manuscript, chapter_id, markers = marked_chapter(words)
+                runtime, inference = self.relay(0.9)
+                result = runtime.complete(
+                    EXTRACTION,
+                    manuscript,
+                    FIGURES,
+                    chapter_ids=[chapter_id],
+                    mode="world_extraction",
+                )
+                sent = "\n".join(m["content"] for call in inference.calls for m in call["messages"])
+                missing = [marker for marker in markers if marker not in sent]
+                self.assertEqual(missing, [])
+                # The trace names every paragraph of the original chapter as carried.
+                carried = {
+                    paragraph
+                    for step in result["agentTrace"]
+                    if step.get("step") == "extraction_sent"
+                    for chunk in step["chunks"]
+                    for paragraph in chunk["paragraphs"]
+                }
+                paragraphs = chapter_parts(manuscript["chapters"][0]["body"])
+                self.assertEqual(
+                    carried, {f"chapter:{chapter_id}:{i}" for i in range(len(paragraphs))}
+                )
+                self.assertGreater(len(inference.calls), 1)
+                self.assert_calls_fit(inference)
+                self.assertEqual(result["mode"], "world_extraction")
+
+    def test_a_chapter_that_fits_stays_one_call(self):
+        runtime, inference = self.relay(0.9)
+        runtime.complete(
+            EXTRACTION, MANUSCRIPT, FIGURES, chapter_ids=["c-arrival"], mode="world_extraction"
+        )
+        self.assertEqual(len(inference.calls), 1)
+
+    def test_a_large_world_gets_a_smaller_share_of_the_chapter_instead_of_a_refusal(self):
+        cases = [
+            ("150 elements, cal 0.9", generated_world(150), 0.9),
+            ("example world, cal 1.3", FIGURES, 1.3),
+        ]
+        for label, world, calibration in cases:
+            with self.subTest(label):
+                # A 2,000-word chapter: with it the example world was refused at 1.3.
+                manuscript, chapter_id, markers = marked_chapter(2000)
+                runtime, inference = self.relay(calibration)
+                runtime.complete(
+                    EXTRACTION,
+                    manuscript,
+                    world,
+                    chapter_ids=[chapter_id],
+                    mode="world_extraction",
+                )
+                self.assertGreaterEqual(len(inference.calls), 1)
+                self.assert_calls_fit(inference)
+                sent = "\n".join(m["content"] for call in inference.calls for m in call["messages"])
+                for node in world["nodes"]:
+                    self.assertIn(node["name"], sent)
+                # The chapter is covered here too (review r1, note on section 5).
+                self.assertEqual([m for m in markers if m not in sent], [])
+
+    def test_a_world_too_large_on_its_own_is_refused_as_such(self):
+        runtime, inference = self.relay(0.9)
+        with self.assertRaises(WorldTooLargeError):
+            runtime.complete(
+                EXTRACTION,
+                MANUSCRIPT,
+                generated_world(1500),
+                chapter_ids=["c-arrival"],
+                mode="world_extraction",
+            )
+        self.assertEqual(inference.calls, [])
+
+    # -- Round 2 of the plan (F-330-1, F-330-3, F-330-4) ------------------------------------
+
+    def sent_text(self, inference: Any) -> str:
+        return "\n".join(m["content"] for call in inference.calls for m in call["messages"])
+
+    def test_a_world_near_the_limit_gets_every_marker_or_no_call(self):
+        # F-330-1: never a part of the chapter. Three counters, worlds up to past their limit.
+        manuscript, chapter_id, markers = marked_chapter(9000)
+        counters = {"llama-like": 0.25, "server": 1 / 3, "relay 0.9": 0.9 * 1.1 / 3}
+        for label, per_char in counters.items():
+            for size in range(100, 361, 20):
+                with self.subTest(counter=label, elements=size):
+                    runtime, inference = self.runtime(*[REPLY] * 30, tokens_per_char=per_char)
+                    try:
+                        runtime.complete(
+                            EXTRACTION,
+                            manuscript,
+                            generated_world(size),
+                            chapter_ids=[chapter_id],
+                            mode="world_extraction",
+                        )
+                    except (WorldTooLargeError, ChapterTooLongError):
+                        self.assertEqual(inference.calls, [])
+                        continue
+                    sent = self.sent_text(inference)
+                    self.assertEqual([m for m in markers if m not in sent], [])
+                    self.assert_calls_fit(inference)
+
+    def test_a_chapter_beyond_the_part_limit_is_refused_before_any_call(self):
+        from quiltor.modules.assistant import completion
+
+        manuscript, chapter_id, _ = marked_chapter(9000)
+        runtime, inference = self.relay(0.9)
+        with (
+            mock.patch.object(completion, "MAX_EXTRACTION_PARTS", 2),
+            self.assertRaises(ChapterTooLongError),
+        ):
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertEqual(inference.calls, [])
+
+    def test_a_call_that_carries_nothing_of_the_chapter_is_incomplete(self):
+        from quiltor.modules.assistant import completion
+
+        runtime, inference = self.relay(0.9)
+        with (
+            mock.patch.object(completion, "pack_chunks", return_value=[]),
+            self.assertRaises(ExtractionIncompleteError),
+        ):
+            runtime.complete(
+                EXTRACTION, MANUSCRIPT, FIGURES, chapter_ids=["c-arrival"], mode="world_extraction"
+            )
+        self.assertEqual(inference.calls, [])
+
+    def test_the_parts_follow_the_text(self):
+        manuscript, chapter_id, markers = marked_chapter(9000)
+        runtime, inference = self.relay(0.9)
+        runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        firsts = []
+        for call in inference.calls:
+            content = call["messages"][-1]["content"]
+            found = [index for index, marker in enumerate(markers) if marker in content]
+            firsts.append((min(found), max(found)))
+        for (_, last), (first, _) in itertools.pairwise(firsts):
+            self.assertLessEqual(first, last + 1)
+        self.assertEqual(firsts, sorted(firsts))
+
+    def test_a_timeout_in_a_later_part_is_tried_once_more(self):
+        manuscript, chapter_id, markers = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        invoke = inference.invoke
+        failures = {"left": 1}
+
+        def flaky(payload):
+            if len(inference.calls) == 1 and failures["left"]:
+                failures["left"] -= 1
+                raise InferenceTimeoutError(30)
+            return invoke(payload)
+
+        inference.invoke = flaky
+        runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
+
+    def test_a_later_part_that_fails_fails_the_run_and_names_the_part(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        invoke = inference.invoke
+
+        def broken(payload):
+            if len(inference.calls) >= 1:
+                raise InferenceTimeoutError(30)
+            return invoke(payload)
+
+        inference.invoke = broken
+        with self.assertRaises(ExtractionPartFailedError) as raised:
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertIn("part 2", str(raised.exception))
+        self.assertEqual(classify_assistant_error(raised.exception), "extraction_part_failed")
+
+    def test_a_part_out_of_time_ends_the_run_as_incomplete_without_a_retry(self):
+        # D-238: past the time of a part or of the job the chapter is not finished; that is
+        # extraction_incomplete, and a retry would only take the same time again.
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        invoke = inference.invoke
+        attempts = {"part 2": 0}
+
+        def late(payload):
+            if len(inference.calls) >= 1:
+                attempts["part 2"] += 1
+                raise InferenceDeadlineError(20 * 60.0)
+            return invoke(payload)
+
+        inference.invoke = late
+        with self.assertRaises(ExtractionIncompleteError) as raised:
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertIn("part 2", str(raised.exception))
+        self.assertEqual(attempts["part 2"], 1)
+        self.assertEqual(classify_assistant_error(raised.exception), "extraction_incomplete")
+
+    def test_every_part_opens_its_own_time(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        opened: list[int] = []
+        with mock.patch.object(
+            inference,
+            "start_part",
+            create=True,
+            side_effect=lambda: opened.append(len(inference.calls)),
+        ):
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertEqual(opened, list(range(len(inference.calls))))
+
+    def test_a_cancelled_job_starts_no_further_part(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        with self.assertRaises(InferenceUnavailableError) as raised:
+            runtime.complete(
+                EXTRACTION,
+                manuscript,
+                FIGURES,
+                chapter_ids=[chapter_id],
+                mode="world_extraction",
+                should_stop=lambda: len(inference.calls) >= 1,
+            )
+        self.assertEqual(str(raised.exception), "cancelled")
+        self.assertEqual(len(inference.calls), 1)
+
+    def test_the_product_route_with_batches_covers_the_chapter_and_reports_parts(self):
+        # routes/assistant.py sets run_batches for every extraction.
+        manuscript, chapter_id, markers = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        updates: list[tuple[str, dict[str, Any]]] = []
+        with mock.patch.object(
+            runtime.progress, "update", side_effect=lambda *args: updates.append((args[4], args[5]))
+        ):
+            result = runtime.complete(
+                EXTRACTION,
+                manuscript,
+                FIGURES,
+                chapter_ids=[chapter_id],
+                mode="world_extraction",
+                run_batches=True,
+                progress_id="p-1",
+            )
+        self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
+        # The product route keeps the coverage in the trace too.
+        sent = [step for step in result["agentTrace"] if step.get("step") == "extraction_sent"]
+        self.assertEqual(len(sent), len(inference.calls))
+        parts = [params for key, params in updates if key == "chapterGroupPartLabel"]
+        self.assertEqual(
+            [params["part"] for params in parts], list(range(2, len(inference.calls) + 1))
+        )
+
+    def test_the_metrics_sum_the_parts(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        result = runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        metrics = [step for step in result["agentTrace"] if step.get("step") == "metrics"]
+        total = metrics[-1]
+        self.assertEqual(total["parts"], len(inference.calls))
+        self.assertEqual(total["promptTokens"], sum(step["promptTokens"] for step in metrics[:-1]))
+        self.assertEqual(
+            len(total["runtimeCalls"]), sum(len(s["runtimeCalls"]) for s in metrics[:-1])
+        )
+
+    def test_evidence_of_a_later_part_points_at_the_original_paragraph(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        cited = {**REPLY, "citations": [f"chapter:{chapter_id}:0"]}
+        runtime, inference = self.runtime(*[cited] * 30, tokens_per_char=0.9 * 1.1 / 3)
+        result = runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        self.assertGreater(len(inference.calls), 1)
+        # Every part cites its own first paragraph; each must point somewhere else in the chapter.
+        self.assertEqual(len(result["citations"]), len(inference.calls))
+        self.assertEqual(len({item["id"] for item in result["sources"]}), len(inference.calls))
+
+    def test_the_same_element_relationship_and_moment_from_two_parts_are_proposed_once(self):
+        # Stage 2 runs through the resolver: a later part sees the earlier proposals folded into
+        # the world, so what exists already resolves to it. Real, clearly different names.
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        cite = [f"chapter:{chapter_id}:0"]
+        reply = {
+            "message": "ok",
+            "citations": cite,
+            "proposals": [
+                {
+                    "kind": "create_element",
+                    "tempId": "new:ilka",
+                    "element": {"type": "person", "name": "Ilka Brandt"},
+                },
+                {
+                    "kind": "create_element",
+                    "tempId": "new:speicher",
+                    "element": {"type": "ort", "name": "Kornspeicher am Nordkai"},
+                },
+                {
+                    "kind": "create_relationship",
+                    "relationship": {
+                        "from": "new:ilka",
+                        "to": "new:speicher",
+                        "label": "verwaltet",
+                        "directed": True,
+                        "lineStyle": "solid",
+                        "relationshipKind": "general",
+                        "color": "auto",
+                    },
+                },
+                {
+                    "kind": "create_timeline_moment",
+                    "tempId": "new:sturmnacht",
+                    "moment": {"title": "Die Sturmnacht am Nordkai"},
+                },
+            ],
+        }
+        runtime, inference = self.runtime(*[reply] * 30, tokens_per_char=0.9 * 1.1 / 3)
+        result = runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        self.assertGreater(len(inference.calls), 1)
+        kinds = [proposal["kind"] for proposal in result["proposals"]]
+        names = [
+            str((proposal.get("element") or {}).get("name"))
+            for proposal in result["proposals"]
+            if proposal["kind"] == "create_element"
+        ]
+        self.assertEqual(sorted(names), ["Ilka Brandt", "Kornspeicher am Nordkai"])
+        self.assertEqual(kinds.count("create_relationship"), 1)
+        self.assertEqual(kinds.count("create_timeline_moment"), 1)
+
+    def test_a_world_that_leaves_less_than_the_minimum_share_is_refused(self):
+        # Between RAG_FLOOR and MIN_MANUSCRIPT_SHARE: a chapter that must go in parts is refused
+        # at once, instead of being carried a few hundred tokens at a time (F-330-1).
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        with self.assertRaises(WorldTooLargeError):
+            runtime.complete(
+                EXTRACTION,
+                manuscript,
+                generated_world(190),
+                chapter_ids=[chapter_id],
+                mode="world_extraction",
+            )
+        self.assertEqual(inference.calls, [])
+
+    def test_the_part_limit_in_the_loop_is_an_error_when_the_estimate_falls_short(self):
+        # The estimate guards the limit before each call; should it ever fall short, the loop
+        # still stops with an error and never returns a part of the chapter as a result.
+        from quiltor.modules.assistant import completion
+
+        manuscript, chapter_id, _ = marked_chapter(9000)
+        runtime, inference = self.relay(0.9)
+        with (
+            mock.patch.object(completion, "MAX_EXTRACTION_PARTS", 2),
+            mock.patch.object(completion, "_parts_needed", return_value=1),
+            self.assertRaises(ExtractionIncompleteError),
+        ):
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertEqual(len(inference.calls), 2)
+
+    def test_a_cancelled_job_starts_no_further_batch_group(self):
+        # Two long chapters, one group each; the job is cancelled when the first group is done,
+        # so the check between groups is the one that stops it (not the one between parts).
+        manuscript, first, _ = marked_chapter(2000)
+        second = str(manuscript["chapters"][1]["id"])
+        manuscript["chapters"][1]["body"] = manuscript["chapters"][0]["body"]
+        runtime, inference = self.relay(0.9)
+        stopped = {"now": False}
+        done_calls: list[int] = []
+
+        def update(*args: Any) -> None:
+            if args[4] == "chapterGroupLabel":
+                stopped["now"] = True
+                done_calls.append(len(inference.calls))
+
+        with (
+            mock.patch.object(runtime.progress, "update", side_effect=update),
+            self.assertRaises(InferenceUnavailableError) as raised,
+        ):
+            runtime.complete(
+                EXTRACTION,
+                manuscript,
+                FIGURES,
+                chapter_ids=[first, second],
+                mode="world_extraction",
+                run_batches=True,
+                progress_id="p-1",
+                should_stop=lambda: stopped["now"],
+            )
+        self.assertEqual(str(raised.exception), "cancelled")
+        self.assertEqual(len(inference.calls), done_calls[0])
 
 
 class ScopeFloorTests(unittest.TestCase):

@@ -29,7 +29,18 @@ CLIENT_ERROR_CODES = frozenset(
 #: The codes a job on a client engine can fail with, as the job reports them (D-T-61-30):
 #: the browser's own codes, `client_unavailable` when no browser took the work and
 #: `client_error` for a code outside the list. The client words each one; none is shown raw.
-CLIENT_FAILURE_CODES = CLIENT_ERROR_CODES | {"client_unavailable", "client_error"}
+CLIENT_FAILURE_CODES = CLIENT_ERROR_CODES | {
+    "client_unavailable",
+    "client_error",
+    "world_too_large",
+}
+
+
+#: The codes an extraction fails with on any engine (T-330). Each has its own words in the
+#: client, so the job carries the code as an engine error whatever engine ran it.
+EXTRACTION_FAILURE_CODES = frozenset(
+    {"world_too_large", "chapter_too_long", "extraction_incomplete", "extraction_part_failed"}
+)
 
 
 class ClientEngineFailure(InferenceUnavailableError):

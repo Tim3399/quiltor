@@ -57,6 +57,11 @@ class InferenceTimeoutError(RuntimeError):
         )
 
 
+class InferenceDeadlineError(InferenceTimeoutError):
+    """A job, or one part of an extraction, ran out of its time (T-330, D-238): not one answer
+    that was late, but the time the whole work may take."""
+
+
 class InferenceUnavailableError(RuntimeError):
     pass
 
@@ -67,6 +72,28 @@ class InferenceValidationError(RuntimeError):
 
 class InferenceContextTooLargeError(RuntimeError):
     """The request cannot fit inside the runtime's context window."""
+
+
+class WorldTooLargeError(InferenceContextTooLargeError):
+    """The world state alone leaves no room for any of the manuscript (T-330).
+
+    Fewer chapters would not help: world extraction keeps every entry of the world."""
+
+
+class ChapterTooLongError(InferenceContextTooLargeError):
+    """A chosen chapter would take more parts than one extraction may make (T-330).
+
+    Splitting the chapter helps; the world is not the cause."""
+
+
+class ExtractionIncompleteError(InferenceContextTooLargeError):
+    """An extraction stopped with manuscript left over (T-330): nothing reached the model, no
+    progress, or the part limit. Nothing of it is returned as if it were complete."""
+
+
+class ExtractionPartFailedError(RuntimeError):
+    """A part after the first failed (T-330). The run fails as a whole; the earlier parts are
+    not kept, and a new attempt starts again with the first part."""
 
 
 @runtime_checkable

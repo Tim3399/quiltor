@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from typing import Any, Protocol
 
-from quiltor.domain.story_world.knowledge import build_knowledge, retrieve, scoped_chapters
+from quiltor.domain.story_world.knowledge import (
+    build_knowledge,
+    chapter_parts,
+    retrieve,
+    scoped_chapters,
+)
 from quiltor.modules.assistant.audit import audit_reply, validate_world
-from quiltor.modules.assistant.batch import broad_scope_reply, estimate_batch_seconds
+from quiltor.modules.assistant.batch import (
+    _merge_accumulated,
+    broad_scope_reply,
+    estimate_batch_seconds,
+)
 from quiltor.modules.assistant.budget import RAG_FLOOR, output_headroom, prompt_budget
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
 from quiltor.modules.assistant.context import pack_chunks
@@ -34,9 +44,16 @@ from quiltor.modules.assistant.planner import needs_planner
 from quiltor.modules.assistant.planning_context import build_storyboard_knowledge
 from quiltor.modules.assistant.ports import (
     AssistantReadToolExecutor,
+    ChapterTooLongError,
+    ExtractionIncompleteError,
+    ExtractionPartFailedError,
     InferenceContextTooLargeError,
+    InferenceDeadlineError,
     InferenceEngine,
+    InferenceTimeoutError,
+    InferenceUnavailableError,
     TokenCountCache,
+    WorldTooLargeError,
 )
 from quiltor.modules.assistant.prompts import (
     CONTEXT_SAFETY_MARGIN,
@@ -66,6 +83,12 @@ class CompletionRuntime(Protocol):
     token_cache: TokenCountCache
     debug_enabled: bool
     _invocation_metrics: list[dict[str, Any]]
+    # The chunks the last world-extraction call carried; None before one is built (T-330).
+    _extraction_context: list[Any] | None
+    # Set by the hull before each part: how many parts it may still make; None outside one.
+    _extraction_parts_left: int | None
+    # Set by an extraction call: the parts the remaining chapters still need, this one included.
+    _extraction_estimate: int | None
 
     def _invoke_with_growth(
         self, payload: dict[str, Any], prompt_tokens: int
@@ -90,6 +113,7 @@ class CompletionRuntime(Protocol):
         world_revision: int,
         chapter_ids: list[str] | None = None,
         mode: str = "chat",
+        should_stop: Callable[[], bool] | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -317,6 +341,184 @@ def relevant_ids(
     return scopes
 
 
+# The parts of one extraction (T-330): every part carries at least MIN_MANUSCRIPT_SHARE tokens of
+# the manuscript, and a chapter that would need more than MAX_EXTRACTION_PARTS parts is refused
+# before the first call. 9,000 words take 5 to 10 parts with the example world, about 20 at the
+# minimum share.
+MIN_MANUSCRIPT_SHARE = 1024
+MAX_EXTRACTION_PARTS = 24
+_CHAPTER_CHUNK = re.compile(r"^chapter:(?P<chapter>.+):(?P<index>\d+)$")
+
+
+def remaining_manuscript(
+    manuscript: dict[str, Any],
+    chapter_ids: list[str] | None,
+    sent: list[Any],
+    origin: dict[str, list[list[int]]],
+) -> tuple[dict[str, Any], bool, dict[str, list[list[int]]]]:
+    """The manuscript with what ``sent`` carried to the model taken out of the scoped chapters,
+    whether anything of them is left, and for every part left the paragraphs of the original
+    chapter it holds. A part cut short leaves its tail, from its last whole word on."""
+    covered: dict[str, str] = {chunk.id: chunk.text for chunk in sent}
+    scoped = {str(chapter.get("id")) for chapter in scoped_chapters(manuscript, chapter_ids)}
+    chapters: list[dict[str, Any]] = []
+    left = False
+    next_origin: dict[str, list[list[int]]] = {}
+    for chapter in manuscript.get("chapters") or []:
+        chapter_id = str(chapter.get("id"))
+        if chapter_id not in scoped:
+            chapters.append(chapter)
+            continue
+        pieces: list[str] = []
+        sources: list[list[int]] = []
+        known = origin.get(chapter_id, [])
+        for index, part in enumerate(chapter_parts(str(chapter.get("body") or ""))):
+            source = known[index] if index < len(known) else [index]
+            done = covered.get(f"chapter:{chapter_id}:{index}")
+            if done is None:
+                pieces.append(part)
+                sources.append(source)
+            elif len(done) < len(part):
+                # Resume at the last word boundary: a word cut in half is sent again whole.
+                cut = done.rfind(" ")
+                tail = part[max(cut, 0) :].strip()
+                if tail:
+                    pieces.append(tail)
+                    sources.append(source)
+        body = "\n\n".join(pieces)
+        rest = {**chapter, "body": body}
+        if f"chapter-note:{chapter_id}" in covered:
+            rest["note"] = ""
+        left = left or bool(pieces) or bool(str(rest.get("note") or "").strip())
+        chapters.append(rest)
+        next_origin[chapter_id] = _part_sources(body, pieces, sources)
+    return {**manuscript, "chapters": chapters}, left, next_origin
+
+
+def _part_sources(body: str, pieces: list[str], sources: list[list[int]]) -> list[list[int]]:
+    """For every part the joined pieces split into again, the original paragraphs it holds.
+    Splitting may merge several pieces into one part, so a part is mapped by where it lies."""
+    spans = []
+    position = 0
+    for piece in pieces:
+        spans.append((position, position + len(piece)))
+        position += len(piece) + 2
+    result: list[list[int]] = []
+    cursor = 0
+    for part in chapter_parts(body):
+        start = body.find(part, cursor)
+        start = cursor if start < 0 else start
+        end = start + len(part)
+        cursor = end
+        held = sorted(
+            {
+                paragraph
+                for (first, last), source in zip(spans, sources, strict=True)
+                if first < end and last > start
+                for paragraph in source
+            }
+        )
+        result.append(held or (sources[-1] if sources else [0]))
+    return result
+
+
+def _with_original_ids(value: Any, origin: dict[str, list[list[int]]]) -> Any:
+    """``value`` with every chunk id of a later part pointing at its paragraph in the original
+    chapter, so evidence from part k leads to the right place (T-330)."""
+    if isinstance(value, str):
+        match = _CHAPTER_CHUNK.match(value)
+        if match and match["chapter"] in origin:
+            sources = origin[match["chapter"]]
+            index = int(match["index"])
+            if index < len(sources):
+                return f"chapter:{match['chapter']}:{sources[index][0]}"
+        return value
+    if isinstance(value, list):
+        return [_with_original_ids(item, origin) for item in value]
+    if isinstance(value, dict):
+        return {key: _with_original_ids(item, origin) for key, item in value.items()}
+    return value
+
+
+_SUMMED_METRICS = (
+    "plannerCalls",
+    "answerCalls",
+    "repairCalls",
+    "toolRounds",
+    "toolCalls",
+    "toolResultTokens",
+    "promptTokens",
+    "usedContextTokens",
+    "durationMs",
+    "discardedProposals",
+    "discardedCitations",
+)
+
+
+def merge_extraction_parts(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """One extraction reply from the replies of its parts (T-330). Duplicates across parts are
+    settled by the resolver: every later part ran against the world with the earlier proposals
+    folded in, so what exists already resolves to it there."""
+    merged = dict(results[-1])
+    proposals = [item for result in results for item in result.get("proposals") or []]
+    merged["proposals"] = proposals
+    merged["proposalEnvelopes"] = [
+        item for result in results for item in result.get("proposalEnvelopes") or []
+    ]
+    sources: dict[str, Any] = {}
+    for result in results:
+        for item in result.get("sources") or []:
+            sources.setdefault(str(item.get("id")), item)
+    merged["sources"] = list(sources.values())
+    merged["citations"] = list(
+        dict.fromkeys(item for result in results for item in result.get("citations") or [])
+    )
+    merged["contextClassesUsed"] = list(
+        dict.fromkeys(item for result in results for item in result.get("contextClassesUsed") or [])
+    )
+    trace: list[dict[str, Any]] = []
+    metrics: list[dict[str, Any]] = []
+    for index, result in enumerate(results, start=1):
+        trace.append({"step": "extraction_part", "index": index, "total": len(results)})
+        for step in result.get("agentTrace") or []:
+            trace.append(step)
+            if isinstance(step, dict) and step.get("step") == "metrics":
+                metrics.append(step)
+    if metrics:
+        # The last metrics step is the one a reader takes: it sums the parts.
+        total: dict[str, Any] = {**metrics[-1], "parts": len(results)}
+        for key in _SUMMED_METRICS:
+            numbers = [step[key] for step in metrics if isinstance(step.get(key), int | float)]
+            if len(numbers) == len(metrics):
+                total[key] = sum(numbers)
+        total["runtimeCalls"] = [
+            call for step in metrics for call in step.get("runtimeCalls") or []
+        ]
+        trace.append(total)
+    merged["agentTrace"] = trace
+    merged.pop("proposalGroup", None)
+    if proposals:
+        merged["proposalGroup"] = {
+            "id": "task",
+            "title": next(
+                (item["proposalGroup"]["title"] for item in results if item.get("proposalGroup")),
+                "",
+            ),
+            "proposalIndexes": list(range(len(proposals))),
+        }
+        count = len(proposals)
+        merged["message"] = (
+            f"{count} zusammengehörige Änderung{'en' if count != 1 else ''} als prüfbarer "
+            "Vorschlag vorbereitet. Es wurde noch nichts angewendet."
+        )
+        set_deterministic_message(
+            merged,
+            "proposalsPreparedOne" if count == 1 else "proposalsPreparedMany",
+            params={"n": count},
+        )
+    return merged
+
+
 def complete_request(
     runtime: CompletionRuntime,
     question: str,
@@ -333,6 +535,155 @@ def complete_request(
     owner_sub: str = "",
     world_id: str = "",
     world_revision: int = 0,
+    should_stop: Callable[[], bool] | None = None,
+    on_part: Callable[[int, int], None] | None = None,
+) -> dict[str, Any]:
+    """Answer one request. World extraction covers its chosen chapters in full: what one call
+    could not carry goes to the model in further parts, each with the proposals so far folded
+    into the world, instead of being cut off (T-330). A part that fails fails the whole run;
+    nothing of the earlier parts is returned as if it were complete."""
+    parts = mode == WORLD_EXTRACTION_MODE and not run_batches and bool(chapter_ids)
+
+    def once(current: dict[str, Any], world: dict[str, Any], done: int) -> dict[str, Any]:
+        runtime._extraction_context = None
+        runtime._extraction_parts_left = MAX_EXTRACTION_PARTS - done if parts else None
+        return _complete_once(
+            runtime,
+            question,
+            current,
+            world,
+            history,
+            chapter_ids,
+            run_batches,
+            progress_id,
+            language,
+            mode,
+            storyboards=storyboards,
+            owner_sub=owner_sub,
+            world_id=world_id,
+            world_revision=world_revision,
+            should_stop=should_stop,
+        )
+
+    if not parts:
+        return once(manuscript, figures, 0)
+    origin = {
+        str(chapter.get("id")): [
+            [index] for index in range(len(chapter_parts(str(chapter.get("body") or ""))))
+        ]
+        for chapter in scoped_chapters(manuscript, chapter_ids)
+    }
+    results: list[dict[str, Any]] = []
+    current = manuscript
+    while True:
+        index = len(results) + 1
+        if index > 1 and should_stop is not None and should_stop():
+            raise InferenceUnavailableError("cancelled")
+        world = (
+            _merge_accumulated(
+                figures, [item for result in results for item in result.get("proposals") or []]
+            )
+            if results
+            else figures
+        )
+        done = len(results)
+        start_part = getattr(runtime.inference, "start_part", None)
+        if callable(start_part):
+            start_part()
+        result = _run_part(
+            lambda current=current, world=world, done=done: once(current, world, done), index
+        )
+        sent = runtime._extraction_context
+        result = _with_original_ids(result, origin)
+        if sent is not None:
+            # What of the chapters this part carried, as paragraphs of the original chapter:
+            # the trace shows the coverage without the prompt (T-330).
+            carried = []
+            for chunk in sent:
+                match = _CHAPTER_CHUNK.match(chunk.id)
+                if chunk.kind != "chapter" or not match:
+                    continue
+                held = origin.get(match["chapter"], [])
+                position = int(match["index"])
+                paragraphs = held[position] if position < len(held) else [position]
+                carried.append(
+                    {
+                        "paragraphs": [f"chapter:{match['chapter']}:{item}" for item in paragraphs],
+                        "chars": len(chunk.text),
+                    }
+                )
+            step = {"step": "extraction_sent", "part": index, "chunks": carried}
+            result = {**result, "agentTrace": [*(result.get("agentTrace") or []), step]}
+        results.append(result)
+        if sent is None:
+            # Answered before any prompt was built (a clarification, a refusal): one reply.
+            break
+        rest, left, next_origin = remaining_manuscript(current, chapter_ids, sent, origin)
+        if not left:
+            break
+        if rest == current:
+            raise ExtractionIncompleteError(
+                f"part {index}: nothing of the remaining manuscript reached the model."
+            )
+        if index >= MAX_EXTRACTION_PARTS:
+            raise ExtractionIncompleteError(
+                f"part {index} of at most {MAX_EXTRACTION_PARTS}: manuscript left over."
+            )
+        current, origin = rest, next_origin
+        if on_part is not None:
+            estimate = runtime._extraction_estimate or 0
+            on_part(index + 1, index + max(1, estimate - 1))
+    return results[0] if len(results) == 1 else merge_extraction_parts(results)
+
+
+def _parts_needed(needed: int, carried: int) -> int:
+    """How many parts the remaining chapters take when one part carries ``carried`` tokens."""
+    return math.ceil(needed / carried) if carried else 0
+
+
+def _run_part(call: Callable[[], dict[str, Any]], index: int) -> dict[str, Any]:
+    """One part, once more after a timeout. A failure after the first part says which part it
+    was, so the user learns that nothing was kept (T-330)."""
+    try:
+        try:
+            return call()
+        except InferenceDeadlineError:
+            raise
+        except InferenceTimeoutError:
+            return call()
+    except InferenceDeadlineError as exc:
+        # Each part has its time and the job has its time (D-238); past either, the chapter
+        # is not finished, and a retry would only take the same time again.
+        raise ExtractionIncompleteError(f"part {index}: {exc}") from exc
+    except (WorldTooLargeError, ChapterTooLongError, ExtractionIncompleteError):
+        raise
+    except InferenceUnavailableError as exc:
+        if index == 1 or str(exc) == "cancelled":
+            raise
+        raise ExtractionPartFailedError(f"part {index}: {type(exc).__name__}: {exc}") from exc
+    except Exception as exc:
+        if index == 1:
+            raise
+        raise ExtractionPartFailedError(f"part {index}: {type(exc).__name__}: {exc}") from exc
+
+
+def _complete_once(
+    runtime: CompletionRuntime,
+    question: str,
+    manuscript: dict[str, Any],
+    figures: dict[str, Any],
+    history: list[dict[str, Any]] | None = None,
+    chapter_ids: list[str] | None = None,
+    run_batches: bool = False,
+    progress_id: str | None = None,
+    language: str = DEFAULT_ASSISTANT_LANGUAGE,
+    mode: str = "chat",
+    *,
+    storyboards: dict[str, Any] | None = None,
+    owner_sub: str = "",
+    world_id: str = "",
+    world_revision: int = 0,
+    should_stop: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     started_at = time.monotonic()
     runtime._invocation_metrics = []
@@ -385,12 +736,15 @@ def complete_request(
         and chunk.kind in {"chapter", "chapter-note"}
         and chunk.target.get("id") in set(chapter_ids)
     ]
-    if forced:
+    if forced and mode != WORLD_EXTRACTION_MODE:
         forced_by_id = {chunk.id: chunk for chunk in forced}
         ranked_ids = [chunk.id for chunk in context if chunk.id in forced_by_id]
         forced = [forced_by_id[item] for item in ranked_ids] + [
             chunk for chunk in forced if chunk.id not in set(ranked_ids)
         ]
+    # Extraction keeps the text order (T-330): each part is one stretch of the chapter, and a
+    # later part lies later in the text.
+    if forced:
         forced = fit_to_budget(
             forced,
             runtime.url,
@@ -513,6 +867,7 @@ def complete_request(
             world_revision,
             chapter_ids=chapter_ids,
             mode=mode,
+            **({"should_stop": should_stop} if should_stop is not None else {}),
         )
     planner_uses_context = (
         not extraction_mode and not contract["requiredKinds"] and needs_planner(question)
@@ -636,8 +991,24 @@ def complete_request(
             keep_all_entries=True,
         )
         if world is None:
-            raise too_large()
-        if len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
+            # T-330: the world keeps every entry, so the manuscript gives way. What does not fit
+            # here goes to the model in a later part (complete_request); only a world that
+            # leaves the manuscript less than MIN_MANUSCRIPT_SHARE is refused, and fewer
+            # chapters would not help it.
+            world = fit_world_state(
+                figures,
+                contract,
+                target=budget.free - MIN_MANUSCRIPT_SHARE,
+                count=count,
+                relevant=relevant,
+                keep_all_entries=True,
+            )
+            if world is None:
+                raise WorldTooLargeError(
+                    "The world state alone leaves the model no room for the manuscript."
+                )
+            context = pack(budget.free - world.tokens, True)
+        elif len(context) < len(context_candidates) and budget.free - used - world.tokens > 0:
             context = pack(budget.free - world.tokens, False)
     else:
         floor = RAG_FLOOR if context_candidates else 0
@@ -689,6 +1060,29 @@ def complete_request(
         )
     if headroom < RUNTIME_CONFIG.minimum_output_tokens:
         raise too_large()
+    if extraction_mode:
+        # What of the manuscript this call carries; complete_request sends the rest (T-330).
+        runtime._extraction_context = list(context)
+        parts_left = getattr(runtime, "_extraction_parts_left", None)
+        if parts_left is not None:
+            manuscript_kinds = {"chapter", "chapter-note"}
+            carrying = [chunk for chunk in context if chunk.kind in manuscript_kinds]
+            carried = count(serialized(carrying)) if carrying else 0
+            # Counted as the prompt carries them: each chunk as its JSON (F-330 r2).
+            needed = sum(
+                count(json.dumps(chunk.public(), ensure_ascii=False) + ", ")
+                for chunk in chunks
+                if chunk.kind in manuscript_kinds
+                and chunk.target.get("id") in set(chapter_ids or [])
+            )
+            if needed and not carried:
+                raise ExtractionIncompleteError("No part of the chapter fits into this call.")
+            estimate = _parts_needed(needed, carried)
+            runtime._extraction_estimate = estimate
+            if estimate > parts_left:
+                raise ChapterTooLongError(
+                    f"The chapter needs about {estimate} parts; at most {parts_left} are left."
+                )
     max_tokens = min(budget.answer, headroom)
     payload = {
         "model": "local",

@@ -164,6 +164,7 @@ export const assistant = {
   batchSummary:
     "Processed {chapters} chapters in {groups} groups, preparing {proposals} proposals. Each proposal can be reviewed and applied individually.",
   chapterGroupLabel: "Chapter {index}/{total}: {titles}",
+  chapterGroupPartLabel: "Chapter {index}/{total}: {titles}, part {part} of {parts}",
   extractionEmpty: "No new reviewable world state was found in the selected chapters.",
   errorAssistantPremiumRequired:
     "The AI assistant on this server is only available with premium access.",

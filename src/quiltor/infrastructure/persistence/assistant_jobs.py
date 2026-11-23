@@ -33,7 +33,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from quiltor.modules.assistant.engines import CLIENT_FAILURE_CODES, SERVER
+from quiltor.modules.assistant.engines import (
+    CLIENT_FAILURE_CODES,
+    EXTRACTION_FAILURE_CODES,
+    SERVER,
+)
 from quiltor.modules.assistant.ports import ClientJobRunning, IdempotencyConflict, TooManyOpenJobs
 
 JOB_RETENTION_DAYS = 7
@@ -149,8 +153,10 @@ class AssistantJobStore:
                     }
                 }
                 if row["status"] == "failed"
-                and row["engine_kind"] != SERVER
-                and row["error_type"] in CLIENT_FAILURE_CODES
+                and (
+                    (row["engine_kind"] != SERVER and row["error_type"] in CLIENT_FAILURE_CODES)
+                    or row["error_type"] in EXTRACTION_FAILURE_CODES
+                )
                 else {}
             ),
             "httpStatus": row["http_status"] or None,

@@ -14,6 +14,9 @@ from quiltor.modules.assistant.ports import (
     AssistantInteractionLogger,
     AssistantJobStore,
     AssistantWorldAccess,
+    ChapterTooLongError,
+    ExtractionIncompleteError,
+    ExtractionPartFailedError,
     IdempotencyConflict,
     IncompleteInferenceResponse,
     InferenceContextTooLargeError,
@@ -22,6 +25,7 @@ from quiltor.modules.assistant.ports import (
     InferenceValidationError,
     JobStoreFactory,
     TooManyOpenJobs,
+    WorldTooLargeError,
 )
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
@@ -156,6 +160,14 @@ def classify_assistant_error(exc: Exception) -> str:
         return "timeout"
     if isinstance(exc, InferenceUnavailableError):
         return "runtime_unavailable"
+    if isinstance(exc, WorldTooLargeError):
+        return "world_too_large"
+    if isinstance(exc, ChapterTooLongError):
+        return "chapter_too_long"
+    if isinstance(exc, ExtractionIncompleteError):
+        return "extraction_incomplete"
+    if isinstance(exc, ExtractionPartFailedError):
+        return "extraction_part_failed"
     if isinstance(exc, InferenceContextTooLargeError):
         return "context_too_large"
     if isinstance(exc, IncompleteInferenceResponse):
@@ -459,6 +471,8 @@ class AssistantJobRunner:
                 owner_sub=owner_sub,
                 world_id=world_id,
                 world_revision=int(payload.get("worldRevision") or 0),
+                # Checked between the parts of an extraction and between batch groups (T-330).
+                should_stop=lambda: self.store.cancel_requested(job_id),
             )
             if self.store.cancel_requested(job_id):
                 self.store.finish_success(job_id, {}, "")

@@ -21,6 +21,7 @@ from typing import Any
 from quiltor.infrastructure.inference.relay.tickets import (
     ANSWER_SECONDS,
     JOB_SECONDS,
+    JOB_TOTAL_SECONDS,
     RelayAnswerTimeout,
     RelayCancelled,
     RelayDeliveryTimeout,
@@ -32,6 +33,7 @@ from quiltor.modules.assistant.engines import CLIENT_ERROR_CODES, ClientEngineFa
 from quiltor.modules.assistant.ports import (
     IncompleteInferenceResponse,
     InferenceContextTooLargeError,
+    InferenceDeadlineError,
     InferenceTimeoutError,
     InferenceUnavailableError,
     InferenceValidationError,
@@ -72,13 +74,19 @@ class RelayInferenceEngine:
         *,
         clock: Callable[[], float] = time.monotonic,
         job_seconds: float = JOB_SECONDS,
+        total_seconds: float = JOB_TOTAL_SECONDS,
         answer_seconds: dict[str, float] | None = None,
     ) -> None:
         self._tickets = tickets
         self._job_id = job_id
         self._engine = dict(engine)
         self._clock = clock
-        self._job_deadline = clock() + job_seconds
+        started = clock()
+        # A job has job_seconds; an extraction in parts has job_seconds per part and
+        # total_seconds altogether (T-330, D-238). start_part opens the next part.
+        self._total_deadline = started + max(job_seconds, total_seconds)
+        self._total_seconds = max(job_seconds, total_seconds)
+        self._job_deadline = min(started + job_seconds, self._total_deadline)
         self._job_seconds = job_seconds
         self._answer_seconds = dict(ANSWER_SECONDS if answer_seconds is None else answer_seconds)
         self._calibration = INITIAL_CALIBRATION.get(str(self._engine.get("kind")), 1.0)
@@ -110,6 +118,11 @@ class RelayInferenceEngine:
         self._tickets.cancel(self._job_id)
         self._tickets.release_job(self._job_id)
 
+    def start_part(self) -> None:
+        """The next part of an extraction begins: it gets job_seconds of its own, within the
+        time the whole job has (T-330, D-238)."""
+        self._job_deadline = min(self._clock() + self._job_seconds, self._total_deadline)
+
     @property
     def calibration(self) -> float:
         return self._calibration
@@ -137,8 +150,11 @@ class RelayInferenceEngine:
     def invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
         if self._closed:
             raise InferenceUnavailableError("cancelled")
-        if self._clock() >= self._job_deadline:
-            raise InferenceTimeoutError(self._job_seconds)
+        now = self._clock()
+        if now >= self._total_deadline:
+            raise InferenceDeadlineError(self._total_seconds)
+        if now >= self._job_deadline:
+            raise InferenceDeadlineError(self._job_seconds)
         request = payload if self._engine.get("grammar") else json_object_fallback(payload)
         answer_seconds = self._answer_seconds.get(
             str(self._engine.get("kind")), self._answer_seconds["cloud"]

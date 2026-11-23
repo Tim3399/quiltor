@@ -19,7 +19,14 @@ from typing import Any
 from quiltor.infrastructure.persistence.assistant_jobs import AssistantJobStore
 from quiltor.modules.assistant.engines import CLOUD, SERVER, WEBLLM, ClientEngineFailure
 from quiltor.modules.assistant.jobs import AssistantJobRunner
-from quiltor.modules.assistant.ports import ClientJobRunning, InferenceContextTooLargeError
+from quiltor.modules.assistant.ports import (
+    ChapterTooLongError,
+    ClientJobRunning,
+    ExtractionIncompleteError,
+    ExtractionPartFailedError,
+    InferenceContextTooLargeError,
+    WorldTooLargeError,
+)
 from tests.python.narrowing import present
 from tests.python.test_assistant_jobs import (
     WORLD_ID,
@@ -314,6 +321,38 @@ class ClientJobRunnerTests(unittest.TestCase):
             )
         finally:
             runner.close()
+
+    def test_an_extraction_failure_carries_its_own_code_on_every_engine(self):
+        # T-330: each has its own words in the client, whatever engine ran the job; none of
+        # them is "fewer chapters".
+        failures = {
+            "world_too_large": WorldTooLargeError("The world state alone leaves no room."),
+            "chapter_too_long": ChapterTooLongError("about 30 parts"),
+            "extraction_incomplete": ExtractionIncompleteError("part 3: nothing reached"),
+            "extraction_part_failed": ExtractionPartFailedError("part 2: timeout"),
+        }
+        for code, error in failures.items():
+            for engine in (SERVER, WEBLLM):
+                with self.subTest(code=code, engine=engine):
+
+                    class _Failing(_BlockingRuntime):
+                        def complete(self, question, *args, error=error, **kwargs):
+                            raise error
+
+                    owner = "bob" if engine == SERVER else "alice"
+                    if engine == SERVER:
+                        self.server = _Failing()
+                    else:
+                        self.clients["alice"] = _Failing()
+                    runner = self._runner()
+                    try:
+                        job = _submit(runner, owner, f"{code}-{engine}", engine)
+                        done = runner.wait(job["id"], owner, WORLD_ID, timeout=3)
+                        self.assertEqual(done["status"], "failed", done)
+                        self.assertEqual(done["errorType"], code)
+                        self.assertEqual(done.get("engineError", {}).get("code"), code)
+                    finally:
+                        runner.close()
 
 
 if __name__ == "__main__":

@@ -10,6 +10,11 @@ const MESSAGES: Readonly<Record<string, MessageKey>> = {
   client_unavailable: "assistantEngineErrorClientUnavailable",
   provider_error: "assistantEngineErrorProvider",
   context_too_large: "assistantEngineErrorContextTooLarge",
+  // An extraction's own failures, on any engine (T-330): the server words none of them.
+  world_too_large: "assistantErrorWorldTooLarge",
+  chapter_too_long: "assistantErrorChapterTooLong",
+  extraction_incomplete: "assistantErrorExtractionIncomplete",
+  extraction_part_failed: "assistantErrorExtractionPartFailed",
   cancelled: "requestAborted",
 };
 
