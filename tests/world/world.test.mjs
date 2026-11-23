@@ -19,7 +19,12 @@ import {
 } from "./index.mjs";
 import { LOCK_FILE, lockBytes, lockDifferences, renderLock } from "./lock.mjs";
 import { measurementWorlds, TIME_CHECK_ELEMENTS, TIME_CHECK_MOMENTS } from "./parts/gold.mjs";
-import { BOOK, CHAPTERS as LARGE_CHAPTERS } from "./parts/large.mjs";
+import {
+  BOOK,
+  CHAPTERS as LARGE_CHAPTERS,
+  PLAN as LARGE_PLAN,
+  PERSON_GENDER,
+} from "./parts/large.mjs";
 import { exportWorld } from "./export.mjs";
 import { misplacedPlaceholders, planBook, wordCount } from "./large/generate.mjs";
 import { SEGMENT_S1 as LARGE_S1_DE } from "./texts/large.de.mjs";
@@ -797,10 +802,13 @@ test("the large part's probe body is its German length, in both languages", () =
     const probe = largeChapters(buildExampleWorld(lang, { include: ["large"], probe: true }));
     const german = largeChapters(buildExampleWorld("de", { include: ["large"] }));
     for (const [index, chapter] of probe.entries()) {
-      const match = /^⟦large-body (s\d+) ([0-9a-f]{16}) (\d+)⟧$/.exec(chapter.body);
+      const match =
+        /^⟦large-body (s\d+) plan:[0-9a-f]{16} de:[0-9a-f]{16} en:[0-9a-f]{16} (\d+)⟧$/.exec(
+          chapter.body,
+        );
       assert.ok(match, `${lang} ${chapter.id}: ${chapter.body.slice(0, 40)}`);
       assert.equal(match[1], BOOK.segment);
-      assert.equal(Number(match[3]), wordCount(german[index].body), chapter.id);
+      assert.equal(Number(match[2]), wordCount(german[index].body), chapter.id);
     }
   }
 });
@@ -831,4 +839,84 @@ test("the large part exports its novel as Markdown and text", () => {
   const text = exportWorld({ include: ["base", "large"], format: "txt", folder: "l-novel" });
   assert.equal((markdown.match(/^# /gm) ?? []).length, 28);
   assert.ok(wordCount(text) > 80000);
+});
+
+test("the server's world check finds nothing wrong with the large part", () => {
+  // The base world passes validate_world with no issue; the large part must as well
+  // (F-339-10: 55 relationships were structurally duplicate).
+  const world = buildExampleWorld("de", { include: ["large"] });
+  const script = [
+    "import json, sys",
+    "from quiltor.domain.story_world.integrity import validate_world",
+    "from quiltor.domain.story_world.validation import valid_figures, valid_manuscript",
+    'world = json.loads(sys.stdin.buffer.read().decode("utf-8"))',
+    "issues = [issue for issue in validate_world(world['figures'])['issues'] if 'l-' in issue]",
+    "print(json.dumps({'issues': issues, 'figures': valid_figures(world['figures']),",
+    "                  'manuscript': valid_manuscript(world['manuscript'])}))",
+  ].join("\n");
+  const result = spawnSync(
+    process.execPath,
+    [join(repositoryRoot, "tools/dev/python.mjs"), "--needs", "quiltor", "-c", script],
+    {
+      cwd: repositoryRoot,
+      input: JSON.stringify(world),
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+      env: { ...process.env, PYTHONPATH: join(repositoryRoot, "src") },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const verdict = JSON.parse(result.stdout.trim().split("\n").at(-1));
+  assert.deepEqual(verdict.issues, [], "validate_world issues on l- entries");
+  assert.equal(verdict.figures, true, "valid_figures refuses the large part");
+  assert.equal(verdict.manuscript, true, "valid_manuscript refuses the large part");
+});
+
+test("the large part's frozen entries do not depend on the parts before it", () => {
+  // A moment or folder added to edge or gold must not change any l- entry of the lock
+  // (F-339-11): the large part built alone and after every other part freezes the same.
+  const entries = (include) => {
+    const world = buildExampleWorld("de", { include, probe: true });
+    return {
+      moments: world.figures.timeline.filter((moment) => moment.id.startsWith("l-")),
+      items: world.manuscript.structure.items.filter((item) => item.id.startsWith("item-l-")),
+      chapters: largeChapters(world),
+    };
+  };
+  assert.deepEqual(entries(["large"]), entries(PARTS));
+});
+
+test("the lock freezes the German and the English text of every large chapter", () => {
+  // F-339-12: a changed renderer has to show in the lock, not only a changed plan.
+  const sha16 = (text) => createHash("sha256").update(text).digest("hex").slice(0, 16);
+  const probe = largeChapters(buildExampleWorld("de", { include: ["large"], probe: true }));
+  const [german, english] = LANGUAGES.map((lang) =>
+    largeChapters(buildExampleWorld(lang, { include: ["large"] })),
+  );
+  for (const [index, chapter] of probe.entries()) {
+    assert.ok(chapter.body.includes(` de:${sha16(german[index].body)} `), `${chapter.id} de`);
+    assert.ok(chapter.body.includes(` en:${sha16(english[index].body)} `), `${chapter.id} en`);
+  }
+});
+
+test("the large part reads naturally: roles, relationships and sentences", () => {
+  // F-339-13. German women's roles end in -in, men's do not.
+  const world = buildExampleWorld("de", { include: ["large"] });
+  for (const node of world.figures.nodes.filter((item) => item.id.startsWith("l-p-"))) {
+    const female = PERSON_GENDER[node.id] === "f";
+    assert.equal(node.label.endsWith("in"), female, `${node.id} ${node.name}: ${node.label}`);
+  }
+  const relation = Object.fromEntries(
+    world.figures.edges.filter((edge) => edge.id.startsWith("l-")).map((edge) => [edge.id, edge]),
+  );
+  for (const edge of Object.values(relation)) {
+    if (edge.to.startsWith("l-ort-")) assert.equal(edge.label, "wohnt in", edge.id);
+    else if (edge.to.startsWith("l-g-")) assert.equal(edge.label, "besitzt", edge.id);
+    else assert.ok(!["wohnt in", "besitzt"].includes(edge.label), edge.id);
+  }
+  for (const chapter of LARGE_PLAN) {
+    const keys = chapter.tokens.filter((token) => token.key).map((token) => token.key);
+    const repeated = keys.filter((key, index) => index > 0 && key === keys[index - 1]);
+    assert.deepEqual(repeated, [], `${chapter.id}: a sentence twice in a row`);
+  }
 });

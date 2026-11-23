@@ -63,10 +63,14 @@ export function planBook({ seed, bank, people, places, chapters }) {
     let words = 0;
     let paragraphs = 0;
     let sceneEvery = 5 + pick(5);
+    let previous = -1;
     while (words < chapter.words) {
       const length = 3 + pick(5);
       for (let sentence = 0; sentence < length && words < chapter.words; sentence += 1) {
-        const index = next < cover.length ? cover[next++] : pick(bank.length);
+        let index = next < cover.length ? cover[next++] : pick(bank.length);
+        // No sentence twice in a row (F-339-13).
+        while (index === previous) index = pick(bank.length);
+        previous = index;
         const { key, de } = bank[index];
         const fill = [...de.matchAll(PLACEHOLDER)].map(([, kind]) =>
           kind === "figur" ? cast[pick(cast.length)] : setting[pick(setting.length)],
