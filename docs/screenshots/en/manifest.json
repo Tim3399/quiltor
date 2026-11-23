@@ -1,5 +1,5 @@
 {
-  "version": "3.26.1",
+  "version": "3.26.2",
   "platform": "win32",
   "viewport": {
     "width": 1440,
@@ -8,15 +8,15 @@
   "inputs": "51b76b7acbd6ec18b796d644425e50e5a0c24dcad98dccba00c8de254be6cf31",
   "images": {
     "manuscript.png": "c5c67cef800af8969634bbdb2e7f210f4bfc082c625dbe13d84e6b328c99ad09",
-    "world-graph.png": "142a2c23c99f8acb49857af302b13fd8a49c52e9f12910b25222077dc5f4afcb",
+    "world-graph.png": "5c4124fbd23172635ef7a9708008305d3306df0bb99de6baad10f177da4b6ab2",
     "timeline-playback.png": "8c42a798adac3f83d668e76f0162c30cae62fa1655a6f0836427e6975d944ae9",
     "timeline-manager.png": "0583d3222bacd698cece064322f3c62e8c8137ec32ec8f9954ecce43afd870ba",
     "timeline-calendar.png": "45d5d04a852863f5c2c816e9b1d5070bd8bc0ae73efa320f8592e44ea10b3e11",
-    "places.png": "ec32417c174474f011ad28125111650c0ffd28521df137e141f0f7f667a2f7eb",
+    "places.png": "d414656c2e2c19b944856b3535a896d0e7a23991c53924ae235f22acc52fd215",
     "places-map.png": "b6646b835aa786de7ca146521fb4e5539aaf21a92352f0fddd16f53a824833c8",
     "storyboard.png": "1781b6d3e5c64a7fa7c6531277f139a2135174092315fb3d236c26663683efc3",
     "shared-notes.png": "5157560406fb373a16c84f8e51eaf0c0fe08f07b3cfeeb828815f56776909bbd",
-    "search.png": "b5994e7afdc3ff339977489f0a7eaf8bef889765540afa205248ca3a87443817",
-    "versions.png": "864faffea73ed3ca0bf000912ef4f14eda39672ea0701b166f82de39621f6289"
+    "search.png": "f2bce12b40e16d52ab45f4c9dadd6bd6015143a68f37f4f4f2c0f738521ee4e5",
+    "versions.png": "77d5ae08d25aa9809785edec9be5d45fd86efdd13dbdb3ab656af266c52a380a"
   }
 }

@@ -88,6 +88,9 @@ def _docx_parts(payload: bytes):
         document = _read_xml(archive, "word/document.xml")
         styles = _styles(archive) if "word/styles.xml" in names else _StyleBook.empty()
         warnings = _package_warnings(names)
+        for part, tag in (("word/footnotes.xml", "footnote"), ("word/endnotes.xml", "endnote")):
+            if part in names:
+                warnings["footnotes_endnotes"] += _real_notes(_read_xml(archive, part), tag)
         package_title = _core_title(archive) if "docProps/core.xml" in names else ""
         return document, styles, warnings, package_title
 
@@ -192,6 +195,9 @@ class _StyleBook:
         return False
 
 
+_HEADING_ONE = {"heading1", "überschrift1", "uberschrift1"}
+
+
 def _styles(archive: zipfile.ZipFile) -> _StyleBook:
     root = _read_xml(archive, "word/styles.xml")
     default_rpr = root.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr")
@@ -209,13 +215,17 @@ def _styles(archive: zipfile.ZipFile) -> _StyleBook:
         style_rpr = element.find(f"{W}rPr")
         style_ppr = element.find(f"{W}pPr")
         normalized_name = re.sub(r"[\s_-]", "", name).casefold()
+        # The default paragraph style and Heading 1 carry the look of body text and chapter
+        # titles, which Quiltor replaces with its own; Word fills them in every file it saves.
+        base_look = element.get(f"{W}default") in {"1", "true"} or normalized_name in _HEADING_ONE
         styles[style_id] = (
             name,
             based.get(f"{W}val") if based is not None else None,
             _properties(style_rpr),
-            _unsupported_rpr(style_rpr) or _unsupported_style_ppr(style_ppr, normalized_name),
+            _unsupported_rpr(style_rpr, _BASE_LOOK_RPR if base_look else set())
+            or (not base_look and _unsupported_style_ppr(style_ppr, normalized_name)),
         )
-    return _StyleBook(styles, defaults, _unsupported_rpr(default_rpr))
+    return _StyleBook(styles, defaults, _unsupported_rpr(default_rpr, _BASE_LOOK_RPR))
 
 
 def _properties(rpr: ET.Element | None) -> dict[str, bool]:
@@ -229,8 +239,52 @@ def _properties(rpr: ET.Element | None) -> dict[str, bool]:
     return result
 
 
-def _unsupported_rpr(rpr: ET.Element | None) -> bool:
-    return bool(rpr is not None and {child.tag for child in rpr} - {f"{W}b", f"{W}i", f"{W}rStyle"})
+_MAPPED_RPR = {f"{W}b", f"{W}i", f"{W}rStyle"}
+# The proofing switches: which language a spell checker uses and whether it checks at all.
+# Word sets them on its own (another language detected, text pasted in), they change nothing
+# a reader sees, so dropping them is no loss wherever they stand (F-337-1).
+_PROOFING_RPR = frozenset({f"{W}lang", f"{W}noProof"})
+# The look of a whole text -- typeface, size, colour, kerning. Quiltor sets its own
+# typography, so dropping these loses nothing an author put into the text. This holds for
+# the base styles only (see `_styles`); on a run or another style the author chose them.
+_BASE_LOOK_RPR = {
+    f"{W}rFonts",
+    f"{W}sz",
+    f"{W}szCs",
+    f"{W}color",
+    f"{W}kern",
+    *_PROOFING_RPR,
+}
+# Markers that carry no text: where a bookmark, an editing permission, a spelling error, a
+# comment range or a move begins or ends. Word writes them between runs and, when they span
+# whole paragraphs, between paragraphs in w:body (F-334-1). Between runs the paragraph reader
+# passes over them already, as it reads only w:r; in w:body this list admits them. The
+# content of a move (w:moveFrom, w:moveTo) is not a marker and stays refused.
+_INVISIBLE_MARKERS = frozenset(
+    f"{W}{name}"
+    for name in (
+        "bookmarkStart",
+        "bookmarkEnd",
+        "permStart",
+        "permEnd",
+        "proofErr",
+        "commentRangeStart",
+        "commentRangeEnd",
+        "moveFromRangeStart",
+        "moveFromRangeEnd",
+        "moveToRangeStart",
+        "moveToRangeEnd",
+    )
+)
+
+
+def _unsupported_rpr(rpr: ET.Element | None, ignored: frozenset | set = frozenset()) -> bool:
+    if rpr is None:
+        return False
+    # Children outside the main namespace (w14:ligatures and the like) are Word extensions
+    # that only fine-tune rendering.
+    tags = {child.tag for child in rpr if child.tag.startswith(W)}
+    return bool(tags - _MAPPED_RPR - ignored)
 
 
 def _package_warnings(names: list[str]) -> Counter:
@@ -238,11 +292,69 @@ def _package_warnings(names: list[str]) -> Counter:
     warnings["headers_footers"] = sum(
         name.startswith(("word/header", "word/footer")) for name in names
     )
-    warnings["footnotes_endnotes"] = sum(
-        name in {"word/footnotes.xml", "word/endnotes.xml"} for name in names
-    )
     warnings["comments"] = sum(name.startswith("word/comments") for name in names)
     return warnings
+
+
+def _real_notes(root: ET.Element, tag: str) -> int:
+    """Notes the author wrote, without the separators Word keeps in every notes part (T-334)."""
+
+    return sum(note.get(f"{W}type", "normal") == "normal" for note in root.findall(f"{W}{tag}"))
+
+
+# Word's Symbol font places its glyphs at private code points F020-F0FF (ECMA-376
+# 17.3.3.30). The common ones are mapped to Unicode; any other symbol becomes U+FFFD and
+# counts as lost formatting, so the author is told something did not come across.
+_SYMBOL_FONT = {
+    **dict(zip(range(0x41, 0x5B), "ΑΒΧΔΕΦΓΗΙϑΚΛΜΝΟΠΘΡΣΤΥςΩΞΨΖ", strict=True)),
+    **dict(zip(range(0x61, 0x7B), "αβχδεφγηιϕκλμνοπθρστυϖωξψζ", strict=True)),
+    0x5E: "⊥",
+    0xA3: "≤",
+    0xA5: "∞",
+    0xAB: "↔",
+    0xAC: "←",
+    0xAD: "↑",
+    0xAE: "→",
+    0xAF: "↓",
+    0xB0: "°",
+    0xB1: "±",
+    0xB3: "≥",
+    0xB4: "\u00d7",  # multiplication sign
+    0xB7: "•",
+    0xB8: "÷",
+    0xB9: "≠",
+    0xBA: "≡",
+    0xBB: "≈",
+    0xBC: "…",
+    0xD7: "⋅",
+    0xDB: "⇔",
+    0xDC: "⇐",
+    0xDD: "⇑",
+    0xDE: "⇒",
+    0xDF: "⇓",
+}
+UNKNOWN_SYMBOL = "\ufffd"
+
+
+def _symbol_text(sym: ET.Element) -> str:
+    """The character a `w:sym` stands for, or U+FFFD when it has no Unicode meaning."""
+
+    try:
+        code = int(sym.get(f"{W}char", ""), 16)
+    except ValueError:
+        return UNKNOWN_SYMBOL
+    in_font_area = 0xF000 <= code <= 0xF0FF
+    if sym.get(f"{W}font", "").casefold() == "symbol":
+        return _SYMBOL_FONT.get(code - 0xF000 if in_font_area else code, UNKNOWN_SYMBOL)
+    if (
+        in_font_area  # Wingdings and other picture fonts
+        or code < 0x20
+        or 0xD800 <= code <= 0xDFFF
+        or 0xE000 <= code <= 0xF8FF
+        or code > 0x10FFFF
+    ):
+        return UNKNOWN_SYMBOL
+    return chr(code)
 
 
 def _unsupported_style_ppr(ppr: ET.Element | None, normalized_name: str) -> bool:
@@ -339,8 +451,10 @@ def _paragraph_units(
     }
     if any(element.tag in forbidden for element in body.iter()):
         raise UnsupportedManuscriptContent("The DOCX contains unsupported body structures.")
-    if any(child.tag not in {f"{W}p", f"{W}sectPr"} for child in body):
+    if any(child.tag not in {f"{W}p", f"{W}sectPr", *_INVISIBLE_MARKERS} for child in body):
         raise UnsupportedManuscriptContent("The DOCX contains unsupported body structures.")
+    # A comment over whole paragraphs starts in w:body; it is still a comment the author loses.
+    warnings["comments"] += len(body.findall(f"{W}commentRangeStart"))
     paragraphs = body.findall(f"{W}p")
     if len(paragraphs) > MAX_PARAGRAPHS:
         raise ManuscriptLimitExceeded("The DOCX contains too many paragraphs.")
@@ -406,7 +520,7 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             properties.update(styles.explicit_properties(rstyle))
         properties.update(_properties(rpr))
         if (
-            _unsupported_rpr(rpr)
+            _unsupported_rpr(rpr, _PROOFING_RPR)
             or styles.has_unsupported_formatting(rstyle)
             or styles.defaults_unsupported
         ):
@@ -426,7 +540,14 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             f"{W}commentReference",
             f"{W}footnoteReference",
             f"{W}endnoteReference",
+            # Word writes this on saving wherever its layout began a page; it holds nothing.
+            f"{W}lastRenderedPageBreak",
+            f"{W}sym",
         }
+        lost_symbols = sum(
+            _symbol_text(child) == UNKNOWN_SYMBOL for child in run if child.tag == f"{W}sym"
+        )
+        warnings["formatting"] += lost_symbols
         if any(child.tag not in allowed_run_children for child in run):
             raise UnsupportedManuscriptContent("The DOCX contains unsupported run content.")
         text = "".join(
@@ -440,6 +561,8 @@ def _paragraph(paragraph: ET.Element, styles: _StyleBook, warnings: Counter):
             if child.tag == f"{W}noBreakHyphen"
             else "\u00ad"
             if child.tag == f"{W}softHyphen"
+            else _symbol_text(child)
+            if child.tag == f"{W}sym"
             else ""
             for child in run
         )
