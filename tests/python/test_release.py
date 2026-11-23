@@ -4221,6 +4221,14 @@ class ReleaseSingleEntryContractTests(unittest.TestCase):
                 "ignore pushes to main",
             ),
             (
+                "the bootstrap push filter drops the snapshot folder",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                '      - "tests/e2e/visual-baseline.spec.ts-snapshots/**"\n',
+                "",
+                "push paths must include",
+            ),
+            (
                 "the guard before the push removed",
                 w.validate_bootstrap_never_on_main,
                 bootstrap,
