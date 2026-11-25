@@ -1,3 +1,11 @@
+/* React Flow sets pointer-events inline on the node wrapper, and it is "all" whenever the
+   flow has a node click handler. The preview end is drawn centred on the pointer, so
+   the wrapper lay under the very click that was to set that end and swallowed it. */
+.places-flow-area .react-flow__node-measurePoint {
+  /* biome-ignore lint/complexity/noImportantStyles: React Flow sets pointer-events inline on its node wrapper (see above). */
+  pointer-events: none !important;
+}
+
 .place-measure-point {
   position: relative;
   width: 100%;

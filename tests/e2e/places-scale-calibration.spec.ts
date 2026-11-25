@@ -222,6 +222,27 @@ test("(a2) Zoomed out, the mouse's whole pixels make the scale of the stretch th
   await savedScale(page, world.id, mapId, scaleFor(3));
 });
 
+test("(a3) The preview marker under the pointer does not swallow the click that sets the end", async ({
+  page,
+}) => {
+  const world = await openHarbourMap(page);
+  const mapId = world.ids.figures.nordhafen;
+  await startCalibration(page);
+  const { a, b } = await stretchOnMap(page, world.id, mapId);
+  await page.mouse.click(a.x, a.y);
+  await expect(page.getByText("Setze das Ende der Strecke.")).toBeVisible();
+  // The preview end is drawn centred on the pointer. A real hand rests there before it
+  // clicks, so the click is only made once the marker (start and preview) is on screen:
+  // without that wait, the mouse's press raced the marker's first paint and the test
+  // passed or failed with the machine's speed (Windows runner, T-340).
+  await page.mouse.move(b.x, b.y);
+  await expect(page.locator(".react-flow__node-measurePoint")).toHaveCount(2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.getByRole("textbox", { name: "Länge der Strecke" }).fill("3");
+  await expect(page.getByRole("button", { name: "Übernehmen", exact: true })).toBeEnabled();
+});
+
 test("(b) Dragging the same stretch gives the same scale, and Nordhafen stays where it was", async ({
   page,
 }) => {

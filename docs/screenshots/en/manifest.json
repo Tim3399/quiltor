@@ -1,5 +1,5 @@
 {
-  "version": "3.26.0",
+  "version": "3.26.2",
   "platform": "win32",
   "viewport": {
     "width": 1440,
@@ -14,9 +14,9 @@
     "timeline-calendar.png": "45d5d04a852863f5c2c816e9b1d5070bd8bc0ae73efa320f8592e44ea10b3e11",
     "places.png": "d414656c2e2c19b944856b3535a896d0e7a23991c53924ae235f22acc52fd215",
     "places-map.png": "b6646b835aa786de7ca146521fb4e5539aaf21a92352f0fddd16f53a824833c8",
-    "storyboard.png": "0ee8677005b481bf20eb2cd277cd56f35de48d0267f0754883cbbadb8342b86e",
+    "storyboard.png": "1781b6d3e5c64a7fa7c6531277f139a2135174092315fb3d236c26663683efc3",
     "shared-notes.png": "5157560406fb373a16c84f8e51eaf0c0fe08f07b3cfeeb828815f56776909bbd",
-    "search.png": "b5994e7afdc3ff339977489f0a7eaf8bef889765540afa205248ca3a87443817",
-    "versions.png": "827530293d39f83e249a8c8e356fcda05c811c13dde4dda06fd0c8962bbf4576"
+    "search.png": "f2bce12b40e16d52ab45f4c9dadd6bd6015143a68f37f4f4f2c0f738521ee4e5",
+    "versions.png": "77d5ae08d25aa9809785edec9be5d45fd86efdd13dbdb3ab656af266c52a380a"
   }
 }

@@ -34,7 +34,9 @@ function staleDocumentSelection(): ApplicationGatewayError {
 function responseRevision(response: Response): number | undefined {
   const header = response.headers.get("ETag");
   if (header === null) return undefined;
-  const match = /^"(\d+)"$/.exec(header);
+  // A compressing proxy may weaken the tag or append its coding to it: Caddy's `encode`
+  // turns "7" into "7-zstd" (RFC 9110 8.8.3). Only those known codings are accepted.
+  const match = /^(?:W\/)?"(\d+)(?:-(?:gzip|zstd|br))?"$/.exec(header);
   if (!match) throw invalidDocumentResponse();
   const revision = Number(match[1]);
   if (!Number.isSafeInteger(revision) || revision < 0) throw invalidDocumentResponse();

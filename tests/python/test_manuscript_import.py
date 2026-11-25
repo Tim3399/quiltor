@@ -18,12 +18,30 @@ from quiltor.application.manuscript_import import (
     ManuscriptWarningsUnacknowledged,
     UnsupportedManuscriptContent,
 )
-from quiltor.infrastructure.importing.docx import parse_docx
+from quiltor.infrastructure.importing.docx import parse_docx, parse_docx_units
+from quiltor.infrastructure.importing.text_formats import parse_markdown_units
 from quiltor.infrastructure.persistence.manuscript_import import SQLiteManuscriptImportRepository
 from quiltor.infrastructure.persistence.sqlite import manuscript
 from quiltor.infrastructure.persistence.sqlite.config import SQLitePaths
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+WORD_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "manuscript-import"
+
+
+def notes(tag: str, *, separators_only: bool) -> bytes:
+    """A notes part as Word writes it: two separator entries, then the author's notes."""
+
+    entries = (
+        f'<w:{tag} w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:{tag}>'
+        f'<w:{tag} w:type="continuationSeparator" w:id="0">'
+        f"<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:{tag}>"
+    )
+    if not separators_only:
+        entries += f'<w:{tag} w:id="1"><w:p><w:r><w:t>Anmerkung</w:t></w:r></w:p></w:{tag}>'
+    return f'<w:{tag}s xmlns:w="{W}">{entries}</w:{tag}s>'.encode()
+
+
+NOTES_WITH_ONE = notes("footnote", separators_only=False)
 
 
 def docx(document: str, *, styles: str = "", extras: dict[str, bytes] | None = None) -> bytes:
@@ -94,7 +112,7 @@ class DocxParserTests(unittest.TestCase):
             docx(
                 document(warning_body),
                 styles=STYLES,
-                extras={"word/header1.xml": b"<header/>", "word/footnotes.xml": b"<notes/>"},
+                extras={"word/header1.xml": b"<header/>", "word/footnotes.xml": NOTES_WITH_ONE},
             ),
         )
         self.assertEqual(
@@ -110,6 +128,197 @@ class DocxParserTests(unittest.TestCase):
                     document(f"<w:sdt><w:sdtContent>{paragraph('Hidden')}</w:sdtContent></w:sdt>")
                 ),
             )
+
+    def test_a_notes_part_holding_only_words_separators_warns_of_nothing(self):
+        for part in ("word/footnotes.xml", "word/endnotes.xml"):
+            with self.subTest(part=part):
+                tag = "footnote" if part == "word/footnotes.xml" else "endnote"
+                parsed = parse_docx(
+                    "Trenner.docx",
+                    docx(
+                        document(paragraph("Kapitel", style="Heading1") + paragraph("Text")),
+                        styles=STYLES,
+                        extras={part: notes(tag, separators_only=True)},
+                    ),
+                )
+                self.assertEqual(parsed.warnings, ())
+
+    def test_a_real_endnote_in_its_part_still_warns(self):
+        parsed = parse_docx(
+            "Endnote.docx",
+            docx(
+                document(paragraph("Kapitel", style="Heading1") + paragraph("Text")),
+                styles=STYLES,
+                extras={"word/endnotes.xml": notes("endnote", separators_only=False)},
+            ),
+        )
+        self.assertEqual(parsed.warnings, ({"code": "footnotes_endnotes", "count": 1},))
+
+    def test_symbols_become_characters_and_an_unknown_one_becomes_a_replacement(self):
+        cases = {
+            '<w:sym w:font="Symbol" w:char="F061"/>': "\u03b1",  # alpha
+            '<w:sym w:font="Symbol" w:char="F0AE"/>': "→",
+            '<w:sym w:font="Symbol" w:char="0057"/>': "Ω",
+            '<w:sym w:font="Arial" w:char="2192"/>': "→",
+            # A picture font has no Unicode meaning: U+FFFD, counted as lost formatting.
+            '<w:sym w:font="Wingdings" w:char="F0AB"/>': "\ufffd",
+            '<w:sym w:font="Symbol" w:char="F0FF"/>': "\ufffd",
+            '<w:sym w:font="Arial" w:char="E001"/>': "\ufffd",
+            '<w:sym w:font="Arial" w:char="zz"/>': "\ufffd",
+        }
+        for sym, expected in cases.items():
+            with self.subTest(sym=sym):
+                body = paragraph("Kapitel", style="Heading1") + f"<w:p><w:r>{sym}</w:r></w:p>"
+                parsed = parse_docx("Symbol.docx", docx(document(body), styles=STYLES))
+                self.assertEqual(parsed.chapters[0].body, expected)
+                lost = [w["count"] for w in parsed.warnings if w["code"] == "formatting"]
+                self.assertEqual(lost, [1] if expected == "\ufffd" else [])
+
+    def test_a_multi_page_file_saved_by_word_imports(self):
+        """F0: Word writes `w:lastRenderedPageBreak` into every run that began a page."""
+
+        payload = (WORD_FIXTURES / "word-multipage.docx").read_bytes()
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            self.assertIn(b"lastRenderedPageBreak", archive.read("word/document.xml"))
+        parsed = parse_docx("word-multipage.docx", payload)
+        self.assertEqual(
+            [chapter.title for chapter in parsed.chapters],
+            [
+                "Die Ankunft",
+                "Das Archiv",
+                "Das letzte Blatt",
+                "Gerüchte am Salzmarkt",
+                "Vor dem Sturm",
+                "Bruch mit der Gilde",
+                "Die Überfahrt",
+                "Die offene Küste",
+            ],
+        )
+        self.assertTrue(parsed.chapters[0].body.startswith("Der Morgen lag still über dem Hafen."))
+        self.assertNotIn("footnotes_endnotes", {w["code"] for w in parsed.warnings})
+
+    def test_a_plain_word_file_brings_no_formatting_warning(self):
+        """F0 has no formatting of its own; Word's default styles alone are no loss (T-337)."""
+
+        parsed = parse_docx(
+            "word-multipage.docx", (WORD_FIXTURES / "word-multipage.docx").read_bytes()
+        )
+        self.assertEqual(parsed.warnings, ())
+
+    def test_only_a_used_style_that_cannot_be_mapped_warns_and_once_per_code(self):
+        # Word's look in docDefaults, Normal and Heading 1 is replaced by Quiltor's own.
+        # "Einzug" indents its paragraphs, which Quiltor cannot keep; "Ungenutzt" would too,
+        # but no paragraph uses it.
+        styles = f"""<w:styles xmlns:w="{W}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+          <w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/>
+            <w:kern w:val="2"/><w:sz w:val="22"/><w:lang w:val="de-DE"/>
+            <w14:ligatures w14:val="standardContextual"/></w:rPr></w:rPrDefault>
+            <w:pPrDefault><w:pPr><w:spacing w:after="160"/></w:pPr></w:pPrDefault></w:docDefaults>
+          <w:style w:type="paragraph" w:default="1" w:styleId="Standard"><w:name w:val="Normal"/>
+            <w:pPr><w:spacing w:after="120"/></w:pPr><w:rPr><w:sz w:val="24"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="berschrift1"><w:name w:val="heading 1"/>
+            <w:basedOn w:val="Standard"/><w:pPr><w:keepNext/><w:outlineLvl w:val="0"/></w:pPr>
+            <w:rPr><w:color w:val="0F4761"/><w:sz w:val="40"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Einzug"><w:name w:val="Einzug"/>
+            <w:basedOn w:val="Standard"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Ungenutzt"><w:name w:val="Ungenutzt"/>
+            <w:pPr><w:jc w:val="center"/></w:pPr></w:style>
+        </w:styles>"""
+        indented = '<w:p><w:pPr><w:pStyle w:val="Einzug"/></w:pPr><w:r><w:t>Zitat</w:t></w:r></w:p>'
+        body = (
+            paragraph("Kapitel", style="berschrift1")
+            + "<w:p><w:r><w:t>Der Morgen lag still.</w:t></w:r></w:p>"
+            + indented * 3
+        )
+        parsed = parse_docx("Einzug.docx", docx(document(body), styles=styles))
+        self.assertEqual(parsed.chapters[0].title, "Kapitel")
+        self.assertEqual(parsed.warnings, ({"code": "formatting", "count": 3},))
+        without_loss = parse_docx(
+            "Einzug.docx",
+            docx(document(body.replace("Einzug", "Standard")), styles=styles),
+        )
+        self.assertEqual(without_loss.warnings, ())
+
+    def test_a_word_file_with_inserted_symbols_imports_them(self):
+        """F1: one Wingdings and one Symbol character inserted through Word's symbol dialog."""
+
+        parsed = parse_docx("word-symbol.docx", (WORD_FIXTURES / "word-symbol.docx").read_bytes())
+        self.assertIn("Kompassrose \ufffd und Windrichtung ⊥", parsed.chapters[0].body)
+
+    def test_a_word_file_with_a_bookmark_and_a_language_mark_imports_without_warning(self):
+        """F2: Word ends a bookmark over whole paragraphs in w:body, and marks a paragraph in
+        another proofing language and a name excluded from proofing on the runs. Nothing of
+        that is lost, so the file imports with no warning (F-334-1, F-337-1)."""
+
+        payload = (WORD_FIXTURES / "word-markers.docx").read_bytes()
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            xml = archive.read("word/document.xml")
+        self.assertIn(b"</w:p><w:bookmarkEnd", xml)
+        self.assertIn(b'<w:lang w:val="en-US"', xml)
+        self.assertIn(b"<w:noProof/>", xml)
+        parsed = parse_docx("word-markers.docx", payload)
+        self.assertEqual([chapter.title for chapter in parsed.chapters], ["Die Ankunft"])
+        self.assertTrue(parsed.chapters[0].body.startswith("Der Morgen lag still über dem Hafen."))
+        self.assertIn("»Du bist spät«, sagte Iven Rook.", parsed.chapters[0].body)
+        self.assertEqual(parsed.warnings, ())
+        self.assertEqual(parse_docx_units("word-markers.docx", payload).warnings, ())
+
+    def test_invisible_markers_between_paragraphs_are_skipped(self):
+        for marker in (
+            '<w:bookmarkStart w:id="1" w:name="Szene"/>',
+            '<w:bookmarkEnd w:id="1"/>',
+            '<w:permStart w:id="2" w:edGrp="everyone"/>',
+            '<w:permEnd w:id="2"/>',
+            '<w:proofErr w:type="spellStart"/>',
+            '<w:commentRangeEnd w:id="3"/>',
+            '<w:moveFromRangeStart w:id="4" w:name="m"/>',
+            '<w:moveFromRangeEnd w:id="4"/>',
+            '<w:moveToRangeStart w:id="5" w:name="m"/>',
+            '<w:moveToRangeEnd w:id="5"/>',
+        ):
+            with self.subTest(marker=marker):
+                body = (
+                    paragraph("Kapitel", style="Heading1")
+                    + paragraph("Der Morgen lag still.")
+                    + marker
+                    + paragraph("Mara blieb stehen.")
+                )
+                parsed = parse_docx("Marker.docx", docx(document(body), styles=STYLES))
+                self.assertEqual(
+                    parsed.chapters[0].body, "Der Morgen lag still.\n\nMara blieb stehen."
+                )
+                self.assertEqual(parsed.warnings, ())
+
+    def test_a_comment_range_between_paragraphs_still_counts_as_a_comment(self):
+        body = (
+            paragraph("Kapitel", style="Heading1")
+            + '<w:commentRangeStart w:id="3"/>'
+            + paragraph("Der Morgen lag still.")
+        )
+        parsed = parse_docx("Kommentar.docx", docx(document(body), styles=STYLES))
+        self.assertEqual(parsed.warnings, ({"code": "comments", "count": 1},))
+
+    def test_moved_text_between_paragraphs_is_still_refused(self):
+        body = paragraph("Der Morgen lag still.") + '<w:moveFrom w:id="6"><w:p/></w:moveFrom>'
+        with self.assertRaises(UnsupportedManuscriptContent):
+            parse_docx("Verschoben.docx", docx(document(body), styles=STYLES))
+
+    def test_proofing_marks_on_a_run_are_no_loss_but_its_typeface_is(self):
+        for run_properties, lost in (
+            ('<w:rPr><w:lang w:val="en-US"/></w:rPr>', []),
+            ("<w:rPr><w:noProof/></w:rPr>", []),
+            ('<w:rPr><w:lang w:val="en-US"/><w:noProof/><w:i/></w:rPr>', []),
+            ('<w:rPr><w:rFonts w:ascii="Courier New"/></w:rPr>', [1]),
+            ('<w:rPr><w:lang w:val="en-US"/><w:sz w:val="40"/></w:rPr>', [1]),
+        ):
+            with self.subTest(run_properties=run_properties):
+                body = paragraph("Kapitel", style="Heading1") + paragraph(
+                    "She said nothing.", run_properties=run_properties
+                )
+                parsed = parse_docx("Sprache.docx", docx(document(body), styles=STYLES))
+                self.assertEqual(
+                    [w["count"] for w in parsed.warnings if w["code"] == "formatting"], lost
+                )
 
     def test_character_style_adds_to_inherited_paragraph_formatting(self):
         body = (
@@ -138,9 +347,11 @@ class DocxParserTests(unittest.TestCase):
         self.assertEqual(parsed.warnings, ({"code": "formatting", "count": 1},))
 
     def test_fails_closed_on_unsupported_visible_run_content(self):
-        body = '<w:p><w:r><w:t>A</w:t><w:sym w:char="F041"/></w:r></w:p>'
+        # An embedded OLE object is visible and has no text form. (`w:sym` was the example
+        # here until T-334 turned symbols into characters.)
+        body = "<w:p><w:r><w:t>A</w:t><w:object/></w:r></w:p>"
         with self.assertRaises(UnsupportedManuscriptContent):
-            parse_docx("Symbol.docx", docx(document(body)))
+            parse_docx("Objekt.docx", docx(document(body)))
 
     def test_rejects_utf16_dtd_and_excessive_xml_depth(self):
         unsafe = (
@@ -164,6 +375,18 @@ def _archive_with_document(payload: bytes) -> bytes:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("word/document.xml", payload)
     return target.getvalue()
+
+
+class MarkdownSceneBreakTests(unittest.TestCase):
+    def test_every_markdown_rule_form_imports_as_the_scene_break_the_book_layout_knows(self):
+        before = "Sie las die Küstenlinie wie einen Brief."
+        after = "Spät am Abend zählte Iven die Lampen im Lesesaal."
+        for form in ("* * *", "***", "---", "___", "- - -", "_ _ _", "*****", "- - - - -"):
+            with self.subTest(form=form):
+                source = f"{before}\n\n{form}\n\n{after}\n".encode()
+                parsed = parse_markdown_units("kapitel.md", source)
+                self.assertEqual([unit.text for unit in parsed.units], [before, "* * *", after])
+                self.assertEqual(parsed.warnings, ())
 
 
 class ManuscriptImportRepositoryTests(unittest.TestCase):

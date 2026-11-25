@@ -7,11 +7,17 @@ import { buildExampleWorld, PARTS } from "./index.mjs";
 import { PURPOSE as BASE_PURPOSE } from "./parts/base.mjs";
 import { PURPOSE as EDGE_PURPOSE } from "./parts/edge.mjs";
 import { PURPOSE as GOLD_PURPOSE } from "./parts/gold.mjs";
+import { NAMED as LARGE_NAMED, PURPOSE as LARGE_PURPOSE } from "./parts/large.mjs";
 
 export const CATALOG_FILE = "tests/world/CATALOG.md";
 
 /** The purpose of every entry, per part. */
-export const PURPOSES = { base: BASE_PURPOSE, edge: EDGE_PURPOSE, gold: GOLD_PURPOSE };
+export const PURPOSES = {
+  base: BASE_PURPOSE,
+  edge: EDGE_PURPOSE,
+  gold: GOLD_PURPOSE,
+  large: LARGE_PURPOSE,
+};
 
 const cell = (text) => String(text ?? "").replaceAll("|", "\\|");
 
@@ -50,6 +56,10 @@ export async function renderCatalog() {
     ...rows.map((row) => `| ${row.map(cell).join(" | ")} |`),
   ];
   const { manuscript, figures, storyboards } = world;
+  // The large part is listed one by one only for its named entries; the rest is counted in
+  // its own section (F-339-6).
+  const listed = (id) => !id.startsWith("l-") || LARGE_NAMED.has(id);
+  const large = (list) => list.filter((entry) => entry.id.startsWith("l-"));
   const lines = [
     "# Test world catalog",
     "",
@@ -62,13 +72,15 @@ export async function renderCatalog() {
     "",
     ...table(
       ["Id", "Part", "Kind", "Name", "Purpose"],
-      figures.nodes.map((node) => [
-        `\`${node.id}\``,
-        owner.get(node.id),
-        node.type,
-        node.name,
-        purpose(node.id),
-      ]),
+      figures.nodes
+        .filter((node) => listed(node.id))
+        .map((node) => [
+          `\`${node.id}\``,
+          owner.get(node.id),
+          node.type,
+          node.name,
+          purpose(node.id),
+        ]),
     ),
     "",
     "## Chapters",
@@ -100,7 +112,9 @@ export async function renderCatalog() {
     "",
     ...table(
       ["Id", "Time", "Title"],
-      figures.timeline.map((moment) => [`\`${moment.id}\``, moment.time, moment.title]),
+      figures.timeline
+        .filter((moment) => listed(moment.id))
+        .map((moment) => [`\`${moment.id}\``, moment.time, moment.title]),
     ),
     "",
     "## gold – KI-Goldset",
@@ -122,6 +136,45 @@ export async function renderCatalog() {
       ]),
     ),
     "",
+    "## large – realistic size",
+    "",
+    "A world of the size an author works with (T-339): a novel of 28 chapters generated from",
+    "the closed sentence bank of `texts/large.<lang>.mjs` with a fixed seed, and enough",
+    "elements, relationships, moments and cards that every document lies far above the size",
+    "at which a proxy starts to compress. Only its chapters, folder, map, boards and first 20",
+    "people are listed above; the rest is counted here. `world.ids.large` lists every id.",
+    "",
+    ...table(
+      ["Collection", "Count", "Ids"],
+      [
+        [
+          "people",
+          large(figures.nodes).filter((node) => node.type === "person").length,
+          "`l-p-01` … `l-p-80`",
+        ],
+        [
+          "organisations",
+          large(figures.nodes).filter((node) => node.type === "organisation").length,
+          "`l-o-01` … `l-o-10`",
+        ],
+        [
+          "objects",
+          large(figures.nodes).filter((node) => node.type === "objekt").length,
+          "`l-g-01` … `l-g-10`",
+        ],
+        [
+          "places on the map",
+          large(figures.nodes).filter((node) => node.parentPlaceId === "l-map").length,
+          "`l-ort-01` … `l-ort-59`",
+        ],
+        ["relationships", large(figures.edges).length, "`l-e-001` … `l-e-250`"],
+        ["moments", large(figures.timeline).length, "`l-t-001` … `l-t-300`"],
+        ["presence", large(figures.presence).length, "`l-pr-001` … `l-pr-150`"],
+        ["cards", large(storyboards.nodes).length, "`l-card-plot-001` … `l-card-cast-150`"],
+        ["chapters", large(manuscript.chapters).length, "`l-ch-01` … `l-ch-28`"],
+      ],
+    ),
+    "",
     "## Storyboards",
     "",
     ...table(
@@ -135,14 +188,16 @@ export async function renderCatalog() {
           board.title,
           purpose(board.id),
         ]),
-        ...storyboards.nodes.map((card) => [
-          `\`${card.id}\``,
-          owner.get(card.id),
-          card.boardId,
-          card.kind,
-          card.target ? `${card.target.kind}:${card.target.id}` : card.label,
-          purpose(card.id),
-        ]),
+        ...storyboards.nodes
+          .filter((card) => listed(card.id))
+          .map((card) => [
+            `\`${card.id}\``,
+            owner.get(card.id),
+            card.boardId,
+            card.kind,
+            card.target ? `${card.target.kind}:${card.target.id}` : card.label,
+            purpose(card.id),
+          ]),
       ],
     ),
     "",
