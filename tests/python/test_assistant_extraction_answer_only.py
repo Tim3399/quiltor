@@ -9,8 +9,8 @@ search_manuscript, and a part budget that fits its proposal limit.
 
 import copy
 import unittest
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from test_assistant_budget import EXTRACTION
 from test_assistant_runtime import _Progress
