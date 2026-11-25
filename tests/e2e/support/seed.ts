@@ -17,7 +17,9 @@ export async function putVersioned(
   const current = await page.request.get(path);
   expect(current.ok(), await current.text()).toBe(true);
   const etag = current.headers().etag ?? '"0"';
-  const revision = Number(etag.replaceAll('"', ""));
+  // Behind a compressing proxy the tag arrives weakened or extended: W/"7" (nginx), "7-zstd"
+  // (Caddy). The product client accepts exactly those; the helper must as well.
+  const revision = Number(/^(?:W\/)?"(\d+)(?:-(?:gzip|zstd|br))?"$/.exec(etag)?.[1]);
   const saved = await page.request.put(path, {
     headers: { "If-Match": `"${revision}"` },
     data: encode(revision),
