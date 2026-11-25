@@ -34,7 +34,9 @@ node tools/dev/ci-minutes.mjs --from-file jobs.json --json    # recount without 
 
 - A job counts as GitHub bills it: rounded up to a whole minute, at least one, skipped jobs not
   at all. **L-min** is that number in Linux minutes: Windows counts twice, macOS ten times.
-- Every attempt after the first is a **rerun**.
+- Every attempt after the first is a **rerun**. "Re-run failed jobs" lists the jobs it did not
+  repeat under the new attempt as well, with a new id and the old start and end; those count once,
+  in the attempt that ran them (F-341-11).
 - The red-run line ignores the gate job `browser-e2e`, which runs on Linux and turns red
   whenever any required job does. With it counted, nearly every red run would look Linux-red
   (F-341-1).
