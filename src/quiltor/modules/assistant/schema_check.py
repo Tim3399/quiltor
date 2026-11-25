@@ -71,6 +71,38 @@ def check(value: Any, schema: dict[str, Any]) -> list[Violation]:
     return violations
 
 
+def drop_repeated_strings(value: Any, schema: dict[str, Any], depth: int = 0) -> Any:
+    """``value`` with repeated strings removed from every ``uniqueItems`` array of strings.
+
+    uniqueItems never goes over the wire (lac-schema-v1), so a grammar-bound engine may repeat
+    an item: llama.cpp cited the same id five times in a long chapter (T-363). A repeated
+    string carries nothing the first one does not, so it is dropped rather than failing the
+    reply. Repeated objects stay and are still a violation.
+    """
+
+    if depth > MAX_DEPTH or not isinstance(schema, dict):
+        return value
+    for branch in schema.get("anyOf") or []:
+        if _discriminator_matches(value, branch):
+            return drop_repeated_strings(value, branch, depth + 1)
+    if isinstance(value, list):
+        items = schema.get("items")
+        if schema.get("uniqueItems") is True and all(isinstance(item, str) for item in value):
+            return list(dict.fromkeys(value))
+        if isinstance(items, dict):
+            return [drop_repeated_strings(item, items, depth + 1) for item in value]
+        return value
+    if isinstance(value, dict):
+        properties = schema.get("properties") or {}
+        return {
+            name: drop_repeated_strings(item, properties[name], depth + 1)
+            if name in properties
+            else item
+            for name, item in value.items()
+        }
+    return value
+
+
 def _check_schema(schema: Any, where: str, depth: int) -> None:
     if depth > MAX_DEPTH:
         raise UnsupportedSchemaKeyword(f"{where}: schema nested deeper than {MAX_DEPTH}")

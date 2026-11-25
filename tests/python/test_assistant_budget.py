@@ -709,6 +709,17 @@ class ExtractionPartsTests(CompletionBudgetTests):
         self.assertEqual(part_two[0], part_two[PART_CALLS])
         self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
 
+    def test_a_reply_that_repeats_a_citation_is_kept_with_the_repeats_dropped(self):
+        # T-363: llama.cpp repeated a citation; the full check refused the whole part.
+        repeated = {**REPLY, "citations": ["c-arrival"] * 5}
+        runtime, inference = self.runtime(repeated, REPLY)
+        result = runtime.complete(
+            EXTRACTION, MANUSCRIPT, FIGURES, chapter_ids=["c-arrival"], mode="world_extraction"
+        )
+        # One call: no repair round and no retry of the part.
+        self.assertEqual(len(inference.calls), 1)
+        self.assertNotIn("error", result)
+
     def test_a_second_schema_error_in_a_later_part_fails_the_run(self):
         manuscript, chapter_id, _ = marked_chapter(2000)
         runtime, inference = self.relay(0.9)
