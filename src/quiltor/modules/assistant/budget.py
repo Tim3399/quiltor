@@ -20,6 +20,10 @@ WORLD_CAP_MAX = 3000
 # Reserved for the results of the first read round; the step message itself is counted with its
 # real length when the round is appended (tool_loop).
 ROUND_RESERVE = 1024
+# A world-extraction part answers without read tools (T-369): no tool instructions, no read
+# round, and room for EXTRACTION_PART_PROPOSALS proposals instead of the plain base output.
+EXTRACTION_PART_PROPOSALS = 8
+EXTRACTION_ANSWER_TOKENS = 1100
 # A further read round starts only with at least this many tokens left for its results.
 ROUND_MINIMUM = 512
 # RAG keeps at least this much whenever there are candidates; part of the floor.
@@ -60,16 +64,18 @@ def answer_tokens(required_kinds: int) -> int:
     )
 
 
-def prompt_budget(*, base_prompt: int, tools: int, required_kinds: int) -> PromptBudget:
+def prompt_budget(
+    *, base_prompt: int, tools: int, required_kinds: int, answer_only: bool = False
+) -> PromptBudget:
     """``base_prompt`` is the whole prompt with an empty world state and no RAG excerpts --
     system prompt, conversation, framing, contract and request -- measured by the engine."""
     return PromptBudget(
         context=RUNTIME_CONFIG.context_tokens,
         template=RUNTIME_CONFIG.template_reserve,
-        answer=answer_tokens(required_kinds),
+        answer=EXTRACTION_ANSWER_TOKENS if answer_only else answer_tokens(required_kinds),
         base_prompt=base_prompt,
-        tools=tools,
-        round_reserve=ROUND_RESERVE,
+        tools=0 if answer_only else tools,
+        round_reserve=0 if answer_only else ROUND_RESERVE,
     )
 
 
@@ -79,6 +85,8 @@ def output_headroom(prompt_tokens: int) -> int:
 
 
 __all__ = [
+    "EXTRACTION_ANSWER_TOKENS",
+    "EXTRACTION_PART_PROPOSALS",
     "RAG_FLOOR",
     "ROUND_MINIMUM",
     "ROUND_RESERVE",

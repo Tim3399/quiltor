@@ -962,11 +962,15 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             [{"alias": "Die Botin", "source": "assistant"}],
         )
         schema = inference.calls[0]["response_format"]["json_schema"]["schema"]
+        # Extraction offers the final branch only (T-369); find it by name, not position.
+        final = next(
+            branch["properties"]["final"]
+            for branch in schema["properties"]["step"]["anyOf"]
+            if "final" in branch["properties"]
+        )
         proposal_kinds = {
             branch["properties"]["kind"]["enum"][0]
-            for branch in schema["properties"]["step"]["anyOf"][1]["properties"]["final"][
-                "properties"
-            ]["proposals"]["items"]["anyOf"]
+            for branch in final["properties"]["proposals"]["items"]["anyOf"]
         }
         self.assertNotIn("arrange_elements", proposal_kinds)
 

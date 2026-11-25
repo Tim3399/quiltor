@@ -43,6 +43,11 @@ For compound requests, emit every operation needed to fulfil the task. "Igor is 
 For arranging or sorting the board, use arrange_elements. Never invent timeline changes as a substitute for an unavailable operation.
 Do not emit unknown keys or any proposal for manuscript text."""
 
+# World extraction (T-369): the part's text is in RAG CONTEXT and no read tools are offered.
+EXTRACTION_INSTRUCTION = """
+
+WORLD EXTRACTION: The manuscript excerpts of this part are in RAG CONTEXT; read them there. For every person, animal, place, organisation, object or concept the excerpts name that is not in the world state, emit create_element with its type. For every relationship, moment or presence the excerpts state, emit the matching operation. Use existing ids for what the world state already holds. Keep message to one or two sentences; the proposals carry the result."""
+
 
 def system_prompt(language: str) -> str:
     name = ASSISTANT_REPLY_LANGUAGES.get(

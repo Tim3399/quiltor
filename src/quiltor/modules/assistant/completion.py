@@ -22,7 +22,12 @@ from quiltor.modules.assistant.batch import (
     broad_scope_reply,
     estimate_batch_seconds,
 )
-from quiltor.modules.assistant.budget import RAG_FLOOR, output_headroom, prompt_budget
+from quiltor.modules.assistant.budget import (
+    EXTRACTION_PART_PROPOSALS,
+    RAG_FLOOR,
+    output_headroom,
+    prompt_budget,
+)
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
 from quiltor.modules.assistant.context import pack_chunks
 from quiltor.modules.assistant.contract import (
@@ -59,6 +64,7 @@ from quiltor.modules.assistant.ports import (
 from quiltor.modules.assistant.prompts import (
     CONTEXT_SAFETY_MARGIN,
     DEFAULT_ASSISTANT_LANGUAGE,
+    EXTRACTION_INSTRUCTION,
     MODEL_CONTEXT_TOKENS,
     MUTATION_REQUEST,
     PROSE_REQUEST,
@@ -950,7 +956,17 @@ def _complete_once(
         if extraction_mode
         else (contract["requiredKinds"] or (KINDS if mutation_requested else []))
     )
-    schema = reply_schema(allowed_proposal_kinds)
+    schema = (
+        reply_schema(
+            allowed_proposal_kinds,
+            max_proposals=EXTRACTION_PART_PROPOSALS,
+            typed_elements=True,
+        )
+        if extraction_mode
+        else reply_schema(allowed_proposal_kinds)
+    )
+    if extraction_mode:
+        prompt += EXTRACTION_INSTRUCTION
     conversation = conversation_messages(
         history, runtime.url, runtime.inference.count_tokens, runtime.token_cache
     )
@@ -1003,6 +1019,7 @@ def _complete_once(
         base_prompt=base_tokens + (count(requirements) if requirements else 0),
         tools=count(tool_instructions(runtime.read_tools)),
         required_kinds=len(contract["requiredKinds"]),
+        answer_only=extraction_mode,
     )
     relevant = relevant_ids(question, figures, plan, context_candidates)
     if extraction_mode:
@@ -1143,6 +1160,8 @@ def _complete_once(
         manuscript=scoped_manuscript,
         figures=figures,
         world_revision=world_revision,
+        answer_only=extraction_mode,
+        reply=schema if extraction_mode else None,
     )
     trace.extend(tool_loop.trace)
     prompt_tokens = tool_loop.prompt_tokens

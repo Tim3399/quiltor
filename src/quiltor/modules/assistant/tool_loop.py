@@ -226,8 +226,15 @@ def run_tool_loop(
     world_revision: int,
     manuscript: dict[str, Any],
     figures: dict[str, Any],
+    answer_only: bool = False,
+    reply: dict[str, Any] | None = None,
 ) -> ToolLoopResult:
-    """Run up to four read rounds and require a final existing reply-shaped step."""
+    """Run up to four read rounds and require a final existing reply-shaped step.
+
+    ``answer_only`` offers no read tools at all: the first step must be the final one. World
+    extraction uses it, because its part already carries the text; with tools on offer a small
+    model read first, found nothing and answered with no proposals (T-368).
+    """
 
     try:
         trusted_catalog = _trusted_catalog(read_tools.catalog())
@@ -239,16 +246,17 @@ def run_tool_loop(
     if trusted_catalog is None or not messages or messages[0].get("role") != "system":
         return _failure("unsafe_tool_catalog", messages, trace, 0, 0, 0, 0)
 
-    messages[0] = {
-        **messages[0],
-        "content": str(messages[0].get("content") or "") + _instructions(trusted_catalog),
-    }
+    if not answer_only:
+        messages[0] = {
+            **messages[0],
+            "content": str(messages[0].get("content") or "") + _instructions(trusted_catalog),
+        }
     kinds = tuple(allowed_proposal_kinds)
-    schema = tool_step_schema(trusted_catalog, kinds)
+    schema = tool_step_schema(trusted_catalog, kinds, final_only=answer_only, reply=reply)
     allowed_names = {str(item["name"]) for item in trusted_catalog}
     # What the answer needs after the last round: the caller's output budget (T-307).
     answer_reserve = int(payload.get("max_tokens") or RUNTIME_CONFIG.base_output_tokens)
-    final_only = False
+    final_only = answer_only
     tool_rounds = 0
     tool_calls = 0
     result_chars = 0
@@ -259,7 +267,7 @@ def run_tool_loop(
         nonlocal final_only, schema
         if not final_only:
             final_only = True
-            schema = tool_step_schema(trusted_catalog, kinds, final_only=True)
+            schema = tool_step_schema(trusted_catalog, kinds, final_only=True, reply=reply)
             messages.append({"role": "user", "content": FINAL_ONLY_NOTE})
             trace.append({"step": "tool_loop_final_only", "toolRounds": tool_rounds})
 
@@ -269,7 +277,8 @@ def run_tool_loop(
         # True: ask again (with the hint, or final-only). False: the final-only call itself was
         # invalid, and the loop ends as before.
         nonlocal invalid_steps
-        if final_only:
+        # An answer-only loop starts final-only; it keeps the same two repairs (T-369).
+        if (final_only and not answer_only) or invalid_steps >= 2:
             return False
         invalid_steps += 1
         trace.append({"step": "tool_step_invalid", "count": invalid_steps})

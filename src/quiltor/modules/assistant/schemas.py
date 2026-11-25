@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -223,7 +224,20 @@ PROPOSAL_SCHEMAS: dict[str, dict[str, Any]] = {
 }
 
 
-def reply_schema(allowed_kinds: Iterable[str] | None = None) -> dict[str, Any]:
+def _typed_create_element() -> dict[str, Any]:
+    # World extraction names what it finds; without a type the element cannot be placed, and
+    # the grammar lets a small model leave it out (T-369). Chat requests keep the open form.
+    schema = copy.deepcopy(PROPOSAL_SCHEMAS["create_element"])
+    schema["properties"]["element"]["required"] = ["type", "name"]
+    return schema
+
+
+def reply_schema(
+    allowed_kinds: Iterable[str] | None = None,
+    *,
+    max_proposals: int = 20,
+    typed_elements: bool = False,
+) -> dict[str, Any]:
     allowed = [
         kind
         for kind in (KINDS if allowed_kinds is None else allowed_kinds)
@@ -232,8 +246,15 @@ def reply_schema(allowed_kinds: Iterable[str] | None = None) -> dict[str, Any]:
     proposals = (
         {
             "type": "array",
-            "maxItems": 20,
-            "items": {"anyOf": [PROPOSAL_SCHEMAS[kind] for kind in allowed]},
+            "maxItems": max_proposals,
+            "items": {
+                "anyOf": [
+                    _typed_create_element()
+                    if typed_elements and kind == "create_element"
+                    else PROPOSAL_SCHEMAS[kind]
+                    for kind in allowed
+                ]
+            },
         }
         if allowed
         else {"type": "array", "maxItems": 0}
@@ -253,8 +274,11 @@ def tool_step_schema(
     allowed_kinds: Iterable[str] | None = None,
     *,
     final_only: bool = False,
+    reply: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Strict JSON step contract for runtimes without native function calling.
+
+    ``reply`` replaces the final answer's schema, as world extraction narrows it (T-369).
 
     ``final_only`` leaves out the tool-call branch: the last call of a read loop whose budget
     or rounds are used up may only answer (T-307).
@@ -278,7 +302,7 @@ def tool_step_schema(
         ["action", "final"],
         {
             "action": {"enum": ["final"]},
-            "final": reply_schema(allowed_kinds),
+            "final": dict(reply) if reply is not None else reply_schema(allowed_kinds),
         },
     )
     if final_only:
