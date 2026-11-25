@@ -35,7 +35,19 @@ export function useManuscriptSearch({
   // result list is never painted with an index past its end.
   const lastMatchIndex = Math.max(0, matches.length - 1);
   if (query && activeIndex > lastMatchIndex) setActiveIndex(lastMatchIndex);
-  const activeMatch = matches[activeIndex] ?? null;
+  // The match the author last moved to (Next, Previous, a requested hit). An edit that removes
+  // or moves it leaves nothing active, instead of handing the highlight and the view to
+  // whichever occurrence slid into its slot: that jumped away while the author was still typing.
+  const [anchor, setAnchor] = useState<ManuscriptSearchMatch | null>(null);
+  const indexed = matches[activeIndex] ?? null;
+  const activeMatch =
+    indexed &&
+    anchor &&
+    indexed.chapterId === anchor.chapterId &&
+    indexed.from === anchor.from &&
+    indexed.to === anchor.to
+      ? indexed
+      : null;
   const currentMatches = useMemo(
     () => matches.filter((match) => match.chapterId === current?.id),
     [matches, current?.id],
@@ -73,14 +85,17 @@ export function useManuscriptSearch({
   if (requestKey !== appliedRequestKey) {
     setAppliedRequestKey(requestKey);
     if (requestKey && textSearch) {
-      const requested = manuscriptSearchMatches(chapters, requestedQuery).findIndex(
+      const requestedMatches = manuscriptSearchMatches(chapters, requestedQuery);
+      const requested = requestedMatches.findIndex(
         (match) =>
           match.chapterId === targetId &&
           match.from === textSearch.from &&
           match.to === textSearch.to,
       );
+      const index = requested >= 0 ? requested : 0;
       setQuery(requestedQuery);
-      setActiveIndex(requested >= 0 ? requested : 0);
+      setActiveIndex(index);
+      setAnchor(requestedMatches[index] ?? null);
     }
   }
   // Opening the requested chapter reaches the owner, which a render must not do.
@@ -92,24 +107,33 @@ export function useManuscriptSearch({
     }
   }, [requestKey, targetId, targetRequestId]);
 
+  // Keyed on the range, not on the match object: every edit builds new match objects, and an
+  // effect that followed them would scroll back to the hit on each keystroke.
+  const activeChapterId = activeMatch?.chapterId;
+  const activeFrom = activeMatch?.from;
+  const activeTo = activeMatch?.to;
   useEffect(() => {
-    if (!activeMatch || activeMatch.chapterId !== current?.id) return;
-    const frame = requestAnimationFrame(() =>
-      editor.current?.reveal(activeMatch.from, activeMatch.to),
-    );
+    if (activeChapterId === undefined || activeFrom === undefined || activeTo === undefined) return;
+    if (activeChapterId !== current?.id) return;
+    const frame = requestAnimationFrame(() => editor.current?.reveal(activeFrom, activeTo));
     return () => cancelAnimationFrame(frame);
-  }, [activeMatch, current?.id, editor]);
+  }, [activeChapterId, activeFrom, activeTo, current?.id, editor]);
 
   const navigate = (offset: number) => {
     if (!matches.length) return;
-    const next = (activeIndex + offset + matches.length) % matches.length;
+    // With nothing active (the hit was edited away) the occurrence now in the active slot is the
+    // next one; the one before it is previous.
+    const step = activeMatch || offset < 0 ? offset : 0;
+    const next = (activeIndex + step + matches.length) % matches.length;
     setActiveIndex(next);
+    setAnchor(matches[next]);
     onCurrentId(matches[next].chapterId);
   };
 
   const close = () => {
     setQuery("");
     setActiveIndex(0);
+    setAnchor(null);
     editor.current?.focus();
   };
 

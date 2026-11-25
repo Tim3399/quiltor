@@ -45,6 +45,79 @@ describe("useManuscriptSearch navigation", () => {
   });
 });
 
+describe("useManuscriptSearch editing", () => {
+  const reveal = vi.fn();
+  const editor = { current: { reveal } as unknown as ManuscriptEditorHandle };
+  const base: Chapter[] = [
+    { id: "first", title: "Erstes Kapitel", body: "Hafen und Hafen und Hafen", note: "" },
+  ];
+
+  function setup() {
+    let chaptersNow = base;
+    const hook = renderHook(() =>
+      useManuscriptSearch({
+        chapters: chaptersNow,
+        current: chaptersNow[0],
+        editor,
+        onCurrentId: vi.fn(),
+        targetId: "first",
+        targetRequestId: 1,
+        textSearch: { query: "Hafen", from: 10, to: 15 },
+      }),
+    );
+    return {
+      ...hook,
+      edit(body: string) {
+        chaptersNow = [{ ...base[0], body }];
+        hook.rerender();
+      },
+    };
+  }
+
+  async function frame() {
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    });
+  }
+
+  it("neither moves the active hit nor the view when the hit is deleted", async () => {
+    const view = setup();
+    await frame();
+    expect(view.result.current.activeMatch).toMatchObject({ from: 10, to: 15 });
+    reveal.mockClear();
+
+    view.edit("Hafen und  und Hafen");
+    await frame();
+
+    expect(view.result.current.activeMatch).toBeNull();
+    expect(reveal).not.toHaveBeenCalled();
+  });
+
+  it("does not scroll back to the hit while the author types elsewhere", async () => {
+    const view = setup();
+    await frame();
+    reveal.mockClear();
+
+    view.edit("Hafen und Hafen und Hafen!");
+    await frame();
+
+    expect(view.result.current.activeMatch).toMatchObject({ from: 10, to: 15 });
+    expect(reveal).not.toHaveBeenCalled();
+  });
+
+  it("continues with the next hit on Next after the active one was deleted", async () => {
+    const view = setup();
+    await frame();
+    view.edit("Hafen und  und Hafen");
+    reveal.mockClear();
+    act(() => view.result.current.navigate(1));
+    await frame();
+
+    expect(view.result.current.activeMatch).toMatchObject({ from: 15, to: 20 });
+    expect(reveal).toHaveBeenLastCalledWith(15, 20);
+  });
+});
+
 describe("useManuscriptSearch results", () => {
   const harbour: Chapter[] = [
     { id: "first", title: "Erstes Kapitel", body: "Hafen und Hafen und Hafen", note: "" },
