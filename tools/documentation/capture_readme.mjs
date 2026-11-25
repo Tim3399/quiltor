@@ -285,13 +285,13 @@ try {
   await page.mouse.move(focus.x, focus.y);
   await page.mouse.wheel(0, -60);
   await settle("timeline-playback zoom");
-  // Pan the focus to the middle of the band between toolbar and time panel. The drag starts on
-  // empty board; it must never grab a card and move it.
-  const panel = await page.getByRole("button", { name: ui.overview, exact: true }).boundingBox();
-  const target = { x: 815, y: (97 + panel.y - 20) / 2 };
+  // Pan the focus to the middle of the map, which since T-328 lies below the docked time
+  // strip. The drag starts on empty board; it must never grab a card and move it.
+  const board = await page.locator(".figure-stage > .flow-area").boundingBox();
+  const target = { x: board.x + board.width / 2, y: board.y + board.height / 2 };
   const moved = await page.evaluate(
-    ([dx, dy]) => {
-      for (let y = 140; y < 700; y += 20) {
+    ([dx, dy, top]) => {
+      for (let y = top + 20; y < 860; y += 20) {
         for (let x = 260; x < 1400; x += 20) {
           const free = (px, py) => {
             const hit = document.elementFromPoint(px, py);
@@ -302,7 +302,7 @@ try {
       }
       return null;
     },
-    [target.x - focus.x, target.y - focus.y],
+    [target.x - focus.x, target.y - focus.y, board.y],
   );
   if (!moved) throw new Error("No empty board to pan the timeline view from.");
   await page.mouse.move(moved[0], moved[1]);
