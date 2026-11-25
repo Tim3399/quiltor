@@ -171,6 +171,11 @@ class AssistantRuntime:
         schema = getattr(response_format, "check_schema", None)
         if schema is None:
             schema = (response_format.get("json_schema") or {}).get("schema")
+        limit = getattr(response_format, "trim_proposals", None)
+        if isinstance(limit, int) and isinstance(result.get("proposals"), list):
+            # WebLLM's grammar does not hold maxItems: a part wrote more proposals than allowed
+            # and failed the check (T-369). What fits is kept, the rest is dropped.
+            result = {**result, "proposals": result["proposals"][:limit]}
         if isinstance(schema, dict):
             result = drop_repeated_strings(result, schema)
             violations = check_schema(result, schema)

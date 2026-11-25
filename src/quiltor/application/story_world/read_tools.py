@@ -354,6 +354,35 @@ def _string_list(
     return tuple(cleaned)
 
 
+def _chapter_ids(requested: tuple[str, ...], manuscript: JsonObject) -> tuple[str, ...]:
+    """Chapter ids as the manuscript knows them (T-369).
+
+    A model copies the ids of RAG excerpts -- ``chapter:<id>:<n>``, ``<id>:<n>``,
+    ``chapter-note:<id>`` -- into ``chapterIds``. Each is mapped to its chapter; an id that
+    names no chapter is refused instead of silently matching nothing.
+    """
+    known: set[str] = set()
+    for item in as_array(manuscript.get("chapters")) or []:
+        chapter = as_mapping(item)
+        if chapter is not None:
+            known.add(str(chapter.get("id")))
+    mapped: list[str] = []
+    for item in requested:
+        candidate = item
+        for prefix in ("chapter-note:", "chapter:"):
+            if candidate.startswith(prefix) and candidate not in known:
+                candidate = candidate[len(prefix) :]
+        if candidate not in known:
+            head, _, tail = candidate.rpartition(":")
+            if head in known and tail.isdigit():
+                candidate = head
+        if candidate not in known:
+            raise _ReadToolInputError
+        if candidate not in mapped:
+            mapped.append(candidate)
+    return tuple(mapped)
+
+
 def _limit(arguments: Mapping[str, object], maximum: int, default: int) -> int:
     value = arguments.get("limit", default)
     if type(value) is not int or not 1 <= value <= maximum:
@@ -827,6 +856,7 @@ class StoryWorldReadTools:
             "chapterIds",
             maximum_items=MAX_CHAPTER_IDS,
         )
+        chapter_ids = _chapter_ids(chapter_ids, manuscript)
         limit = _limit(arguments, MAX_SEARCH_RESULTS, 6)
         chunks = StoryWorldQueries.search_manuscript(
             manuscript,

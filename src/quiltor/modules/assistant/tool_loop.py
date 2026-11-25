@@ -10,7 +10,12 @@ from typing import Any
 from quiltor.modules.assistant.budget import ROUND_MINIMUM, output_headroom
 from quiltor.modules.assistant.config import RUNTIME_CONFIG
 from quiltor.modules.assistant.ports import AssistantReadToolExecutor, InferenceValidationError
-from quiltor.modules.assistant.schemas import STEP_KEY, json_schema_format, tool_step_schema
+from quiltor.modules.assistant.schemas import (
+    STEP_KEY,
+    json_schema_format,
+    reply_schema,
+    tool_step_schema,
+)
 
 MAX_TOOL_ROUNDS = 4
 MAX_CALLS_PER_ROUND = 6
@@ -216,6 +221,64 @@ def _valid_calls(value: Any, allowed_names: set[str]) -> list[dict[str, Any]] | 
     return calls
 
 
+# An answer that broke its schema is asked for again this often, as a read loop would (T-363).
+ANSWER_ONLY_REPAIRS = 2
+INVALID_ANSWER_NOTE = (
+    'INVALID ANSWER: {"code":"invalid_answer","message":"The last answer did not match the '
+    'required format. Return one valid answer."}'
+)
+
+
+def _answer_only(
+    payload: dict[str, Any],
+    messages: list[dict[str, Any]],
+    trace: list[dict[str, Any]],
+    reply: dict[str, Any],
+    invoke: Invoke,
+    count_tokens: CountTokens,
+) -> ToolLoopResult:
+    repairs = 0
+    while True:
+        prompt_tokens = _prompt_tokens(messages, count_tokens)
+        available = RUNTIME_CONFIG.context_tokens - prompt_tokens - RUNTIME_CONFIG.template_reserve
+        if available < RUNTIME_CONFIG.minimum_output_tokens:
+            return _failure("tool_context_limit", messages, trace, prompt_tokens, 0, 0, 0)
+        response_format = json_schema_format(reply)
+        limit = ((reply.get("properties") or {}).get("proposals") or {}).get("maxItems")
+        response_format.trim_proposals = limit if isinstance(limit, int) else None
+        answer_payload = {
+            **payload,
+            "max_tokens": min(
+                int(payload.get("max_tokens") or RUNTIME_CONFIG.base_output_tokens), available
+            ),
+            "messages": messages,
+            "response_format": response_format,
+        }
+        try:
+            final = invoke(answer_payload, prompt_tokens)
+        except InferenceValidationError:
+            if repairs >= ANSWER_ONLY_REPAIRS:
+                raise
+            repairs += 1
+            trace.append({"step": "answer_invalid", "count": repairs})
+            if repairs == 1:
+                messages.append({"role": "user", "content": INVALID_ANSWER_NOTE})
+            continue
+        if not isinstance(final, dict):
+            return _failure("invalid_final_step", messages, trace, prompt_tokens, 0, 0, 0)
+        trace.append(
+            {
+                "step": "tool_loop",
+                "complete": True,
+                "answerOnly": True,
+                "toolRounds": 0,
+                "toolCalls": 0,
+                "resultTokens": 0,
+            }
+        )
+        return ToolLoopResult(final, messages, trace, prompt_tokens, 0, 0, 0)
+
+
 def run_tool_loop(
     payload: dict[str, Any],
     *,
@@ -226,8 +289,16 @@ def run_tool_loop(
     world_revision: int,
     manuscript: dict[str, Any],
     figures: dict[str, Any],
+    answer_only: bool = False,
+    reply: dict[str, Any] | None = None,
 ) -> ToolLoopResult:
-    """Run up to four read rounds and require a final existing reply-shaped step."""
+    """Run up to four read rounds and require a final existing reply-shaped step.
+
+    ``answer_only`` offers no read tools and no step at all: the model answers with ``reply``
+    directly. World extraction uses it, because its part already carries the text. With tools
+    on offer a small model read first, found nothing and proposed nothing (T-368); wrapped in
+    ``{"step": {"action": "final", ...}}`` it still proposed nothing, unwrapped it did (T-369).
+    """
 
     try:
         trusted_catalog = _trusted_catalog(read_tools.catalog())
@@ -239,12 +310,16 @@ def run_tool_loop(
     if trusted_catalog is None or not messages or messages[0].get("role") != "system":
         return _failure("unsafe_tool_catalog", messages, trace, 0, 0, 0, 0)
 
+    kinds = tuple(allowed_proposal_kinds)
+    if answer_only:
+        return _answer_only(
+            payload, messages, trace, reply or reply_schema(kinds), invoke, count_tokens
+        )
     messages[0] = {
         **messages[0],
         "content": str(messages[0].get("content") or "") + _instructions(trusted_catalog),
     }
-    kinds = tuple(allowed_proposal_kinds)
-    schema = tool_step_schema(trusted_catalog, kinds)
+    schema = tool_step_schema(trusted_catalog, kinds, reply=reply)
     allowed_names = {str(item["name"]) for item in trusted_catalog}
     # What the answer needs after the last round: the caller's output budget (T-307).
     answer_reserve = int(payload.get("max_tokens") or RUNTIME_CONFIG.base_output_tokens)
@@ -259,7 +334,7 @@ def run_tool_loop(
         nonlocal final_only, schema
         if not final_only:
             final_only = True
-            schema = tool_step_schema(trusted_catalog, kinds, final_only=True)
+            schema = tool_step_schema(trusted_catalog, kinds, final_only=True, reply=reply)
             messages.append({"role": "user", "content": FINAL_ONLY_NOTE})
             trace.append({"step": "tool_loop_final_only", "toolRounds": tool_rounds})
 

@@ -961,12 +961,11 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             result["proposals"][0]["element"]["aliases"],
             [{"alias": "Die Botin", "source": "assistant"}],
         )
-        schema = inference.calls[0]["response_format"]["json_schema"]["schema"]
+        # Extraction answers with the plain reply, without a step (T-369).
+        final = inference.calls[0]["response_format"]["json_schema"]["schema"]
         proposal_kinds = {
             branch["properties"]["kind"]["enum"][0]
-            for branch in schema["properties"]["step"]["anyOf"][1]["properties"]["final"][
-                "properties"
-            ]["proposals"]["items"]["anyOf"]
+            for branch in final["properties"]["proposals"]["items"]["anyOf"]
         }
         self.assertNotIn("arrange_elements", proposal_kinds)
 
