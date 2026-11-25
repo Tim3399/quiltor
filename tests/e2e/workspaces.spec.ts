@@ -2646,8 +2646,13 @@ test("Moving preserves every element across autosave and a reload", async ({ pag
   expect(saved.ok()).toBeTruthy();
   await page.goto(`/?world=${world.id}`);
   await waitForManuscriptReady(page);
+  // Opening Figuren after a load is the slow step: on the Windows runner the renderer's main
+  // thread once stood still for over six seconds right after the click (T-340: no frame
+  // painted, and three polls of the five-second default got an answer). The wait stays on the
+  // state, twelve cards on the canvas, and only its bound is wider than the default.
+  const workspaceLoad = { timeout: 15_000 };
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await expect(page.locator(".story-node")).toHaveCount(12);
+  await expect(page.locator(".story-node")).toHaveCount(12, workspaceLoad);
   const node = page.locator(".react-flow__node").first();
   const box = await node.boundingBox();
   expect(box).not.toBeNull();
@@ -2667,7 +2672,7 @@ test("Moving preserves every element across autosave and a reload", async ({ pag
   await page.reload();
   await waitForManuscriptReady(page);
   await page.getByRole("button", { name: "Figuren", exact: true }).click();
-  await expect(page.locator(".story-node")).toHaveCount(12);
+  await expect(page.locator(".story-node")).toHaveCount(12, workspaceLoad);
 });
 
 test("Element types are consistently reachable and deleting confirms without a hold", async ({
