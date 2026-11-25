@@ -3,8 +3,38 @@ import {
   type GraphEdgeLabelRequest,
   type GraphRect,
   placeGraphEdgeLabels,
+  rectsInReach,
   sampleGraphSmoothStepPath,
 } from "./edgeLabelPlacement";
+
+describe("label placement on a large board", () => {
+  it("scores a label only against the rects its candidates can reach", () => {
+    const near = { x: 90, y: -20, width: 40, height: 40 };
+    const far = { x: 5000, y: 5000, width: 200, height: 96 };
+    const inReach = rectsInReach([{ x: 0, y: -12, width: 220, height: 24 }], [[near, far], []], 8);
+    expect(inReach).toEqual([{ x: 82, y: -28, width: 56, height: 56 }]);
+  });
+
+  it("places a label the same whether far cards exist or not", () => {
+    const request = {
+      id: "edge",
+      source: { x: 0, y: 0 },
+      target: { x: 400, y: 0 },
+      idealCenter: { x: 200, y: 0 },
+      size: { width: 96, height: 24 },
+    };
+    const near = [{ x: 170, y: -30, width: 60, height: 60 }];
+    const far = Array.from({ length: 200 }, (_, index) => ({
+      x: 2000 + index * 220,
+      y: 3000,
+      width: 200,
+      height: 96,
+    }));
+    expect(placeGraphEdgeLabels([request], [...near, ...far]).get("edge")).toEqual(
+      placeGraphEdgeLabels([request], near).get("edge"),
+    );
+  });
+});
 
 const originalViewport = {
   width: Object.getOwnPropertyDescriptor(window, "innerWidth"),

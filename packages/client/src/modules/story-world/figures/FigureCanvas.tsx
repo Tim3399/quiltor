@@ -1,8 +1,9 @@
-import { ConnectionLineType, ConnectionMode } from "@xyflow/react";
+import { ConnectionLineType, ConnectionMode, type Edge } from "@xyflow/react";
 import { Link2, Plus, UserRound } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
+import { useLatest } from "../../../shared/hooks/useLatest";
 import { graphRelationshipEdgeTypes, positionGraphRelationshipEdgeLabels } from "../../graph";
 import { ModeBanner } from "../ModeBanner";
 import { StoryGraphCanvas } from "../StoryGraphCanvas";
@@ -35,6 +36,64 @@ export type FigureCanvasProps = {
   children?: ReactNode;
 };
 
+/**
+ * What of a node the label placement reads: where it is, how large, and the guest line that
+ * makes it taller. Selection, zoom tier and the rest of `data` do not move a label.
+ */
+function labelGeometryKey(nodes: readonly FigureFlowNode[]): string {
+  return nodes
+    .map(
+      (node) =>
+        `${node.id}:${node.position.x},${node.position.y},${node.measured?.width ?? node.width ?? ""},${node.measured?.height ?? node.height ?? ""},${node.data.guests.length},${node.dragging ? 1 : 0}`,
+    )
+    .join(";");
+}
+
+/**
+ * Edge labels for the figure board. The full collision pass runs when the geometry settles;
+ * while cards are dragged only the labels of edges at those cards are placed again, around
+ * the others, which keep the places of the last full pass.
+ */
+export function useFigureEdgeLabels(
+  nodes: FigureFlowNode[],
+  edges: Edge[],
+  onSelectEdge: (id: string) => void,
+): Edge[] {
+  const geometry = labelGeometryKey(nodes);
+  const dragging = nodes.some((node) => node.dragging);
+  // The full pass, only while nothing is dragged.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `geometry` stands for the parts of `nodes` the placement reads.
+  const full = useMemo(
+    () =>
+      dragging
+        ? null
+        : positionGraphRelationshipEdgeLabels(nodes, edges, { onLabelClick: onSelectEdge }),
+    [geometry, edges, onSelectEdge, dragging],
+  );
+  // The last full pass, kept for the frames of the next drag. Adjusted during render, the
+  // way React describes for state derived from props: one extra render when a pass
+  // settles, none per frame of a drag.
+  const [settled, setSettled] = useState<{
+    edges: Edge[];
+    onSelectEdge: unknown;
+    positioned: Edge[];
+  } | null>(null);
+  if (full && settled?.positioned !== full) {
+    setSettled({ edges, onSelectEdge, positioned: full });
+  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `geometry` stands for the parts of `nodes` the placement reads.
+  const partial = useMemo(() => {
+    if (!dragging) return null;
+    const movedNodeIds = new Set(nodes.filter((node) => node.dragging).map((node) => node.id));
+    const keep =
+      settled && settled.edges === edges && settled.onSelectEdge === onSelectEdge
+        ? { positioned: settled.positioned, movedNodeIds }
+        : undefined;
+    return positionGraphRelationshipEdgeLabels(nodes, edges, { onLabelClick: onSelectEdge, keep });
+  }, [geometry, edges, onSelectEdge, dragging, settled]);
+  return full ?? partial ?? edges;
+}
+
 export function FigureCanvas({
   controller,
   connecting,
@@ -49,10 +108,8 @@ export function FigureCanvas({
 }: FigureCanvasProps) {
   const { t } = useI18n();
   const { nodes, edges, zoomTier } = controller;
-  const positionedEdges = useMemo(
-    () => positionGraphRelationshipEdgeLabels(nodes, edges, { onLabelClick: onSelectEdge }),
-    [edges, nodes, onSelectEdge],
-  );
+  const positionedEdges = useFigureEdgeLabels(nodes, edges, onSelectEdge);
+  const nodesRef = useLatest(nodes);
   const pendingTouch = useRef<{
     timer: number;
     trigger: HTMLElement;
@@ -67,7 +124,7 @@ export function FigureCanvas({
       return element?.closest(".figure-workspace") ? element : null;
     };
     const openFromElement = (element: HTMLElement, x?: number, y?: number) => {
-      const node = nodes.find((candidate) => candidate.id === element.dataset.id);
+      const node = nodesRef.current.find((candidate) => candidate.id === element.dataset.id);
       if (!node) return false;
       const box = element.getBoundingClientRect();
       onOpenNodeMenu(
@@ -137,7 +194,9 @@ export function FigureCanvas({
       document.removeEventListener("pointerup", clearTouch, true);
       document.removeEventListener("pointercancel", clearTouch, true);
     };
-  }, [nodes, onOpenNodeMenu]);
+    // The nodes are read through a ref: depending on them tore the five document listeners
+    // down and put them up again on every pointer move of a drag.
+  }, [onOpenNodeMenu]);
 
   return (
     <StoryGraphCanvas

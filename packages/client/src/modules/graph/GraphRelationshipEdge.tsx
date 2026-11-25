@@ -177,8 +177,40 @@ export function graphEdgeLabelSize(label: string, badgeCount = 0): GraphSize {
 export function positionGraphRelationshipEdgeLabels<EdgeType extends Edge>(
   nodes: readonly GraphLabelNode[],
   edges: readonly EdgeType[],
-  options: { onLabelClick?: (edgeId: string) => void } = {},
+  options: {
+    onLabelClick?: (edgeId: string) => void;
+    /**
+     * A previous result for the same edges, and the nodes that moved since. Labels of edges
+     * that touch none of those nodes stay as they were placed; only the others are placed
+     * again, around them. Meant for the frames of a drag -- the full pass after it settles
+     * every label once more.
+     */
+    keep?: { positioned: readonly EdgeType[]; movedNodeIds: ReadonlySet<string> };
+  } = {},
 ): EdgeType[] {
+  const kept = new Map<string, EdgeType>();
+  const reserved: GraphRect[] = [];
+  if (options.keep) {
+    const { movedNodeIds } = options.keep;
+    for (const previous of options.keep.positioned) {
+      const data = previous.data as GraphRelationshipEdgeData | undefined;
+      if (!data?.labelPlacement || !data.labelSize) continue;
+      if (movedNodeIds.has(previous.source) || movedNodeIds.has(previous.target)) continue;
+      kept.set(previous.id, previous);
+      const width = options.onLabelClick
+        ? Math.max(data.labelSize.width, INTERACTIVE_TARGET_SIZE)
+        : data.labelSize.width;
+      const height = options.onLabelClick
+        ? Math.max(data.labelSize.height, INTERACTIVE_TARGET_SIZE)
+        : data.labelSize.height;
+      reserved.push({
+        x: data.labelPlacement.x - width / 2,
+        y: data.labelPlacement.y - height / 2,
+        width,
+        height,
+      });
+    }
+  }
   const nodeRects = new Map(
     nodes.map((node) => {
       const size = nodeSize(node);
@@ -196,6 +228,7 @@ export function positionGraphRelationshipEdgeLabels<EdgeType extends Edge>(
       (badge): badge is GraphEdgeLabelBadge => badge === "kinship" || badge === "temporal",
     );
     if (edge.type !== GRAPH_RELATIONSHIP_EDGE_TYPE || (!label && !badges.length)) return [];
+    if (kept.has(edge.id)) return [];
     const sourceRect = nodeRects.get(edge.source);
     const targetRect = nodeRects.get(edge.target);
     if (!sourceRect || !targetRect) return [];
@@ -216,10 +249,12 @@ export function positionGraphRelationshipEdgeLabels<EdgeType extends Edge>(
       },
     ];
   });
-  if (!requests.length) return [...edges];
+  if (!requests.length) return edges.map((edge) => kept.get(edge.id) ?? edge);
 
-  const placements = placeGraphEdgeLabels(requests, obstacles);
+  const placements = placeGraphEdgeLabels(requests, obstacles, { reserved });
   return edges.map((edge) => {
+    const keptEdge = kept.get(edge.id);
+    if (keptEdge) return keptEdge;
     const placement = placements.get(edge.id);
     const route = routes.get(edge.id);
     if (!placement || !route) return edge;
