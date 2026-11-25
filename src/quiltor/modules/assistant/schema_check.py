@@ -234,3 +234,34 @@ def _check_object(
             _check(item, properties[name], f"{path}.{name}", depth + 1, out)
         elif schema.get("additionalProperties") is False:
             out.append(Violation(f"{path}.{name}", "additionalProperties"))
+
+
+_PROPOSALS_OPEN = re.compile(r'^\s*\{\s*"proposals"\s*:\s*\[')
+
+
+def leading_proposals(text: str) -> list[dict[str, Any]]:
+    """The complete proposal objects at the start of a reply cut off by its output limit.
+
+    An extraction reply writes ``proposals`` first (T-369). When an engine's grammar does not
+    hold ``maxItems`` the list runs on until the limit (WebLLM); the items before the cut are
+    whole and are read here, the cut one and everything after it are not (F-369-1).
+    """
+
+    opened = _PROPOSALS_OPEN.match(text)
+    if opened is None:
+        return []
+    decoder = json.JSONDecoder()
+    position = opened.end()
+    found: list[dict[str, Any]] = []
+    while True:
+        while position < len(text) and text[position] in " \t\r\n,":
+            position += 1
+        if position >= len(text) or text[position] != "{":
+            return found
+        try:
+            item, position = decoder.raw_decode(text, position)
+        except ValueError:
+            return found
+        if not isinstance(item, dict):
+            return found
+        found.append(item)

@@ -21,7 +21,7 @@ from quiltor.modules.assistant.ports import (
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, MODEL_CONTEXT_TOKENS
 from quiltor.modules.assistant.proposals import forced_proposal
 from quiltor.modules.assistant.schema_check import check as check_schema
-from quiltor.modules.assistant.schema_check import drop_repeated_strings
+from quiltor.modules.assistant.schema_check import drop_repeated_strings, leading_proposals
 
 
 class AssistantRuntime:
@@ -159,7 +159,17 @@ class AssistantRuntime:
         return forced_proposal(question, context_json, figures)
 
     def _invoke(self, payload: dict[str, Any]) -> dict[str, Any]:
-        result = self.inference.invoke(payload)
+        response_format = payload.get("response_format") or {}
+        limit = getattr(response_format, "trim_proposals", None)
+        try:
+            result = self.inference.invoke(payload)
+        except IncompleteInferenceResponse as exc:
+            # An extraction part cut off at its output limit keeps the whole proposals it wrote
+            # before the cut (F-369-1); without one it is truncated as before.
+            kept = leading_proposals(exc.raw_content) if isinstance(limit, int) else []
+            if not kept:
+                raise
+            result = {"proposals": kept, "citations": [], "message": ""}
         metadata = result.pop("_runtime", {})
         if isinstance(metadata, dict):
             getattr(self, "_invocation_metrics", []).append(metadata)
@@ -167,11 +177,9 @@ class AssistantRuntime:
         # works on a copy, so the payload here still carries it. The full schema is the
         # check_schema json_schema_format attached; the wire form lacks lengths and
         # uniqueness, so it is only the fallback for a format built by hand.
-        response_format = payload.get("response_format") or {}
         schema = getattr(response_format, "check_schema", None)
         if schema is None:
             schema = (response_format.get("json_schema") or {}).get("schema")
-        limit = getattr(response_format, "trim_proposals", None)
         if isinstance(limit, int) and isinstance(result.get("proposals"), list):
             # WebLLM's grammar does not hold maxItems: a part wrote more proposals than allowed
             # and failed the check (T-369). What fits is kept, the rest is dropped.
