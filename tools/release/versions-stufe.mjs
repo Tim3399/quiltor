@@ -329,7 +329,8 @@ try {
   const proxies = values.proxies.split(",").filter(Boolean);
   for (const [index, proxyName] of proxies.entries()) {
     const proxyPort = port + 1 + index;
-    const entry = (protocol.proxies[proxyName] = {});
+    const entry = {};
+    protocol.proxies[proxyName] = entry;
     await hostBehind(proxyName, proxyPort, async (publicUrl) => {
       if (!values["skip-exports"]) {
         const result = await runNode(

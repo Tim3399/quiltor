@@ -87,6 +87,14 @@ extend-ignore-re = [
   # The title of a long chapter in the check world, quoted in its comment (T-355).
   "Das Siegel am Archiv",
 
+  # The version-stage walk (tools/release/stage-rundgang.mjs) quotes interface labels to find
+  # them, and types one German sentence of fixture prose.
+  "name: \"Ordner hinzufügen\"",
+  "name: \"Assistent\"",
+  "Rundgang-Satz am Ende des Kapitels\\.",
+  # ... and the export menu entry the stage script clicks (stage-exports.mjs).
+  "Manuskript als Markdown",
+
   # A SQL keyword in the plural: "UPDATEs" is split as UPDAT + Es.
   "\\bUPDATEs\\b",
   # "PNGs" is split as PN + Gs.

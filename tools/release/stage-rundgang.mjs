@@ -10,7 +10,7 @@
 // A fresh agent repeats the walk on the final commit and judges the pictures; this file only
 // makes sure the same stations are visited the same way.
 
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium } from "@playwright/test";
@@ -142,81 +142,70 @@ try {
 }
 
 // ------------------------------------------------------------------ core route
-await station("kern-welt-oeffnen", "Kernroute", "Welt oeffnen", async () => {
+await station("core-open-world", "Core route", "Open the world list", async () => {
   await page.goto(`${base}/`);
   await page.waitForLoadState("networkidle").catch(() => {});
 });
 await station(
-  "kern-weltauswahl-hilfe",
+  "core-world-list-help",
   "T-324",
-  "Hilfe-Knopf in der Weltauswahl quadratisch, wie der Umschalter",
+  "Help button in the world list is square, like the toggle",
   async () => {
     const help = page.getByRole("button", { name: /Hilfe/ }).first();
     await help.waitFor({ timeout: 15_000 });
     const box = await help.boundingBox();
-    return `Hilfe-Knopf ${Math.round(box.width)}x${Math.round(box.height)} px`;
+    return `Help button ${Math.round(box.width)}x${Math.round(box.height)} px`;
   },
 );
-await station("kern-welt-geoeffnet", "Kernroute", "Welt oeffnen: Manuskript sichtbar", async () => {
+await station("core-world-opened", "Core route", "Open the world: manuscript visible", async () => {
   await page.goto(`${base}/?world=${worldId}`);
   await toolbar("Manuskript").waitFor({ timeout: 90_000 });
 });
-await station("kern-schreiben", "Kernroute", "Schreiben: Text im Kapitel", async () => {
+await station("core-write", "Core route", "Write: text in the chapter", async () => {
   const editor = page.locator('[contenteditable="true"]').first();
   await editor.click({ timeout: 15_000 });
   await page.keyboard.press("Control+End");
   await page.keyboard.type(" Rundgang-Satz am Ende des Kapitels.", { delay: 5 });
   await page.waitForTimeout(1500);
 });
-await station("kern-neues-kapitel", "Kernroute", "Kapitel anlegen", async () => {
+await station("core-new-chapter", "Core route", "Create a chapter", async () => {
   await page
     .getByRole("button", { name: "Neues Kapitel", exact: true })
     .first()
     .click({ timeout: 15_000 });
 });
+await station("core-new-folder", "T-351", "Create a folder: input wide, text visible", async () => {
+  await page.getByRole("button", { name: "Ordner hinzufügen" }).click({ timeout: 15_000 });
+  await page.waitForTimeout(500);
+});
 await station(
-  "kern-neuer-ordner",
-  "T-351",
-  "Ordner anlegen, Eingabefeld breit, Text sichtbar",
-  async () => {
-    await page.getByRole("button", { name: "Ordner hinzufügen" }).click({ timeout: 15_000 });
-    await page.waitForTimeout(500);
-  },
-);
-await station(
-  "kern-druckansicht",
-  "Kernroute",
-  "Druckvorschau des grossen Manuskripts",
+  "core-print-view",
+  "Core route",
+  "Print preview of the large manuscript",
   async () => {
     await page.goto(`${base}/?world=${worldId}`);
     await toolbar("Manuskript").waitFor({ timeout: 90_000 });
     await overflow("Manuskript", "Druckansicht");
     await page.locator(".print-document").waitFor({ timeout: 30_000 });
     await page.locator('.print-document[data-book-ready="true"]').waitFor({ timeout: 240_000 });
-    return `${await page.locator(".print-document .pagedjs_page").count()} Seiten`;
+    return `${await page.locator(".print-document .pagedjs_page").count()} pages`;
   },
 );
 
 // ------------------------------------------------------------------ stations per task
-await station(
-  "t354-index-no-cache",
-  "T-354",
-  "index.html wird nicht zwischengespeichert",
-  async () => {
-    const response = await fetch(`${base}/`);
-    const cache = response.headers.get("cache-control");
-    if (!/no-cache|no-store|max-age=0/.test(cache ?? ""))
-      throw new Error(`Cache-Control: ${cache}`);
-    return `Cache-Control: ${cache}`;
-  },
-);
-await station("t323-favicon", "T-323", "Favicon-Link am Dokument", async () => {
+await station("t354-index-no-cache", "T-354", "index.html is not cached", async () => {
+  const response = await fetch(`${base}/`);
+  const cache = response.headers.get("cache-control");
+  if (!/no-cache|no-store|max-age=0/.test(cache ?? "")) throw new Error(`Cache-Control: ${cache}`);
+  return `Cache-Control: ${cache}`;
+});
+await station("t323-favicon", "T-323", "Favicon links on the document", async () => {
   const links = await page.evaluate(() =>
     [...document.querySelectorAll('link[rel~="icon"]')].map((link) => link.getAttribute("href")),
   );
   return links.join(", ");
 });
-await station("t326-timeline-1100", "T-326", "Timeline-Leiste bei 1100 px", async () => {
+await station("t326-timeline-1100", "T-326", "Timeline strip at 1100 px", async () => {
   await page.goto(`${base}/?world=${worldId}`);
   await toolbar("Manuskript").waitFor({ timeout: 90_000 });
   // The strip sits at the bottom of the figure board.
@@ -228,12 +217,12 @@ await station("t326-timeline-1100", "T-326", "Timeline-Leiste bei 1100 px", asyn
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.waitForTimeout(1500);
 });
-await station("t326-timeline-1280", "T-326", "Timeline-Leiste bei 1280 px", async () => {
+await station("t326-timeline-1280", "T-326", "Timeline strip at 1280 px", async () => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.waitForTimeout(500);
 });
 await page.setViewportSize({ width: 1440, height: 900 });
-await station("t371-suche", "T-371", "Suche: Treffer im Text, Zaehler und Weiter", async () => {
+await station("t371-search", "T-371", "Search: match in the text, counter and next", async () => {
   await page.keyboard.press("Control+f");
   await page.waitForTimeout(500);
 });
@@ -244,10 +233,10 @@ await page.keyboard.press("Escape");
 // These stations only bring the view up and take the picture; whether it is right is for the
 // agent that walks the final commit (the matching `manual` line says what to look at).
 for (const [id, task, title, tab] of [
-  ["bild-figuren", "T-331", "Figurenboard der grossen Welt", "Figuren"],
-  ["bild-timeline", "T-328", "Timeline-Ansicht", "Timeline"],
-  ["bild-orte", "T-325/T-359", "Orte: Karte", "Orte"],
-  ["bild-storyboard", "Kernroute", "Storyboard", "Storyboard"],
+  ["view-figures", "T-331", "Figure board of the large world", "Figuren"],
+  ["view-timeline", "T-328", "Timeline view", "Timeline"],
+  ["view-places", "T-325/T-359", "Places: map", "Orte"],
+  ["view-storyboard", "Core route", "Storyboard", "Storyboard"],
 ]) {
   await station(id, task, title, async () => {
     await page
@@ -258,68 +247,63 @@ for (const [id, task, title, tab] of [
     await page.waitForTimeout(1500);
   });
 }
-await station("bild-assistent", "T-329", "Assistent geoeffnet", async () => {
+await station("view-assistant", "T-329", "Assistant opened", async () => {
   await page.getByRole("button", { name: "Assistent" }).first().click({ timeout: 15_000 });
   await page.waitForTimeout(1000);
 });
 
 // ------------------------------------------------------------------ not scriptable here
 manual(
-  "t325-messen",
+  "t325-measure",
   "T-325",
-  "Karte messen: Uebernehmen aktiv, zurueck in Distanz messen, Legende auf einer Linie",
-  "Karten-Ansicht, Messen starten und beenden",
+  "Measure on the map: apply active, back in measure distance, legend on one line",
+  "Places view, start and stop measuring",
 );
 manual(
   "t328-timeline-toggle",
   "T-328",
-  "Timeline oben ein/aus, Karte darunter ohne Sprung",
-  "noch nicht auf der Linie",
+  "Timeline on top on/off, map below without a jump",
+  "not on the line yet",
 );
 manual(
-  "t329-assistent",
+  "t329-assistant",
   "T-329",
-  "Senden-Knopf im Assistenten im Feld, Hinweis sichtbar",
-  "Assistent oeffnen",
+  "Send button inside the assistant field, hint visible",
+  "Open the assistant",
 );
+manual("t330-parts", "T-330", "Long chapter complete, part i of n visible", "needs a real AI run");
 manual(
-  "t330-teile",
-  "T-330",
-  "Langes Kapitel vollstaendig, Teil i von n sichtbar",
-  "braucht einen KI-Lauf",
-);
-manual(
-  "t331-figurenboard",
+  "t331-figure-board",
   "T-331",
-  "Figurenboard ruckelt nicht beim Ziehen und Zoomen",
-  "Figurenboard der grossen Welt",
+  "Figure board does not stutter when dragging or zooming",
+  "Figure board of the large world",
 );
 manual(
-  "t344-extraktion",
+  "t344-extraction",
   "T-344",
-  "Grosse Welt wird extrahiert; Welches Element ist gemeint?",
-  "braucht einen KI-Lauf",
+  "Large world is extracted; the disambiguation question appears",
+  "needs a real AI run",
 );
-manual("t349-browser-ki", "T-349/T-362", "Browser-KI nach frischem Download", "braucht echte KI");
-manual("t353-papierkorb", "T-353", "Papierkorb-Hinweis: Rueckgaengig rechts", "Kapitel loeschen");
 manual(
-  "t358-handyfoto",
+  "t349-browser-ai",
+  "T-349/T-362",
+  "Browser AI after a fresh download",
+  "needs a real AI run",
+);
+manual("t353-trash", "T-353", "Trash hint: undo aligned right", "Delete a chapter");
+manual(
+  "t358-phone-photo",
   "T-358/T-360",
-  "Handyfoto als Karte",
-  "Fotos aus tests/fixtures/real-files",
+  "Phone photo as a map",
+  "Photos from tests/fixtures/real-files",
 );
 manual(
-  "t359-kartenrand",
+  "t359-map-edge",
   "T-359",
-  "Ansicht auf die Karte begrenzen, Kartenrand erreicht, Anordnen sperren",
-  "Karten-Ansicht",
+  "Limit the view to the map, map edge reached, lock arrangement",
+  "Places view",
 );
-manual(
-  "t350-word",
-  "T-350",
-  "Word mit verfolgten Verschiebungen: keine falsche Warnung",
-  "Word-Import",
-);
+manual("t350-word", "T-350", "Word with tracked moves: no false warning", "Word import");
 
 writeFileSync(
   join(out, "rundgang.json"),

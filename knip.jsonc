@@ -19,6 +19,9 @@
     // Every Playwright and Vite config by pattern, so configs added later (e.g. an audit config) are covered.
     "playwright*.config.ts",
     "vite*.config.ts",
+    // The product Playwright config pointed at a hosted container by the version stage (T-364);
+    // tools/release/versions-stufe.mjs hands its path to the Playwright CLI.
+    "tools/release/playwright.stage.config.ts",
     // Design-system Public API: each folder's index.ts is the contract that
     // tools/quality/check_design_public_api.mjs enforces (it requires every runtime export of the
     // component to be re-exported there). Entry exports are not reported, so the API stays whole.
