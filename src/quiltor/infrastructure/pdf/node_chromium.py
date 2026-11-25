@@ -8,6 +8,7 @@ a ~300 MB Chromium inside a `.app` is exactly what system_browser.py avoids.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import subprocess
@@ -126,14 +127,10 @@ def _kill_tree(process: subprocess.Popen) -> None:
         import signal
 
         for pid in [*_descendants(process.pid), process.pid]:
-            try:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
                 os.kill(pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
-        try:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(process.pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
     else:
         # /T follows parent ids, so it reaches detached children as well.
         subprocess.run(
