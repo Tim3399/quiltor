@@ -13,7 +13,7 @@ import type {
   StoryboardsGateway,
   StoryWorldGateway,
 } from "../application";
-import { ApplicationGatewayError } from "../application";
+import { ApplicationGatewayError, BOOK_PDF_TIMEOUT_CODE } from "../application";
 import { decodeManuscriptV1, encodeManuscriptV1 } from "../contracts/v1/manuscript";
 import { decodeStoryboardsV1, encodeStoryboardsV1 } from "../contracts/v1/storyboards";
 import { decodeStoryWorldV1, encodeStoryWorldV1 } from "../contracts/v1/storyWorld";
@@ -239,18 +239,45 @@ export function createStoryboardsHttpGateway(state: HttpApplicationState): Story
   });
 }
 
+/**
+ * How long the client waits for the book PDF before it stops loading and says so.
+ * The server gives a render 80 s and then answers 502 itself; this leaves room for
+ * that answer and a slow proxy, and ends the wait even when a proxy never answers
+ * at all (T-370).
+ */
+export const BOOK_PDF_TIMEOUT_MS = 120_000;
+
 export function createDocumentsHttpGateway(
   state: HttpApplicationState,
   platform: PlatformGateway,
 ): DocumentsGateway {
   const renderBookPdf = async (): Promise<Blob> => {
-    const response = await fetch("/api/book.pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(withWorldBody(state, {})),
-    });
-    if (!response.ok) throw httpResponseError(response, await readJson(response));
-    return response.blob();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), BOOK_PDF_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/book.pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(withWorldBody(state, {})),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw httpResponseError(response, await readJson(response));
+      return await response.blob();
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new ApplicationGatewayError(
+          "The book PDF did not finish in time.",
+          BOOK_PDF_TIMEOUT_CODE,
+          {
+            category: "unavailable",
+            retryable: true,
+          },
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
   };
 
   const saveBookPdf = (blob: Blob): Promise<void> =>

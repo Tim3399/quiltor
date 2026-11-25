@@ -34,6 +34,7 @@ export type { RelayAnswerV1, RelayRequestV1 } from "./contracts/v1/assistantRela
 export {
   ApplicationGatewayError,
   applicationErrorMessage,
+  BOOK_PDF_TIMEOUT_CODE,
   MANUSCRIPT_IMPORT_MAX_BYTES,
 } from "./application";
 export { validateNoteMarks } from "./contracts/v1/noteMark";

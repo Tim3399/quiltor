@@ -3,6 +3,7 @@ import { Button, ConfirmDialog, Toast, ToastRegion } from "../../design";
 import { useI18n } from "../../i18n";
 import {
   applicationErrorMessage,
+  BOOK_PDF_TIMEOUT_CODE,
   type ManuscriptExportPreset,
   quiltorClient,
   saveTextFile,
@@ -108,7 +109,9 @@ export function TextWorkspace({
   const [localBinderOpen, setLocalBinderOpen] = useState(() => window.innerWidth >= 720);
   const [localInspectorOpen, setLocalInspectorOpen] = useState(() => window.innerWidth >= 1100);
   const [pdfState, setPdfState] = useState<"idle" | "loading" | "error">("idle");
-  const [pdfSandboxRefused, setPdfSandboxRefused] = useState(false);
+  const [pdfFailure, setPdfFailure] = useState<
+    "bookPdfError" | "bookPdfSandboxError" | "bookPdfTimeoutError"
+  >("bookPdfError");
   const [exportError, setExportError] = useState("");
   const [exportPreset, setExportPreset] = useState<ManuscriptExportPreset | null>(null);
   const [preview, setPreview] = useState(false);
@@ -291,14 +294,20 @@ export function TextWorkspace({
     );
   const printBook = async () => {
     setPdfState("loading");
-    setPdfSandboxRefused(false);
     try {
       await onSave?.();
       await quiltorClient.application.documents.bookPdf();
       setPdfState("idle");
     } catch (error) {
-      setPdfSandboxRefused(
-        (error as { code?: unknown } | null)?.code === "pdf.sandbox_unavailable",
+      const code = (error as { code?: unknown } | null)?.code;
+      setPdfFailure(
+        code === "pdf.sandbox_unavailable"
+          ? "bookPdfSandboxError"
+          : code === BOOK_PDF_TIMEOUT_CODE ||
+              (code === "pdf.render_failed" &&
+                (error as { params?: { category?: unknown } }).params?.category === "timeout")
+            ? "bookPdfTimeoutError"
+            : "bookPdfError",
       );
       setPdfState("error");
     }
@@ -664,7 +673,7 @@ ${markdownBody(current.body, current.marks)}
               onDismiss={() => setPdfState("idle")}
               dismissLabel={t("closeMessage")}
             >
-              {t(pdfSandboxRefused ? "bookPdfSandboxError" : "bookPdfError")}
+              {t(pdfFailure)}
             </Toast>
           )}
           {!!exportError && (

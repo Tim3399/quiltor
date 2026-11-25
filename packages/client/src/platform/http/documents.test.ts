@@ -8,8 +8,10 @@ import type {
   ManuscriptDocxPreview,
   ManuscriptEpubPreview,
 } from "../application";
+import { BOOK_PDF_TIMEOUT_CODE } from "../application";
 import { createPlatformGateway } from "../createPlatformGateway";
 import { createHttpApplicationGateway } from ".";
+import { BOOK_PDF_TIMEOUT_MS } from "./documents";
 
 const WORLD_ID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const docxPreview: ManuscriptDocxPreview = {
@@ -444,6 +446,34 @@ describe("document HTTP v1 boundary", () => {
     await application.documents.bookPdf();
 
     expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("stops waiting for a book PDF that never arrives and says it timed out", async () => {
+    vi.useFakeTimers();
+    try {
+      // A proxy that never answers: the request only ends when it is aborted.
+      const fetchMock = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const rendering = application.documents.renderBookPdf();
+      const outcome = expect(rendering).rejects.toMatchObject({
+        code: BOOK_PDF_TIMEOUT_CODE,
+        retryable: true,
+      });
+      await vi.advanceTimersByTimeAsync(BOOK_PDF_TIMEOUT_MS - 1);
+      expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await outcome;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("loads the envelope, verifies its revision and exposes only the domain document", async () => {
