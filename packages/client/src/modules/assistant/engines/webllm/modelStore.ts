@@ -23,6 +23,11 @@ export interface ModelStore {
   download(): Promise<void>;
   /** The loaded engine, loading a cached model first; null while the model is not on disk. */
   engine(): Promise<WebllmEngine | null>;
+  /**
+   * Drops an engine that can no longer generate (T-362), so the next `engine()` loads a fresh
+   * one from the cache. Does nothing when the store has moved on to another engine already.
+   */
+  discard(engine: WebllmEngine): Promise<void>;
   /** Unloads the engine and deletes the model from the browser's storage. */
   remove(): Promise<void>;
 }
@@ -91,6 +96,24 @@ export function createModelStore(
       if (loading) return loading;
       if (!(await runtime.isCached())) return null;
       return load();
+    },
+    async discard(engine) {
+      const pending = loading;
+      if (!pending) return;
+      let current: WebllmEngine | null = null;
+      try {
+        current = await pending;
+      } catch {
+        return;
+      }
+      if (current !== engine || loading !== pending) return;
+      loading = null;
+      set({ phase: "cached" });
+      try {
+        await engine.unload();
+      } catch {
+        // An engine that lost its pipeline may fail to unload; it is dropped either way.
+      }
     },
     async remove() {
       const pending = loading;

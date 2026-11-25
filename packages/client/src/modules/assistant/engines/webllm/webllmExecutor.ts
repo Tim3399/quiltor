@@ -1,6 +1,6 @@
 import type { ClientEngineExecutor, ClientEngineResult } from "../types";
 import type { ModelStore } from "./modelStore";
-import type { WebllmCompletionRequest } from "./webllmTypes";
+import type { WebllmCompletionRequest, WebllmEngine } from "./webllmTypes";
 
 type ServerPayload = {
   messages?: unknown;
@@ -46,6 +46,18 @@ function webllmFailure(error: unknown): ClientEngineResult {
 }
 
 /**
+ * Whether the engine itself is broken rather than the request (T-362). web-llm disposes a
+ * pipeline and its grammar matcher when it unloads (a lost device does that on its own) but
+ * keeps the engine object; every later generation on it then fails with "Cannot pass deleted
+ * object as a pointer of type GrammarMatcher". The worker proxy may hand the error over with
+ * its name folded into the message, so both are read.
+ */
+function engineBroken(error: unknown): boolean {
+  const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return /deleted object|BindingError|ModelNotLoaded|not loaded|device (?:was )?lost/i.test(text);
+}
+
+/**
  * Answers relay tickets with the in-browser model. A model not on disk is `engine_unavailable`:
  * a job never starts a download of gigabytes, the user does that in the panel. An abort stops
  * the generation and rejects; the relay loop answers `cancelled` itself.
@@ -56,40 +68,54 @@ export function createWebllmExecutor(
 ): ClientEngineExecutor {
   return {
     async execute(payload, signal) {
-      let engine: Awaited<ReturnType<ModelStore["engine"]>>;
-      try {
-        engine = await store.engine();
-      } catch (error) {
-        return webllmFailure(error);
-      }
-      if (!engine) return { error: { code: "engine_unavailable", detail: "model not loaded" } };
-      // One generation at a time on an engine (T-349): web-llm disposes its grammar matcher
-      // when a second one starts, and the first then fails with "Cannot pass deleted object
-      // as a pointer of type GrammarMatcher". An aborted generation frees the engine only once
-      // it has returned, not when the abort was asked for.
-      const previous = turns.get(engine) ?? Promise.resolve();
-      let release: () => void = () => {};
-      const mine = new Promise<void>((resolve) => {
-        release = resolve;
-      });
-      turns.set(
-        engine,
-        previous.then(() => mine),
-      );
-      await previous;
-      try {
-        return await generate(engine, payload, signal);
-      } finally {
-        release();
-      }
+      const first = await attempt(payload, signal);
+      if (!("broken" in first)) return first;
+      // One fresh engine per ticket: a model that fails the same way after a reload is reported,
+      // not reloaded without end.
+      await store.discard(first.broken);
+      const second = await attempt(payload, signal);
+      if (!("broken" in second)) return second;
+      await store.discard(second.broken);
+      return second.result;
     },
   };
+
+  type Attempt = ClientEngineResult | { broken: WebllmEngine; result: ClientEngineResult };
+
+  async function attempt(payload: Record<string, unknown>, signal: AbortSignal): Promise<Attempt> {
+    let engine: Awaited<ReturnType<ModelStore["engine"]>>;
+    try {
+      engine = await store.engine();
+    } catch (error) {
+      return webllmFailure(error);
+    }
+    if (!engine) return { error: { code: "engine_unavailable", detail: "model not loaded" } };
+    // One generation at a time on an engine (T-349): web-llm disposes its grammar matcher
+    // when a second one starts, and the first then fails with "Cannot pass deleted object
+    // as a pointer of type GrammarMatcher". An aborted generation frees the engine only once
+    // it has returned, not when the abort was asked for.
+    const previous = turns.get(engine) ?? Promise.resolve();
+    let release: () => void = () => {};
+    const mine = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    turns.set(
+      engine,
+      previous.then(() => mine),
+    );
+    await previous;
+    try {
+      return await generate(engine, payload, signal);
+    } finally {
+      release();
+    }
+  }
 
   async function generate(
     engine: NonNullable<Awaited<ReturnType<ModelStore["engine"]>>>,
     payload: Record<string, unknown>,
     signal: AbortSignal,
-  ): Promise<ClientEngineResult> {
+  ): Promise<Attempt> {
     signal.throwIfAborted();
     const stop = () => engine.interruptGenerate();
     signal.addEventListener("abort", stop, { once: true });
@@ -116,7 +142,8 @@ export function createWebllmExecutor(
       };
     } catch (error) {
       if (signal.aborted) throw signal.reason ?? error;
-      return webllmFailure(error);
+      const result = webllmFailure(error);
+      return engineBroken(error) ? { broken: engine, result } : result;
     } finally {
       signal.removeEventListener("abort", stop);
     }

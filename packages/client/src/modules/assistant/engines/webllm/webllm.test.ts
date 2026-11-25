@@ -224,6 +224,63 @@ describe("webllm executor", () => {
     answer('{"ok":true}');
     await expect(next).resolves.toMatchObject({ content: '{"ok":true}' });
   });
+
+  // T-362: web-llm disposes a pipeline, its grammar matcher with it, when it unloads (a lost
+  // device does that on its own) but keeps the engine object. Every later generation on that
+  // engine then fails with the BindingError, while the store kept handing it out for the rest
+  // of the tab: from part 2 on every part of a job failed, and so did the next job.
+  function engineDyingAfter(answers: number) {
+    let calls = 0;
+    return engineAnswering(async () => {
+      calls += 1;
+      if (calls > answers) {
+        throw named(
+          "BindingError",
+          "Cannot pass deleted object as a pointer of type GrammarMatcher",
+        );
+      }
+      return { choices: [{ message: { content: `{"call":${calls}}` } }] };
+    });
+  }
+
+  it("replaces an engine whose pipeline was disposed and answers the part on a fresh one", async () => {
+    const dying = engineDyingAfter(1);
+    const fresh = engineAnswering({ choices: [{ message: { content: '{"fresh":true}' } }] });
+    const engines = [dying, fresh];
+    const runtime: WebllmRuntime = {
+      load: vi.fn(async () => engines.shift() ?? fresh),
+      isCached: vi.fn(async () => true),
+      remove: vi.fn(async () => {}),
+    };
+    const executor = createWebllmExecutor(createModelStore(runtime, {}), { grammar: true });
+    const parts = [];
+    for (let part = 0; part < 3; part += 1) {
+      parts.push(await executor.execute(PAYLOAD, new AbortController().signal));
+    }
+    expect(parts).toEqual([
+      { content: '{"call":1}', finishReason: "stop" },
+      { content: '{"fresh":true}', finishReason: "stop" },
+      { content: '{"fresh":true}', finishReason: "stop" },
+    ]);
+    expect(dying.unload).toHaveBeenCalledTimes(1);
+    expect(runtime.load).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a fresh engine that fails the same way instead of reloading without end", async () => {
+    const runtime: WebllmRuntime = {
+      load: vi.fn(async () => engineDyingAfter(0)),
+      isCached: vi.fn(async () => true),
+      remove: vi.fn(async () => {}),
+    };
+    const executor = createWebllmExecutor(createModelStore(runtime, {}), { grammar: true });
+    await expect(executor.execute(PAYLOAD, new AbortController().signal)).resolves.toEqual({
+      error: {
+        code: "engine_unavailable",
+        detail: "Cannot pass deleted object as a pointer of type GrammarMatcher",
+      },
+    });
+    expect(runtime.load).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("webllm model store", () => {
