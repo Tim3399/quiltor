@@ -8,7 +8,8 @@
 //
 // GitHub bills each job rounded up to a whole minute and counts Windows minutes twice and
 // macOS minutes ten times; "L-min" here is that billed number. A rerun is every attempt after
-// the first. The red-run count ignores the gate job browser-e2e, which runs on Linux and turns
+// the first; a job that "Re-run failed jobs" only carries over counts once, in the attempt that
+// ran it (F-341-11). The red-run count ignores the gate job browser-e2e, which runs on Linux and turns
 // red whenever any required job does (F-341-1).
 
 import { execFileSync } from "node:child_process";
@@ -125,6 +126,24 @@ export function renderTables({ total, groups }, red, { top = 30 } = {}) {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Drops the jobs a later attempt only carries over. "Re-run failed jobs" lists the jobs it did
+ * not repeat again under the new attempt, with a new id but the same name, start and end; they
+ * ran once and are billed once, in the attempt that really ran them (F-341-11).
+ */
+export function withoutCarriedOver(jobs) {
+  const firstSeen = new Map();
+  return jobs.filter((job) => {
+    const key = `${job.run}|${job.name}|${job.started}|${job.completed}`;
+    const first = firstSeen.get(key);
+    if (first === undefined) {
+      firstSeen.set(key, job.attempt);
+      return true;
+    }
+    return first === job.attempt;
+  });
+}
+
 /** Every job of every run since `since` (YYYY-MM-DD), every attempt, through `gh api`. */
 export function collect({ repo, since, api = ghApi }) {
   const runs = [];
@@ -157,7 +176,7 @@ export function collect({ repo, since, api = ghApi }) {
       }
     }
   }
-  return jobs;
+  return withoutCarriedOver(jobs);
 }
 
 /** One API answer. A server error (5xx) is tried again up to five times, 5 to 25 seconds apart:
@@ -193,7 +212,7 @@ function main() {
   });
   let jobs;
   if (values["from-file"]) {
-    jobs = JSON.parse(readFileSync(values["from-file"], "utf8"));
+    jobs = withoutCarriedOver(JSON.parse(readFileSync(values["from-file"], "utf8")));
   } else {
     const repo =
       values.repo ??

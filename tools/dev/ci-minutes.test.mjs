@@ -48,6 +48,9 @@ function fakeApi(path) {
       job("Smoke on macos-15", ["macos-15"], 0, null, { conclusion: "skipped" }),
     ],
     "runs/1/attempts/2/": [
+      // Not repeated by "Re-run failed jobs": listed again with the times of attempt 1.
+      job("Browser E2E / slot 1 of 6", ["ubuntu-24.04"], 0, 3),
+      job("Core on windows-2025", ["windows-2025"], 0, at(2, 10), { conclusion: "failure" }),
       job("Browser on macos-15 / slot 2 of 4", ["macos-15"], 10, 12),
       job("Browser E2E / slot 2 of 6", ["ubuntu-24.04"], 10, 11, { conclusion: "failure" }),
     ],
@@ -66,6 +69,18 @@ test("collect walks every run and every attempt", () => {
     [...new Set(jobs.map((entry) => `${entry.run}#${entry.attempt}`))],
     ["1#1", "1#2", "2#1"],
   );
+});
+
+test("a job that a rerun only carries over is counted once, in the attempt that ran it", () => {
+  const carried = collect({ repo: "owner/repo", since: "2026-11-01", api: fakeApi }).filter(
+    (entry) => entry.run === 1 && entry.attempt === 2,
+  );
+  assert.deepEqual(
+    carried.map((entry) => entry.name),
+    ["Browser on macos-15 / slot 2 of 4", "Browser E2E / slot 2 of 6"],
+  );
+  const { total } = summarize(jobs);
+  assert.equal(total.jobs, 7);
 });
 
 test("a job is billed rounded up to a whole minute, at least one, and only if it ran", () => {
