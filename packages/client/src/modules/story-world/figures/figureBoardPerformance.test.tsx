@@ -23,7 +23,6 @@ function flowNode(id: string, x: number, extra: Partial<FigureFlowNode> = {}): F
       deceased: false,
       guests: EMPTY,
       zoomTier: "detail",
-      zoom: 1,
     },
     ...extra,
   };
