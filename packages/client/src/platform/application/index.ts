@@ -57,7 +57,7 @@ export type {
   ManuscriptExportPreview,
   ManuscriptExportWarningCode,
 } from "./documents";
-export { ApplicationGatewayError, applicationErrorMessage } from "./errors";
+export { ApplicationGatewayError, applicationErrorMessage, BOOK_PDF_TIMEOUT_CODE } from "./errors";
 export type {
   ChapterComparisonResult,
   ChapterTimelineChange,

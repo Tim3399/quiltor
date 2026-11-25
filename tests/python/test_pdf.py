@@ -138,7 +138,7 @@ class DesktopRendererSelectionTests(unittest.TestCase):
         script = Path("renderer") / "render.mjs"
         base = Path("project")
         rendered = node_chromium.renderer(script, base)
-        with patch("quiltor.infrastructure.pdf.node_chromium.subprocess.run", fake_run):
+        with patch("quiltor.infrastructure.pdf.node_chromium._run", fake_run):
             with self.assertRaises(RuntimeError):
                 rendered("http://127.0.0.1:8843/")
         self.assertEqual(captured["argv"][:2], ["node", str(script)])

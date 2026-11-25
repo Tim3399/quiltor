@@ -28,7 +28,7 @@ from quiltor.bootstrap import build_identity, build_web_application
 from quiltor.bootstrap.application import AssistantServices
 from quiltor.hosts.web import server
 from quiltor.infrastructure.platform.ports import AppDirectories
-from quiltor.modules.identity.service import LocalIdentity
+from quiltor.modules.identity.service import SESSION_COOKIE, LocalIdentity
 from tests.python import late_body
 from tests.python.request_timeout import REQUEST_TIMEOUT
 
@@ -474,6 +474,55 @@ class PublicOriginTests(_LiveLocalServerTestCase):
         self.application.public_url = self.PUBLIC + "/quiltor"
         status, body = self._write(self.PUBLIC)
         self.assertEqual(status, 200, body)
+
+    def _render_cookie(self) -> str:
+        """Redeem a render token the way the headless render does and return its cookie."""
+        token = self.application.issue_render_token("render-subject")
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=REQUEST_TIMEOUT)
+        conn.request("GET", f"/api/version?renderToken={token}")
+        response = conn.getresponse()
+        response.read()
+        cookie = response.getheader("Set-Cookie") or ""
+        conn.close()
+        self.assertIn("=", cookie)
+        return cookie.split(";", 1)[0]
+
+    def _write_from_render_origin(self, cookie: str | None, origin: str | None = None):
+        headers = {"Origin": origin or f"http://127.0.0.1:{self.port}"}
+        if cookie:
+            headers["Cookie"] = cookie
+        return self._create_world(headers=headers)
+
+    def test_the_own_render_session_may_write_from_its_loopback_origin(self):
+        # T-370: the PDF render opens /?renderToken=... on 127.0.0.1 and posts
+        # /api/worlds/open from there; refusing it hung every hosted PDF export.
+        status, body = self._write_from_render_origin(self._render_cookie())
+        self.assertEqual(status, 200, body)
+
+    def test_the_loopback_origin_without_a_render_session_is_still_refused(self):
+        status, body = self._write_from_render_origin(None)
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+
+    def test_a_render_session_does_not_open_any_other_origin(self):
+        cookie = self._render_cookie()
+        for origin in (
+            "https://evil.example",
+            "null",
+            f"http://localhost:{self.port}",
+            f"http://127.0.0.1:{self.port + 1}",
+            f"https://127.0.0.1:{self.port}",
+        ):
+            with self.subTest(origin=origin):
+                status, body = self._write_from_render_origin(cookie, origin)
+                self.assertEqual(status, 403)
+                self.assertEqual(body["error"]["code"], "request.untrusted_origin")
+
+    def test_an_ordinary_session_cookie_does_not_pass_as_a_render_session(self):
+        session_id = self.application.identity.auth.create_session("someone", "", "")
+        status, body = self._write_from_render_origin(f"{SESSION_COOKIE}={session_id}")
+        self.assertEqual(status, 403)
+        self.assertEqual(body["error"]["code"], "request.untrusted_origin")
 
     def test_a_loopback_server_is_unchanged(self):
         self.application.bound_to_loopback = True

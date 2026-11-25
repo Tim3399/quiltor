@@ -15,6 +15,7 @@ NOT_PERSISTED = {
     # Handed from one Quiltor process to its own sidecar.
     "QUILTOR_SIDECAR_KEY",
     "QUILTOR_RENDER_URL",
+    "QUILTOR_RENDER_DEADLINE_MS",
     # Set by the host or the build, not by the user.
     "QUILTOR_RUNTIME_HOST",
     "QUILTOR_BUILD_PROFILE",

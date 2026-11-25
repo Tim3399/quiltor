@@ -258,6 +258,8 @@ export const manuscript = {
   manuscriptVersionLabel: "Manuscript version",
   deleteChapterDescription: "“{title}” will be moved to trash.",
   bookPdfError: "The book PDF could not be generated.",
+  bookPdfTimeoutError:
+    "The book PDF did not finish in time. Try again in a moment. If it keeps happening, look for “pdf.render_failed” in the server log.",
   bookPdfSandboxError:
     "The book PDF could not be generated: the server does not allow the PDF renderer its sandbox. The operator has to adjust the container profile or set QUILTOR_PDF_SANDBOX=off.",
   ambiguousMentions: "Ambiguous links",

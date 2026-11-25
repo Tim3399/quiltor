@@ -46,6 +46,9 @@ export class ApplicationGatewayError extends Error {
   }
 }
 
+/** The code of a book PDF the client stopped waiting for (T-370). */
+export const BOOK_PDF_TIMEOUT_CODE = "pdf.client_timeout";
+
 export function applicationErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

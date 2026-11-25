@@ -15,6 +15,18 @@ import tempfile
 from pathlib import Path
 
 from quiltor.application.errors import PdfRendererError
+from quiltor.infrastructure.platform import process_tree
+
+#: How long the server waits for one render before it gives up and kills the
+#: renderer with everything it started. Below the 90 s a reverse proxy commonly
+#: allows (Nginx Proxy Manager's default), so the server's own 502 with its
+#: category reaches the client instead of a proxy error racing it (T-370).
+RENDER_TIMEOUT_SECONDS = 80
+
+#: The Node script gets less than that, so a page that never gets ready is
+#: reported by the script itself -- with Chromium closed by its own `finally` --
+#: before the server has to kill anything.
+SCRIPT_DEADLINE_MARGIN_SECONDS = 10
 
 #: `off` runs Chromium without its sandbox, for hosts that grant no user namespaces.
 #: Never the fallback of a failure -- only an operator's explicit choice.
@@ -66,6 +78,24 @@ def classify_failure(stderr: str) -> str:
     return "unknown"
 
 
+def _run(argv: list[str], *, timeout: float, **kwargs) -> subprocess.CompletedProcess:
+    """`subprocess.run` with one difference: a timeout kills the whole process tree."""
+    with subprocess.Popen(
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        **process_tree.own_group_options(),
+        **kwargs,
+    ) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process_tree.kill(process)
+            process.communicate()
+            raise
+    return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
+
+
 def renderer(script: Path, base: Path):
     """Bind the script and working directory, returning a PdfRenderer.
 
@@ -74,7 +104,7 @@ def renderer(script: Path, base: Path):
     just `(url, timeout) -> bytes`.
     """
 
-    def render(url: str, timeout: int = 90) -> bytes:
+    def render(url: str, timeout: int = RENDER_TIMEOUT_SECONDS) -> bytes:
         # The URL carries the one-shot render token, so it travels via the
         # environment rather than argv -- otherwise it would sit in `ps` output
         # for the subprocess's lifetime.
@@ -83,14 +113,18 @@ def renderer(script: Path, base: Path):
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as target:
                 target_name = target.name
             try:
-                result = subprocess.run(
+                script_deadline = max(timeout - SCRIPT_DEADLINE_MARGIN_SECONDS, 1)
+                result = _run(
                     ["node", str(script), target_name],
                     cwd=base,
-                    capture_output=True,
                     text=True,
                     errors="replace",
                     timeout=timeout,
-                    env={**os.environ, "QUILTOR_RENDER_URL": url},
+                    env={
+                        **os.environ,
+                        "QUILTOR_RENDER_URL": url,
+                        "QUILTOR_RENDER_DEADLINE_MS": str(script_deadline * 1000),
+                    },
                 )
             except subprocess.TimeoutExpired:
                 raise PdfRendererError("timeout") from None
