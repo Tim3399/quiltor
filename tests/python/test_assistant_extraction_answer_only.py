@@ -9,6 +9,7 @@ search_manuscript, and a part budget that fits its proposal limit.
 
 import copy
 import unittest
+from typing import Any
 from pathlib import Path
 
 from test_assistant_budget import EXTRACTION
@@ -133,7 +134,7 @@ class ExtractionInstructionTests(unittest.TestCase):
 
 
 class SectionIdsInSearchManuscriptTests(unittest.TestCase):
-    def search(self, chapter_ids):
+    def search(self, chapter_ids) -> Any:
         return execute_read_tool(
             "search_manuscript",
             {"query": "Kette", "chapterIds": chapter_ids},

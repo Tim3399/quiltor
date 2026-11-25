@@ -361,11 +361,11 @@ def _chapter_ids(requested: tuple[str, ...], manuscript: JsonObject) -> tuple[st
     ``chapter-note:<id>`` -- into ``chapterIds``. Each is mapped to its chapter; an id that
     names no chapter is refused instead of silently matching nothing.
     """
-    known = {
-        str(chapter.get("id"))
-        for chapter in as_array(manuscript.get("chapters")) or []
-        if isinstance(chapter, Mapping)
-    }
+    known: set[str] = set()
+    for item in as_array(manuscript.get("chapters")) or []:
+        chapter = as_mapping(item)
+        if chapter is not None:
+            known.add(str(chapter.get("id")))
     mapped: list[str] = []
     for item in requested:
         candidate = item
