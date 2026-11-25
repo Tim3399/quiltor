@@ -2,7 +2,7 @@
 
 The Node renderer's stderr can quote the render URL with its one-shot token, so a
 failure leaves the renderer as a category and an exit code and nothing else. No real
-Chromium runs here: `subprocess.run` is patched.
+Chromium runs here: the renderer's `_run` is patched.
 """
 
 import io
@@ -49,9 +49,7 @@ def _failing_run(stderr: str, returncode: int = 1):
 
 def _render(stderr: str, returncode: int = 1):
     rendered = node_chromium.renderer(Path("render.mjs"), Path("."))
-    with patch(
-        "quiltor.infrastructure.pdf.node_chromium.subprocess.run", _failing_run(stderr, returncode)
-    ):
+    with patch("quiltor.infrastructure.pdf.node_chromium._run", _failing_run(stderr, returncode)):
         rendered(URL)
 
 
@@ -69,7 +67,7 @@ class CategoryTests(unittest.TestCase):
             raise subprocess.TimeoutExpired(argv, 90, stderr=URL)
 
         rendered = node_chromium.renderer(Path("render.mjs"), Path("."))
-        with patch("quiltor.infrastructure.pdf.node_chromium.subprocess.run", run):
+        with patch("quiltor.infrastructure.pdf.node_chromium._run", run):
             with self.assertRaises(PdfRendererError) as caught:
                 rendered(URL)
         self.assertEqual(caught.exception.category, "timeout")
@@ -80,7 +78,7 @@ class CategoryTests(unittest.TestCase):
             raise FileNotFoundError(2, "No such file", "node")
 
         rendered = node_chromium.renderer(Path("render.mjs"), Path("."))
-        with patch("quiltor.infrastructure.pdf.node_chromium.subprocess.run", run):
+        with patch("quiltor.infrastructure.pdf.node_chromium._run", run):
             with self.assertRaises(PdfRendererError) as caught:
                 rendered(URL)
         self.assertEqual(caught.exception.category, "browser_launch_failed")
@@ -103,7 +101,7 @@ class CategoryTests(unittest.TestCase):
             )
 
         rendered = node_chromium.renderer(Path("render.mjs"), Path("."))
-        with patch("quiltor.infrastructure.pdf.node_chromium.subprocess.run", run):
+        with patch("quiltor.infrastructure.pdf.node_chromium._run", run):
             with self.assertRaises(PdfRendererError):
                 rendered(URL)
         self.assertEqual(len(calls), 1)
@@ -203,3 +201,74 @@ class SandboxSwitchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _alive(pid: int) -> bool:
+    if os.name == "posix":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        # A killed child of ours may linger as a zombie until reaped; ask ps.
+        state = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True, check=False
+        ).stdout.strip()
+        return bool(state) and not state.startswith("Z")
+    listing = (
+        subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+        ).stdout
+        or ""
+    )
+    return f'"{pid}"' in listing
+
+
+HANGING_RENDERER = """
+import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+// Stands in for Chromium, started the way Playwright starts it: detached, so it is
+// in a process group of its own and outlives a plain kill of its parent.
+const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+  stdio: "ignore",
+  detached: true,
+});
+writeFileSync(process.env.PID_FILE, `${process.pid} ${child.pid}`);
+setInterval(() => {}, 1000);
+"""
+
+
+class HangingRendererTests(unittest.TestCase):
+    """T-370: a renderer that never finishes ends at the limit, and leaves nothing running."""
+
+    def test_a_hanging_renderer_ends_with_a_timeout_and_its_whole_tree_is_gone(self):
+        import shutil
+        import tempfile
+        import time
+
+        if shutil.which("node") is None:
+            self.skipTest("node is not installed")
+        with tempfile.TemporaryDirectory() as root:
+            script = Path(root) / "hang.mjs"
+            script.write_text(HANGING_RENDERER, encoding="utf-8")
+            pid_file = Path(root) / "pids"
+            rendered = node_chromium.renderer(script, Path(root))
+            started = time.monotonic()
+            with patch.dict(os.environ, {"PID_FILE": str(pid_file)}):
+                with self.assertRaises(PdfRendererError) as caught:
+                    rendered(URL, timeout=3)
+            self.assertEqual(caught.exception.category, "timeout")
+            self.assertLess(time.monotonic() - started, 15)
+            pids = [int(pid) for pid in pid_file.read_text().split()]
+            self.assertEqual(len(pids), 2)
+            for _ in range(50):
+                if not any(_alive(pid) for pid in pids):
+                    break
+                time.sleep(0.1)
+            for pid in pids:
+                self.assertFalse(_alive(pid), f"process {pid} survived the timeout")

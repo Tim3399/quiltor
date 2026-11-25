@@ -11,10 +11,15 @@ if (!url || !target) throw new Error("The render URL and target path are require
 // An operator whose host grants no user namespaces opts out with QUILTOR_PDF_SANDBOX=off;
 // nothing here falls back to that on its own.
 const sandbox = (process.env.QUILTOR_PDF_SANDBOX ?? "").trim().toLowerCase() !== "off";
+// One deadline for the whole render, below the server's own limit, so a page that
+// never gets ready ends here with Chromium closed rather than being killed (T-370).
+const budget = Number(process.env.QUILTOR_RENDER_DEADLINE_MS) || 70_000;
+const deadline = Date.now() + budget;
+const remaining = () => Math.max(deadline - Date.now(), 1);
 const browser = await chromium.launch({ headless: true, chromiumSandbox: sandbox });
 try {
   const page = await browser.newPage();
-  await page.goto(url, { waitUntil: "networkidle", timeout: 90_000 });
+  await page.goto(url, { waitUntil: "networkidle", timeout: remaining() });
   await page.waitForFunction(
     () => {
       const root = document.querySelector(".print-document");
@@ -24,7 +29,7 @@ try {
       );
     },
     undefined,
-    { timeout: 90_000 },
+    { timeout: remaining() },
   );
   const state = await page.locator(".print-document").evaluate((root) => ({
     ready: root.getAttribute("data-book-ready"),
