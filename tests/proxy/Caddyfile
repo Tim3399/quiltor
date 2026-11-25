@@ -1,0 +1,12 @@
+# Release-stage proxy (T-364): the production site block of the edge proxy, reduced to what
+# the checks depend on. `encode zstd gzip` is the line that matters; the upstream is the
+# container on the stage's own Docker network.
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	encode zstd gzip
+	reverse_proxy t364-app:8000
+}
