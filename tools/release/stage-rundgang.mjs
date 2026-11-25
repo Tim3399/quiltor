@@ -179,7 +179,7 @@ await station(
   "T-351",
   "Ordner anlegen, Eingabefeld breit, Text sichtbar",
   async () => {
-    await overflow("Manuskript", "Neuer Ordner");
+    await page.getByRole("button", { name: "Ordner hinzufügen" }).click({ timeout: 15_000 });
     await page.waitForTimeout(500);
   },
 );
@@ -219,8 +219,14 @@ await station("t323-favicon", "T-323", "Favicon-Link am Dokument", async () => {
 await station("t326-timeline-1100", "T-326", "Timeline-Leiste bei 1100 px", async () => {
   await page.goto(`${base}/?world=${worldId}`);
   await toolbar("Manuskript").waitFor({ timeout: 90_000 });
+  // The strip sits at the bottom of the figure board.
+  await page
+    .getByRole("tab", { name: "Figuren" })
+    .or(page.getByRole("button", { name: "Figuren", exact: true }))
+    .first()
+    .click({ timeout: 15_000 });
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(1500);
 });
 await station("t326-timeline-1280", "T-326", "Timeline-Leiste bei 1280 px", async () => {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -230,6 +236,31 @@ await page.setViewportSize({ width: 1440, height: 900 });
 await station("t371-suche", "T-371", "Suche: Treffer im Text, Zaehler und Weiter", async () => {
   await page.keyboard.press("Control+f");
   await page.waitForTimeout(500);
+});
+
+await page.keyboard.press("Escape");
+
+// ------------------------------------------------------------------ pictures to judge
+// These stations only bring the view up and take the picture; whether it is right is for the
+// agent that walks the final commit (the matching `manual` line says what to look at).
+for (const [id, task, title, tab] of [
+  ["bild-figuren", "T-331", "Figurenboard der grossen Welt", "Figuren"],
+  ["bild-timeline", "T-328", "Timeline-Ansicht", "Timeline"],
+  ["bild-orte", "T-325/T-359", "Orte: Karte", "Orte"],
+  ["bild-storyboard", "Kernroute", "Storyboard", "Storyboard"],
+]) {
+  await station(id, task, title, async () => {
+    await page
+      .getByRole("tab", { name: tab })
+      .or(page.getByRole("button", { name: tab, exact: true }))
+      .first()
+      .click({ timeout: 15_000 });
+    await page.waitForTimeout(1500);
+  });
+}
+await station("bild-assistent", "T-329", "Assistent geoeffnet", async () => {
+  await page.getByRole("button", { name: "Assistent" }).first().click({ timeout: 15_000 });
+  await page.waitForTimeout(1000);
 });
 
 // ------------------------------------------------------------------ not scriptable here

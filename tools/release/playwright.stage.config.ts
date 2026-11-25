@@ -10,7 +10,7 @@ import base from "../../playwright.config";
  */
 export default defineConfig({
   ...base,
-  testDir: resolve(__dirname, "../../tests/e2e"),
+  testDir: resolve(import.meta.dirname, "../../tests/e2e"),
   use: {
     ...base.use,
     extraHTTPHeaders: process.env.QUILTOR_STAGE_TOKEN
