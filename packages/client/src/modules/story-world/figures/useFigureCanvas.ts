@@ -54,8 +54,6 @@ export type FigureCanvasController = {
   nodes: FigureFlowNode[];
   edges: Edge[];
   zoomTier: SemanticZoomTier;
-  /** The zoom the cards are sized for, set on the surface rather than on each card. */
-  nodeZoom: number;
   snapToGrid: boolean;
   gridOverride: boolean;
   setSnapToGrid: (value: boolean | ((current: boolean) => boolean)) => void;
@@ -92,7 +90,6 @@ export function useFigureCanvas({
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [gridOverride, setGridOverride] = useState(false);
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>("detail");
-  const [viewportZoom, setViewportZoom] = useState(1);
   const flow = useRef<ReactFlowInstance<FigureFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   // Writable: commitNodePosition and alignAllNodes move it ahead to the value they hand to
@@ -118,10 +115,9 @@ export function useFigureCanvas({
     () => presenceByPlace(state.nodes, presence, timeline, activeMomentId),
     [state.nodes, presence, timeline, activeMomentId],
   );
-  // A detail card does not read the zoom: its compact sizes and its overview scale only apply
-  // in the other tiers. The cards never get the zoom at all: the surface carries it as CSS
-  // variables (nodeZoom), so a step of the wheel renders no card (T-372).
-  const nodeZoom = zoomTier === "detail" ? 1 : viewportZoom;
+  // The cards never get the zoom: the surface carries it as CSS variables, written from React
+  // Flow's store (StoryGraphCanvas nodeZoomVariables), so a step of the wheel inside a tier
+  // renders neither a card nor the board (T-372).
   const derivedNodes = useMemo(
     () => createFigureFlowNodes(state.nodes, zoomTier),
     [state.nodes, zoomTier],
@@ -334,7 +330,6 @@ export function useFigureCanvas({
     nodes,
     edges,
     zoomTier,
-    nodeZoom,
     snapToGrid,
     gridOverride,
     setSnapToGrid,
@@ -345,13 +340,10 @@ export function useFigureCanvas({
     onConnect,
     onInit: (instance) => {
       flow.current = instance;
-      const zoom = instance.getZoom();
-      setViewportZoom(zoom);
-      setZoomTier(semanticZoomTier(zoom));
+      setZoomTier(semanticZoomTier(instance.getZoom()));
     },
     onMove: (viewport) => {
       const zoom = Math.round(viewport.zoom * 100) / 100;
-      setViewportZoom((current) => (current === zoom ? current : zoom));
       setZoomTier((current) => {
         const next = semanticZoomTier(zoom);
         return current === next ? current : next;

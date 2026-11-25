@@ -151,13 +151,13 @@ describe("figure board performance", () => {
       },
     );
     act(() => result.current.onMove({ x: 0, y: 0, zoom: 0.19 }));
-    const before = result.current.nodes;
+    const before = result.current;
 
     act(() => result.current.onMove({ x: 0, y: 0, zoom: 0.22 }));
 
+    // Not even the board renders: the zoom inside a tier is no React state (T-372).
+    expect(result.current).toBe(before);
     expect(result.current.zoomTier).toBe("overview");
-    expect(result.current.nodeZoom).toBe(0.22);
-    expect(result.current.nodes).toBe(before);
   });
 
   it("skips rendering a card again when only its position or drag state changes", () => {

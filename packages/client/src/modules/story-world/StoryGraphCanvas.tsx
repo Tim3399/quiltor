@@ -6,11 +6,19 @@ import {
   type Node,
   ReactFlow,
   type ReactFlowProps,
+  useStoreApi,
 } from "@xyflow/react";
-import { type DOMAttributes, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type DOMAttributes,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLatest } from "../../shared/hooks/useLatest";
 import { GraphViewportChrome, useArrangementLock } from "../graph";
-import type { SemanticZoomTier } from "./figures/relationships";
+import { type SemanticZoomTier, semanticZoomTier } from "./figures/relationships";
 import { storyNodeZoomStyle } from "./StoryNodeCard";
 
 export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType extends Edge = Edge> {
@@ -18,10 +26,10 @@ export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType ex
   edges: EdgeType[];
   zoomTier: SemanticZoomTier;
   /**
-   * The zoom the cards are sized for. Given, the surface carries the cards' zoom variables
-   * and the cards inherit them, so a zoom step renders the surface and no card.
+   * The surface carries the cards' zoom variables and the cards inherit them. They are
+   * written straight from React Flow's store, so a zoom step renders nothing at all.
    */
-  nodeZoom?: number;
+  nodeZoomVariables?: boolean;
   flowProps: Omit<
     ReactFlowProps<NodeType, EdgeType>,
     "nodes" | "edges" | "children" | "fitView" | "minZoom" | "maxZoom" | "deleteKeyCode"
@@ -56,12 +64,45 @@ export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType ex
   >;
 }
 
+/**
+ * Writes the cards' zoom variables onto the surface whenever the viewport zooms, without a
+ * render (T-372). The values are the ones the board's own state used to hand each card: the
+ * zoom as React Flow reports it when the board opens, rounded to hundredths on every move,
+ * and 1 in the detail tier, where a card does not read them.
+ */
+const INITIAL_ZOOM_VARIABLES = storyNodeZoomStyle("detail", 1);
+
+function SurfaceZoomVariables({ surface }: { surface: RefObject<HTMLDivElement | null> }) {
+  const store = useStoreApi();
+  // Passive, not a layout effect: a child's layout effect runs before its parent's ref is set,
+  // so the surface would not be there yet on the first commit. Until then the surface holds
+  // the detail values below, as the board's state did before React Flow's onInit.
+  useEffect(() => {
+    const write = (zoom: number) => {
+      const element = surface.current;
+      if (!element) return;
+      const tier = semanticZoomTier(zoom);
+      const style = storyNodeZoomStyle(tier, tier === "detail" ? 1 : zoom);
+      for (const [name, value] of Object.entries(style))
+        element.style.setProperty(name, String(value));
+    };
+    let zoom = store.getState().transform[2];
+    write(zoom);
+    return store.subscribe((state) => {
+      if (state.transform[2] === zoom) return;
+      zoom = state.transform[2];
+      write(Math.round(zoom * 100) / 100);
+    });
+  }, [store, surface]);
+  return null;
+}
+
 /** Shared React Flow scaffold for story-world canvases. */
 export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   nodes,
   edges,
   zoomTier,
-  nodeZoom,
+  nodeZoomVariables = false,
   flowProps,
   className = "",
   showGrid = true,
@@ -98,7 +139,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
     <div
       {...surfaceListeners}
       ref={surface}
-      style={nodeZoom === undefined ? undefined : storyNodeZoomStyle(zoomTier, nodeZoom)}
+      style={nodeZoomVariables ? INITIAL_ZOOM_VARIABLES : undefined}
       className={`flow-area graph-viewport-surface zoom-${zoomTier} ${hasVisibleMinimap ? "has-minimap" : ""} ${className}`.trim()}
     >
       {overlay}
@@ -121,6 +162,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
             color="var(--line)"
           />
         )}
+        {nodeZoomVariables && <SurfaceZoomVariables surface={surface} />}
         {flowChildren}
         <GraphViewportChrome<NodeType>
           fitViewOptions={flowProps.fitViewOptions}

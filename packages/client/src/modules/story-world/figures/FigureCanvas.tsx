@@ -1,6 +1,6 @@
-import { ConnectionLineType, ConnectionMode, type Edge } from "@xyflow/react";
+import { ConnectionLineType, ConnectionMode, type Edge, type Node } from "@xyflow/react";
 import { Link2, Plus, UserRound } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, EmptyState } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { useLatest } from "../../../shared/hooks/useLatest";
@@ -94,6 +94,13 @@ export function useFigureEdgeLabels(
   return full ?? partial ?? edges;
 }
 
+// Module constants, not literals in render: React Flow keeps both in its store, and every edge
+// and every minimap node renders again when one of them is new (T-372).
+const DEFAULT_EDGE_OPTIONS = { type: "smoothstep" } as const;
+function figureMinimapColor(node: Node): string {
+  return minimapColorForKind((node.data as FigureCardData).figure.type);
+}
+
 export function FigureCanvas({
   controller,
   connecting,
@@ -107,8 +114,16 @@ export function FigureCanvas({
   children,
 }: FigureCanvasProps) {
   const { t } = useI18n();
-  const { nodes, edges, zoomTier, nodeZoom } = controller;
+  const { nodes, edges, zoomTier } = controller;
   const positionedEdges = useFigureEdgeLabels(nodes, edges, onSelectEdge);
+  // Read only, by onEdgeClick below.
+  const onSelectEdgeRef = useLatest(onSelectEdge);
+  // Stable: React Flow hands it to every edge, and a new one rendered all of them again on
+  // every zoom step (T-372).
+  const onEdgeClick = useCallback((_: unknown, edge: Edge) => {
+    if ((edge.data as { kind?: string } | undefined)?.kind !== "relationship") return;
+    onSelectEdgeRef.current(edge.id);
+  }, []);
   const nodesRef = useLatest(nodes);
   const pendingTouch = useRef<{
     timer: number;
@@ -219,14 +234,11 @@ export function FigureCanvas({
         edgeTypes: graphRelationshipEdgeTypes,
         connectionMode: ConnectionMode.Loose,
         connectionLineType: ConnectionLineType.SmoothStep,
-        defaultEdgeOptions: { type: "smoothstep" },
+        defaultEdgeOptions: DEFAULT_EDGE_OPTIONS,
         onInit: controller.onInit,
         onMove: (_, viewport) => controller.onMove(viewport),
         onNodeClick: (_, node: FigureFlowNode) => onSelectNode(node.id),
-        onEdgeClick: (_, edge) => {
-          if ((edge.data as { kind?: string } | undefined)?.kind !== "relationship") return;
-          onSelectEdge(edge.id);
-        },
+        onEdgeClick,
         onNodeContextMenu: (event, node) => {
           event.preventDefault();
           const trigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
@@ -250,7 +262,7 @@ export function FigureCanvas({
       }}
       minimapProps={{
         nodeComponent: FigureMiniMapNode,
-        nodeColor: (node) => minimapColorForKind((node.data as FigureCardData).figure.type),
+        nodeColor: figureMinimapColor,
       }}
       flowChildren={edgeInspector}
     >

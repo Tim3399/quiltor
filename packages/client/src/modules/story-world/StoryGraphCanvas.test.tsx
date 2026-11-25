@@ -5,8 +5,29 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import { StoryGraphCanvas } from "./StoryGraphCanvas";
+import { storyNodeZoomStyle } from "./StoryNodeCard";
+
+const flowStore = vi.hoisted(() => {
+  const listeners = new Set<(state: { transform: [number, number, number] }) => void>();
+  const store = {
+    zoom: 1,
+    listeners,
+    getState: () => ({ transform: [0, 0, store.zoom] as [number, number, number] }),
+    subscribe: (listener: (state: { transform: [number, number, number] }) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    /** Zooms the way React Flow's store does: listeners, no React render. */
+    setZoom(zoom: number) {
+      store.zoom = zoom;
+      for (const listener of listeners) listener(store.getState());
+    },
+  };
+  return store;
+});
 
 vi.mock("@xyflow/react", () => ({
+  useStoreApi: () => flowStore,
   BackgroundVariant: { Lines: "lines" },
   Background: () => <div data-testid="background" />,
   Controls: ({ children }: { children?: ReactNode }) => (
@@ -60,6 +81,51 @@ vi.mock("@xyflow/react", () => ({
 afterEach(cleanup);
 
 describe("StoryGraphCanvas", () => {
+  it("writes the cards' zoom variables onto the surface on a zoom step, without a render", () => {
+    flowStore.zoom = 0.2;
+    let renders = 0;
+    function Counted() {
+      renders += 1;
+      return null;
+    }
+    const view = render(
+      <I18nProvider>
+        <StoryGraphCanvas
+          nodes={[]}
+          edges={[]}
+          zoomTier="overview"
+          nodeZoomVariables
+          gridSize={20}
+          flowProps={{}}
+          flowChildren={<Counted />}
+        />
+      </I18nProvider>,
+    );
+    const surface = view.container.querySelector<HTMLElement>(".flow-area");
+    if (!surface) throw new Error("no surface");
+    const expected = (zoom: number) =>
+      render(<div style={storyNodeZoomStyle("overview", zoom)} />).container
+        .firstElementChild as HTMLElement;
+    expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
+      expected(0.2).style.getPropertyValue("--node-compact-width"),
+    );
+    const rendered = renders;
+
+    flowStore.setZoom(0.2234);
+
+    // Rounded to hundredths, as the board's own state did.
+    expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
+      expected(0.22).style.getPropertyValue("--node-compact-width"),
+    );
+    expect(surface.style.getPropertyValue("--semantic-scale")).toBe(
+      expected(0.22).style.getPropertyValue("--semantic-scale"),
+    );
+    expect(renders).toBe(rendered);
+    view.unmount();
+    expect(flowStore.listeners.size).toBe(0);
+    flowStore.zoom = 1;
+  });
+
   it("provides graph chrome and suppresses the overview grid", () => {
     const view = render(
       <I18nProvider>

@@ -5,11 +5,29 @@ import { type Edge, type EdgeProps, Position } from "@xyflow/react";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const xyflow = vi.hoisted(() => ({
-  baseEdge: vi.fn(),
-  storeSubscription: vi.fn(),
-  zoom: 1,
-}));
+const xyflow = vi.hoisted(() => {
+  const listeners = new Set<(state: { transform: [number, number, number] }) => void>();
+  const state = () => ({ transform: [0, 0, xyflow.zoom] as [number, number, number] });
+  const xyflow = {
+    baseEdge: vi.fn(),
+    storeSubscription: vi.fn(),
+    zoom: 1,
+    listeners,
+    /** Moves the viewport the way React Flow's store does: listeners, no React render. */
+    setZoom(zoom: number) {
+      xyflow.zoom = zoom;
+      for (const listener of listeners) listener(state());
+    },
+    store: {
+      getState: state,
+      subscribe: (listener: (state: { transform: [number, number, number] }) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    },
+  };
+  return xyflow;
+});
 
 vi.mock("@xyflow/react", async (importOriginal) => {
   const original = await importOriginal<typeof import("@xyflow/react")>();
@@ -30,6 +48,7 @@ vi.mock("@xyflow/react", async (importOriginal) => {
       xyflow.storeSubscription(selector);
       return selector({ transform: [0, 0, xyflow.zoom] });
     },
+    useStoreApi: () => xyflow.store,
   };
 });
 
@@ -154,10 +173,10 @@ describe("GraphRelationshipEdge", () => {
     expect(onLabelClick).toHaveBeenCalledWith("edge");
   });
 
-  it("subscribes to viewport zoom only while rendering an interactive label", () => {
+  it("listens to viewport zoom only while rendering an interactive label", () => {
     const { rerender } = render(<GraphRelationshipEdge {...edgeProps()} />);
 
-    expect(xyflow.storeSubscription).not.toHaveBeenCalled();
+    expect(xyflow.listeners.size).toBe(0);
 
     rerender(
       <GraphRelationshipEdge
@@ -170,10 +189,38 @@ describe("GraphRelationshipEdge", () => {
       />,
     );
 
-    expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
+    expect(xyflow.listeners.size).toBe(1);
 
     rerender(<GraphRelationshipEdge {...edgeProps({ label: "", data: {} })} />);
-    expect(xyflow.storeSubscription).toHaveBeenCalledOnce();
+    expect(xyflow.listeners.size).toBe(0);
+  });
+
+  it("follows a zoom step without rendering the label again", () => {
+    render(
+      <GraphRelationshipEdge
+        {...edgeProps({
+          label: "sucht",
+          data: {
+            labelPlacement: { x: 180, y: 0 },
+            labelSize: { width: 44, height: 24 },
+            onLabelClick: vi.fn(),
+          },
+        })}
+      />,
+    );
+    const hitTarget = screen.getByRole("button", { name: "sucht" });
+    expect(hitTarget).toHaveStyle({ width: "44px", height: "44px" });
+
+    xyflow.setZoom(0.25);
+
+    // A React subscription to the zoom would render all labels of the board on every step.
+    expect(xyflow.storeSubscription).not.toHaveBeenCalled();
+    expect(hitTarget).toHaveStyle({
+      width: "176px",
+      height: "176px",
+      minWidth: "176px",
+      minHeight: "176px",
+    });
   });
 
   it("keeps a 44px interactive hit area through graph zoom without enlarging the label card", () => {

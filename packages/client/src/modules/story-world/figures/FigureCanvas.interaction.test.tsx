@@ -77,7 +77,6 @@ function controller(edges: Edge[] = []): FigureCanvasController {
     nodes: [node],
     edges,
     zoomTier: "detail",
-    nodeZoom: 1,
     snapToGrid: true,
     gridOverride: false,
     setSnapToGrid: vi.fn(),
