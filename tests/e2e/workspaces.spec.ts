@@ -44,6 +44,17 @@ function waitForSuccessfulStoryWorldWrite(page: Page, payloadMarker: string) {
   );
 }
 
+/** Opens the figure board's view menu: in the toolbar, or inside "Verwalten" at phone width. */
+async function openFigureViewMenu(page: Page) {
+  const view = page.getByRole("button", { name: "Ansicht", exact: true });
+  if (await view.isVisible()) {
+    await view.click();
+    return;
+  }
+  await page.getByRole("button", { name: "Verwalten", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Ansicht", exact: true }).click();
+}
+
 async function expectKeyboardMenuContract(page: Page, triggerName: string, menuName = triggerName) {
   const trigger = page.getByRole("button", { name: triggerName, exact: true });
   await trigger.focus();
@@ -262,7 +273,13 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
-      await expectKeyboardMenuContract(page, "Ansicht");
+      if (viewport.width > 429) {
+        await expectKeyboardMenuContract(page, "Ansicht");
+      } else {
+        // At phone width "Zeit" takes the view menu's place and the view menu moves into
+        // "Verwalten" as a submenu (T-328).
+        await expect(page.getByRole("button", { name: "Ansicht", exact: true })).toHaveCount(0);
+      }
       await expectKeyboardMenuContract(page, "Verwalten");
 
       await page.getByRole("button", { name: "Timeline", exact: true }).click();
@@ -2547,12 +2564,12 @@ test("The minimap tells element kinds apart and the grid can be released", async
   await expect(page.locator(".react-flow__background path")).toHaveCount(
     zoomTier === "overview" ? 0 : 1,
   );
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+  await openFigureViewMenu(page);
   await page.getByRole("menuitem", { name: "Anordnen", exact: true }).click();
   await expect
     .poll(() => page.locator(".react-flow__node").first().getAttribute("style"))
     .toContain("translate(96px, 96px)");
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+  await openFigureViewMenu(page);
   await page.getByRole("menuitem", { name: "Raster ausblenden", exact: true }).click();
   await expect(page.locator(".react-flow__background")).toHaveCount(0);
 

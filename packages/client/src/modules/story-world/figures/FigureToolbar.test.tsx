@@ -138,3 +138,41 @@ describe("FigureToolbar menus", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 });
+
+describe("FigureToolbar at phone width", () => {
+  const stubWidth = (narrow: boolean) =>
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query === "(max-width: 429px)" ? narrow : false,
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the view menu in the toolbar at desk width", () => {
+    stubWidth(false);
+    renderToolbar();
+    expect(screen.getByRole("button", { name: "Zeit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ansicht" })).toBeInTheDocument();
+  });
+
+  it("moves the view menu into Verwalten and keeps the time toggle", async () => {
+    stubWidth(true);
+    const props = renderToolbar();
+    expect(screen.getByRole("button", { name: "Zeit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ansicht" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verwalten" }));
+    const view = await screen.findByRole("menuitem", { name: "Ansicht" });
+    fireEvent.click(view);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Raster ausblenden" }));
+    expect(props.onSnapToGridChange).toHaveBeenCalledWith(false);
+  });
+});

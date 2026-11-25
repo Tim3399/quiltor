@@ -9,12 +9,13 @@ import {
   Plus,
   Upload,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ConfirmDialog,
   DropdownMenu,
   MenuItem,
   MenuSeparator,
+  MenuSubmenu,
   TextField,
   Toast,
   ToolbarButton,
@@ -54,6 +55,27 @@ export type FigureToolbarProps = {
   onImport: (state: FigureState) => void;
 };
 
+/* Below this width the row of eight 44px controls no longer fits (it overflowed at 360px and
+   cut "Verwalten" off at 320px). There the "Zeit" toggle keeps its place and the view menu
+   moves into "Verwalten" as a submenu (T-328, the user's choice). 429px takes in every phone
+   width up to 428px; at 430px the whole row was measured to fit. */
+const NARROW_TOOLBAR_QUERY = "(max-width: 429px)";
+
+function useNarrowToolbar() {
+  const [narrow, setNarrow] = useState(
+    () => typeof matchMedia === "function" && matchMedia(NARROW_TOOLBAR_QUERY).matches,
+  );
+  useEffect(() => {
+    if (typeof matchMedia !== "function") return;
+    const media = matchMedia(NARROW_TOOLBAR_QUERY);
+    const change = () => setNarrow(media.matches);
+    change();
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
+  return narrow;
+}
+
 export function FigureToolbar({
   state,
   connecting,
@@ -79,6 +101,34 @@ export function FigureToolbar({
   const [importError, setImportError] = useState("");
   const [exportError, setExportError] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const narrow = useNarrowToolbar();
+  const viewItems = (
+    <>
+      <MenuItem
+        icon={<Grid3X3 />}
+        label={snapToGrid ? t("hideGrid") : t("showGrid")}
+        onSelect={() => onSnapToGridChange(!snapToGrid)}
+      />
+      <MenuItem
+        disabled={!state.nodes.length}
+        icon={<LayoutGrid />}
+        label={t("arrangeGrid")}
+        onSelect={onAlignAllNodes}
+      />
+      <MenuItem
+        disabled={!state.edges.length}
+        icon={<Link2 />}
+        label={relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
+        onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
+      />
+      <MenuSeparator />
+      <MenuItem
+        icon={<MapPin />}
+        label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
+        onSelect={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
+      />
+    </>
+  );
 
   const runExport = (task: Promise<void>) => {
     void task
@@ -151,43 +201,23 @@ export function FigureToolbar({
                   onClick={() => onTimelineOpenChange(!timelineOpen)}
                 />
               </WorkspaceToolbarGroup>
-              <WorkspaceToolbarGroup label={t("figureViewMenu")}>
-                <DropdownMenu
-                  label={t("figureViewMenu")}
-                  renderTrigger={({ ref, ...triggerProps }) => (
-                    <ToolbarButton
-                      ref={ref}
-                      {...triggerProps}
-                      label={t("figureViewMenu")}
-                      icon={<Grid3X3 />}
-                    />
-                  )}
-                >
-                  <MenuItem
-                    icon={<Grid3X3 />}
-                    label={snapToGrid ? t("hideGrid") : t("showGrid")}
-                    onSelect={() => onSnapToGridChange(!snapToGrid)}
-                  />
-                  <MenuItem
-                    disabled={!state.nodes.length}
-                    icon={<LayoutGrid />}
-                    label={t("arrangeGrid")}
-                    onSelect={onAlignAllNodes}
-                  />
-                  <MenuItem
-                    disabled={!state.edges.length}
-                    icon={<Link2 />}
-                    label={relationshipsVisible ? t("hideRelationships") : t("showRelationships")}
-                    onSelect={() => onRelationshipsVisibleChange(!relationshipsVisible)}
-                  />
-                  <MenuSeparator />
-                  <MenuItem
-                    icon={<MapPin />}
-                    label={journeyOverlayOpen ? t("hidePaths") : t("showPaths")}
-                    onSelect={() => onJourneyOverlayOpenChange(!journeyOverlayOpen)}
-                  />
-                </DropdownMenu>
-              </WorkspaceToolbarGroup>
+              {!narrow && (
+                <WorkspaceToolbarGroup label={t("figureViewMenu")}>
+                  <DropdownMenu
+                    label={t("figureViewMenu")}
+                    renderTrigger={({ ref, ...triggerProps }) => (
+                      <ToolbarButton
+                        ref={ref}
+                        {...triggerProps}
+                        label={t("figureViewMenu")}
+                        icon={<Grid3X3 />}
+                      />
+                    )}
+                  >
+                    {viewItems}
+                  </DropdownMenu>
+                </WorkspaceToolbarGroup>
+              )}
             </>
           }
           history={
@@ -218,6 +248,14 @@ export function FigureToolbar({
                   />
                 )}
               >
+                {narrow && (
+                  <>
+                    <MenuSubmenu label={t("figureViewMenu")} icon={<Grid3X3 />}>
+                      {viewItems}
+                    </MenuSubmenu>
+                    <MenuSeparator />
+                  </>
+                )}
                 <MenuItem
                   icon={<Download />}
                   label={t("profiles")}
