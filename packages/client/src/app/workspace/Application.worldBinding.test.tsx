@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { loadVersionsDialog } from "../../modules/history";
 import type { Manuscript } from "../../modules/manuscript";
 import { ApplicationGatewayError, quiltorClient } from "../../platform";
 import { App } from "../Application";
@@ -216,6 +217,13 @@ function mockBackupRestore() {
     .spyOn(backup, "restore")
     .mockResolvedValue({ ok: true, warnings: ["backup.mirror_failed"] });
 }
+
+// The versions dialog is a lazy chunk. Its first import transforms a whole module graph,
+// which under load outlasts findByRole's wait and reads as a missing tab (T-356). Waiting
+// for the module itself, once, leaves the tab queries waiting only on the render.
+beforeAll(async () => {
+  await loadVersionsDialog();
+});
 
 // The menu has one entry for versions, backups and sync; each is a tab of the dialog it opens.
 async function openVersionsTab(name: string) {
