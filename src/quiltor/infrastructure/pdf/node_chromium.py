@@ -8,7 +8,6 @@ a ~300 MB Chromium inside a `.app` is exactly what system_browser.py avoids.
 
 from __future__ import annotations
 
-import contextlib
 import os
 import re
 import subprocess
@@ -16,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from quiltor.application.errors import PdfRendererError
+from quiltor.infrastructure.platform import process_tree
 
 #: How long the server waits for one render before it gives up and kills the
 #: renderer with everything it started. Below the 90 s a reverse proxy commonly
@@ -78,83 +78,19 @@ def classify_failure(stderr: str) -> str:
     return "unknown"
 
 
-def _descendants(pid: int) -> list[int]:
-    """Every process below `pid`, read from /proc (Linux) or `ps` (macOS)."""
-    parents: dict[int, list[int]] = {}
-    proc = Path("/proc")
-    if proc.is_dir():
-        for entry in proc.iterdir():
-            if not entry.name.isdigit():
-                continue
-            try:
-                stat = (entry / "stat").read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            # `pid (comm) state ppid ...`; comm may contain spaces and parentheses.
-            fields = stat.rsplit(")", 1)[-1].split()
-            if len(fields) > 1 and fields[1].isdigit():
-                parents.setdefault(int(fields[1]), []).append(int(entry.name))
-    else:
-        try:
-            listing = subprocess.run(
-                ["ps", "-A", "-o", "pid=,ppid="], capture_output=True, text=True, check=False
-            ).stdout
-        except OSError:
-            listing = ""
-        for line in listing.splitlines():
-            parts = line.split()
-            if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
-                parents.setdefault(int(parts[1]), []).append(int(parts[0]))
-    found: list[int] = []
-    pending = [pid]
-    while pending:
-        for child in parents.get(pending.pop(), []):
-            if child not in found:
-                found.append(child)
-                pending.append(child)
-    return found
-
-
-def _kill_tree(process: subprocess.Popen) -> None:
-    """Kill the renderer and every process it started (Chromium and its helpers).
-
-    Killing only `node` is what left seven idle chrome-headless-shell processes
-    behind on a hosted server after a timeout (T-370). Its own process group is
-    not enough either: Playwright starts Chromium detached, in a group of its own,
-    so the descendants are collected one by one before anything is killed.
-    """
-    if os.name == "posix":
-        import signal
-
-        for pid in [*_descendants(process.pid), process.pid]:
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.kill(pid, signal.SIGKILL)
-        with contextlib.suppress(ProcessLookupError, PermissionError):
-            os.killpg(process.pid, signal.SIGKILL)
-    else:
-        # /T follows parent ids, so it reaches detached children as well.
-        subprocess.run(
-            ["taskkill", "/F", "/T", "/PID", str(process.pid)],
-            capture_output=True,
-            check=False,
-        )
-    process.kill()
-
-
 def _run(argv: list[str], *, timeout: float, **kwargs) -> subprocess.CompletedProcess:
     """`subprocess.run` with one difference: a timeout kills the whole process tree."""
-    group = (
-        {"start_new_session": True}
-        if os.name == "posix"
-        else {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
-    )
     with subprocess.Popen(
-        argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **group, **kwargs
+        argv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        **process_tree.own_group_options(),
+        **kwargs,
     ) as process:
         try:
             stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            _kill_tree(process)
+            process_tree.kill(process)
             process.communicate()
             raise
     return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
