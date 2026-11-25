@@ -112,6 +112,37 @@ def _group_chapters_by_budget(
     return groups
 
 
+def foldable_proposals(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """The proposals of ``result`` a later part or group may treat as staged world state.
+
+    An ambiguous create waits for the author's choice and is never created as it stands
+    (proposal_resolution, T-344). Folded in, it became an element of the next part's world and
+    was offered there as a candidate that does not exist (F-344-10). It stays out, and so does
+    whatever hangs on its tempId.
+    """
+
+    open_ids = {
+        str((envelope.get("proposal") or {}).get("tempId"))
+        for envelope in result.get("proposalEnvelopes") or []
+        if isinstance(envelope, dict)
+        and (envelope.get("resolution") or {}).get("outcome") == "ambiguous"
+    }
+    if not open_ids:
+        return list(result.get("proposals") or [])
+
+    def hangs_on_open(proposal: dict[str, Any]) -> bool:
+        relation = proposal.get("relationship") or {}
+        refs = {
+            proposal.get("tempId") if proposal.get("kind") == "create_element" else None,
+            proposal.get("elementId"),
+            relation.get("from"),
+            relation.get("to"),
+        }
+        return bool({str(ref) for ref in refs if ref is not None} & open_ids)
+
+    return [proposal for proposal in result.get("proposals") or [] if not hangs_on_open(proposal)]
+
+
 def _merge_accumulated(
     figures: dict[str, Any], accumulated: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -239,6 +270,8 @@ def run_batches(
         {"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}
     ]
     accumulated: list[dict[str, Any]] = []
+    # What later groups see as staged: the accumulated proposals without open choices.
+    folded: list[dict[str, Any]] = []
     notes: list[str] = []
     citations: list[str] = []
     sources: list[dict[str, Any]] = []
@@ -257,7 +290,7 @@ def run_batches(
                 "titles": ", ".join(titles[cid] for cid in group),
             }
             label = f"Kapitel {index}/{len(groups)}: " + label_params["titles"]
-            merged_figures = _merge_accumulated(figures, accumulated)
+            merged_figures = _merge_accumulated(figures, folded)
 
             # A chapter taken in parts (T-330) shows which part of the group is running.
             extra: dict[str, Any] = {
@@ -339,6 +372,7 @@ def run_batches(
                     for proposal in proposals
                 )
             accumulated.extend(proposals)
+            folded.extend(foldable_proposals(result))
             if result.get("message"):
                 notes.append(f"{label}: {result['message']}")
             # The parts a chapter of this group was taken in, and what each carried (T-330).
