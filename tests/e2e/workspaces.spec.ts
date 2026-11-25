@@ -3110,7 +3110,8 @@ test("The dark theme is preserved and accessible across the core views", async (
     ".react-flow__controls-zoomin",
     ".react-flow__controls-zoomout",
     ".react-flow__controls-fitview",
-    ".react-flow__controls-interactive",
+    // Quiltor's own arrangement lock replaced React Flow's padlock in T-359.
+    ".graph-arrangement-lock",
   ]) {
     await expect(graphControls.locator(coreControl)).toHaveCount(1);
   }
