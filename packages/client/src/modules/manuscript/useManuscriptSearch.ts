@@ -3,7 +3,7 @@ import type { TextSearchTarget } from "../../shared";
 import { useLatest } from "../../shared/hooks/useLatest";
 import type { ManuscriptEditorHandle } from "./ManuscriptEditor";
 import type { Chapter } from "./model";
-import { manuscriptSearchMatches } from "./search";
+import { type ManuscriptSearchMatch, manuscriptSearchMatches } from "./search";
 
 interface ManuscriptSearchOptions {
   chapters: Chapter[];
