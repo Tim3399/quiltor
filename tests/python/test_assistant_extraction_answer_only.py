@@ -227,5 +227,48 @@ class ExtractionPartBudgetTests(unittest.TestCase):
         self.assertGreaterEqual(EXTRACTION_ANSWER_TOKENS, 80 * EXTRACTION_PART_PROPOSALS + 300)
 
 
+TWELVE = [
+    "Alma Berg", "Bruno Kahl", "Cilly Dorn", "Detlef Ruh", "Edda Lomb", "Fritjof Sand",
+    "Greta Wulf", "Hagen Tamm", "Ilka Born", "Jost Faber", "Kuno Lenz", "Lene Moor",
+]  # fmt: skip
+
+
+class TooManyModel(ReadsFirstModel):
+    """Writes more proposals than maxItems allows, as WebLLM did in T-369 (part 6)."""
+
+    def invoke(self, payload):
+        self.calls.append(copy.deepcopy(dict(payload)))
+        people = [
+            {"kind": "create_element", "tempId": f"new:p{i}", "element": {"type": "person", "name": name}}
+            for i, name in enumerate(TWELVE)
+        ]  # fmt: skip
+        return {"proposals": people, "citations": [], "message": "Viele."}
+
+
+class OverLongProposalListTests(unittest.TestCase):
+    def test_an_extraction_part_keeps_what_fits_instead_of_failing(self):
+        engine = TooManyModel()
+        runtime = AssistantRuntime(
+            Path("."),
+            Path("."),
+            engine,
+            progress=_Progress(),
+            read_tools=StoryWorldReadTools(),
+            token_cache=BoundedTokenCountCache(),
+        )
+        result = runtime.complete(
+            EXTRACTION,
+            manuscript(),
+            copy.deepcopy(test_world()["figures"]),
+            chapter_ids=["c-arrival"],
+            mode="world_extraction",
+        )
+        self.assertEqual(
+            [p["element"]["name"] for p in result["proposals"]],
+            TWELVE[:EXTRACTION_PART_PROPOSALS],
+        )
+        self.assertEqual(len(engine.calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

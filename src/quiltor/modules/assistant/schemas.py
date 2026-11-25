@@ -32,6 +32,8 @@ class SchemaFormat(dict[str, Any]):
     """
 
     check_schema: dict[str, Any]
+    # When set, a reply with more proposals is cut to this many before the check (T-369).
+    trim_proposals: int | None = None
 
 
 def wire_schema(schema: Any) -> Any:

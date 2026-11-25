@@ -243,13 +243,16 @@ def _answer_only(
         available = RUNTIME_CONFIG.context_tokens - prompt_tokens - RUNTIME_CONFIG.template_reserve
         if available < RUNTIME_CONFIG.minimum_output_tokens:
             return _failure("tool_context_limit", messages, trace, prompt_tokens, 0, 0, 0)
+        response_format = json_schema_format(reply)
+        limit = ((reply.get("properties") or {}).get("proposals") or {}).get("maxItems")
+        response_format.trim_proposals = limit if isinstance(limit, int) else None
         answer_payload = {
             **payload,
             "max_tokens": min(
                 int(payload.get("max_tokens") or RUNTIME_CONFIG.base_output_tokens), available
             ),
             "messages": messages,
-            "response_format": json_schema_format(reply),
+            "response_format": response_format,
         }
         try:
             final = invoke(answer_payload, prompt_tokens)
