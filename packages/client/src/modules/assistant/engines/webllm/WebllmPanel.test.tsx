@@ -11,6 +11,7 @@ function storeIn(state: ModelState): ModelStore {
     refresh: vi.fn(async () => {}),
     download: vi.fn(async () => {}),
     engine: vi.fn(async () => null),
+    discard: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
   };
 }

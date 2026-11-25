@@ -3,7 +3,13 @@ import { createModelStore } from "./modelStore";
 import { probeWebGpu } from "./webgpu";
 import { createWebllmExecutor, webllmRequest } from "./webllmExecutor";
 import { CONTEXT_WINDOW_SIZE, createWebllmRuntime, MODEL_ID } from "./webllmRuntime";
-import type { WebllmCompletion, WebllmEngine, WebllmPackage, WebllmRuntime } from "./webllmTypes";
+import type {
+  WebllmCompletion,
+  WebllmCompletionRequest,
+  WebllmEngine,
+  WebllmPackage,
+  WebllmRuntime,
+} from "./webllmTypes";
 
 const SCHEMA = { type: "object", properties: { step: { type: "object" } }, required: ["step"] };
 const PAYLOAD = {
@@ -15,7 +21,7 @@ const PAYLOAD = {
 };
 
 function engineAnswering(
-  answer: WebllmCompletion | (() => Promise<WebllmCompletion>),
+  answer: WebllmCompletion | ((request: WebllmCompletionRequest) => Promise<WebllmCompletion>),
 ): WebllmEngine {
   return {
     chat: {
@@ -223,6 +229,118 @@ describe("webllm executor", () => {
     await vi.waitFor(() => expect(engine.chat.completions.create).toHaveBeenCalledTimes(2));
     answer('{"ok":true}');
     await expect(next).resolves.toMatchObject({ content: '{"ok":true}' });
+  });
+
+  // T-362: web-llm disposes a pipeline, its grammar matcher with it, when it unloads (a lost
+  // device does that on its own) but keeps the engine object. Every later generation on that
+  // engine then fails with the BindingError, while the store kept handing it out for the rest
+  // of the tab: from part 2 on every part of a job failed, and so did the next job.
+  function engineDyingAfter(answers: number) {
+    let calls = 0;
+    return engineAnswering(async () => {
+      calls += 1;
+      if (calls > answers) {
+        throw named(
+          "BindingError",
+          "Cannot pass deleted object as a pointer of type GrammarMatcher",
+        );
+      }
+      return { choices: [{ message: { content: `{"call":${calls}}` } }] };
+    });
+  }
+
+  it("replaces an engine whose pipeline was disposed and answers the part on a fresh one", async () => {
+    const dying = engineDyingAfter(1);
+    const fresh = engineAnswering({ choices: [{ message: { content: '{"fresh":true}' } }] });
+    const engines = [dying, fresh];
+    const runtime: WebllmRuntime = {
+      load: vi.fn(async () => engines.shift() ?? fresh),
+      isCached: vi.fn(async () => true),
+      remove: vi.fn(async () => {}),
+    };
+    const executor = createWebllmExecutor(createModelStore(runtime, {}), { grammar: true });
+    const parts = [];
+    for (let part = 0; part < 3; part += 1) {
+      parts.push(await executor.execute(PAYLOAD, new AbortController().signal));
+    }
+    expect(parts).toEqual([
+      { content: '{"call":1}', finishReason: "stop" },
+      { content: '{"fresh":true}', finishReason: "stop" },
+      { content: '{"fresh":true}', finishReason: "stop" },
+    ]);
+    expect(dying.unload).toHaveBeenCalledTimes(1);
+    expect(runtime.load).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a fresh engine that fails the same way instead of reloading without end", async () => {
+    const runtime: WebllmRuntime = {
+      load: vi.fn(async () => engineDyingAfter(0)),
+      isCached: vi.fn(async () => true),
+      remove: vi.fn(async () => {}),
+    };
+    const executor = createWebllmExecutor(createModelStore(runtime, {}), { grammar: true });
+    await expect(executor.execute(PAYLOAD, new AbortController().signal)).resolves.toEqual({
+      error: {
+        code: "engine_unavailable",
+        detail: "Cannot pass deleted object as a pointer of type GrammarMatcher",
+      },
+    });
+    expect(runtime.load).toHaveBeenCalledTimes(2);
+  });
+
+  // T-362: web-llm starts the grammar matcher for a call alongside its prefill and awaits it only
+  // after the prefill. A prefill that throws (a prompt over the context window) leaves that
+  // initialisation running; when it finishes it overwrites the matcher of whichever call runs
+  // by then, and that call is held to the wrong schema. The fake engine keeps one matcher per
+  // engine, as the pipeline does, and lets the orphan land in the middle of the next call.
+  function engineWithOrphanedInit() {
+    let matcher: string | undefined;
+    let landOrphan: () => void = () => {};
+    const engine = engineAnswering(async (request) => {
+      const schema = request.response_format?.schema;
+      const init = () => {
+        matcher = schema;
+      };
+      if (request.messages.length > 1) {
+        landOrphan = init;
+        throw named("ContextWindowSizeExceededError", "9000 > 8192");
+      }
+      init();
+      landOrphan();
+      landOrphan = () => {};
+      if (matcher !== schema) throw new Error("Grammar matcher rejected the newly sampled token.");
+      return { choices: [{ message: { content: "{}" } }] };
+    });
+    return engine;
+  }
+
+  it("never lets a call that overflowed the context hand its grammar to the next call", async () => {
+    const first = engineWithOrphanedInit();
+    const second = engineWithOrphanedInit();
+    const engines = [first, second];
+    const runtime: WebllmRuntime = {
+      load: vi.fn(async () => engines.shift() ?? second),
+      isCached: vi.fn(async () => true),
+      remove: vi.fn(async () => {}),
+    };
+    const executor = createWebllmExecutor(createModelStore(runtime, {}), { grammar: true });
+    const withSchema = (name: string, messages: number) => ({
+      ...PAYLOAD,
+      messages: Array.from({ length: messages }, () => PAYLOAD.messages[0]),
+      response_format: {
+        type: "json_schema",
+        json_schema: { name, schema: { type: "object", title: name } },
+      },
+    });
+    const signal = new AbortController().signal;
+    await expect(executor.execute(withSchema("long", 2), signal)).resolves.toEqual({
+      error: { code: "context_too_large", detail: "9000 > 8192" },
+    });
+    await expect(executor.execute(withSchema("next", 1), signal)).resolves.toEqual({
+      content: "{}",
+      finishReason: "stop",
+    });
+    expect(first.unload).toHaveBeenCalledTimes(1);
   });
 });
 
