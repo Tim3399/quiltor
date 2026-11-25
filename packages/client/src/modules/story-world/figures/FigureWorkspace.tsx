@@ -112,12 +112,9 @@ function FigureWorkspaceInner({
   const closeNodeMenu = useCallback(() => setNodeMenu(null), []);
   // Stable, because the board places every edge label again when it changes: an inline
   // handler did that on every zoom step and handed React Flow all edges anew (T-372).
-  const selectEdge = useCallback(
-    (id: string) => {
-      if (latestStateRef.current.edges.some((edge) => edge.id === id)) setSelectedEdgeId(id);
-    },
-    [latestStateRef],
-  );
+  const selectEdge = useCallback((id: string) => {
+    if (latestStateRef.current.edges.some((edge) => edge.id === id)) setSelectedEdgeId(id);
+  }, []);
   const canvas = useFigureCanvas({
     state,
     onChange,
