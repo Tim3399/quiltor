@@ -51,7 +51,11 @@ class Recorder:
         self.calls.append(copy.deepcopy(dict(payload)))
         final = {"message": "ok", "citations": [], "proposals": []}
         name = payload.get("response_format", {}).get("json_schema", {}).get("name")
-        return {"step": {"action": "final", "final": final}} if name == "quiltor_read_tool_step" else final
+        return (
+            {"step": {"action": "final", "final": final}}
+            if name == "quiltor_read_tool_step"
+            else final
+        )
 
     def count_tokens(self, text):
         return max(1, round(len(text) * 0.343))
@@ -66,7 +70,9 @@ def stripped():
     body = json.dumps(text, ensure_ascii=False)
     gone = {n["id"] for n in figures["nodes"] if n.get("name") and n["name"] in body}
     figures["nodes"] = [n for n in figures["nodes"] if n["id"] not in gone]
-    figures["edges"] = [e for e in figures["edges"] if e["from"] not in gone and e["to"] not in gone]
+    figures["edges"] = [
+        e for e in figures["edges"] if e["from"] not in gone and e["to"] not in gone
+    ]
     return figures
 
 
@@ -79,16 +85,26 @@ def reorder(reply):
 
 def send(payload):
     body = {k: v for k, v in payload.items() if not k.startswith("_")}
-    request = urllib.request.Request(URL, json.dumps(body).encode(), {"Content-Type": "application/json"})
+    request = urllib.request.Request(
+        URL, json.dumps(body).encode(), {"Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(request, timeout=300) as response:
         choice = json.loads(response.read())["choices"][0]
         return choice["message"]["content"], choice.get("finish_reason")
 
 
 engine = Recorder()
-runtime = AssistantRuntime(Path("."), Path("."), engine, progress=_Progress(),
-                           read_tools=StoryWorldReadTools(), token_cache=BoundedTokenCountCache())
-runtime.complete(EXTRACTION, manuscript(), stripped(), chapter_ids=[CHAPTER], mode="world_extraction")
+runtime = AssistantRuntime(
+    Path("."),
+    Path("."),
+    engine,
+    progress=_Progress(),
+    read_tools=StoryWorldReadTools(),
+    token_cache=BoundedTokenCountCache(),
+)
+runtime.complete(
+    EXTRACTION, manuscript(), stripped(), chapter_ids=[CHAPTER], mode="world_extraction"
+)
 product = engine.calls[0]
 step = product["response_format"]["json_schema"]["schema"]
 reply = step["properties"]["step"]["anyOf"][0]["properties"]["final"]
@@ -98,13 +114,19 @@ def variant(wrapped, first):
     payload = copy.deepcopy(product)
     final = reorder(copy.deepcopy(reply)) if first else copy.deepcopy(reply)
     if first:
-        payload["messages"][0]["content"] = payload["messages"][0]["content"].replace(KEYS, KEYS_FIRST)
+        payload["messages"][0]["content"] = payload["messages"][0]["content"].replace(
+            KEYS, KEYS_FIRST
+        )
     if wrapped:
         schema = copy.deepcopy(step)
         schema["properties"]["step"]["anyOf"][0]["properties"]["final"] = final
         payload["response_format"]["json_schema"]["schema"] = schema
     else:
-        payload["response_format"]["json_schema"] = {"name": "quiltor_reply", "strict": True, "schema": final}
+        payload["response_format"]["json_schema"] = {
+            "name": "quiltor_reply",
+            "strict": True,
+            "schema": final,
+        }
     return payload
 
 

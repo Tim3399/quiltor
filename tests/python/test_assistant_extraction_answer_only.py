@@ -229,7 +229,7 @@ class ExtractionPartBudgetTests(unittest.TestCase):
 
 TWELVE = [
     "Alma Berg", "Bruno Kahl", "Cilly Dorn", "Detlef Ruh", "Edda Lomb", "Fritjof Sand",
-    "Greta Wulf", "Hagen Tamm", "Ilka Born", "Jost Faber", "Kuno Lenz", "Lene Moor",
+    "Greta Wulf", "Hagen Tamm", "Ilka Born", "Jost Faber", "Kuno Lenz", "Lina Moor",
 ]  # fmt: skip
 
 
