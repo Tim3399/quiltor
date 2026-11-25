@@ -218,7 +218,7 @@ def _alive(pid: int) -> bool:
         return bool(state) and not state.startswith("Z")
     listing = (
         subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
             capture_output=True,
             text=True,
             errors="replace",
@@ -226,7 +226,7 @@ def _alive(pid: int) -> bool:
         ).stdout
         or ""
     )
-    return f'"{pid}"' in listing
+    return any(str(pid) in line.split()[1:2] for line in listing.splitlines())
 
 
 HANGING_RENDERER = """

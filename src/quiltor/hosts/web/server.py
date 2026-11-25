@@ -551,7 +551,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         Not an exception for loopback: the origin must be exactly the render URL's
         `http://127.0.0.1:<this port>` *and* the request must carry a session that a
         one-shot render token redeemed into (T-370). A browser elsewhere has neither."""
-        render_origin = f"http://127.0.0.1:{self.server.server_address[1]}"
+        port = cast(tuple[str, int], self.server.server_address)[1]
+        render_origin = f"http://127.0.0.1:{port}"
         if _origin_of(origin, allow_path=False) != _origin_of(render_origin, allow_path=False):
             return False
         return self.application.identity.is_render_session(self.get_cookie(SESSION_COOKIE))
