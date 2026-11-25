@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import type { Manuscript } from "../../../packages/client/src/modules/manuscript";
 import { encodeManuscriptV1 } from "../../../packages/client/src/platform/contracts/v1/manuscript";
 import { createTestWorld, expect, type TestWorld } from "./world-fixture";
+import { ifMatch, revisionFromEtag } from "./etag";
 
 /**
  * Replace one versioned world document (manuscript, state, storyboards) through the HTTP API.
@@ -16,12 +17,9 @@ export async function putVersioned(
 ): Promise<void> {
   const current = await page.request.get(path);
   expect(current.ok(), await current.text()).toBe(true);
-  const etag = current.headers().etag ?? '"0"';
-  // Behind a compressing proxy the tag arrives weakened or extended: W/"7" (nginx), "7-zstd"
-  // (Caddy). The product client accepts exactly those; the helper must as well.
-  const revision = Number(/^(?:W\/)?"(\d+)(?:-(?:gzip|zstd|br))?"$/.exec(etag)?.[1]);
+  const revision = revisionFromEtag(current.headers().etag);
   const saved = await page.request.put(path, {
-    headers: { "If-Match": `"${revision}"` },
+    headers: { "If-Match": ifMatch(revision) },
     data: encode(revision),
     ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
   });

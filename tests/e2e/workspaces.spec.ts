@@ -13,6 +13,7 @@ import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { drawnFigures, exampleWorldDocuments, seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
+import { ifMatch, revisionFromEtag } from "./support/etag";
 
 async function openBlankWorld(page: Page, title = "Testwelt", backupUrl = "") {
   const world = await createTestWorld(page, title, backupUrl);
@@ -2024,9 +2025,9 @@ test("Note references and flexible profile fields stay stable across a rename", 
   const world = await createTestWorld(page, `Notizreferenz ${crypto.randomUUID()}`);
   const worldId = encodeURIComponent(world.id);
   const initial = await page.request.get(`/api/state?world=${worldId}`);
-  const revision = initial.headers().etag || '"0"';
+  const revision = revisionFromEtag(initial.headers().etag);
   const saved = await page.request.put(`/api/state?world=${worldId}`, {
-    headers: { "If-Match": revision },
+    headers: { "If-Match": ifMatch(revision) },
     data: encodeStoryWorldDocument(
       {
         nodes: [
@@ -2048,7 +2049,7 @@ test("Note references and flexible profile fields stay stable across a rename", 
         ],
         edges: [],
       },
-      Number(revision.replaceAll('"', "")),
+      revision,
     ),
   });
   expect(saved.ok()).toBeTruthy();
@@ -2624,7 +2625,7 @@ test("Moving preserves every element across autosave and a reload", async ({ pag
   // creating a world no longer makes it the process's "active" one, so a request
   // that names none has no world at all and is answered with a 400.
   const initial = await page.request.get(`/api/state?world=${world.id}`);
-  const revision = initial.headers().etag || '"0"';
+  const revision = revisionFromEtag(initial.headers().etag);
   const nodes = Array.from({ length: 12 }, (_, index) => ({
     id: `n${index}`,
     x: 100 + (index % 4) * 240,
@@ -2640,8 +2641,8 @@ test("Moving preserves every element across autosave and a reload", async ({ pag
     directed: index % 2 === 0,
   }));
   const saved = await page.request.put(`/api/state?world=${encodeURIComponent(world.id)}`, {
-    headers: { "If-Match": revision },
-    data: encodeStoryWorldDocument({ nodes, edges }, Number(revision.replaceAll('"', ""))),
+    headers: { "If-Match": ifMatch(revision) },
+    data: encodeStoryWorldDocument({ nodes, edges }, revision),
   });
   expect(saved.ok()).toBeTruthy();
   await page.goto(`/?world=${world.id}`);

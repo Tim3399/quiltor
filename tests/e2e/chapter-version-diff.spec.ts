@@ -10,6 +10,7 @@ import {
 } from "./support/application-api";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
+import { revisionFromEtag } from "./support/etag";
 
 function record(text: string, marks: TextMark[] = []) {
   return { available: true, exists: true, text, marks };
@@ -274,7 +275,7 @@ test("Real snapshots carry formatting from SQLite through the API into the edito
   const save = async (text: string, formatting: TextMark[]) => {
     const current = await page.request.get(url);
     expect(current.ok()).toBe(true);
-    const revision = Number(current.headers().etag.replaceAll('"', ""));
+    const revision = revisionFromEtag(current.headers().etag);
     const saved = await page.request.put(url, {
       headers: {
         Accept: DOCUMENT_MEDIA_TYPE_V1,

@@ -4,6 +4,7 @@ import { clickVisibleGraphEdge } from "./support/graph-interaction";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { seedExampleWorld } from "./support/example-world";
 import { createTestWorld, expect, test } from "./support/world-fixture";
+import { revisionFromEtag } from "./support/etag";
 
 function waitForSuccessfulStoryboardWrite(page: Page, payloadMarker: string) {
   return page.waitForResponse(
@@ -521,9 +522,7 @@ test("the element library stays fully usable in the compact landscape viewport",
   const world = await createTestWorld(page, `Storyboard Library Landscape ${crypto.randomUUID()}`);
   const worldId = encodeURIComponent(world.id);
   const storyWorldResponse = await page.request.get(`/api/state?world=${worldId}`);
-  const storyWorldRevision = Number(
-    (storyWorldResponse.headers().etag || '"0"').replaceAll('"', ""),
-  );
+  const storyWorldRevision = revisionFromEtag(storyWorldResponse.headers().etag);
   const storyWorldSaved = await page.request.put(`/api/state?world=${worldId}`, {
     headers: { "If-Match": `"${storyWorldRevision}"` },
     data: encodeStoryWorldDocument(
@@ -598,9 +597,7 @@ test("the focused world search stays usable with the on-screen keyboard showing"
   const world = await createTestWorld(page, `Storyboard Search Keyboard ${crypto.randomUUID()}`);
   const worldId = encodeURIComponent(world.id);
   const storyWorldResponse = await page.request.get(`/api/state?world=${worldId}`);
-  const storyWorldRevision = Number(
-    (storyWorldResponse.headers().etag || '"0"').replaceAll('"', ""),
-  );
+  const storyWorldRevision = revisionFromEtag(storyWorldResponse.headers().etag);
   const storyWorldSaved = await page.request.put(`/api/state?world=${worldId}`, {
     headers: { "If-Match": `"${storyWorldRevision}"` },
     data: encodeStoryWorldDocument(

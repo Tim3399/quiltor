@@ -3,6 +3,7 @@ import { encodeManuscriptV1 } from "../../packages/client/src/platform/contracts
 import { seedExampleWorldWithHistory } from "./support/example-world";
 import { openToolbarOverflow } from "./support/toolbar-overflow";
 import { createTestWorld, expect, test } from "./support/world-fixture";
+import { ifMatch, revisionFromEtag } from "./support/etag";
 
 // F-85-3: the chapter panel "Versionen" in both themes, over a real snapshot. The images are
 // written to the test output for a person to look at; baselines are part E's (CLAUDE.md).
@@ -11,13 +12,13 @@ async function saveText(page: Page, world: string, body: string) {
   const endpoint = `/api/manuscript?world=${world}`;
   const current = await page.request.get(endpoint);
   expect(current.ok()).toBe(true);
-  const revision = current.headers().etag;
-  expect(revision).toBeTruthy();
+  expect(current.headers().etag).toBeTruthy();
+  const revision = revisionFromEtag(current.headers().etag);
   const saved = await page.request.put(endpoint, {
-    headers: { "If-Match": revision },
+    headers: { "If-Match": ifMatch(revision) },
     data: encodeManuscriptV1(
       { chapters: [{ id: "anfang", title: "Ankunft am Hafen", body, note: "" }] },
-      Number(revision.replaceAll('"', "")),
+      revision,
     ),
   });
   expect(saved.ok(), await saved.text()).toBe(true);
