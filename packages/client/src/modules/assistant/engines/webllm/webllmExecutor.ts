@@ -143,7 +143,15 @@ export function createWebllmExecutor(
     } catch (error) {
       if (signal.aborted) throw signal.reason ?? error;
       const result = webllmFailure(error);
-      return engineBroken(error) ? { broken: engine, result } : result;
+      if (engineBroken(error)) return { broken: engine, result };
+      // web-llm starts the call's grammar matcher alongside the prefill and awaits it only after
+      // it. A prompt over the context window throws in the prefill and leaves that start running;
+      // it later overwrites the matcher of whatever call runs by then (T-362). The engine is
+      // dropped so the next call starts on a fresh one; this ticket keeps its own answer.
+      if ("error" in result && result.error.code === "context_too_large") {
+        await store.discard(engine);
+      }
+      return result;
     } finally {
       signal.removeEventListener("abort", stop);
     }
