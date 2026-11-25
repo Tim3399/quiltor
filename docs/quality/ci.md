@@ -20,6 +20,33 @@ the columns below. Medians, in minutes.
   dependencies and the browser download comes from the job logs of 20 jobs across five runs
   (timestamp of the first `Downloading Chrome for Testing` line).
 
+## Minutes per job, system and workflow (T-341)
+
+`tools/dev/ci-minutes.mjs` measures what CI costs rather than how long it takes. It reads every
+job of every run in a window through `gh api` (read-only) and sums them per operating system,
+workflow, trigger, job and attempt:
+
+```bash
+node tools/dev/ci-minutes.mjs --days 30
+node tools/dev/ci-minutes.mjs --days 30 --dump > jobs.json   # save the jobs once
+node tools/dev/ci-minutes.mjs --from-file jobs.json --json    # recount without the network
+```
+
+- A job counts as GitHub bills it: rounded up to a whole minute, at least one, skipped jobs not
+  at all. **L-min** is that number in Linux minutes: Windows counts twice, macOS ten times.
+- Every attempt after the first is a **rerun**. "Re-run failed jobs" lists the jobs it did not
+  repeat under the new attempt as well, with a new id and the old start and end; those count once,
+  in the attempt that ran them (F-341-11).
+- The red-run line ignores the gate job `browser-e2e`, which runs on Linux and turns red
+  whenever any required job does. With it counted, nearly every red run would look Linux-red
+  (F-341-1).
+- `tools/dev/ci-minutes.test.mjs` holds the arithmetic against fixed API answers.
+
+**Docs-only runs (plan P6), measured 2026-11-23:** of the 173 manual Test runs from 23 October to
+22 November, 1 changed nothing but `docs/` or `knowledgebase/` against its base (the base rule of
+D-241); counting any `*.md` except a README as documentation gives the same 1. A docs-only path
+group therefore saves next to nothing in minutes; it is kept for the rule, not the money.
+
 ## Wall clock per run
 
 | Workflow      | Event                 | Runs | Median | Max  |
@@ -207,59 +234,128 @@ fonts it installs.
 
 ## Matrix
 
-Two shapes of the Test workflow, decided by the `plan` job in one place:
+Two shapes of the Test workflow, `full` and `integration` (the reduced one), decided by the `plan`
+job in one place (T-341 part B):
 
 ```text
 full_matrix =
      inputs.full_matrix == true
+  || inputs.profile == 'full'
   || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-  || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false')
+  || (github.event_name != 'pull_request'
+      && format('{0}', inputs.profile) == ''
+      && format('{0}', inputs.full_matrix) != 'false')
 ```
 
-Fail-safe: the matrix is reduced only for a pull request or an explicit `full_matrix: false`.
-Both inputs (`workflow_dispatch`, and `workflow_call` prepared for a release caller) default to
-`true`. An explicit `true` wins even when a caller came from a pull request, because in a called
-workflow `github.event_name` is the caller's event.
+A manual run (`workflow_dispatch`) chooses `profile: integration | full`, default `integration`.
+A caller (`workflow_call`, release.yml) keeps the boolean `full_matrix`, default `true`, and
+release.yml passes a literal `true` (C-4). Each trigger declares only its own input, so the other
+one reads as `null`. That is how the expression tells a dispatch from a call even when the call
+comes from a dry run, whose `github.event_name` is `workflow_dispatch` too.
 
-The last term compares the input as text on purpose. GitHub's `==` converts operands of different
+Fail-safe: the matrix is reduced only for a pull request, a call with an explicit
+`full_matrix: false`, or a manual run of `integration` that the raise step leaves there
+(see "Profiles" below). An explicit `true` wins even when a caller came from a pull request,
+because in a called workflow `github.event_name` is the caller's event.
+
+The last term compares the inputs as text on purpose. GitHub's `==` converts operands of different
 types to numbers, so a missing input (`null`) _equals_ `false`, and the plain
 `inputs.full_matrix != false` would reduce the matrix exactly when the input has gone missing.
 `format('{0}', null)` is `''`, which is not `'false'`.
 
-No job but `plan` reads `github.event_name`. `workflow_contract.py` checks both inputs (boolean,
-default true), the expression and that rule. `test_release.py` evaluates the expression from
-test.yml with GitHub's comparison rules for these cases:
+No job but `plan` reads `github.event_name`. `workflow_contract.py` checks both inputs, the
+expression and that rule. `test_release.py` evaluates the expression from test.yml with GitHub's
+comparison rules for these cases:
 
-| Case                                  | Result  |
-| ------------------------------------- | ------- |
-| push to main                          | full    |
-| workflow_call without input           | full    |
-| workflow_call with `true`, from a PR  | full    |
-| workflow_dispatch with the default    | full    |
-| workflow_dispatch with `false`        | reduced |
-| pull request                          | reduced |
-| workflow_call with `false`, from a PR | reduced |
+| Case                                   | Result      |
+| -------------------------------------- | ----------- |
+| push to main                           | full        |
+| workflow_call without input            | full        |
+| workflow_call with `true`, from a PR   | full        |
+| workflow_dispatch with `profile: full` | full        |
+| workflow_dispatch with the default     | integration |
+| workflow_call with `false`             | integration |
+| pull request                           | integration |
+| workflow_call with `false`, from a PR  | integration |
 
-| Jobs                                                                | Full (main, dispatch, call) | Reduced (pull request) |
-| ------------------------------------------------------------------- | --------------------------- | ---------------------- |
-| plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                           | 6                      |
-| Core on macOS and Windows                                           | 2                           | 2                      |
-| Linux browser slots + OIDC job + `browser-e2e` aggregator           | 6 + 1 + 1                   | 6 + 1 + 1              |
-| Browser on Windows (10 slots) and macOS (4 slots)                   | 14                          | --                     |
-| Smoke on Windows and macOS                                          | --                          | 2                      |
-| **Total**                                                           | **30** (was 23)             | **18** (was 23)        |
-| Desktop CSP probe on macos-15, only on request (T-272)              | --                          | +1                     |
+| Jobs                                                                | Full (main, call, `profile: full`) | Integration (dispatch default, pull request) |
+| ------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------- |
+| plan, backend, portable-core, frontend, lint, visual-baseline-reach | 6                                  | 6                                            |
+| Core                                                                | 2 (macOS, Windows)                 | 1 (Windows)                                  |
+| Linux browser slots + OIDC job + `browser-e2e` aggregator           | 6 + 1 + 1                          | 6 + 1 + 1                                    |
+| Browser on Windows (10 slots) and macOS (4 slots)                   | 14                                 | --                                           |
+| Smoke                                                               | --                                 | 1 (Windows)                                  |
+| **Total**                                                           | **30**                             | **16** (was 18 with macOS)                   |
+| Desktop CSP probe on macos-15, only on request (T-272)              | --                                 | +1                                           |
+
+`integration` runs no macOS job of its own: Core leaves macOS out through a matrix `exclude` that
+reads the plan output `native_macos` (in full mode it excludes `none`, which matches nothing), and
+Smoke runs on Windows alone. macOS is tested in the full profile only, which runs before every
+release and whenever the raise step finds a native change.
 
 The desktop CSP probe is outside both totals and outside the verdict: only a manual run with
-`desktop_csp_probe: true` and `full_matrix: false` starts it, never a pull request, a push, a
-release call or a full-matrix run, and `browser-e2e` does not wait for it (`OPTIONAL_JOBS` in
-`workflow_contract.py`). The full matrix already runs 5 macOS jobs, the plan's limit, so the probe
-never runs beside it. The job opens the real desktop window under `enforce` and `report-only` with
-`tools/dev/desktop_csp_probe.py`, checks the two JSON reports for local paths and tokens, and keeps
-them for five days. Until T-277 and T-278 land, the job is expected to end in failure: under
-`enforce` WKWebView blocks pywebview's bridge (`bridge-blocked-by-csp`, D-207), and under
-`report-only` pywebview's Cocoa backend drops the `window.open` the backup sign-in uses. A red
-probe job is the measurement, not a broken run.
+`desktop_csp_probe: true` and `profile: integration` that the raise step left there starts it,
+never a pull request, a push, a release call or a full-matrix run, and `browser-e2e` does not wait
+for it (`OPTIONAL_JOBS` in `workflow_contract.py`). The full matrix already runs 5 macOS jobs, the
+plan's limit, so the probe never runs beside it. The job opens the real desktop window under
+`enforce` and `report-only` with `tools/dev/desktop_csp_probe.py`, checks the two JSON reports for
+local paths and tokens, and keeps them for five days. Until T-277 and T-278 land, the job is
+expected to end in failure: under `enforce` WKWebView blocks pywebview's bridge
+(`bridge-blocked-by-csp`, D-207), and under `report-only` pywebview's Cocoa backend drops the
+`window.open` the backup sign-in uses. A red probe job is the measurement, not a broken run.
+
+### Profiles (T-341 part B)
+
+A manual run of `integration` becomes `full` when it changes code that behaves differently on
+Windows and macOS. The caller can only raise a profile (`profile: full`), never lower one; there is
+no `integration` for a run the plan raised.
+
+- **Native:** `.github/test-paths.json`, `native`: `src/quiltor/hosts/desktop/**`, `Cargo.toml`,
+  `Cargo.lock`, `crates/**`, `rust-toolchain.toml` and `distribution/**`, except
+  `distribution/tooling/**` and `distribution/assets/**` (D-241). Workflows, `tools/dev` and the
+  filter itself are not native; the release dry run catches those (D-232). There is no OS-switch
+  register from T-281 in the tree, so the group is this list alone.
+- **A version bump is not native** (D-236): a change to `Cargo.toml`, `crates/*/Cargo.toml`,
+  `Cargo.lock`, `package.json` or `VERSION` in which every changed line is a version line
+  (`version = "…"`, `"version": "…"`, or the bare version in `VERSION`). Any other changed line, a
+  new dependency say, counts.
+- **Base:** the nearest fork point from a fixed list, `integration_bases` in
+  `.github/test-paths.json`: `agent-team-einrichtung`, `main`, `release/*` and every version line
+  `int/v*`. Task branches `int/T-…` are never a base (D-241), the run's own branch is not, and
+  neither is a branch that already contains the head. The fewest commits between fork point and head
+  win. The line is found by its branch, not by `VERSION`: `VERSION` names the previous release
+  while a line is being built (F-341-8).
+- **No base, full matrix:** no candidate, a failed fetch, a base before T-341 part B (no
+  `integration_bases` or `native` in its copy), or a crash all run `full`, with `::warning::` and
+  the reason in the step summary.
+- **The base decides:** the head's copy of `path_filter.py` only names the base. The base's own
+  copy, on the base's configuration, chooses the base again and decides. When the two choices
+  differ, the run is `full`. A task cannot narrow `native` or the base list for itself; a branch
+  that forked before T-341 part B runs `full` until it is brought up to date.
+- **Checkout:** `plan` checks out with `fetch-depth: 0` and `filter: blob:none`: every branch
+  and commit, no old file contents. The raise step reads a handful of blobs (the two files from
+  the base, and the version files' diffs), which git fetches on demand. That works without a token
+  while the repository is public (D-229); a private repository needs `contents: read` with a token
+  for the fetch, and until then the fetch fails and the run is `full`.
+- **Step summary:** base branch, fork point, commits since then (all and first-parent), and the
+  native paths that raised the run. `::notice::profile raised to full by native paths: …` is the
+  line the budget guard (T-341 part C) counts for its monthly share of raised runs. Two warnings
+  point at a line that does not fit the rule: an int branch outside `int/v<x.y.z>` (no other run
+  takes it as its base), and a native hit when the base is further away than the run's own
+  first-parent commits (the native change may come from a merged branch). A branch name cannot be
+  held by a contract, so these stay warnings.
+
+### Concurrency
+
+| Run                                     | Group                     | Cancels the run before it |
+| --------------------------------------- | ------------------------- | ------------------------- |
+| pull request                            | `test-pr-<ref>`           | yes                       |
+| dispatch, `profile: integration`        | `test-<ref>-integration`  | yes                       |
+| dispatch, `profile: full`               | `test-<ref>-full`         | no (a newer one waits)    |
+| call from release.yml (push or dry run) | `test-run-<caller's run>` | no, never shared          |
+
+A call has no `profile` input, so it never lands in a dispatch's group and no dispatch can cancel
+the release's tests (C-8).
 
 Why this cut:
 
@@ -626,7 +722,10 @@ T-33 held `plan` to "no checkout, no actions, `permissions: {}`". T-37 loosens e
 `contents: read`, `actions/checkout` and `actions/setup-python` (both already in the lock), all
 three filter steps guarded by `full_matrix != 'true' && github.event_name == 'pull_request'`. The
 contract fails on any other action, permission or condition. No new action, no token use beyond
-the checkout (`persist-credentials: false`).
+the checkout (`persist-credentials: false`). T-341 part B reuses the checkout and Python for the
+raise step: both now run on `full_matrix != 'true' && (pull request || profile == 'integration')`,
+the filter step keeps its own condition, and the raise step runs on a manual `integration` run
+only (see "Profiles").
 
 ### The gate: `browser-e2e`
 
@@ -653,6 +752,27 @@ release now runs the full matrix once, beside its own gate, instead of twice at 
 `workflow_contract.py` holds the verdict, the expansions (4 Linux slots, 2 core runners, 11
 cross-platform browser slots), the triggers, the concurrency, the allowed step conditions and
 that a full-mode run skips nothing.
+
+### Verdict, profile and attempt (T-345)
+
+The gate writes four values, as `browser-e2e` outputs, as `workflow_call` outputs and in the
+artifact `test-verdict` (`verdict.json`, with the source revision beside them):
+
+| Value         | Meaning                                                                                                                                                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verdict`     | `full-success`: every job of the full matrix ran and passed. `reduced-success`: a reduced run passed. `tree-reused`: reserved for a run that ends early because a run on the same tree already tested it (T-341 part D, not built yet). Empty: the gate was red. |
+| `profile`     | `full` or `integration`: the profile the verdict was reached with. The runs API does not return a dispatch's inputs, so this is the one machine-readable place for it.                                                                                           |
+| `run_id`      | The run that produced the verdict. In a call from `release.yml` it is the release run.                                                                                                                                                                           |
+| `run_attempt` | The attempt of that run in which the tests passed. "Re-run failed jobs" keeps the attempt of the jobs it does not re-run, so a release whose tests passed only on a second attempt says so (D-147).                                                              |
+
+Only `full-success` with `full` is release evidence. `tree-reused` carries no `-success` on
+purpose: it tested nothing itself, and no prefix or glob test may take it for a pass.
+`VERDICT_TERM` in `workflow_contract.py` is an equality for the same reason.
+
+The release manifest (schema 8) carries the values themselves under `testEvidence`
+(`verdict`, `profile`, `runId`, `runAttempt`), not a pointer to the artifact: artifacts expire.
+`release_manifest.py` refuses to create or load a manifest whose evidence is anything other than
+`full-success` and `full`, so a release SHA without a green full matrix still gets no manifest.
 
 ### Browser jobs start beside `frontend` (T-46)
 
@@ -768,7 +888,7 @@ Steps, per value and system (needs the user's approval for every push):
 
 1. On a throw-away branch, change the one setting in the `env:` block of `test.yml`. Change one
    system at a time, so a red run points at it.
-2. Push and start `Test` (`workflow_dispatch` with `full_matrix: true` for Windows and macOS).
+2. Push and start `Test` (`workflow_dispatch` with `profile: full` for Windows and macOS).
 3. Repeat to at least **three runs** per value. One green run says nothing about a flake that
    shows once in ten.
 4. Per run, read the slowest slot's "Run product and design shards" step and its whole job from

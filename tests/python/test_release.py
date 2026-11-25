@@ -39,6 +39,8 @@ BUILD_WORKFLOW = REPO_ROOT / ".github/workflows/release.yml"
 PUBLISH_WORKFLOW = REPO_ROOT / ".github/workflows/release-publish.yml"
 TEST_WORKFLOW = REPO_ROOT / ".github/workflows/test.yml"
 WRITING_DATA_WORKFLOW = REPO_ROOT / ".github/workflows/writing-data.yml"
+# T-345: the evidence a release manifest is built on, as test.yml's gate writes it.
+TEST_EVIDENCE = {"verdict": "full-success", "profile": "full", "runId": 42, "runAttempt": 2}
 
 
 class VersionArithmeticTests(unittest.TestCase):
@@ -910,12 +912,13 @@ class ReleaseManifestTests(unittest.TestCase):
                     self._images(),
                     self._artifacts(artifact_root, repo_root=repo_root),
                     repo_root,
+                    tests=TEST_EVIDENCE,
                 )
                 self.assertEqual(release_manifest.native_targets(repo_root), targets)
                 self.assertEqual(manifest["profiles"], profiles)
                 self.assertEqual([item["name"] for item in manifest["artifacts"]], names)
                 self.assertEqual({item["scheme"] for item in manifest["signatures"]}, schemes)
-                self.assertEqual(manifest["schemaVersion"], 7)
+                self.assertEqual(manifest["schemaVersion"], 8)
                 self.assertEqual(manifest["dataAssets"], release_manifest.data_asset_records())
                 self.assertEqual(manifest["sourceRevision"], "a" * 40)
                 self.assertTrue(all(len(item["sha256"]) == 64 for item in manifest["artifacts"]))
@@ -973,7 +976,9 @@ class ReleaseManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 release_manifest.ManifestError, "missing Quiltor-3.3.1.dmg"
             ):
-                release_manifest.create("3.3.1", "a" * 40, self._images(), artifacts, repo_root)
+                release_manifest.create(
+                    "3.3.1", "a" * 40, self._images(), artifacts, repo_root, tests=TEST_EVIDENCE
+                )
 
     def test_files_cli_lists_only_canonical_artifacts_and_signature_records(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -986,6 +991,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self._images(),
                 self._artifacts(artifact_root, repo_root=repo_root),
                 repo_root,
+                tests=TEST_EVIDENCE,
             )
             manifest_path = artifact_root / "release-manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -1015,6 +1021,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 "a" * 40,
                 self._images(),
                 self._artifacts(root),
+                tests=TEST_EVIDENCE,
             )
             (root / "quiltor-3.3.1.tar.gz").unlink()
             path = root / "release-manifest.json"
@@ -1034,6 +1041,7 @@ class ReleaseManifestTests(unittest.TestCase):
                     "a" * 40,
                     self._images(),
                     artifacts,
+                    tests=TEST_EVIDENCE,
                 )
 
     def test_mac_attestation_requires_native_verification_and_notarization(self):
@@ -1066,6 +1074,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self._images(),
                 self._artifacts(artifact_root, repo_root=repo_root),
                 repo_root,
+                tests=TEST_EVIDENCE,
             )
             self._attest_signatures(manifest, artifact_root)
             manifest_path = artifact_root / "release-manifest.json"
@@ -1091,6 +1100,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self._images(),
                 artifacts,
                 repo_root,
+                tests=TEST_EVIDENCE,
             )
             self._attest_signatures(manifest, artifact_root)
             manifest_path = artifact_root / "release-manifest.json"
@@ -1108,6 +1118,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 "a" * 40,
                 self._images(),
                 self._artifacts(root),
+                tests=TEST_EVIDENCE,
             )
             manifest_path = root / "release-manifest.json"
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -1125,25 +1136,28 @@ class ReleaseManifestTests(unittest.TestCase):
                     "backup-service": "ghcr.io/example/quiltor-backup:3.3.1",
                 },
                 [],
+                tests=TEST_EVIDENCE,
             )
 
     def test_manifest_rejects_unnamed_or_misbound_oci_images(self):
         with self.assertRaisesRegex(release_manifest.ManifestError, "named"):
             # Deliberately the wrong shape: values without their image names.
-            release_manifest.create("3.3.1", "a" * 40, cast(Any, self._images().values()), [])
+            release_manifest.create(
+                "3.3.1", "a" * 40, cast(Any, self._images().values()), [], tests=TEST_EVIDENCE
+            )
         swapped = self._images()
         swapped["web-self-hosted"], swapped["backup-service"] = (
             swapped["backup-service"],
             swapped["web-self-hosted"],
         )
         with self.assertRaisesRegex(release_manifest.ManifestError, "repository"):
-            release_manifest.create("3.3.1", "a" * 40, swapped, [])
+            release_manifest.create("3.3.1", "a" * 40, swapped, [], tests=TEST_EVIDENCE)
 
     def test_loaded_manifest_rejects_role_contract_or_digest_retargeting(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest: dict[str, Any] = release_manifest.create(
-                "3.3.1", "a" * 40, self._images(), self._artifacts(root)
+                "3.3.1", "a" * 40, self._images(), self._artifacts(root), tests=TEST_EVIDENCE
             )
             manifest_path = root / "release-manifest.json"
             for field, value, error in (
@@ -1166,8 +1180,12 @@ class ReleaseManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifacts = self._artifacts(root)
-            first = release_manifest.create("3.3.1", "a" * 40, self._images("1", "2"), artifacts)
-            second = release_manifest.create("3.3.1", "a" * 40, self._images("3", "4"), artifacts)
+            first = release_manifest.create(
+                "3.3.1", "a" * 40, self._images("1", "2"), artifacts, tests=TEST_EVIDENCE
+            )
+            second = release_manifest.create(
+                "3.3.1", "a" * 40, self._images("3", "4"), artifacts, tests=TEST_EVIDENCE
+            )
             self.assertNotEqual(first["images"], second["images"])
             manifest_path = root / "first-run-manifest.json"
             manifest_path.write_text(json.dumps(first), encoding="utf-8")
@@ -1175,6 +1193,102 @@ class ReleaseManifestTests(unittest.TestCase):
                 release_manifest.load(manifest_path)["images"],
                 release_manifest.image_records(self._images("1", "2")),
             )
+
+    def test_the_manifest_carries_the_test_evidence_as_values(self):
+        """T-345: verdict, profile, run and attempt are in the manifest, not behind an artifact."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = release_manifest.create(
+                "3.3.1", "a" * 40, self._images(), self._artifacts(root), tests=TEST_EVIDENCE
+            )
+            self.assertEqual(manifest["testEvidence"], TEST_EVIDENCE)
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertEqual(release_manifest.load(manifest_path)["testEvidence"], TEST_EVIDENCE)
+
+    def test_no_manifest_without_a_green_full_matrix(self):
+        """D-147: a release SHA without full-success of the full profile gets no manifest."""
+        refused = (
+            ("a reduced run", {"verdict": "reduced-success"}, "not full-success"),
+            ("a run that reused a tree", {"verdict": "tree-reused"}, "not full-success"),
+            ("a red gate", {"verdict": ""}, "not full-success"),
+            ("the integration profile", {"profile": "integration"}, "not full"),
+            ("no run", {"runId": 0}, "runId must be a positive integer"),
+            ("an attempt as text", {"runAttempt": "1"}, "runAttempt must be a positive integer"),
+            ("an attempt as a bool", {"runAttempt": True}, "runAttempt must be a positive"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = self._artifacts(root)
+            good = release_manifest.create(
+                "3.3.1", "a" * 40, self._images(), artifacts, tests=TEST_EVIDENCE
+            )
+            manifest_path = root / "manifest.json"
+            for name, change, error in refused:
+                evidence = {**TEST_EVIDENCE, **change}
+                with self.subTest(name=name, step="create"):
+                    with self.assertRaisesRegex(release_manifest.ManifestError, error):
+                        release_manifest.create(
+                            "3.3.1", "a" * 40, self._images(), artifacts, tests=evidence
+                        )
+                with self.subTest(name=name, step="load"):
+                    manifest_path.write_text(
+                        json.dumps({**good, "testEvidence": evidence}), encoding="utf-8"
+                    )
+                    with self.assertRaisesRegex(release_manifest.ManifestError, error):
+                        release_manifest.load(manifest_path)
+            for name, evidence in (
+                ("no evidence", None),
+                (
+                    "the attempt missing",
+                    {k: v for k, v in TEST_EVIDENCE.items() if k != "runAttempt"},
+                ),
+                ("an extra field", {**TEST_EVIDENCE, "artifact": "test-verdict"}),
+            ):
+                with self.subTest(name=name):
+                    with self.assertRaisesRegex(release_manifest.ManifestError, "exactly"):
+                        release_manifest.create(
+                            "3.3.1", "a" * 40, self._images(), artifacts, tests=cast(Any, evidence)
+                        )
+            without = {key: value for key, value in good.items() if key != "testEvidence"}
+            manifest_path.write_text(json.dumps(without), encoding="utf-8")
+            with self.assertRaisesRegex(release_manifest.ManifestError, "missing or unknown"):
+                release_manifest.load(manifest_path)
+
+    def test_the_command_line_writes_the_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = self._artifacts(root)
+            images = self._images()
+            output = root / "release-manifest.json"
+            argv = [
+                "create",
+                "--version",
+                "3.3.1",
+                "--source-revision",
+                "a" * 40,
+                "--web-image",
+                images["web-self-hosted"],
+                "--backup-image",
+                images["backup-service"],
+                *[part for artifact in artifacts for part in ("--artifact", str(artifact))],
+                "--test-verdict",
+                "full-success",
+                "--test-profile",
+                "full",
+                "--test-run-id",
+                "42",
+                "--test-run-attempt",
+                "2",
+                "--output",
+                str(output),
+            ]
+            self.assertEqual(release_manifest.main(argv), 0)
+            written = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(written["testEvidence"], TEST_EVIDENCE)
+            reduced = [("reduced-success" if part == "full-success" else part) for part in argv]
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertNotEqual(release_manifest.main(reduced), 0)
 
 
 def _github_number(value):
@@ -1762,8 +1876,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 True,
                 True,
             ),
-            ("workflow_dispatch with the default", "workflow_dispatch", "refs/heads/x", True, True),
-            ("workflow_dispatch with false", "workflow_dispatch", "refs/heads/x", False, False),
+            ("workflow_call with false", "workflow_dispatch", "refs/heads/x", False, False),
             ("pull request", "pull_request", "refs/pull/1/merge", None, False),
             (
                 "workflow_call with false from a pull request",
@@ -1773,12 +1886,22 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 False,
             ),
         )
-        for name, event, ref, full_matrix, expected in cases:
+        # A dispatch passes the profile (T-341 part B), never full_matrix.
+        dispatches = (
+            ("workflow_dispatch with the default", "integration", False),
+            ("workflow_dispatch with full", "full", True),
+        )
+        cases += tuple(
+            (name, "workflow_dispatch", "refs/heads/x", None, expected, profile)
+            for name, profile, expected in dispatches
+        )
+        for name, event, ref, full_matrix, expected, *profile in cases:
             with self.subTest(name=name):
                 context = {
                     "github.event_name": event,
                     "github.ref": ref,
                     "inputs.full_matrix": full_matrix,
+                    "inputs.profile": profile[0] if profile else None,
                 }
                 self.assertIs(
                     _github_truthy(evaluate_github_expression(expression, context)), expected
@@ -1817,9 +1940,35 @@ class WorkflowBoundaryTests(unittest.TestCase):
             ),
             (
                 "workflow_dispatch input removed",
-                "  workflow_dispatch:\n    inputs:\n      full_matrix:",
-                "  workflow_dispatch:\n    inputs:\n      everything:",
-                "workflow_dispatch must declare the boolean input full_matrix",
+                '      profile:\n        description: "integration',
+                '      everything:\n        description: "integration',
+                "workflow_dispatch must declare the choice input profile",
+            ),
+            (
+                "workflow_dispatch defaults to full",
+                "          - full\n        default: integration\n",
+                "          - full\n        default: full\n",
+                "workflow_dispatch must declare the choice input profile",
+            ),
+            (
+                "workflow_dispatch keeps the boolean beside the profile",
+                '      profile:\n        description: "integration',
+                "      full_matrix:\n        type: boolean\n"
+                '      profile:\n        description: "integration',
+                "neither trigger may declare the other's input",
+            ),
+            (
+                "a dispatch of the full profile is reduced",
+                "inputs.full_matrix == true || inputs.profile == 'full' || ",
+                "inputs.full_matrix == true || ",
+                "plan job is missing its matrix decision",
+            ),
+            (
+                "the raise step lowers the matrix",
+                "full_matrix: ${{ steps.raise.outputs.full_matrix == 'true' && 'true' "
+                "|| steps.decide.outputs.full_matrix }}",
+                "full_matrix: ${{ steps.raise.outputs.full_matrix || steps.decide.outputs.full_matrix }}",
+                "plan job is missing its matrix decision",
             ),
             (
                 "a matrix job reads the event itself",
@@ -1838,7 +1987,7 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "plan job checks out unconditionally",
                 "      - name: Check out the path filter\n"
                 "        if: steps.decide.outputs.full_matrix != 'true' && "
-                "github.event_name == 'pull_request'\n",
+                "(github.event_name == 'pull_request' || inputs.profile == 'integration')\n",
                 "      - name: Check out the path filter\n",
                 "may use actions only for the path filter",
             ),
@@ -1847,15 +1996,15 @@ class WorkflowBoundaryTests(unittest.TestCase):
                 "      - id: filter\n",
                 "      - name: Extra\n"
                 "        if: steps.decide.outputs.full_matrix != 'true' && "
-                "github.event_name == 'pull_request'\n"
+                "(github.event_name == 'pull_request' || inputs.profile == 'integration')\n"
                 "        uses: actions/setup-node@v7\n"
                 "      - id: filter\n",
                 "only checkout and setup-python",
             ),
             (
                 "plan job gains a write permission",
-                "      contents: read # the sparse checkout",
-                "      pull-requests: write\n      contents: read # the sparse checkout",
+                "      contents: read # the checkout",
+                "      pull-requests: write\n      contents: read # the checkout",
                 "repository contents and nothing else",
             ),
         )
@@ -2615,13 +2764,12 @@ def _as_output(value):
     return "" if value is None else str(value)
 
 
-def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filter_outputs=None):
+def simulate_plan(workflow, event, ref, full_matrix_input, profile_input=None, raised=False):
     """
-    Run test.yml's real expressions for one event: plan, every job condition, the gate.
+    The plan job's decision: its steps' context and the full_matrix and native_macos outputs.
 
-    Returns the jobs that run, whether the frontend's client steps run, and the browser-e2e
-    gate's verdict. `filter_outputs` replaces what the path filter step writes, to model a
-    filter that wrote nothing.
+    `profile_input` is what a dispatch passes (a call passes `full_matrix_input` instead);
+    `raised` is what the raise step decides when it runs: True for a native change or no base.
     """
 
     plan = workflow_contract._job_body(workflow, "plan")
@@ -2631,11 +2779,47 @@ def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filte
         "github.event_name": event,
         "github.ref": ref,
         "inputs.full_matrix": full_matrix_input,
+        "inputs.profile": profile_input,
     }
     full = _as_output(
         _github_truthy(evaluate_github_expression(_expression(decision.group(1)), context))
     )
-    steps = {"steps.decide.outputs.full_matrix": full, "github.event_name": event}
+    steps = {**context, "steps.decide.outputs.full_matrix": full}
+    raise_step = re.search(r"^      - id: raise\n(?:        .*\n)*?        if: (.+)\n", plan, re.M)
+    assert raise_step is not None, "the plan job has no conditional raise step"
+    if _github_truthy(evaluate_github_expression(raise_step.group(1), steps)):
+        steps["steps.raise.outputs.full_matrix"] = "true" if raised else "false"
+    outputs = {}
+    for name in ("full_matrix", "native_macos"):
+        line = re.search(rf"^      {name}: ([^\n]+)$", plan, re.M)
+        assert line is not None, f"the plan job has no {name} output"
+        outputs[f"needs.plan.outputs.{name}"] = _as_output(
+            evaluate_github_expression(_expression(line.group(1)), steps)
+        )
+    return plan, steps, outputs
+
+
+def simulate_test_workflow(
+    workflow,
+    event,
+    ref,
+    full_matrix_input,
+    paths,
+    filter_outputs=None,
+    profile_input=None,
+    raised=False,
+):
+    """
+    Run test.yml's real expressions for one event: plan, every job condition, the gate.
+
+    Returns the jobs that run, whether the frontend's client steps run, and the browser-e2e
+    gate's verdict. `filter_outputs` replaces what the path filter step writes, to model a
+    filter that wrote nothing.
+    """
+
+    plan, steps, plan_outputs = simulate_plan(
+        workflow, event, ref, full_matrix_input, profile_input, raised
+    )
     filter_step = re.search(
         r"^      - id: filter\n(?:        .*\n)*?        if: (.+)\n", plan, re.M
     )
@@ -2647,7 +2831,7 @@ def simulate_test_workflow(workflow, event, ref, full_matrix_input, paths, filte
             filter_outputs = {group: _as_output(run) for group, run in chosen.items()}
         for group, value in filter_outputs.items():
             steps[f"steps.filter.outputs.run_{group}"] = value
-    outputs = {"needs.plan.outputs.full_matrix": full}
+    outputs = dict(plan_outputs)
     for name, line in re.findall(r"^      (run_[a-z0-9_]+): ([^\n]+)$", plan, re.MULTILINE):
         outputs[f"needs.plan.outputs.{name}"] = _as_output(
             evaluate_github_expression(_expression(line), steps)
@@ -2721,6 +2905,8 @@ class PathFilterContractTests(unittest.TestCase):
             cls.addClassCleanup(patcher.stop)
 
     def simulate(self, event, ref, full_matrix_input, paths, workflow=None, **options):
+        if event == "workflow_dispatch" and full_matrix_input in ("integration", "full"):
+            options["profile_input"], full_matrix_input = full_matrix_input, None
         return simulate_test_workflow(
             workflow or self.workflow, event, ref, full_matrix_input, paths, **options
         )
@@ -2740,8 +2926,8 @@ class PathFilterContractTests(unittest.TestCase):
                 True,
             ),
             (
-                "workflow_dispatch with the default",
-                ("workflow_dispatch", "refs/heads/x", True),
+                "workflow_dispatch of the full profile",
+                ("workflow_dispatch", "refs/heads/x", "full"),
                 ["docs/plans/x.md"],
                 FULL_JOBS,
                 True,
@@ -2762,7 +2948,14 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             # Reduced without a pull request: nothing to diff, so every group runs.
             (
-                "workflow_dispatch with false",
+                "workflow_dispatch with the default, the integration profile",
+                ("workflow_dispatch", "refs/heads/x", "integration"),
+                ["docs/plans/x.md"],
+                REDUCED_ALL_JOBS,
+                True,
+            ),
+            (
+                "workflow_call with false",
                 ("workflow_dispatch", "refs/heads/x", False),
                 ["docs/plans/x.md"],
                 REDUCED_ALL_JOBS,
@@ -2874,6 +3067,192 @@ class PathFilterContractTests(unittest.TestCase):
                 self.assertIs(client_steps, client)
                 self.assertEqual(failures, [], "a job the plan chose to skip fails the gate")
 
+    def test_a_raised_integration_run_is_the_full_matrix(self):
+        """T-341 part B: a native change, or no base, turns integration into full."""
+
+        running, client_steps, failures = self.simulate(
+            "workflow_dispatch", "refs/heads/x", "integration", [], raised=True
+        )
+        self.assertEqual((running, client_steps, failures), (FULL_JOBS, True, []))
+        _, _, outputs = simulate_plan(
+            self.workflow, "workflow_dispatch", "refs/heads/x", None, "integration", True
+        )
+        self.assertEqual(outputs["needs.plan.outputs.native_macos"], "true")
+
+    def test_the_raise_step_never_lowers_the_matrix(self):
+        """The step runs only on a manual integration run; nothing it writes reduces full."""
+
+        for name, event, full_matrix_input, profile in (
+            ("push to main", "push", None, None),
+            ("release call from a dry run", "workflow_dispatch", None, None),
+            ("dispatch of full", "workflow_dispatch", None, "full"),
+            ("pull request", "pull_request", None, None),
+            ("call with false", "workflow_dispatch", False, None),
+        ):
+            with self.subTest(name=name):
+                for raised in (False, True):
+                    _, steps, outputs = simulate_plan(
+                        self.workflow, event, "refs/heads/x", full_matrix_input, profile, raised
+                    )
+                    self.assertNotIn("steps.raise.outputs.full_matrix", steps)
+                    self.assertEqual(
+                        outputs["needs.plan.outputs.full_matrix"],
+                        steps["steps.decide.outputs.full_matrix"],
+                    )
+
+    def test_the_integration_profile_keeps_the_jobs_that_found_recent_failures(self):
+        """
+        The backward probe of the plan (section 4): T-322 (vitest in frontend), T-330 and
+        T-334 (backend), T-338 (the Linux browser slots) all run in the integration profile,
+        and Core keeps Windows while leaving macOS out.
+        """
+
+        running, client_steps, failures = self.simulate(
+            "workflow_dispatch", "refs/heads/x", "integration", []
+        )
+        self.assertEqual(failures, [])
+        self.assertTrue(client_steps, "frontend runs vitest (T-322)")
+        for job in ("frontend", "backend", "browser-e2e-shards", "cross-platform-native"):
+            self.assertIn(job, running)
+        self.assertNotIn("cross-platform-browser", running)
+        self.assertIn("cross-platform-smoke", running)
+        _, _, outputs = simulate_plan(
+            self.workflow, "workflow_dispatch", "refs/heads/x", None, "integration"
+        )
+        native = workflow_contract._job_body(self.workflow, "cross-platform-native")
+        exclude = re.search(r"^          - os: (\$\{\{ .+ \}\})$", native, re.M)
+        assert exclude is not None
+        self.assertEqual(
+            evaluate_github_expression(_expression(exclude.group(1)), outputs), "macos-15"
+        )
+        _, _, full = simulate_plan(self.workflow, "workflow_dispatch", "refs/heads/x", None, "full")
+        self.assertEqual(evaluate_github_expression(_expression(exclude.group(1)), full), "none")
+        smoke = workflow_contract._job_body(self.workflow, "cross-platform-smoke")
+        self.assertIn("        os: [windows-2025]\n", smoke)
+
+    def test_the_concurrency_cancels_only_integration_dispatches_and_pull_requests(self):
+        block = re.search(
+            r"^concurrency:\n  group: (.+)\n  cancel-in-progress: (.+)$", self.workflow, re.M
+        )
+        assert block is not None
+        group, cancel = (_expression(part) for part in block.groups())
+        for name, event, profile, full_matrix, expected_group, expected_cancel in (
+            ("pull request", "pull_request", None, None, "test-pr-refs/heads/x", True),
+            (
+                "integration",
+                "workflow_dispatch",
+                "integration",
+                None,
+                "test-refs/heads/x-integration",
+                True,
+            ),
+            ("full", "workflow_dispatch", "full", None, "test-refs/heads/x-full", False),
+            ("release call from a dry run", "workflow_dispatch", None, True, "test-run-7", False),
+            ("release call from a push", "push", None, True, "test-run-7", False),
+        ):
+            with self.subTest(name=name):
+                context = {
+                    "github.event_name": event,
+                    "github.ref": "refs/heads/x",
+                    "github.run_id": "7",
+                    "inputs.profile": profile,
+                    "inputs.full_matrix": full_matrix,
+                }
+                self.assertEqual(evaluate_github_expression(group, context), expected_group)
+                self.assertIs(
+                    _github_truthy(evaluate_github_expression(cancel, context)), expected_cancel
+                )
+
+    def test_c21_raise_mutations(self):
+        """Every part of the raise contract is load-bearing (T-341 part B)."""
+
+        sources = workflow_contract._workflow_sources()
+        workflow_contract.validate_profile_raise(sources)
+        for name, original, replacement, error in (
+            (
+                "the step no longer writes full first",
+                '          echo "full_matrix=true" >> "$GITHUB_OUTPUT"\n          head=',
+                "          head=",
+                "missing its profile raise",
+            ),
+            (
+                "the head's copy decides",
+                'python "$base/distribution/tooling/path_filter.py" profile',
+                'python "$head/distribution/tooling/path_filter.py" profile',
+                "missing its profile raise",
+            ),
+            (
+                "the base's choice is not compared",
+                ' --expect-base "$commit"',
+                "",
+                "missing its profile raise",
+            ),
+            (
+                "a failed decision fails the plan",
+                '              echo "::warning::the base\'s profile rules failed, running the full matrix"\n',
+                "              exit 1\n",
+                "missing its profile raise",
+            ),
+            (
+                "the raise runs on a pull request too",
+                "github.event_name == 'workflow_dispatch' && inputs.profile == 'integration'\n",
+                "inputs.profile == 'integration'\n",
+                "missing its profile raise",
+            ),
+            (
+                "Core keeps macOS in the integration profile",
+                "          - os: ${{ needs.plan.outputs.native_macos == 'true' && 'none' || 'macos-15' }}\n",
+                "          - os: none\n",
+                "Core must leave macOS out only through the profile",
+            ),
+            (
+                "native_macos ignores the raise",
+                "      native_macos: ${{ (steps.raise.outputs.full_matrix == 'true' || ",
+                "      native_macos: ${{ (",
+                "missing its profile raise",
+            ),
+            (
+                "the smoke test runs on macOS again",
+                "        os: [windows-2025]\n",
+                "        os: [macos-15, windows-2025]\n",
+                "smoke test runs on Windows only",
+            ),
+            (
+                "a job reads the raise directly",
+                "      desktop_csp_probe: ${{ steps.probe.outputs.desktop_csp_probe }}\n",
+                "      desktop_csp_probe: ${{ steps.probe.outputs.desktop_csp_probe }}\n"
+                "      raised: ${{ steps.raise.outputs.full_matrix }}\n",
+                "only full_matrix, native_macos and the probe",
+            ),
+        ):
+            with self.subTest(name=name):
+                mutated = dict(sources)
+                self.assertIn(original, mutated[TEST_WORKFLOW])
+                mutated[TEST_WORKFLOW] = mutated[TEST_WORKFLOW].replace(original, replacement, 1)
+                with self.assertRaisesRegex(workflow_contract.WorkflowContractError, error):
+                    workflow_contract.validate_profile_raise(mutated)
+        moved = dict(sources)
+        workflow = moved[TEST_WORKFLOW]
+        probe = workflow[
+            workflow.index("      # Only a workflow_dispatch declares the input; a call") :
+        ]
+        probe = probe[: probe.index("\n\n  backend:") + 1]
+        workflow = workflow.replace(probe, "")
+        moved[TEST_WORKFLOW] = workflow.replace(
+            "      # The path filter reads paths only",
+            probe + "      # The path filter reads paths only",
+            1,
+        )
+        with self.assertRaisesRegex(
+            workflow_contract.WorkflowContractError, "probe decision needs"
+        ):
+            workflow_contract.validate_profile_raise(moved)
+        with patch.object(workflow_contract, "INTEGRATION_BASES", ["main", "int/*"]):
+            with self.assertRaisesRegex(
+                workflow_contract.WorkflowContractError, "integration_bases must be exactly"
+            ):
+                workflow_contract.validate_profile_raise(sources)
+
     def test_a_filter_that_wrote_nothing_runs_everything(self):
         for outputs in ({}, {"browser": ""}, {"browser": "maybe"}):
             with self.subTest(outputs=outputs):
@@ -2954,7 +3333,13 @@ class PathFilterContractTests(unittest.TestCase):
                 "        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'\n"
                 "        run: |",
                 "        if: github.event_name == 'pull_request'\n        run: |",
-                "must each be guarded",
+                "the path filter's run must be guarded",
+            ),
+            (
+                "the checkout of the history is dropped",
+                "          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}\n",
+                "          fetch-depth: 2\n",
+                "path filter step is missing",
             ),
             (
                 "the filter runs the pull request's own script",
@@ -3037,7 +3422,7 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the plan starts the desktop probe outside a dispatch",
-                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false",
+                "github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.profile == 'integration'",
                 "inputs.desktop_csp_probe != false",
                 "must start desktop-csp-probe on dispatch only",
             ),
@@ -3056,7 +3441,13 @@ class PathFilterContractTests(unittest.TestCase):
             ),
             (
                 "the desktop probe runs beside the full matrix",
-                " && inputs.full_matrix == false }}",
+                " && inputs.profile == 'integration' && steps.raise.outputs.full_matrix == 'false' }}",
+                " }}",
+                "must start desktop-csp-probe on dispatch only",
+            ),
+            (
+                "the desktop probe runs beside a raised matrix",
+                " && steps.raise.outputs.full_matrix == 'false' }}",
                 " }}",
                 "must start desktop-csp-probe on dispatch only",
             ),
@@ -3501,7 +3892,15 @@ def assert_bash32(script, where):
     assert match is None, f"{where} uses {match.group(0)!r}, which bash 3.2 (macOS) lacks"
 
 
-def run_gate_script(workflow, values):
+# The run values the gate reads from the github context; the names avoid the attempt variable.
+RUN_VALUES = {"SOURCE_REVISION": "b" * 40, "TEST_RUN_ID": "4711", "TEST_RUN_ATTEMPT": "3"}
+
+
+def _gate_output(verdict, profile):
+    return f"verdict={verdict}\nprofile={profile}\nrun_id=4711\nrun_attempt=3\n"
+
+
+def run_gate_record(workflow, values) -> tuple[int, str, str, str | None]:
     """
     Run browser-e2e's real gate script under bash with the given environment.
 
@@ -3522,18 +3921,33 @@ def run_gate_script(workflow, values):
         output = Path(directory) / "output"
         output.write_bytes(b"")
         # bash on Windows reads a POSIX path; as_posix() keeps C:/... which Git Bash accepts.
-        assignments = {**values, "GITHUB_OUTPUT": output.as_posix()}
+        assignments = {**RUN_VALUES, **values, "GITHUB_OUTPUT": output.as_posix()}
         preamble = "".join(f"{key}={shlex.quote(value)}\n" for key, value in assignments.items())
-        # Bytes, not text: text mode on Windows would write \r\n, which bash rejects.
+        # Bytes, not text: text mode on Windows would write \r\n, which bash rejects. The gate
+        # writes verdict.json into its working directory, so that is the temporary one.
         completed = subprocess.run(
-            [bash, "-s"], input=(preamble + body).encode(), capture_output=True, check=False
+            [bash, "-s"],
+            input=(preamble + body).encode(),
+            capture_output=True,
+            check=False,
+            cwd=directory,
         )
         written = output.read_text(encoding="utf-8")
+        verdict_file = Path(directory) / "verdict.json"
+        recorded = verdict_file.read_text(encoding="utf-8") if verdict_file.exists() else None
     return (
         completed.returncode,
         completed.stdout.decode(errors="replace") + completed.stderr.decode(errors="replace"),
         written,
+        recorded,
     )
+
+
+def run_gate_script(workflow, values) -> tuple[int, str, str]:
+    """run_gate_record without verdict.json: (exit code, output, GITHUB_OUTPUT text)."""
+
+    code, output, written, _ = run_gate_record(workflow, values)
+    return code, output, written
 
 
 def gate_values(full_matrix, selected=None, results=None):
@@ -3648,7 +4062,8 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
             native, native.replace("os: [macos-15, windows-2025]", "os: [windows-2025]")
         )
         with self.assertRaisesRegex(
-            workflow_contract.WorkflowContractError, "cross-platform-native expands to 1 jobs"
+            workflow_contract.WorkflowContractError,
+            "cross-platform-native must leave macOS out only through the profile",
         ):
             validate(mutated)
 
@@ -3723,7 +4138,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         """Full mode with a deselected job is red; a reduced run with a chosen skip passes."""
         code, output, written = run_gate_script(self.workflow, gate_values("true"))
         self.assertEqual(code, 0, output)
-        self.assertEqual(written, "verdict=full-success\n")
+        self.assertEqual(written, _gate_output("full-success", "full"))
 
         values = gate_values("true", selected={"cross-platform-native": "false"}, results={})
         code, output, written = run_gate_script(self.workflow, values)
@@ -3740,7 +4155,7 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         code, output, written = run_gate_script(self.workflow, values)
         self.assertEqual(code, 0, output)
         self.assertIn("portable-core: skipped, not selected by the plan", output)
-        self.assertEqual(written, "verdict=reduced-success\n")
+        self.assertEqual(written, _gate_output("reduced-success", "integration"))
 
         values = gate_values("true", results={"frontend": "failure"})
         code, output, written = run_gate_script(self.workflow, values)
@@ -3752,6 +4167,90 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         code, output, written = run_gate_script(self.workflow, values)
         self.assertEqual(code, 1, output)
         self.assertEqual(written, "")
+
+    def test_t345_the_gate_records_profile_run_and_attempt(self):
+        """verdict.json carries what the outputs carry; a red gate writes no file."""
+        code, output, _, recorded = run_gate_record(self.workflow, gate_values("true"))
+        self.assertEqual(code, 0, output)
+        assert recorded is not None, "a green gate must write verdict.json"
+        self.assertEqual(
+            json.loads(recorded),
+            {
+                "schemaVersion": 1,
+                "verdict": "full-success",
+                "profile": "full",
+                "sourceRevision": "b" * 40,
+                "runId": 4711,
+                "runAttempt": 3,
+            },
+        )
+        code, output, _, recorded = run_gate_record(self.workflow, gate_values("false"))
+        self.assertEqual(code, 0, output)
+        assert recorded is not None, "a green gate must write verdict.json"
+        self.assertEqual(json.loads(recorded)["profile"], "integration")
+        self.assertEqual(json.loads(recorded)["verdict"], "reduced-success")
+        values = gate_values("true", results={"frontend": "failure"})
+        code, output, written, recorded = run_gate_record(self.workflow, values)
+        self.assertEqual(code, 1, output)
+        self.assertEqual((written, recorded), ("", None), "a red gate records nothing")
+
+    def test_t345_verdict_vocabulary(self):
+        """Three verdicts; only full-success passes VERDICT_TERM, and tree-reused is no success."""
+        self.assertEqual(
+            workflow_contract.VERDICTS, ("full-success", "reduced-success", "tree-reused")
+        )
+        self.assertEqual(workflow_contract.PROFILES, ("full", "integration"))
+        self.assertNotIn("success", workflow_contract.TREE_REUSED)
+        self.assertEqual(
+            workflow_contract.VERDICT_TERM, "needs.tests.outputs.verdict == 'full-success'"
+        )
+        self.assertEqual(release_manifest.RELEASE_VERDICT, workflow_contract.FULL_SUCCESS)
+        self.assertEqual(release_manifest.RELEASE_PROFILE, workflow_contract.PROFILES[0])
+
+    def test_t345_gate_evidence_mutations(self):
+        validate = workflow_contract.validate_full_matrix_verdict
+        attempt = ".".join(("github", "run_attempt"))
+        for name, original, replacement, error in (
+            (
+                "the profile output dropped",
+                "      profile: ${{ steps.gate.outputs.profile }}\n",
+                "",
+                "missing its verdict",
+            ),
+            (
+                "the attempt no longer from the run",
+                "          TEST_RUN_ATTEMPT: ${{ " + attempt + " }}\n",
+                "          TEST_RUN_ATTEMPT: '1'\n",
+                "missing its verdict",
+            ),
+            (
+                "the full profile for a reduced run",
+                "            verdict=reduced-success\n            profile=integration\n",
+                "            verdict=reduced-success\n            profile=full\n",
+                "must end with the verdict",
+            ),
+            (
+                "the artifact step removed",
+                "      - name: Keep the verdict as an artifact\n",
+                "      - name: Keep the verdict elsewhere\n",
+                "missing its verdict",
+            ),
+            (
+                "the artifact kept after a red gate",
+                "      - name: Keep the verdict as an artifact\n        uses:",
+                "      - name: Keep the verdict as an artifact\n        if: always()\n        uses:",
+                "missing its verdict",
+            ),
+        ):
+            with self.subTest(name=name):
+                self.assert_mutation_fails(validate, original, replacement, error)
+        coverage = workflow_contract.validate_full_matrix_coverage
+        self.assert_mutation_fails(
+            coverage,
+            "        value: ${{ jobs.browser-e2e.outputs.run_attempt }}\n",
+            "        value: ${{ jobs.browser-e2e.outputs.run_id }}\n",
+            "must output verdict",
+        )
 
     def test_c7_no_push_trigger(self):
         self.assert_mutation_fails(
@@ -3772,14 +4271,25 @@ class FullMatrixVerdictContractTests(unittest.TestCase):
         for name, original, replacement in (
             (
                 "one group per ref again",
-                "  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', "
-                "github.ref) || format('test-run-{0}', github.run_id) }}\n",
-                "  group: test-${{ github.ref }}\n",
+                "|| format('{0}', inputs.profile) != '' && format('test-{0}-{1}', github.ref, "
+                "inputs.profile) || format('test-run-{0}', github.run_id) }}\n",
+                "|| format('test-{0}', github.ref) }}\n",
             ),
             (
                 "every run cancels",
-                "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+                "  cancel-in-progress: ${{ github.event_name == 'pull_request' "
+                "|| inputs.profile == 'integration' }}\n",
                 "  cancel-in-progress: true\n",
+            ),
+            (
+                "a full dispatch cancels",
+                "|| inputs.profile == 'integration' }}\n",
+                "|| inputs.profile != '' }}\n",
+            ),
+            (
+                "the release call shares the dispatch group",
+                "|| format('{0}', inputs.profile) != '' && ",
+                "|| format('{0}', inputs.full_matrix) != '' && ",
             ),
             (
                 "a second, job-level concurrency",
@@ -4052,6 +4562,31 @@ class ReleaseSingleEntryContractTests(unittest.TestCase):
                 web_if.replace("      && needs.tests.outputs.verdict == 'full-success'\n", ""),
                 "web-image must run only on: needs.tests.outputs.verdict",
             ),
+            # T-345: the manifest carries the tests' evidence
+            (
+                "the manifest without the attempt",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                '            --test-run-attempt "$TEST_RUN_ATTEMPT"\n',
+                "",
+                "evidence to the manifest: --test-run-attempt",
+            ),
+            (
+                "the manifest's verdict not from the tests",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                "          TEST_VERDICT: ${{ needs.tests.outputs.verdict }}\n",
+                "          TEST_VERDICT: full-success\n",
+                "evidence to the manifest: TEST_VERDICT",
+            ),
+            (
+                "the manifest's profile not from the tests",
+                w.validate_artifact_edges,
+                BUILD_WORKFLOW,
+                "          TEST_PROFILE: ${{ needs.tests.outputs.profile }}\n",
+                "          TEST_PROFILE: full\n",
+                "evidence to the manifest: TEST_PROFILE",
+            ),
             # C-7
             (
                 "a paths filter again",
@@ -4219,6 +4754,14 @@ class ReleaseSingleEntryContractTests(unittest.TestCase):
                 "  push:\n    branches-ignore: [main]\n",
                 "  push:\n",
                 "ignore pushes to main",
+            ),
+            (
+                "the bootstrap push filter drops the snapshot folder",
+                w.validate_bootstrap_never_on_main,
+                bootstrap,
+                '      - "tests/e2e/visual-baseline.spec.ts-snapshots/**"\n',
+                "",
+                "push paths must include",
             ),
             (
                 "the guard before the push removed",
@@ -4755,6 +5298,7 @@ class WritingDataReleaseContractTests(unittest.TestCase):
             ReleaseManifestTests._images(),
             ReleaseManifestTests._artifacts(artifact_root),
             data=data,
+            tests=TEST_EVIDENCE,
         )
         ReleaseManifestTests._attest_signatures(manifest, artifact_root)
         path = artifact_root / "release-manifest.json"
@@ -4765,7 +5309,7 @@ class WritingDataReleaseContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = self._manifest(Path(directory), WRITING_DATA_PIN)
             manifest = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(manifest["schemaVersion"], 7)
+            self.assertEqual(manifest["schemaVersion"], 8)
             self.assertEqual(
                 manifest["dataAssets"],
                 [

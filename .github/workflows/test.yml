@@ -8,19 +8,33 @@ permissions:
 # browser-e2e job reports full-success. A separate run of this workflow is never release
 # evidence.
 #
-# Pull requests run Linux completely and a smoke test on Windows and macOS; a manual run and a
-# caller asking for it run the full Windows and macOS matrix. The `plan` job decides that in one
-# place -- see "Matrix" in docs/quality/ci.md. On a pull request it also selects the job groups
+# The verdict (T-345, "Verdict" in docs/quality/ci.md) is one of three values. full-success:
+# every job of the full matrix ran and passed. reduced-success: a reduced run passed.
+# tree-reused: reserved for a run that ends early because a run on the same tree already
+# tested it -- it tested nothing itself, so it is never full-success and never release
+# evidence. Beside the verdict the gate records the profile (full or integration), the run and
+# its attempt, as outputs and in the artifact test-verdict (verdict.json).
+#
+# Pull requests and a manual run of the integration profile (the default) run Linux completely
+# and Core and a smoke test on Windows; a manual run of the full profile, a run the plan raises
+# to full on a native change, and a caller run the full Windows and macOS matrix. The `plan` job
+# decides that in one place -- see "Matrix" and "Profiles" in docs/quality/ci.md. On a pull request it also selects the job groups
 # the changed paths need (.github/test-paths.json); full mode always runs every group -- see
 # "Path filter" there.
 on:
   pull_request:
   workflow_dispatch:
     inputs:
-      full_matrix:
-        description: "Run the full Windows and macOS matrix"
-        type: boolean
-        default: true
+      # T-341 part B: integration runs Linux completely and Core and Smoke on Windows; full adds
+      # the Windows browser slots and macOS. The plan job raises integration to full on a
+      # native change since the run's base, and never lowers full.
+      profile:
+        description: "integration (Linux, Windows Core and Smoke) or full (every system)"
+        type: choice
+        options:
+          - integration
+          - full
+        default: integration
       # Optional, on request only (T-179, D-167): starts llama-conformance.yml beside the run.
       # Dispatch only -- a caller such as release.yml cannot ask for it.
       llama_conformance:
@@ -47,13 +61,25 @@ on:
       verdict:
         description: "full-success only when every job the full matrix requires succeeded"
         value: ${{ jobs.browser-e2e.outputs.verdict }}
+      profile:
+        description: "full or integration: the profile the verdict was reached with"
+        value: ${{ jobs.browser-e2e.outputs.profile }}
+      run_id:
+        description: "The run that produced the verdict"
+        value: ${{ jobs.browser-e2e.outputs.run_id }}
+      run_attempt:
+        description: "The attempt of that run that produced the verdict"
+        value: ${{ jobs.browser-e2e.outputs.run_attempt }}
 
-# Pull requests cancel their superseded runs. Every other run -- a dispatch, or the call from
-# release.yml for a push to main -- gets a group of its own, so no run can cancel another run's
-# tests. In a call, github.* is the caller's context, so the run_id is the caller's run.
+# Pull requests cancel their superseded runs, and so does a manual run of the integration
+# profile: a newer dispatch on the same ref replaces it. A manual full run shares a group per ref
+# but is never cancelled, so a release's dry run cannot lose it. Only a dispatch declares the
+# profile input; a call from release.yml reads it as null and gets a group of its own, so no run
+# can cancel the release's tests. In a call, github.* is the caller's context, so the run_id is
+# the caller's run.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', github.ref) || format('test-run-{0}', github.run_id) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.event_name == 'pull_request' && format('test-pr-{0}', github.ref) || format('{0}', inputs.profile) != '' && format('test-{0}-{1}', github.ref, inputs.profile) || format('test-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || inputs.profile == 'integration' }}
 
 # Playwright workers per runner: the one place to change them, one value per system (T-39,
 # "Workers per runner" in docs/quality/ci.md). Linux sets the product and the design suite
@@ -66,20 +92,26 @@ env:
   WORKERS_MACOS: "2"
 
 jobs:
-  # The only place that decides between the full and the reduced matrix. Fail-safe: the matrix
-  # is reduced only for a pull request or an explicit `full_matrix: false`. An explicit true
-  # wins even when a caller came from a pull request (in a called workflow, github.event_name is
-  # the caller's event). The input is compared as text because GitHub coerces a missing input
-  # (null) to equal false; format() turns it into '' and keeps the default full. Jobs read the
-  # output, never github.event_name -- workflow_contract.py holds both in place.
+  # The only place that decides between the full and the reduced (integration) matrix.
+  # Fail-safe: the matrix is reduced only for a pull request, for an explicit
+  # `full_matrix: false` from a caller, or for a manual run of the integration profile that the
+  # raise step below leaves there. An explicit true wins even when a caller came from a pull
+  # request (in a called workflow, github.event_name is the caller's event). Only a dispatch
+  # declares `profile` and only a call declares `full_matrix`, so each reads the other as null.
+  # Both are compared as text because GitHub coerces a missing input (null) to equal false;
+  # format() turns it into '' and keeps the default full. Jobs read the output, never
+  # github.event_name -- workflow_contract.py holds both in place.
   plan:
     name: Plan the matrix
     runs-on: ubuntu-24.04
     permissions:
-      contents: read # the sparse checkout of the path filter on a pull request
+      contents: read # the checkout of the path filter and of the history the profile is measured on
     outputs:
-      full_matrix: ${{ steps.decide.outputs.full_matrix }}
+      # The raise step can only turn the integration profile into full, never the other way.
+      full_matrix: ${{ steps.raise.outputs.full_matrix == 'true' && 'true' || steps.decide.outputs.full_matrix }}
       desktop_csp_probe: ${{ steps.probe.outputs.desktop_csp_probe }}
+      # The systems Core runs on: macOS only in the full profile (T-341 part B).
+      native_macos: ${{ (steps.raise.outputs.full_matrix == 'true' || steps.decide.outputs.full_matrix == 'true') && 'true' || 'false' }}
       # One run_<group> per group of .github/test-paths.json. Full mode is true without asking
       # the filter; otherwise only a literal 'false' from a finished filter switches a group off.
       run_checks: ${{ steps.decide.outputs.full_matrix == 'true' && 'true' || (steps.filter.outputs.run_checks == 'false' && 'false' || 'true') }}
@@ -92,31 +124,27 @@ jobs:
     steps:
       - id: decide
         env:
-          FULL_MATRIX: ${{ inputs.full_matrix == true || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.full_matrix) != 'false') }}
+          FULL_MATRIX: ${{ inputs.full_matrix == true || inputs.profile == 'full' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name != 'pull_request' && format('{0}', inputs.profile) == '' && format('{0}', inputs.full_matrix) != 'false') }}
         run: echo "full_matrix=$FULL_MATRIX" >> "$GITHUB_OUTPUT"
-      # Only a workflow_dispatch declares the input; a call or a pull request reads it as
-      # null, which is not true. Never beside the full matrix: that already holds the five
-      # macOS jobs the plan allows, so the run must ask for the reduced one as well.
-      - id: probe
-        env:
-          DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.full_matrix == false }}
-        run: echo "desktop_csp_probe=$DESKTOP_CSP_PROBE" >> "$GITHUB_OUTPUT"
 
       # The path filter reads paths only on a pull request in reduced mode. It needs the git
       # history two commits deep -- the merge commit GitHub builds for the pull request and its
       # parents -- and no file of the pull request: the working tree holds VERSION only. See
-      # "Path filter" in docs/quality/ci.md.
+      # "Path filter" in docs/quality/ci.md. A manual run of the integration profile needs every
+      # branch and commit instead, without old file contents (filter blob:none); git fetches the
+      # few blobs the raise step reads on demand. See "Profiles" there.
       - name: Check out the path filter
-        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
+        if: steps.decide.outputs.full_matrix != 'true' && (github.event_name == 'pull_request' || inputs.profile == 'integration')
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
+          filter: ${{ github.event_name != 'pull_request' && 'blob:none' || '' }}
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             VERSION
       - name: Set up Python for the path filter
-        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'pull_request'
+        if: steps.decide.outputs.full_matrix != 'true' && (github.event_name == 'pull_request' || inputs.profile == 'integration')
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12.10"
@@ -142,6 +170,43 @@ jobs:
           else
             echo "::warning::the base has no readable path filter, running everything"
           fi
+
+      # T-341 part B: a manual run of the integration profile becomes full when it changes native
+      # code (.github/test-paths.json, group native) since its base -- the nearest fork point
+      # from integration_bases. The head's copy only names that base; the base's own copy then
+      # chooses again by its own rules and decides, so a run cannot narrow the rules it is judged
+      # by. Full is written first and the decision after it; a later line wins, so anything that
+      # fails on the way -- no base, a base before T-341 part B, a crash -- leaves the run full.
+      - id: raise
+        name: Raise the profile on a native change
+        if: steps.decide.outputs.full_matrix != 'true' && github.event_name == 'workflow_dispatch' && inputs.profile == 'integration'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          echo "full_matrix=true" >> "$GITHUB_OUTPUT"
+          head="$RUNNER_TEMP/profile-head"
+          base="$RUNNER_TEMP/profile-base"
+          mkdir -p "$head/.github" "$head/distribution/tooling" "$base/.github" "$base/distribution/tooling"
+          if git show HEAD:.github/test-paths.json > "$head/.github/test-paths.json" &&
+            git show HEAD:distribution/tooling/path_filter.py > "$head/distribution/tooling/path_filter.py" &&
+            commit=$(python "$head/distribution/tooling/path_filter.py" base --repository . --head HEAD --branch "$BRANCH") &&
+            git show "$commit:.github/test-paths.json" > "$base/.github/test-paths.json" &&
+            git show "$commit:distribution/tooling/path_filter.py" > "$base/distribution/tooling/path_filter.py"; then
+            python "$base/distribution/tooling/path_filter.py" profile --repository . --head HEAD --branch "$BRANCH" --expect-base "$commit" --output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY" ||
+              echo "::warning::the base's profile rules failed, running the full matrix"
+          else
+            echo "::warning::no integration base with readable profile rules, running the full matrix"
+            echo "- Profile raised to full: no integration base with readable profile rules" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Only a workflow_dispatch declares the input; a call or a pull request reads it as
+      # null, which is not true. Never beside the full matrix: that already holds the five
+      # macOS jobs the plan allows, so it runs only in the integration profile, and only when
+      # the raise step left it there.
+      - id: probe
+        env:
+          DESKTOP_CSP_PROBE: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_csp_probe == true && inputs.profile == 'integration' && steps.raise.outputs.full_matrix == 'false' }}
+        run: echo "desktop_csp_probe=$DESKTOP_CSP_PROBE" >> "$GITHUB_OUTPUT"
 
   backend:
     needs: plan
@@ -530,14 +595,22 @@ jobs:
     permissions: {}
     # The one verdict a caller may build on. A called workflow concludes success even when every
     # job inside it was skipped, so release.yml reads this output, not the call's conclusion. It
-    # is written only after every check below passed; a red gate leaves it empty.
+    # is written only after every check below passed; a red gate leaves it empty. Beside it (T-345)
+    # stand the profile the run tested with, and the run and attempt that produced the verdict --
+    # in a call those are the caller's, the same numbers release.yml writes into the manifest.
     outputs:
       verdict: ${{ steps.gate.outputs.verdict }}
+      profile: ${{ steps.gate.outputs.profile }}
+      run_id: ${{ steps.gate.outputs.run_id }}
+      run_attempt: ${{ steps.gate.outputs.run_attempt }}
     steps:
       - name: Require every selected job
         id: gate
         env:
           FULL_MATRIX: ${{ needs.plan.outputs.full_matrix }}
+          SOURCE_REVISION: ${{ github.sha }}
+          TEST_RUN_ID: ${{ github.run_id }}
+          TEST_RUN_ATTEMPT: ${{ github.run_attempt }}
           PLAN_RESULT: ${{ needs.plan.result }}
           RESULT_BACKEND: ${{ needs['backend'].result }}
           SELECTED_BACKEND: ${{ needs.plan.outputs.run_python != 'false' }}
@@ -606,10 +679,28 @@ jobs:
           fi
           if [ "$FULL_MATRIX" = "true" ]; then
             verdict=full-success
+            profile=full
           else
             verdict=reduced-success
+            profile=integration
           fi
-          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          printf '{"schemaVersion":1,"verdict":"%s","profile":"%s","sourceRevision":"%s","runId":%s,"runAttempt":%s}\n' \
+            "$verdict" "$profile" "$SOURCE_REVISION" "$TEST_RUN_ID" "$TEST_RUN_ATTEMPT" > verdict.json
+          {
+            echo "verdict=$verdict"
+            echo "profile=$profile"
+            echo "run_id=$TEST_RUN_ID"
+            echo "run_attempt=$TEST_RUN_ATTEMPT"
+          } >> "$GITHUB_OUTPUT"
+      # The same values as a file, so a later run can read them without this run's logs. An
+      # artifact expires; the manifest carries the values themselves, not a pointer to this file.
+      - name: Keep the verdict as an artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: test-verdict
+          path: verdict.json
+          if-no-files-found: error
+          overwrite: true
 
   # When a platform has no baseline set, visual-baseline.spec.ts skips itself there -- and
   # the suite reports green while comparing not a single pixel. This check names the gap
@@ -642,6 +733,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, windows-2025]
+        # The integration profile leaves macOS out (T-341 part B); 'none' excludes nothing.
+        exclude:
+          - os: ${{ needs.plan.outputs.native_macos == 'true' && 'none' || 'macos-15' }}
     env:
       PYTHONPATH: src
     steps:
@@ -907,8 +1001,7 @@ jobs:
             test-results/**
             ${{ runner.temp }}/quiltor-server.log
 
-  # The reduced matrix's stand-in for the job above: on a pull request, one runner per system
-  # runs the unit tests and the product specs where the systems differ most -- the pixel
+  # The reduced matrix's stand-in for the job above: in the integration profile, Windows runs the unit tests and the product specs where the systems differ most -- the pixel
   # comparison against this system's baselines, opening a world and a chapter, and manuscript
   # import and export, which read and write files. About 50 of the 531 product tests, well under
   # the count where Windows ran out of network buffers. A Windows- or macOS-only failure in the
@@ -921,7 +1014,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, windows-2025]
+        # The integration profile runs no macOS job (T-341 part B).
+        os: [windows-2025]
     env:
       PYTHONPATH: src
     steps:
