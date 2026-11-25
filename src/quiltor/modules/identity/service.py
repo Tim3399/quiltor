@@ -81,6 +81,11 @@ class Identity:
     def __init__(self, sessions: IdentityGateway, render_tokens: RenderTokenStore) -> None:
         self.auth = sessions
         self._render_tokens = render_tokens
+        # Session ids that a render token redeemed into, with their expiry. Only
+        # these may write from the render's own loopback origin on a hosted
+        # server (T-370); every other session keeps the public-origin check.
+        self._render_sessions: dict[str, float] = {}
+        self._render_sessions_lock = threading.Lock()
 
     @property
     def render_tokens(self) -> RenderTokenStore:
@@ -91,6 +96,21 @@ class Identity:
 
     def redeem_render_token(self, token: str) -> str | None:
         return self._render_tokens.redeem(token)
+
+    def _remember_render_session(self, session_id: str, ttl: float) -> None:
+        now = time.time()
+        with self._render_sessions_lock:
+            for key in [k for k, expires in self._render_sessions.items() if expires <= now]:
+                self._render_sessions.pop(key, None)
+            self._render_sessions[session_id] = now + ttl
+
+    def is_render_session(self, session_id: str | None) -> bool:
+        """Whether this cookie value is a live session a render token redeemed into."""
+        if not session_id:
+            return False
+        with self._render_sessions_lock:
+            expires = self._render_sessions.get(session_id)
+        return expires is not None and expires > time.time()
 
     def is_premium(self, session: auth.SessionData) -> bool:
         """Whether this session may use the server-side assistant."""
@@ -117,6 +137,7 @@ class Identity:
         # one page load it needs.
         ttl = self._render_tokens.ttl_seconds
         session_id = self.auth.create_session(sub, "", "", ttl=ttl)
+        self._remember_render_session(session_id, ttl)
         queue_session_cookie(handler, session_id, max_age=ttl)
         return self.auth.get_session(session_id)
 

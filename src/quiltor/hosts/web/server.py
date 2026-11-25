@@ -540,8 +540,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not origin:
             return False
         if origin == "null" or _origin_of(origin, allow_path=False) != public_origin:
+            if self._is_own_render_request(origin):
+                return False
             return self._refuse_untrusted_origin()
         return False
+
+    def _is_own_render_request(self, origin: str) -> bool:
+        """The PDF render's own page, writing from the loopback origin book_pdf sent it to.
+
+        Not an exception for loopback: the origin must be exactly the render URL's
+        `http://127.0.0.1:<this port>` *and* the request must carry a session that a
+        one-shot render token redeemed into (T-370). A browser elsewhere has neither."""
+        render_origin = f"http://127.0.0.1:{self.server.server_address[1]}"
+        if _origin_of(origin, allow_path=False) != _origin_of(render_origin, allow_path=False):
+            return False
+        return self.application.identity.is_render_session(self.get_cookie(SESSION_COOKIE))
 
     def _refuse_untrusted_origin(self) -> bool:
         """Answer 403 `request.untrusted_origin`, after dropping the unread body (D-38)."""
