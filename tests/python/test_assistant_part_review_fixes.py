@@ -9,6 +9,7 @@ next one and offered there as a candidate that is never created.
 import copy
 import json
 import unittest
+from typing import Any, cast
 
 import test_assistant_budget as parts
 import test_assistant_runtime as runtime_tests
@@ -78,7 +79,7 @@ class FailedReadStepTests(unittest.TestCase):
         manuscript, chapter_id, _ = marked_chapter(2000)
         runtime, inference = helper.relay(0.9)
         tools = BreaksAfterFirstPart(runtime.read_tools)
-        runtime.read_tools = tools
+        runtime.read_tools = cast(Any, tools)
         invoke = inference.invoke
 
         def answer_then_break(payload):
@@ -104,7 +105,7 @@ class FailedReadStepTests(unittest.TestCase):
         runtime, inference = helper.relay(0.9)
         tools = BreaksAfterFirstPart(runtime.read_tools)
         tools.broken = True
-        runtime.read_tools = tools
+        runtime.read_tools = cast(Any, tools)
         with self.assertRaises(ExtractionPartFailedError) as raised:
             runtime.complete(
                 EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
@@ -117,7 +118,7 @@ class FailedReadStepTests(unittest.TestCase):
         runtime, _ = helper.relay(0.9)
         tools = BreaksAfterFirstPart(runtime.read_tools)
         tools.broken = True
-        runtime.read_tools = tools
+        runtime.read_tools = cast(Any, tools)
         result = runtime.complete("Wer ist Mara?", parts.MANUSCRIPT, FIGURES)
         self.assertIn(
             "Der sichere Leseschritt konnte nicht abgeschlossen werden", result["message"]
