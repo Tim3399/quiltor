@@ -21,6 +21,7 @@ from quiltor.modules.assistant.ports import (
 from quiltor.modules.assistant.prompts import DEFAULT_ASSISTANT_LANGUAGE, MODEL_CONTEXT_TOKENS
 from quiltor.modules.assistant.proposals import forced_proposal
 from quiltor.modules.assistant.schema_check import check as check_schema
+from quiltor.modules.assistant.schema_check import drop_repeated_strings
 
 
 class AssistantRuntime:
@@ -171,6 +172,7 @@ class AssistantRuntime:
         if schema is None:
             schema = (response_format.get("json_schema") or {}).get("schema")
         if isinstance(schema, dict):
+            result = drop_repeated_strings(result, schema)
             violations = check_schema(result, schema)
             if violations:
                 raise InferenceValidationError(f"schema: {violations[0]}")

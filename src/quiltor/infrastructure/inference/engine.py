@@ -24,6 +24,20 @@ from quiltor.infrastructure.inference.shared.contract import (
 )
 from quiltor.modules.assistant.ports import InferenceUnavailableError
 
+# Sampling for the llama-server Quiltor starts itself (T-367). Qwen3-4B sometimes writes an
+# endless list into ``message`` -- "(x-t3) ... (x-t4) ..." -- until max_tokens cuts the reply
+# off. The grammar cannot bound it: lac-schema-v1 has no maxLength on the wire. DRY penalises a
+# sequence the model is about to repeat; a copy shorter than the allowed length (an id, a
+# quoted name) costs nothing, a loop of twenty tokens does. The request's own values win.
+# llama-server ignores keys it does not know; only the local runtime gets them, because an
+# external provider may refuse them.
+LLAMA_LOOP_GUARD: dict[str, Any] = {
+    "dry_multiplier": 0.8,
+    "dry_base": 1.75,
+    "dry_allowed_length": 16,
+    "dry_penalty_last_n": 1024,
+}
+
 
 class LocalInferenceEngine:
     def __init__(self, base: Path, data: Path, capabilities: FeatureAvailability) -> None:
@@ -128,7 +142,7 @@ class LocalInferenceEngine:
             # The local server is ours to hold to the contract: a reply without usage is refused.
             return invoke_chat(
                 self.url,
-                payload,
+                self._local_payload(payload),
                 include_metadata=True,
                 api_key=self._sidecar_key,
                 strict_local=True,
@@ -158,6 +172,13 @@ class LocalInferenceEngine:
         )
         self._json_object_only = True
         return answer
+
+    def _local_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """``payload`` plus the loop guard, unless the runtime is MLX (its bridge has no DRY)."""
+
+        if self.log_path is not None and "mlx" in self.log_path.name:
+            return payload
+        return {**LLAMA_LOOP_GUARD, **payload}
 
     def count_tokens(self, text: str) -> int:
         if not self.capabilities.is_available(Feature.LOCAL_INFERENCE):

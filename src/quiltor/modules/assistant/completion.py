@@ -52,6 +52,7 @@ from quiltor.modules.assistant.ports import (
     InferenceEngine,
     InferenceTimeoutError,
     InferenceUnavailableError,
+    InferenceValidationError,
     TokenCountCache,
     WorldTooLargeError,
 )
@@ -667,14 +668,15 @@ def _parts_needed(needed: int, carried: int) -> int:
 
 
 def _run_part(call: Callable[[], dict[str, Any]], index: int) -> dict[str, Any]:
-    """One part, once more after a timeout. A failure after the first part says which part it
-    was, so the user learns that nothing was kept (T-330)."""
+    """One part, once more after a timeout or a reply that breaks the schema (D-248): both can
+    pass on a second try with the same input. A failure after the first part says which part
+    it was, so the user learns that nothing was kept (T-330)."""
     try:
         try:
             return call()
         except InferenceDeadlineError:
             raise
-        except InferenceTimeoutError:
+        except (InferenceTimeoutError, InferenceValidationError):
             return call()
     except InferenceDeadlineError as exc:
         # Each part has its time and the job has its time (D-238); past either, the chapter

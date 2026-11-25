@@ -14,6 +14,7 @@ from quiltor.modules.assistant.schema_check import (
     KEYWORDS,
     UnsupportedSchemaKeyword,
     check,
+    drop_repeated_strings,
 )
 from quiltor.modules.assistant.schemas import (
     KINDS,
@@ -103,6 +104,39 @@ class KeywordTests(unittest.TestCase):
     def test_violations_carry_the_path(self):
         violations = check(reply(proposals=[{"kind": "x"}]), reply_schema())
         self.assertEqual([str(item) for item in violations], ["$.proposals[0] anyOf"])
+
+    def test_a_tool_step_names_the_field_inside_the_branch_its_action_chose(self):
+        # T-363: a grammar-bound engine never sees uniqueItems or maxLength, so the full check
+        # is where such a reply breaks; the report must say where, not only "$.step anyOf".
+        schema = tool_step_schema(read_tool_catalog(), KINDS)
+        step = {"step": {"action": "final", "final": reply(citations=["c-1", "c-1"])}}
+        self.assertEqual(
+            [str(item) for item in check(step, schema)], ["$.step.final.citations uniqueItems"]
+        )
+
+    def test_the_llama_step_with_a_repeated_citation_passes_once_the_repeats_are_dropped(self):
+        # T-363: the reply llama.cpp gave in part 4 of x-kettenwache with the 170 world.
+        schema = tool_step_schema(read_tool_catalog(), KINDS)
+        step = {
+            "step": {
+                "action": "final",
+                "final": reply(
+                    message="Keine neuen Elemente.", citations=["find_timeline_events"] * 5
+                ),
+            }
+        }
+        self.assertEqual(
+            [str(item) for item in check(step, schema)], ["$.step.final.citations uniqueItems"]
+        )
+        cleaned = drop_repeated_strings(step, schema)
+        self.assertEqual(check(cleaned, schema), [])
+        self.assertEqual(cleaned["step"]["final"]["citations"], ["find_timeline_events"])
+
+    def test_repeated_objects_are_kept_and_still_break_unique_items(self):
+        schema = {"type": "array", "uniqueItems": True, "items": {"type": "object"}}
+        value = [{"a": 1}, {"a": 1}]
+        self.assertEqual(drop_repeated_strings(value, schema), value)
+        self.assertEqual(keywords((value, schema)), ["uniqueItems"])
 
     def test_a_schema_deeper_than_the_limit_is_refused(self):
         nested = {"type": "array"}
@@ -242,12 +276,13 @@ class InvokeIntegrationTests(unittest.TestCase):
             token_cache=BoundedTokenCountCache(),
         )
 
-    def test_duplicate_citations_from_the_engine_end_as_validation_error(self):
-        runtime = self.runtime(reply(citations=["c1", "c1"]))
+    def test_too_many_proposals_from_the_engine_end_as_validation_error(self):
+        # Repeated citations are dropped instead since T-363; a reply over a limit still fails.
+        runtime = self.runtime(reply(proposals=[proposal(i) for i in range(21)]))
         payload = {"messages": [], "response_format": json_schema_format(reply_schema())}
         with self.assertRaises(InferenceValidationError) as raised:
             runtime._invoke(payload)
-        self.assertEqual(str(raised.exception), "schema: $.citations uniqueItems")
+        self.assertEqual(str(raised.exception), "schema: $.proposals maxItems")
         self.assertEqual(classify_assistant_error(raised.exception), "validation_error")
 
     def test_a_valid_reply_passes_and_a_payload_without_schema_is_not_checked(self):
@@ -256,14 +291,14 @@ class InvokeIntegrationTests(unittest.TestCase):
         self.assertEqual(runtime._invoke(payload), reply())
         self.assertEqual(runtime._invoke({"messages": []}), {"anything": 1})
 
-    def test_a_complete_request_with_duplicate_citations_fails_as_validation_error(self):
+    def test_a_complete_request_with_too_many_proposals_fails_as_validation_error(self):
         figures = {
             "nodes": [{"id": "tarek", "name": "Tarek Venn", "type": "person"}],
             "edges": [],
             "timeline": [],
         }
         # Three invalid replies: the first two get the D-219 second chances (T-307).
-        invalid = reply(citations=["c1", "c1"])
+        invalid = reply(proposals=[proposal(i) for i in range(21)])
         runtime = self.runtime(invalid, invalid, invalid)
         with self.assertRaises(InferenceValidationError) as raised:
             runtime.complete("Wie geht es Tarek?", {}, figures, history=None)

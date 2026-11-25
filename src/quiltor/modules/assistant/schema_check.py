@@ -71,6 +71,38 @@ def check(value: Any, schema: dict[str, Any]) -> list[Violation]:
     return violations
 
 
+def drop_repeated_strings(value: Any, schema: dict[str, Any], depth: int = 0) -> Any:
+    """``value`` with repeated strings removed from every ``uniqueItems`` array of strings.
+
+    uniqueItems never goes over the wire (lac-schema-v1), so a grammar-bound engine may repeat
+    an item: llama.cpp cited the same id five times in a long chapter (T-363). A repeated
+    string carries nothing the first one does not, so it is dropped rather than failing the
+    reply. Repeated objects stay and are still a violation.
+    """
+
+    if depth > MAX_DEPTH or not isinstance(schema, dict):
+        return value
+    for branch in schema.get("anyOf") or []:
+        if _discriminator_matches(value, branch):
+            return drop_repeated_strings(value, branch, depth + 1)
+    if isinstance(value, list):
+        items = schema.get("items")
+        if schema.get("uniqueItems") is True and all(isinstance(item, str) for item in value):
+            return list(dict.fromkeys(value))
+        if isinstance(items, dict):
+            return [drop_repeated_strings(item, items, depth + 1) for item in value]
+        return value
+    if isinstance(value, dict):
+        properties = schema.get("properties") or {}
+        return {
+            name: drop_repeated_strings(item, properties[name], depth + 1)
+            if name in properties
+            else item
+            for name, item in value.items()
+        }
+    return value
+
+
 def _check_schema(schema: Any, where: str, depth: int) -> None:
     if depth > MAX_DEPTH:
         raise UnsupportedSchemaKeyword(f"{where}: schema nested deeper than {MAX_DEPTH}")
@@ -127,13 +159,18 @@ def _check(value: Any, schema: dict[str, Any], path: str, depth: int, out: list[
     if "anyOf" in schema:
         # At least one branch. The schemas give every branch a distinct required enum
         # discriminator (schema_lint enforces it), so no value matches two.
+        chosen: list[Violation] | None = None
         for branch in schema["anyOf"]:
             trial: list[Violation] = []
             _check(value, branch, path, depth + 1, trial)
             if not trial:
                 break
+            if _discriminator_matches(value, branch):
+                chosen = trial
         else:
-            out.append(Violation(path, "anyOf"))
+            # The value names its branch through the discriminator, so that branch's own
+            # violations are the cause; a bare "anyOf" would hide which field broke (T-363).
+            out.extend(chosen or [Violation(path, "anyOf")])
     if isinstance(value, str):
         _check_string(value, schema, path, out)
     elif isinstance(value, list):
@@ -145,6 +182,19 @@ def _check(value: Any, schema: dict[str, Any], path: str, depth: int, out: list[
             out.append(Violation(path, "minimum"))
         if "maximum" in schema and value > schema["maximum"]:
             out.append(Violation(path, "maximum"))
+
+
+def _discriminator_matches(value: Any, branch: dict[str, Any]) -> bool:
+    """Whether ``value`` carries the single-value enum a branch is told apart by."""
+
+    if not isinstance(value, dict):
+        return False
+    properties = branch.get("properties") or {}
+    for name in branch.get("required") or []:
+        enum = (properties.get(name) or {}).get("enum")
+        if isinstance(enum, list) and len(enum) == 1 and name in value:
+            return _canonical(value[name]) == _canonical(enum[0])
+    return False
 
 
 def _check_string(value: str, schema: dict[str, Any], path: str, out: list[Violation]) -> None:

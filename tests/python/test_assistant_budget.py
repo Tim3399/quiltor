@@ -45,6 +45,10 @@ from quiltor.modules.assistant.ports import (
     WorldTooLargeError,
 )
 
+# Invocations one extraction call makes before it gives up on an invalid reply: the answer
+# and its in-call repairs.
+PART_CALLS = 3
+
 EXAMPLE = json.loads(
     (Path(__file__).resolve().parents[2] / "src/quiltor/resources/example_world/de.json").read_text(
         encoding="utf-8"
@@ -681,6 +685,61 @@ class ExtractionPartsTests(CompletionBudgetTests):
             EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
         )
         self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
+
+    def test_a_schema_error_in_a_later_part_is_tried_once_more_with_the_same_input(self):
+        # D-248: llama.cpp broke "$.step anyOf" in part 2 of a long chapter. The call already
+        # repairs inside itself; the part as a whole gets one more try with the same input.
+        manuscript, chapter_id, markers = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        invoke = inference.invoke
+        part_two: list[str] = []
+
+        def flaky(payload):
+            if len(inference.calls) >= 1 and len(part_two) < PART_CALLS:
+                part_two.append(json.dumps(payload["messages"][:2]))
+                raise InferenceValidationError("schema: $.step anyOf")
+            if len(part_two) == PART_CALLS:
+                part_two.append(json.dumps(payload["messages"][:2]))
+            return invoke(payload)
+
+        inference.invoke = flaky
+        runtime.complete(
+            EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        self.assertEqual(part_two[0], part_two[PART_CALLS])
+        self.assertEqual([m for m in markers if m not in self.sent_text(inference)], [])
+
+    def test_a_reply_that_repeats_a_citation_is_kept_with_the_repeats_dropped(self):
+        # T-363: llama.cpp repeated a citation; the full check refused the whole part.
+        repeated = {**REPLY, "citations": ["c-arrival"] * 5}
+        runtime, inference = self.runtime(repeated, REPLY)
+        result = runtime.complete(
+            EXTRACTION, MANUSCRIPT, FIGURES, chapter_ids=["c-arrival"], mode="world_extraction"
+        )
+        # One call: no repair round and no retry of the part.
+        self.assertEqual(len(inference.calls), 1)
+        self.assertNotIn("error", result)
+
+    def test_a_second_schema_error_in_a_later_part_fails_the_run(self):
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = self.relay(0.9)
+        invoke = inference.invoke
+        attempts = {"part 2": 0}
+
+        def broken(payload):
+            if len(inference.calls) >= 1:
+                attempts["part 2"] += 1
+                raise InferenceValidationError("schema: $.step anyOf")
+            return invoke(payload)
+
+        inference.invoke = broken
+        with self.assertRaises(ExtractionPartFailedError) as raised:
+            runtime.complete(
+                EXTRACTION, manuscript, FIGURES, chapter_ids=[chapter_id], mode="world_extraction"
+            )
+        self.assertIn("part 2", str(raised.exception))
+        self.assertEqual(attempts["part 2"], 2 * PART_CALLS)
+        self.assertEqual(classify_assistant_error(raised.exception), "extraction_part_failed")
 
     def test_a_later_part_that_fails_fails_the_run_and_names_the_part(self):
         manuscript, chapter_id, _ = marked_chapter(2000)

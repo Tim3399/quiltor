@@ -593,15 +593,16 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
     def test_the_repair_retry_is_checked_against_lengths_and_uniqueness(self):
         for label, repaired in (
             (
-                "duplicate citations",
+                # Repeated citations are dropped since T-363; an empty name still breaks.
+                "empty name",
                 {
                     "message": "Vorbereitet.",
-                    "citations": ["c1", "c1"],
+                    "citations": [],
                     "proposals": [
                         {
                             "kind": "create_element",
                             "tempId": "new:igor",
-                            "element": {"type": "person", "name": "Igor"},
+                            "element": {"type": "person", "name": ""},
                         }
                     ],
                 },
