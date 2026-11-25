@@ -65,9 +65,11 @@ from quiltor.modules.assistant.prompts import (
     CONTEXT_SAFETY_MARGIN,
     DEFAULT_ASSISTANT_LANGUAGE,
     EXTRACTION_INSTRUCTION,
+    EXTRACTION_REPLY_KEYS,
     MODEL_CONTEXT_TOKENS,
     MUTATION_REQUEST,
     PROSE_REQUEST,
+    REPLY_KEYS,
     system_prompt,
 )
 from quiltor.modules.assistant.proposal_resolution import (
@@ -961,12 +963,13 @@ def _complete_once(
             allowed_proposal_kinds,
             max_proposals=EXTRACTION_PART_PROPOSALS,
             typed_elements=True,
+            proposals_first=True,
         )
         if extraction_mode
         else reply_schema(allowed_proposal_kinds)
     )
     if extraction_mode:
-        prompt += EXTRACTION_INSTRUCTION
+        prompt = prompt.replace(REPLY_KEYS, EXTRACTION_REPLY_KEYS) + EXTRACTION_INSTRUCTION
     conversation = conversation_messages(
         history, runtime.url, runtime.inference.count_tokens, runtime.token_cache
     )

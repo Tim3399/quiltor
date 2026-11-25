@@ -237,6 +237,7 @@ def reply_schema(
     *,
     max_proposals: int = 20,
     typed_elements: bool = False,
+    proposals_first: bool = False,
 ) -> dict[str, Any]:
     allowed = [
         kind
@@ -259,14 +260,15 @@ def reply_schema(
         if allowed
         else {"type": "array", "maxItems": 0}
     )
-    return _object(
-        ["message", "citations", "proposals"],
-        {
-            "message": {"type": "string"},
-            "citations": {"type": "array", "uniqueItems": True, "items": {"type": "string"}},
-            "proposals": proposals,
-        },
-    )
+    fields = {
+        "message": {"type": "string"},
+        "citations": {"type": "array", "uniqueItems": True, "items": {"type": "string"}},
+        "proposals": proposals,
+    }
+    # The grammar writes the fields in this order. A small model that writes its message first
+    # settles there that nothing is new and leaves proposals empty (T-369).
+    order = ["proposals", "citations", "message"] if proposals_first else list(fields)
+    return _object(order, {key: fields[key] for key in order})
 
 
 def tool_step_schema(

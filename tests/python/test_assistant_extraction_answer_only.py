@@ -2,9 +2,10 @@
 
 On llama.cpp and WebLLM a small model offered read tools always read first, got nothing useful
 back and answered with no proposals (T-368: 0 proposals in every real run, also for a world
-without the chapter's figures). These tests pin the four parts of the fix: no read tools in an
-extraction part, an extraction instruction with typed elements, section ids mapped in
-search_manuscript, and a part budget that fits its proposal limit.
+without the chapter's figures). Wrapped in a final-only step it still proposed nothing; the
+plain answer with proposals written first did (T-369 probe). These tests pin the fix: no read
+tools and no step in an extraction part, proposals first, an extraction instruction with typed
+elements, section ids mapped in search_manuscript, and a part budget that fits its limit.
 """
 
 import copy
@@ -24,7 +25,11 @@ from quiltor.modules.assistant.budget import (
     EXTRACTION_PART_PROPOSALS,
     prompt_budget,
 )
-from quiltor.modules.assistant.prompts import EXTRACTION_INSTRUCTION
+from quiltor.modules.assistant.prompts import (
+    EXTRACTION_INSTRUCTION,
+    EXTRACTION_REPLY_KEYS,
+    REPLY_KEYS,
+)
 from quiltor.modules.assistant.schema_check import check
 from quiltor.modules.assistant.schemas import reply_schema
 
@@ -37,9 +42,9 @@ NEW_PERSON = {
 
 
 class ReadsFirstModel:
-    """Behaves like Qwen3-4B in T-368: reads whenever it may, then proposes nothing.
-
-    Only a step schema without the tool branch gets the proposal it would have made.
+    """Behaves like Qwen3-4B in T-368 and T-369: reads whenever it may, then proposes
+    nothing; inside any step it proposes nothing either. Only a plain answer that asks for
+    proposals before the message gets the proposal it would have made.
     """
 
     identity = "http://fake"
@@ -57,14 +62,17 @@ class ReadsFirstModel:
         self.calls.append(copy.deepcopy(dict(payload)))
         schema = payload["response_format"]["json_schema"]
         branches = schema["schema"]["properties"]["step"]["anyOf"] if schema["name"] == STEP else []
-        if any("toolCalls" in branch["properties"] for branch in branches):
-            if not any(m["content"].startswith("READ TOOL RESULTS") for m in payload["messages"]):
-                call = {"name": "search_manuscript", "arguments": {"query": "Person"}}
-                return {"step": {"action": "tool_calls", "toolCalls": [call]}}
-            final = {"message": "Nichts gefunden.", "citations": [], "proposals": []}
-        else:
-            final = {"message": "Eine neue Figur.", "citations": [], "proposals": [NEW_PERSON]}
-        return {"step": {"action": "final", "final": final}} if schema["name"] == STEP else final
+        offers_tools = any("toolCalls" in branch["properties"] for branch in branches)
+        has_read = any(m["content"].startswith("READ TOOL RESULTS") for m in payload["messages"])
+        if offers_tools and not has_read:
+            call = {"name": "search_manuscript", "arguments": {"query": "Person"}}
+            return {"step": {"action": "tool_calls", "toolCalls": [call]}}
+        empty = {"message": "Nichts Neues.", "citations": [], "proposals": []}
+        if schema["name"] == STEP:
+            return {"step": {"action": "final", "final": empty}}
+        if next(iter(schema["schema"]["properties"])) != "proposals":
+            return empty
+        return {"proposals": [NEW_PERSON], "citations": [], "message": "Eine neue Figur."}
 
     def count_tokens(self, text):
         return max(1, round(len(text) * 0.343))
@@ -93,9 +101,8 @@ def extract(chapter="c-arrival"):
     return result, engine.calls
 
 
-def final_branch(payload):
-    branches = payload["response_format"]["json_schema"]["schema"]["properties"]["step"]["anyOf"]
-    return next(b["properties"]["final"] for b in branches if "final" in b["properties"]), branches
+def answer_schema(payload):
+    return payload["response_format"]["json_schema"]["schema"]
 
 
 class ExtractionAnswersWithoutReadToolsTests(unittest.TestCase):
@@ -104,11 +111,50 @@ class ExtractionAnswersWithoutReadToolsTests(unittest.TestCase):
         self.assertEqual([p["element"]["name"] for p in result["proposals"]], ["Probe Neumann"])
         self.assertEqual(len(calls), 1)
 
-    def test_an_extraction_part_offers_no_read_tool(self):
+    def test_an_extraction_part_offers_no_read_tool_and_no_step(self):
         _, calls = extract()
-        _, branches = final_branch(calls[0])
-        self.assertEqual([sorted(b["properties"]) for b in branches], [["action", "final"]])
+        self.assertEqual(calls[0]["response_format"]["json_schema"]["name"], "quiltor_reply")
+        self.assertNotIn("step", answer_schema(calls[0])["properties"])
         self.assertNotIn("READ-ONLY TOOL STEP CONTRACT", calls[0]["messages"][0]["content"])
+
+    def test_the_answer_lists_proposals_before_the_message(self):
+        _, calls = extract()
+        self.assertEqual(
+            list(answer_schema(calls[0])["properties"]), ["proposals", "citations", "message"]
+        )
+        system = calls[0]["messages"][0]["content"]
+        self.assertIn(EXTRACTION_REPLY_KEYS, system)
+        self.assertNotIn(REPLY_KEYS, system)
+
+    def test_a_chat_answer_keeps_its_order(self):
+        self.assertEqual(list(reply_schema()["properties"]), ["message", "citations", "proposals"])
+
+    def test_a_broken_answer_is_asked_for_twice_more_then_fails(self):
+        from quiltor.modules.assistant.ports import InferenceValidationError
+        from quiltor.modules.assistant.tool_loop import run_tool_loop
+
+        calls = []
+
+        def invoke(payload, _tokens):
+            calls.append(payload)
+            raise InferenceValidationError("schema: $.proposals maxItems")
+
+        payload = {
+            "messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+        }
+        with self.assertRaises(InferenceValidationError):
+            run_tool_loop(
+                payload,
+                allowed_proposal_kinds=["create_element"],
+                read_tools=StoryWorldReadTools(),
+                invoke=invoke,
+                count_tokens=len,
+                world_revision=0,
+                manuscript={},
+                figures={},
+                answer_only=True,
+            )
+        self.assertEqual(len(calls), 3)
 
 
 class ExtractionInstructionTests(unittest.TestCase):
@@ -118,7 +164,7 @@ class ExtractionInstructionTests(unittest.TestCase):
 
     def test_an_extracted_element_needs_a_type(self):
         _, calls = extract()
-        final, _ = final_branch(calls[0])
+        final = answer_schema(calls[0])
         untyped = {"message": "m", "citations": [], "proposals": [
             {"kind": "create_element", "tempId": "new:a", "element": {"name": "A"}}
         ]}  # fmt: skip
@@ -162,7 +208,7 @@ class SectionIdsInSearchManuscriptTests(unittest.TestCase):
 class ExtractionPartBudgetTests(unittest.TestCase):
     def test_the_part_lists_at_most_its_proposal_limit(self):
         _, calls = extract()
-        final, _ = final_branch(calls[0])
+        final = answer_schema(calls[0])
         self.assertEqual(final["properties"]["proposals"]["maxItems"], EXTRACTION_PART_PROPOSALS)
 
     def test_the_answer_reserve_takes_what_tools_and_the_read_round_left(self):

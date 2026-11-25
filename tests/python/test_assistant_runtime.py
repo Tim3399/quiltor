@@ -961,13 +961,8 @@ class AssistantRuntimeCompleteTests(unittest.TestCase):
             result["proposals"][0]["element"]["aliases"],
             [{"alias": "Die Botin", "source": "assistant"}],
         )
-        schema = inference.calls[0]["response_format"]["json_schema"]["schema"]
-        # Extraction offers the final branch only (T-369); find it by name, not position.
-        final = next(
-            branch["properties"]["final"]
-            for branch in schema["properties"]["step"]["anyOf"]
-            if "final" in branch["properties"]
-        )
+        # Extraction answers with the plain reply, without a step (T-369).
+        final = inference.calls[0]["response_format"]["json_schema"]["schema"]
         proposal_kinds = {
             branch["properties"]["kind"]["enum"][0]
             for branch in final["properties"]["proposals"]["items"]["anyOf"]

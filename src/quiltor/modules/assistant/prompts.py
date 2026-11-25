@@ -44,6 +44,8 @@ For arranging or sorting the board, use arrange_elements. Never invent timeline 
 Do not emit unknown keys or any proposal for manuscript text."""
 
 # World extraction (T-369): the part's text is in RAG CONTEXT and no read tools are offered.
+REPLY_KEYS = "Return valid JSON with keys message, citations, proposals."
+EXTRACTION_REPLY_KEYS = "Return valid JSON with keys proposals, citations, message."
 EXTRACTION_INSTRUCTION = """
 
 WORLD EXTRACTION: The manuscript excerpts of this part are in RAG CONTEXT; read them there. For every person, animal, place, organisation, object or concept the excerpts name that is not in the world state, emit create_element with its type. For every relationship, moment or presence the excerpts state, emit the matching operation. Use existing ids for what the world state already holds. Keep message to one or two sentences; the proposals carry the result."""
