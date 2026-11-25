@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { revisionFromEtag } from "./etag.ts";
+// Lives outside tests/e2e: Playwright would load a *.test.mjs there as a test file, and the
+// TAP output of node:test would corrupt its JSON listing (test-shards).
+import { revisionFromEtag } from "../../tests/e2e/support/etag.ts";
 
 test("reads the revision from plain, weak and proxy-extended ETags", () => {
   assert.equal(revisionFromEtag('"7"'), 7);
