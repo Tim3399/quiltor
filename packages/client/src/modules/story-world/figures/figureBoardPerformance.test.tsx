@@ -120,6 +120,47 @@ describe("figure board performance", () => {
     expect(result.current.nodes).toBe(before);
   });
 
+  it("does not rebuild the cards for a zoom step inside the overview tier", () => {
+    const state: FigureState = {
+      nodes: [{ id: "a", x: 0, y: 0, name: "Ada", type: "person" }],
+      edges: [],
+    };
+    const { result } = renderHook(
+      () =>
+        useFigureCanvas({
+          state,
+          onChange: vi.fn(),
+          selected: null,
+          timeline: EMPTY,
+          presence: EMPTY,
+          activeMomentId: null,
+          journeyOverlayOpen: false,
+          relationshipsVisible: true,
+          selectedEdgeId: null,
+          onSelectNode: vi.fn(),
+          onSelectEdge: vi.fn(),
+          onStopConnecting: vi.fn(),
+          onEnsureRelationshipsVisible: vi.fn(),
+          onConnectionError: vi.fn(),
+        }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <I18nProvider>
+            <ReactFlowProvider>{children}</ReactFlowProvider>
+          </I18nProvider>
+        ),
+      },
+    );
+    act(() => result.current.onMove({ x: 0, y: 0, zoom: 0.19 }));
+    const before = result.current.nodes;
+
+    act(() => result.current.onMove({ x: 0, y: 0, zoom: 0.22 }));
+
+    expect(result.current.zoomTier).toBe("overview");
+    expect(result.current.nodeZoom).toBe(0.22);
+    expect(result.current.nodes).toBe(before);
+  });
+
   it("skips rendering a card again when only its position or drag state changes", () => {
     const node = flowNode("a", 0);
     const props = {

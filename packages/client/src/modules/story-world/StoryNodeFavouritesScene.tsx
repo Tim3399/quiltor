@@ -69,7 +69,7 @@ function SceneNode({ data }: NodeProps<FigureFlowNode>) {
   return (
     <StoryNodeCard
       zoomTier={data.zoomTier}
-      viewportZoom={data.zoom}
+      viewportZoom={ZOOM}
       kind={item.type || "person"}
       important={!!item.important}
     >
@@ -98,7 +98,7 @@ export function StoryNodeFavouritesScene({ theme }: { theme: "light" | "dark" })
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
   // Favourites first: see the note above.
-  const nodes = createFigureFlowNodes([...FAVOURITES, ...ORDINARY], "overview", ZOOM);
+  const nodes = createFigureFlowNodes([...FAVOURITES, ...ORDINARY], "overview");
   return (
     <main
       className="design-story-page"

@@ -13,7 +13,6 @@ export type FigureCardData = {
   deceased: boolean;
   guests: FigureNodeModel[];
   zoomTier: SemanticZoomTier;
-  zoom: number;
 };
 
 export type FigureFlowNode = Node<FigureCardData>;
@@ -38,7 +37,6 @@ export const StoryNode = memo(function StoryNode({ data, selected }: NodeProps<F
   return (
     <StoryNodeCard
       zoomTier={data.zoomTier}
-      viewportZoom={data.zoom}
       kind={item.type || "person"}
       important={!!item.important}
       dashed={!!item.dash}

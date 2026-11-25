@@ -54,6 +54,8 @@ export type FigureCanvasController = {
   nodes: FigureFlowNode[];
   edges: Edge[];
   zoomTier: SemanticZoomTier;
+  /** The zoom the cards are sized for, set on the surface rather than on each card. */
+  nodeZoom: number;
   snapToGrid: boolean;
   gridOverride: boolean;
   setSnapToGrid: (value: boolean | ((current: boolean) => boolean)) => void;
@@ -117,11 +119,12 @@ export function useFigureCanvas({
     [state.nodes, presence, timeline, activeMomentId],
   );
   // A detail card does not read the zoom: its compact sizes and its overview scale only apply
-  // in the other tiers. Handing it the zoom rebuilt every card on every step of the wheel.
-  const cardZoom = zoomTier === "detail" ? 1 : viewportZoom;
+  // in the other tiers. The cards never get the zoom at all: the surface carries it as CSS
+  // variables (nodeZoom), so a step of the wheel renders no card (T-372).
+  const nodeZoom = zoomTier === "detail" ? 1 : viewportZoom;
   const derivedNodes = useMemo(
-    () => createFigureFlowNodes(state.nodes, zoomTier, cardZoom),
-    [state.nodes, zoomTier, cardZoom],
+    () => createFigureFlowNodes(state.nodes, zoomTier),
+    [state.nodes, zoomTier],
   );
   // Read only, by the derivedNodes effect below.
   const nodeContextRef = useLatest({ timeline, activeMomentId, guestsByPlace });
@@ -331,6 +334,7 @@ export function useFigureCanvas({
     nodes,
     edges,
     zoomTier,
+    nodeZoom,
     snapToGrid,
     gridOverride,
     setSnapToGrid,

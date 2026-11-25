@@ -107,7 +107,7 @@ export function FigureCanvas({
   children,
 }: FigureCanvasProps) {
   const { t } = useI18n();
-  const { nodes, edges, zoomTier } = controller;
+  const { nodes, edges, zoomTier, nodeZoom } = controller;
   const positionedEdges = useFigureEdgeLabels(nodes, edges, onSelectEdge);
   const nodesRef = useLatest(nodes);
   const pendingTouch = useRef<{
@@ -203,6 +203,7 @@ export function FigureCanvas({
       nodes={nodes}
       edges={positionedEdges}
       zoomTier={zoomTier}
+      nodeZoom={nodeZoom}
       className={`graph-edge-surface ${edgeInspector ? "has-edge-inspector" : ""} ${connecting ? "is-connecting" : ""} ${playing ? "timeline-playing" : ""}`}
       showGrid={controller.snapToGrid}
       gridSize={GRID_SIZE}

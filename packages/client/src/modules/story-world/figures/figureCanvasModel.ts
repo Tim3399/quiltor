@@ -52,7 +52,6 @@ export function countBoardElements(nodes: readonly FigureNode[]): number {
 export function createFigureFlowNodes(
   figures: FigureNode[],
   zoomTier: SemanticZoomTier,
-  viewportZoom: number,
 ): FigureFlowNode[] {
   return figures.filter(belongsOnFigureBoard).map((figure) => ({
     id: figure.id,
@@ -68,7 +67,6 @@ export function createFigureFlowNodes(
       deceased: false,
       guests: EMPTY_NODES,
       zoomTier,
-      zoom: viewportZoom,
     },
   }));
 }

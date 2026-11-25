@@ -11,11 +11,17 @@ import { type DOMAttributes, type ReactNode, useEffect, useRef, useState } from 
 import { useLatest } from "../../shared/hooks/useLatest";
 import { GraphViewportChrome, useArrangementLock } from "../graph";
 import type { SemanticZoomTier } from "./figures/relationships";
+import { storyNodeZoomStyle } from "./StoryNodeCard";
 
 export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType extends Edge = Edge> {
   nodes: NodeType[];
   edges: EdgeType[];
   zoomTier: SemanticZoomTier;
+  /**
+   * The zoom the cards are sized for. Given, the surface carries the cards' zoom variables
+   * and the cards inherit them, so a zoom step renders the surface and no card.
+   */
+  nodeZoom?: number;
   flowProps: Omit<
     ReactFlowProps<NodeType, EdgeType>,
     "nodes" | "edges" | "children" | "fitView" | "minZoom" | "maxZoom" | "deleteKeyCode"
@@ -55,6 +61,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   nodes,
   edges,
   zoomTier,
+  nodeZoom,
   flowProps,
   className = "",
   showGrid = true,
@@ -91,6 +98,7 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
     <div
       {...surfaceListeners}
       ref={surface}
+      style={nodeZoom === undefined ? undefined : storyNodeZoomStyle(zoomTier, nodeZoom)}
       className={`flow-area graph-viewport-surface zoom-${zoomTier} ${hasVisibleMinimap ? "has-minimap" : ""} ${className}`.trim()}
     >
       {overlay}

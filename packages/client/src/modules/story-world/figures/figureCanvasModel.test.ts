@@ -31,14 +31,14 @@ const state: FigureState = {
 
 describe("figure canvas model", () => {
   it("keeps node persistence flags and semantic LOD in the flow projection", () => {
-    const nodes = createFigureFlowNodes(state.nodes, "overview", 0.2);
+    const nodes = createFigureFlowNodes(state.nodes, "overview");
 
     expect(nodes.map((node) => node.position)).toEqual([
       { x: 0, y: 0 },
       { x: 300, y: 0 },
       { x: 150, y: 240 },
     ]);
-    expect(nodes[0].data).toMatchObject({ zoomTier: "overview", zoom: 0.2 });
+    expect(nodes[0].data).toMatchObject({ zoomTier: "overview" });
     expect(nodes[1].draggable).toBe(false);
 
     const withGuests = applyFigureNodeContext(

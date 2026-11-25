@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import { type FigureFlowNode, StoryNode } from "./figures/FigureNode";
 import { type PlaceFlowNode, PlaceNode } from "./places/PlaceNode";
+import { storyNodeZoomStyle } from "./StoryNodeCard";
 
 vi.mock("@xyflow/react", () => ({
   Handle: ({ className = "", id = "" }: { className?: string; id?: string }) => (
@@ -24,7 +25,6 @@ function renderFigureNode() {
       deceased: false,
       guests: [],
       zoomTier: "compact",
-      zoom: 0.4,
     },
   } as unknown as NodeProps<FigureFlowNode>;
 
@@ -98,8 +98,13 @@ describe("story-node cross-workspace consistency", () => {
     expect(figureNode.querySelector(".node-monogram")).toHaveTextContent("A");
     expect(placeNode.querySelector(".node-monogram")).toHaveTextContent("A");
 
-    expect(figureNode.style.cssText).not.toBe("");
-    expect(placeNode.style.cssText).toBe(figureNode.style.cssText);
+    // A figure card inherits its zoom variables from the surface (T-372); a place card still
+    // sets them itself. Both read the same values.
+    const surface = render(<div data-testid="surface" style={storyNodeZoomStyle("compact", 0.4)} />)
+      .container.firstElementChild as HTMLElement;
+    expect(figureNode.style.cssText).toBe("");
+    expect(surface.style.cssText).not.toBe("");
+    expect(placeNode.style.cssText).toBe(surface.style.cssText);
   });
 
   it("keeps shared LOD geometry out of feature-owned stylesheets", () => {
