@@ -316,22 +316,16 @@ function nearestPathRatio(geometry: PathGeometry, point: GraphPoint): number {
 function scoreCandidate(
   bounds: GraphRect,
   idealCenter: GraphPoint,
-  obstacles: readonly GraphRect[],
-  placedLabels: readonly GraphRect[],
-  clearance: number,
+  expandedRects: readonly GraphRect[],
   candidateIndex: number,
 ): CandidateScore {
   let collisions = 0;
   let totalOverlapArea = 0;
-  // Two passes instead of one over a merged copy: this runs per candidate, per label,
-  // per pointer move while a card is dragged.
-  for (const group of [obstacles, placedLabels]) {
-    for (const rect of group) {
-      const area = overlapArea(bounds, expandRect(rect, clearance));
-      if (area <= 0) continue;
-      collisions += 1;
-      totalOverlapArea += area;
-    }
+  for (const rect of expandedRects) {
+    const area = overlapArea(bounds, rect);
+    if (area <= 0) continue;
+    collisions += 1;
+    totalOverlapArea += area;
   }
   const centerX = bounds.x + bounds.width / 2;
   const centerY = bounds.y + bounds.height / 2;
@@ -341,6 +335,38 @@ function scoreCandidate(
     displacementSquared: (centerX - idealCenter.x) ** 2 + (centerY - idealCenter.y) ** 2,
     candidateIndex,
   };
+}
+
+/**
+ * The obstacles and placed labels, widened by the clearance, that can touch any of the
+ * candidates at all. Every candidate lies inside the box around all of them, so a rect
+ * outside that box scores nothing for any candidate; leaving it out changes no result and
+ * turns a pass over every card and label of the board into one over the few near this edge.
+ */
+export function rectsInReach(
+  candidates: readonly GraphRect[],
+  groups: readonly (readonly GraphRect[])[],
+  clearance: number,
+): GraphRect[] {
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const rect of candidates) {
+    left = Math.min(left, rect.x);
+    top = Math.min(top, rect.y);
+    right = Math.max(right, rect.x + rect.width);
+    bottom = Math.max(bottom, rect.y + rect.height);
+  }
+  const reach = { x: left, y: top, width: right - left, height: bottom - top };
+  const result: GraphRect[] = [];
+  for (const group of groups) {
+    for (const rect of group) {
+      const expanded = expandRect(rect, clearance);
+      if (overlapArea(reach, expanded) > 0) result.push(expanded);
+    }
+  }
+  return result;
 }
 
 function better(candidate: CandidateScore, current: CandidateScore): boolean {
@@ -425,25 +451,24 @@ export function placeGraphEdgeLabels(
     let bestPlacement: GraphEdgeLabelPlacement | undefined;
     let bestHitBounds: GraphRect | undefined;
     let bestScore: CandidateScore | undefined;
-    candidateRatios(geometry, idealRatio, step).forEach((pathRatio, candidateIndex) => {
+    const candidates = candidateRatios(geometry, idealRatio, step).map((pathRatio) => {
       const center = pathPointAt(geometry, pathRatio);
-      const bounds = boundsAt(center, size);
-      const hitBounds = boundsAt(center, hitSize);
-      const score = scoreCandidate(
-        hitBounds,
-        idealCenter,
-        normalizedObstacles,
-        placedBounds,
-        clearance,
-        candidateIndex,
-      );
+      return { pathRatio, center, hitBounds: boundsAt(center, hitSize) };
+    });
+    const inReach = rectsInReach(
+      candidates.map((candidate) => candidate.hitBounds),
+      [normalizedObstacles, placedBounds],
+      clearance,
+    );
+    candidates.forEach(({ pathRatio, center, hitBounds }, candidateIndex) => {
+      const score = scoreCandidate(hitBounds, idealCenter, inReach, candidateIndex);
       if (bestScore && !better(score, bestScore)) return;
       bestScore = score;
       bestHitBounds = hitBounds;
       bestPlacement = {
         id: request.id,
         center,
-        bounds,
+        bounds: boundsAt(center, size),
         candidateIndex,
         pathRatio,
         collides: score.collisions > 0,
