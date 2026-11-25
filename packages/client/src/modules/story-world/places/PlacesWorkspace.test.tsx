@@ -806,6 +806,19 @@ describe("active expanded map chrome", () => {
   };
   const second = { ...map, id: "seekarte", name: "Seekarte", mapX: 1800 };
 
+  it("counts the places drawn on an opened-out map in the toolbar (T-379)", () => {
+    const harbour = { ...child, id: "mole", name: "Mole", mapU: 0.6 };
+    const plain = { id: "kap", type: "ort" as const, name: "Kap", x: 900, y: 0 };
+    render(
+      <ControlledPlaces
+        initialState={{ nodes: [map, child, harbour, plain], edges: [] }}
+        onChange={vi.fn()}
+      />,
+    );
+    // The level holds the map and the cape; the map shows the harbour and the mole.
+    expect(screen.getByText("4 Orte")).toBeInTheDocument();
+  });
+
   it("keeps map identity while selecting a child and clearing canvas selection", () => {
     const { container } = render(
       <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
@@ -948,11 +961,25 @@ describe("active expanded map chrome", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Weltkarte öffnen" }));
     await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
-    expect(flowInstance.fitView.mock.calls[0][0]).toMatchObject({ padding: 0.12, maxZoom: 1 });
+    expect(flowInstance.fitView.mock.calls[0][0]).toMatchObject({ maxZoom: 1 });
 
     fireEvent.click(screen.getByTestId("place-node-hafen"));
     await act(async () => new Promise((resolve) => setTimeout(resolve, 120)));
     expect(flowInstance.fitView).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the fitted level clear of the minimap on a desktop-wide canvas (T-379)", async () => {
+    // The test environment reports a wide desktop canvas with a pointer, as at 1440px.
+    flowInstance.fitView.mockClear();
+    render(
+      <ControlledPlaces initialState={{ nodes: [map, child], edges: [] }} onChange={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Weltkarte öffnen" }));
+    await waitFor(() => expect(flowInstance.fitView).toHaveBeenCalledOnce());
+    // The minimap's 150px, its 14px inset and the 10px gap stay below what is framed.
+    expect(flowInstance.fitView.mock.calls[0][0]).toMatchObject({
+      padding: { x: 0.12, top: 0.12, bottom: "174px" },
+    });
   });
 
   it("fits the view on entering a level that holds only an opened-out map", async () => {

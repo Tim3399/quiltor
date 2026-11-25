@@ -13,7 +13,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useI18n } from "../../../i18n";
 import { useLatest } from "../../../shared/hooks/useLatest";
 import { uid } from "../../../shared/id";
-import { type MeasuredSizes, NO_MEASURED_SIZES, rememberMeasured, withMeasured } from "../../graph";
+import {
+  type MeasuredSizes,
+  minimapFitReserve,
+  NO_MEASURED_SIZES,
+  rememberMeasured,
+  withMeasured,
+} from "../../graph";
 import { GRID_SIZE, type SemanticZoomTier, semanticZoomTier } from "../figures/relationships";
 import type { FigureNode, FigureState, MapScale } from "../model";
 import type { PlaceGroundNode } from "./PlaceGround";
@@ -579,7 +585,16 @@ export function usePlaceCanvas({
   const fitViewOptions = useMemo(
     // Capped at life size: fitting to a single card would otherwise magnify it
     // until the level around it is gone, which is the opposite of framing.
-    () => ({ padding: 0.12, maxZoom: 1, ...(fitTargets.length ? { nodes: fitTargets } : {}) }),
+    // The lower edge keeps clear of the minimap: a fit that framed the far corner of a level
+    // put a whole opened-out map under it (T-379).
+    () => {
+      const reserve = minimapFitReserve();
+      return {
+        padding: reserve ? { x: 0.12, top: 0.12, bottom: `${reserve}px` as const } : 0.12,
+        maxZoom: 1,
+        ...(fitTargets.length ? { nodes: fitTargets } : {}),
+      };
+    },
     [fitTargets],
   );
   const latestFitOptionsRef = useLatest(fitViewOptions);

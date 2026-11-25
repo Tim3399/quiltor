@@ -9,6 +9,7 @@ export * from "./GraphEdgeInspector";
 export * from "./GraphEdgeLineStyleSelect";
 export * from "./GraphRelationshipEdge";
 export * from "./GraphViewportChrome";
+export * from "./minimapFit";
 export * from "./keyboard";
 export * from "./measuredNodes";
 export * from "./useArrangementLock";
