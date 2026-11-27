@@ -422,6 +422,28 @@ class AssistantToolLoopTests(unittest.TestCase):
         self.assertFalse(self._final_only(calls[1][0]))
         self.assertIn({"step": "tool_step_invalid", "count": 1}, result.trace)
 
+    def test_a_peg_format_500_gets_the_same_second_chance_as_an_invalid_step(self):
+        # T-399 (F-R2-1): the server's 500 for an unparsable step, as invoke_chat raises it.
+        from unittest.mock import patch
+
+        from quiltor.infrastructure.inference.shared.contract import invoke_chat
+        from tests.python.test_contract import PEG_FORMAT_500, http_error
+
+        with patch(
+            "quiltor.infrastructure.inference.shared.contract.urllib.request.urlopen",
+            side_effect=http_error(500, PEG_FORMAT_500),
+        ):
+            # Whatever invoke_chat raises is the case the loop gets.
+            with self.assertRaises(Exception) as raised:
+                invoke_chat("http://mock", {"messages": []})
+        result, calls, _read_tools = self._run([raised.exception, final_step("after the 500")])
+
+        self.assertIsNone(result.failure)
+        self.assertEqual(present(result.final)["message"], "after the 500")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1][0]["messages"][-1]["content"], INVALID_STEP_NOTE)
+        self.assertIn({"step": "tool_step_invalid", "count": 1}, result.trace)
+
     def test_two_invalid_steps_lead_to_a_final_only_call(self):
         schema_error = InferenceValidationError("schema: $.step anyOf")
         result, calls, _read_tools = self._run(
