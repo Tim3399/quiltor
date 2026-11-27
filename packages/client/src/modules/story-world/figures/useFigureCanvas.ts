@@ -119,9 +119,9 @@ export function useFigureCanvas({
     () => presenceByPlace(state.nodes, presence, timeline, activeMomentId),
     [state.nodes, presence, timeline, activeMomentId],
   );
-  // The cards never get the zoom: the surface carries it as CSS variables, written from React
-  // Flow's store (StoryGraphCanvas nodeZoomVariables), so a step of the wheel inside a tier
-  // renders neither a card nor the board (T-372).
+  // The cards never get the zoom: the surface carries it as CSS variables, written from the
+  // board's own zoom (nodeZoom), so a step of the wheel inside a tier renders neither a card
+  // nor the board (T-372).
   const derivedNodes = useMemo(
     () => createFigureFlowNodes(state.nodes, zoomTier),
     [state.nodes, zoomTier],
