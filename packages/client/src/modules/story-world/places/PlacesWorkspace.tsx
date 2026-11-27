@@ -139,11 +139,10 @@ function PlacesWorkspaceInner({
   const latestStateRef = useLatest(state);
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
-  // What the toolbar counts is what the level shows: its own places and the places standing
-  // on its opened-out maps. Counting the level alone said "3 Orte" over some sixty pins (T-379).
-  const drawnPlacesCount = useMemo(
+  // The places standing on this level's opened-out maps: the level draws them, so the toolbar
+  // names them beside the level's own count -- "3 Orte · 59 auf Karten" (T-379).
+  const placesOnMapsCount = useMemo(
     () =>
-      places.length +
       places
         .filter(isExpandedMap)
         .reduce((count, map) => count + placesOnLevel(state.nodes, map.id).length, 0),
@@ -588,7 +587,8 @@ function PlacesWorkspaceInner({
   return (
     <section className="places-workspace" aria-label={t("placesLabel")}>
       <PlaceToolbar
-        placesCount={drawnPlacesCount}
+        placesCount={places.length}
+        placesOnMapsCount={placesOnMapsCount}
         selected={selected}
         measuring={measuring}
         canUndo={canUndo}
@@ -736,7 +736,7 @@ function PlacesWorkspaceInner({
               />
             ) : null
           }
-          placesCount={drawnPlacesCount}
+          placesCount={places.length}
           measuring={measuring}
           measureSelection={measureSelection}
           scale={levelScale}

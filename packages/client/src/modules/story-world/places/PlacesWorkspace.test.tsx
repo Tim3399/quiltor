@@ -806,7 +806,7 @@ describe("active expanded map chrome", () => {
   };
   const second = { ...map, id: "seekarte", name: "Seekarte", mapX: 1800 };
 
-  it("counts the places drawn on an opened-out map in the toolbar (T-379)", () => {
+  it("names the places on an opened-out map beside the level's own count (T-379)", () => {
     const harbour = { ...child, id: "mole", name: "Mole", mapU: 0.6 };
     const plain = { id: "kap", type: "ort" as const, name: "Kap", x: 900, y: 0 };
     render(
@@ -816,7 +816,7 @@ describe("active expanded map chrome", () => {
       />,
     );
     // The level holds the map and the cape; the map shows the harbour and the mole.
-    expect(screen.getByText("4 Orte")).toBeInTheDocument();
+    expect(screen.getByText("2 Orte · 2 auf Karten")).toBeInTheDocument();
   });
 
   it("keeps map identity while selecting a child and clearing canvas selection", () => {

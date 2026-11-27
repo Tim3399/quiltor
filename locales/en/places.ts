@@ -32,6 +32,8 @@ export const places = {
   placeMapChrome: "Map: {name}",
   placeMapOnePlace: "1 place",
   placeMapPlaceCount: "{n} places",
+  placeMapOneOnMaps: "1 on a map",
+  placeMapOnMapsCount: "{n} on maps",
   placeMapGrid: "Grid",
   placeMapGridOff: "Off",
   placeMapGridUnits: "{n} px",
