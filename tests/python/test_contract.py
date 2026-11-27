@@ -59,6 +59,55 @@ class CountTokensTests(unittest.TestCase):
         )
 
 
+# T-399 (F-R2-1): llama-server answers a step it cannot parse with a 500 of its own. The text
+# is the server's, quoted as it arrives in the error body.
+PEG_FORMAT_500 = {
+    "error": {
+        "code": 500,
+        "message": "The model produced output that does not match the expected peg-native format",
+        "type": "server_error",
+    }
+}
+
+
+def http_error(status, body):
+    import io
+    import urllib.error
+
+    return urllib.error.HTTPError(
+        "http://mock/v1/chat/completions",
+        status,
+        "error",
+        {},
+        io.BytesIO(json.dumps(body).encode()),
+    )
+
+
+class PegFormatErrorTests(unittest.TestCase):
+    def test_a_peg_format_500_is_an_invalid_structured_answer_not_a_server_failure(self):
+        with patch(
+            "quiltor.infrastructure.inference.shared.contract.urllib.request.urlopen",
+            side_effect=http_error(500, PEG_FORMAT_500),
+        ):
+            with self.assertRaises(InferenceValidationError) as caught:
+                invoke_chat("http://mock", {"messages": []})
+        self.assertEqual(classify_assistant_error(caught.exception), "validation_error")
+        self.assertIn("peg-native", str(caught.exception))
+
+    def test_any_other_500_stays_an_http_error(self):
+        from quiltor.infrastructure.inference.shared.contract import InferenceHTTPError
+
+        other = {"error": {"code": 500, "message": "Internal error", "type": "server_error"}}
+        with patch(
+            "quiltor.infrastructure.inference.shared.contract.urllib.request.urlopen",
+            side_effect=http_error(500, other),
+        ):
+            with self.assertRaises(InferenceHTTPError) as caught:
+                invoke_chat("http://mock", {"messages": []})
+        self.assertNotIsInstance(caught.exception, InferenceValidationError)
+        self.assertEqual(caught.exception.status, 500)
+
+
 class InvokeChatTests(unittest.TestCase):
     def test_invalid_runtime_payload_preserves_the_validation_failure_code(self):
         for body in (

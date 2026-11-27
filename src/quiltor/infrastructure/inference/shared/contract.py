@@ -21,6 +21,9 @@ DEFAULT_CHAT_TIMEOUT_SECONDS = 600
 # An external provider's error body is cut to this much: enough for its message, not enough to
 # carry a pasted request back into a log line (T-58 P5).
 EXTERNAL_ERROR_DETAIL_CHARS = 300
+# The part of llama-server's 500 that names its own output parser: "The model produced output
+# that does not match the expected peg-native format" (b10430 and b12359, T-399).
+PEG_FORMAT_MARKER = "peg-native format"
 
 
 # How much of an error body is read at all, and how long a field taken from it may be.
@@ -159,6 +162,15 @@ def _http_error(exc: urllib.error.HTTPError, api_key: str | None, what: str) -> 
     message = f"{what} responded with HTTP {exc.code}: {detail}"
     if error.code == "context_too_large" and exc.code == 400:
         return InferenceContextTooLargeError(message)
+    if exc.code == 500 and PEG_FORMAT_MARKER in body:
+        # llama-server could not parse what the model wrote -- in the tool step a finished step
+        # followed by endless closing brackets (F-R2-1, T-399). That is an invalid structured
+        # answer, the same class a `length` answer ends in once growing the budget did not
+        # help, so the callers' own repair path (the tool loop's second chance) takes it. More
+        # output budget is not tried: the step was complete, the budget is not the cause.
+        return InferenceValidationError(
+            "The local model's answer did not match its server's output format (peg-native)."
+        )
     return InferenceHTTPError(
         message,
         exc.code,
