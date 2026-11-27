@@ -139,6 +139,15 @@ function PlacesWorkspaceInner({
   const latestStateRef = useLatest(state);
 
   const places = useMemo(() => placesOnLevel(state.nodes, levelId), [state.nodes, levelId]);
+  // The places standing on this level's opened-out maps: the level draws them, so the toolbar
+  // names them beside the level's own count -- "3 Orte · 59 auf Karten" (T-379).
+  const placesOnMapsCount = useMemo(
+    () =>
+      places
+        .filter(isExpandedMap)
+        .reduce((count, map) => count + placesOnLevel(state.nodes, map.id).length, 0),
+    [places, state.nodes],
+  );
   const activeMap = resolveActivePlaceMap(state.nodes, levelId, activeMapState);
   // Clear invalid identities as state changes, so undo cannot resurrect a
   // stale activation when several maps later reappear on this level.
@@ -579,6 +588,7 @@ function PlacesWorkspaceInner({
     <section className="places-workspace" aria-label={t("placesLabel")}>
       <PlaceToolbar
         placesCount={places.length}
+        placesOnMapsCount={placesOnMapsCount}
         selected={selected}
         measuring={measuring}
         canUndo={canUndo}

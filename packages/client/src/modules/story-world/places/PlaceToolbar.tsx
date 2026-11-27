@@ -30,6 +30,7 @@ import type { FigureNode } from "../model";
 
 export function PlaceToolbar({
   placesCount,
+  placesOnMapsCount = 0,
   selected,
   measuring,
   canUndo,
@@ -50,6 +51,8 @@ export function PlaceToolbar({
   onDelete,
 }: {
   placesCount: number;
+  /** Places standing on the level's opened-out maps; named beside the count when there are any. */
+  placesOnMapsCount?: number;
   selected: FigureNode | null;
   measuring: boolean;
   canUndo: boolean;
@@ -76,9 +79,16 @@ export function PlaceToolbar({
     <WorkspaceToolbar className="places-toolbar" label={t("places")}>
       <WorkspaceToolbarTitle
         title={t("places")}
-        detail={
-          placesCount === 1 ? t("placeMapOnePlace") : t("placeMapPlaceCount", { n: placesCount })
-        }
+        detail={[
+          placesCount === 1 ? t("placeMapOnePlace") : t("placeMapPlaceCount", { n: placesCount }),
+          ...(placesOnMapsCount > 0
+            ? [
+                placesOnMapsCount === 1
+                  ? t("placeMapOneOnMaps")
+                  : t("placeMapOnMapsCount", { n: placesOnMapsCount }),
+              ]
+            : []),
+        ].join(" · ")}
       />
       <WorkspaceToolbarActions
         create={

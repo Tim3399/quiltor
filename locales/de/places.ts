@@ -33,6 +33,8 @@ export const places = {
   placeMapChrome: "Karte: {name}",
   placeMapOnePlace: "1 Ort",
   placeMapPlaceCount: "{n} Orte",
+  placeMapOneOnMaps: "1 auf einer Karte",
+  placeMapOnMapsCount: "{n} auf Karten",
   placeMapGrid: "Raster",
   placeMapGridOff: "Aus",
   placeMapGridUnits: "{n} px",

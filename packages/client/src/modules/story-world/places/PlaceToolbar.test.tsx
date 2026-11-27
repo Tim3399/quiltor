@@ -5,11 +5,12 @@ import { PlaceToolbar } from "./PlaceToolbar";
 
 afterEach(cleanup);
 
-function renderToolbar(placesCount: number) {
+function renderToolbar(placesCount: number, placesOnMapsCount?: number) {
   render(
     <I18nProvider>
       <PlaceToolbar
         placesCount={placesCount}
+        placesOnMapsCount={placesOnMapsCount}
         selected={null}
         measuring={false}
         canUndo={false}
@@ -41,5 +42,21 @@ describe("places toolbar title", () => {
   it("counts several places in the plural", () => {
     renderToolbar(3);
     expect(screen.getByText("3 Orte")).toBeInTheDocument();
+  });
+
+  it("names the places on opened-out maps beside the level's own count (T-379)", () => {
+    renderToolbar(3, 59);
+    expect(screen.getByText("3 Orte · 59 auf Karten")).toBeInTheDocument();
+  });
+
+  it("names a single place on a map in the singular", () => {
+    renderToolbar(3, 1);
+    expect(screen.getByText("3 Orte · 1 auf einer Karte")).toBeInTheDocument();
+  });
+
+  it("says nothing about maps when none of them holds a place", () => {
+    renderToolbar(3, 0);
+    expect(screen.getByText("3 Orte")).toBeInTheDocument();
+    expect(screen.queryByText(/auf Karte/)).toBeNull();
   });
 });
