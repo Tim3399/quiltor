@@ -433,11 +433,10 @@ class AssistantToolLoopTests(unittest.TestCase):
             "quiltor.infrastructure.inference.shared.contract.urllib.request.urlopen",
             side_effect=http_error(500, PEG_FORMAT_500),
         ):
-            try:
+            # Whatever invoke_chat raises is the case the loop gets.
+            with self.assertRaises(Exception) as raised:
                 invoke_chat("http://mock", {"messages": []})
-            except Exception as exc:  # whatever invoke_chat raises is the case
-                peg_error = exc
-        result, calls, _read_tools = self._run([peg_error, final_step("after the 500")])
+        result, calls, _read_tools = self._run([raised.exception, final_step("after the 500")])
 
         self.assertIsNone(result.failure)
         self.assertEqual(present(result.final)["message"], "after the 500")

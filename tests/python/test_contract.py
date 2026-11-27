@@ -73,12 +73,13 @@ PEG_FORMAT_500 = {
 def http_error(status, body):
     import io
     import urllib.error
+    from email.message import Message
 
     return urllib.error.HTTPError(
         "http://mock/v1/chat/completions",
         status,
         "error",
-        {},
+        Message(),
         io.BytesIO(json.dumps(body).encode()),
     )
 
