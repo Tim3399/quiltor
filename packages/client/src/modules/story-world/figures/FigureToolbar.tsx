@@ -15,7 +15,6 @@ import {
   DropdownMenu,
   MenuItem,
   MenuSeparator,
-  MenuSubmenu,
   TextField,
   Toast,
   ToolbarButton,
@@ -56,8 +55,8 @@ export type FigureToolbarProps = {
 };
 
 /* Below this width the row of eight 44px controls no longer fits (it overflowed at 360px and
-   cut "Verwalten" off at 320px). There the "Zeit" toggle keeps its place and the view menu
-   moves into "Verwalten" as a submenu (T-328, the user's choice). 429px takes in every phone
+   cut "Verwalten" off at 320px). There the "Zeit" toggle keeps its place and the view menu's
+   controls join "Verwalten" as a section (T-328, D-262). 429px takes in every phone
    width up to 428px; at 430px the whole row was measured to fit. */
 const NARROW_TOOLBAR_QUERY = "(max-width: 429px)";
 
@@ -248,14 +247,6 @@ export function FigureToolbar({
                   />
                 )}
               >
-                {narrow && (
-                  <>
-                    <MenuSubmenu label={t("figureViewMenu")} icon={<Grid3X3 />}>
-                      {viewItems}
-                    </MenuSubmenu>
-                    <MenuSeparator />
-                  </>
-                )}
                 <MenuItem
                   icon={<Download />}
                   label={t("profiles")}
@@ -272,6 +263,14 @@ export function FigureToolbar({
                   label={t("import")}
                   onSelect={() => input.current?.click()}
                 />
+                {/* At phone width the view controls join this menu as a section of their own,
+                    usable directly rather than behind a submenu (T-328, D-262). */}
+                {narrow && (
+                  <>
+                    <MenuSeparator />
+                    {viewItems}
+                  </>
+                )}
               </DropdownMenu>
               <TextField
                 ref={input}

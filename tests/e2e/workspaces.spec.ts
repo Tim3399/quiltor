@@ -44,7 +44,8 @@ function waitForSuccessfulStoryWorldWrite(page: Page, payloadMarker: string) {
   );
 }
 
-/** Opens the figure board's view menu: in the toolbar, or inside "Verwalten" at phone width. */
+/** Opens the figure board's view controls: the toolbar's view menu, or "Verwalten" at phone
+ *  width, where they stand as a section of their own (T-328, D-262). */
 async function openFigureViewMenu(page: Page) {
   const view = page.getByRole("button", { name: "Ansicht", exact: true });
   if (await view.isVisible()) {
@@ -52,7 +53,6 @@ async function openFigureViewMenu(page: Page) {
     return;
   }
   await page.getByRole("button", { name: "Verwalten", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Ansicht", exact: true }).click();
 }
 
 async function expectKeyboardMenuContract(page: Page, triggerName: string, menuName = triggerName) {
