@@ -4,30 +4,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { createBoardZoom } from "./boardZoom";
 import { StoryGraphCanvas } from "./StoryGraphCanvas";
 import { storyNodeZoomStyle } from "./StoryNodeCard";
 
-const flowStore = vi.hoisted(() => {
-  const listeners = new Set<(state: { transform: [number, number, number] }) => void>();
-  const store = {
-    zoom: 1,
-    listeners,
-    getState: () => ({ transform: [0, 0, store.zoom] as [number, number, number] }),
-    subscribe: (listener: (state: { transform: [number, number, number] }) => void) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    /** Zooms the way React Flow's store does: listeners, no React render. */
-    setZoom(zoom: number) {
-      store.zoom = zoom;
-      for (const listener of listeners) listener(store.getState());
-    },
-  };
-  return store;
-});
-
 vi.mock("@xyflow/react", () => ({
-  useStoreApi: () => flowStore,
   BackgroundVariant: { Lines: "lines" },
   Background: () => <div data-testid="background" />,
   Controls: ({ children }: { children?: ReactNode }) => (
@@ -82,7 +63,8 @@ afterEach(cleanup);
 
 describe("StoryGraphCanvas", () => {
   it("writes the cards' zoom variables onto the surface on a zoom step, without a render", () => {
-    flowStore.zoom = 0.2;
+    const zoom = createBoardZoom();
+    zoom.set(0.2);
     let renders = 0;
     function Counted() {
       renders += 1;
@@ -94,7 +76,7 @@ describe("StoryGraphCanvas", () => {
           nodes={[]}
           edges={[]}
           zoomTier="overview"
-          nodeZoomVariables
+          nodeZoom={zoom}
           gridSize={20}
           flowProps={{}}
           flowChildren={<Counted />}
@@ -111,9 +93,8 @@ describe("StoryGraphCanvas", () => {
     );
     const rendered = renders;
 
-    flowStore.setZoom(0.2234);
+    zoom.set(0.22);
 
-    // Rounded to hundredths, as the board's own state did.
     expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
       expected(0.22).style.getPropertyValue("--node-compact-width"),
     );
@@ -122,8 +103,35 @@ describe("StoryGraphCanvas", () => {
     );
     expect(renders).toBe(rendered);
     view.unmount();
-    expect(flowStore.listeners.size).toBe(0);
-    flowStore.zoom = 1;
+    zoom.set(0.3);
+    expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
+      expected(0.22).style.getPropertyValue("--node-compact-width"),
+    );
+  });
+
+  it("opens with the variables of the tier its cards show, just under a tier boundary", () => {
+    // 0.337 is the overview; rounded it would be 0.34, the compact tier (F-372-1).
+    const zoom = createBoardZoom();
+    zoom.set(0.337);
+    const view = render(
+      <I18nProvider>
+        <StoryGraphCanvas
+          nodes={[]}
+          edges={[]}
+          zoomTier="overview"
+          nodeZoom={zoom}
+          gridSize={20}
+          flowProps={{}}
+        />
+      </I18nProvider>,
+    );
+    const surface = view.container.querySelector<HTMLElement>(".flow-area");
+    const expected = render(<div style={storyNodeZoomStyle("overview", 0.337)} />).container
+      .firstElementChild as HTMLElement;
+
+    expect(surface?.style.getPropertyValue("--semantic-scale")).toBe(
+      expected.style.getPropertyValue("--semantic-scale"),
+    );
   });
 
   it("provides graph chrome and suppresses the overview grid", () => {

@@ -3,10 +3,10 @@ import type { Translate } from "../../../i18n";
 import type { SemanticZoomTier } from "../figures/relationships";
 import type { FigureNode } from "../model";
 import { storyNodeZIndex } from "../storyNodeStacking";
-import { cropOf, type ImageCrop } from "./placeImageCrop";
-import type { PlaceMeasurementPoint } from "./placeMeasurementGraph";
 import type { PlaceGroundNode } from "./PlaceGround";
 import type { MapBox, PlaceMapFlowNode } from "./PlaceMapNode";
+import { type PlaceFlowNode, placePosition } from "./PlaceNode";
+import { cropOf, type ImageCrop } from "./placeImageCrop";
 import {
   anchoredPoint,
   hasLevelContents,
@@ -16,7 +16,7 @@ import {
   mapRect,
   spreadAnchor,
 } from "./placeLevels";
-import { type PlaceFlowNode, placePosition } from "./PlaceNode";
+import type { PlaceMeasurementPoint } from "./placeMeasurementGraph";
 
 export function createPlaceFlowNodes({
   nodes,

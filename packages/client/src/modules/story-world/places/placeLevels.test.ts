@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { FigureNode } from "../model";
 import {
+  ancestorsOf,
+  anchoredPoint,
   anchorForPoint,
   anchorOf,
-  anchoredPoint,
-  ancestorsOf,
   expandedRect,
   hasLevelContents,
   isExpandedMap,
@@ -14,10 +14,10 @@ import {
   placementForDrop,
   placesOnLevel,
   reparent,
-  spreadAnchor,
   scaleForLevel,
   scaleForPair,
   scaleForPoints,
+  spreadAnchor,
   subtreeOf,
   wouldCycle,
 } from "./placeLevels";

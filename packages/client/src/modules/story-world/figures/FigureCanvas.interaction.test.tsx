@@ -3,6 +3,7 @@ import type { Edge } from "@xyflow/react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
+import { createBoardZoom } from "../boardZoom";
 import { FigureCanvas } from "./FigureCanvas";
 import type { FigureFlowNode } from "./FigureNode";
 import type { FigureCanvasController } from "./useFigureCanvas";
@@ -77,6 +78,7 @@ function controller(edges: Edge[] = []): FigureCanvasController {
     nodes: [node],
     edges,
     zoomTier: "detail",
+    nodeZoom: createBoardZoom(),
     snapToGrid: true,
     gridOverride: false,
     setSnapToGrid: vi.fn(),

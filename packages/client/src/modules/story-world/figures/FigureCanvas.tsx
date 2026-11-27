@@ -114,7 +114,7 @@ export function FigureCanvas({
   children,
 }: FigureCanvasProps) {
   const { t } = useI18n();
-  const { nodes, edges, zoomTier } = controller;
+  const { nodes, edges, zoomTier, nodeZoom } = controller;
   const positionedEdges = useFigureEdgeLabels(nodes, edges, onSelectEdge);
   // Read only, by onEdgeClick below.
   const onSelectEdgeRef = useLatest(onSelectEdge);

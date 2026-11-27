@@ -1,5 +1,5 @@
-import type { FigureState, TimeSystem, TimeSystemKind, TimelineMoment } from "../model";
 import type { Translate, UiLocale } from "../../../i18n";
+import type { FigureState, TimelineMoment, TimeSystem, TimeSystemKind } from "../model";
 import { projectMomentTime, timeOfMoment } from "./timeSystem";
 
 function relativeMomentTimeLabel(system: TimeSystem, time: number, t: Translate): string {

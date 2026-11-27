@@ -8,7 +8,6 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { hasMapSize } from "./placeLevels";
 import {
   Button,
   IconButton,
@@ -25,6 +24,7 @@ import type { FigureNode, FigureState } from "../model";
 import { NodePriorityActions } from "../NodePriorityActions";
 import { PlaceHistory } from "./PlaceHistory";
 import { PlaceMapSection } from "./PlaceMapSection";
+import { hasMapSize } from "./placeLevels";
 import "./PlaceInspector.css";
 
 export function PlaceInspector({

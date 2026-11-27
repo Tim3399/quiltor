@@ -1,4 +1,4 @@
-import type { TimeSystem, TimelineMoment } from "../model";
+import type { TimelineMoment, TimeSystem } from "../model";
 
 export interface CalendarCoordinate {
   year: number;
