@@ -21,6 +21,8 @@ from quiltor.modules.assistant.batch import (
     _merge_accumulated,
     broad_scope_reply,
     estimate_batch_seconds,
+    open_choice_ids,
+    without_open_candidates,
 )
 from quiltor.modules.assistant.budget import (
     EXTRACTION_PART_PROPOSALS,
@@ -415,8 +417,16 @@ def remaining_manuscript(
                     sources.append(source)
         body = "\n\n".join(pieces)
         rest = {**chapter, "body": body}
-        if f"chapter-note:{chapter_id}" in covered:
-            rest["note"] = ""
+        done_note = covered.get(f"chapter-note:{chapter_id}")
+        if done_note is not None:
+            # The note chunk is the note with its whitespace collapsed (knowledge._clean). A note
+            # cut short goes on from its last whole word, like the text (F-330-5).
+            note = " ".join(str(rest.get("note") or "").split())
+            if len(done_note) < len(note):
+                cut = done_note.rfind(" ")
+                rest["note"] = note[max(cut, 0) :].strip()
+            else:
+                rest["note"] = ""
         left = left or bool(pieces) or bool(str(rest.get("note") or "").strip())
         chapters.append(rest)
         next_origin[chapter_id] = _part_sources(body, pieces, sources)
@@ -624,6 +634,7 @@ def complete_request(
         )
         sent = runtime._extraction_context
         result = _with_original_ids(result, origin)
+        result = without_open_candidates(result, open_choice_ids(results))
         if sent is not None:
             # What of the chapters this part carried, as paragraphs of the original chapter:
             # the trace shows the coverage without the prompt (T-330).
@@ -1168,6 +1179,10 @@ def _complete_once(
     )
     trace.extend(tool_loop.trace)
     prompt_tokens = tool_loop.prompt_tokens
+    if tool_loop.failure is not None and extraction_mode:
+        # A part of an extraction that could not answer is not read: an ordinary reply here was
+        # appended and its section counted as done (F-330-6). The run fails as a whole.
+        raise ExtractionPartFailedError(f"read step failed: {tool_loop.failure}")
     if tool_loop.failure is not None:
         calls = list(getattr(runtime, "_invocation_metrics", []))
         trace.append(

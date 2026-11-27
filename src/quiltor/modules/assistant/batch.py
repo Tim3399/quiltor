@@ -112,6 +112,63 @@ def _group_chapters_by_budget(
     return groups
 
 
+def open_choice_ids(results: list[dict[str, Any]]) -> set[str]:
+    """The tempIds of the ambiguous creates in ``results``: proposals that wait for the
+    author's choice and are never created as they stand (proposal_resolution, T-344)."""
+
+    return {
+        str((envelope.get("proposal") or {}).get("tempId"))
+        for result in results
+        for envelope in result.get("proposalEnvelopes") or []
+        if isinstance(envelope, dict)
+        and (envelope.get("resolution") or {}).get("outcome") == "ambiguous"
+    }
+
+
+def without_open_candidates(result: dict[str, Any], open_ids: set[str]) -> dict[str, Any]:
+    """``result`` with the open choices of earlier parts or groups taken out of its own
+    ambiguous proposals' candidates.
+
+    Earlier proposals stay folded into the next part's world, so the same name resolves to the
+    open proposal instead of becoming a second card with the same tempId (F-344-12). Only as a
+    candidate of another ambiguous mention it is wrong: it is not an element yet (F-344-10).
+    """
+
+    if not open_ids:
+        return result
+    envelopes = []
+    for envelope in result.get("proposalEnvelopes") or []:
+        resolution = envelope.get("resolution") if isinstance(envelope, dict) else None
+        if not isinstance(resolution, dict) or resolution.get("outcome") != "ambiguous":
+            envelopes.append(envelope)
+            continue
+        own = str((envelope.get("proposal") or {}).get("tempId"))
+        hidden = open_ids - {own}
+        envelopes.append(
+            {
+                **envelope,
+                "resolution": {
+                    **resolution,
+                    "candidateIds": [
+                        item for item in resolution.get("candidateIds") or [] if item not in hidden
+                    ],
+                    **(
+                        {
+                            "candidates": [
+                                item
+                                for item in resolution["candidates"]
+                                if str(item.get("id")) not in hidden
+                            ]
+                        }
+                        if isinstance(resolution.get("candidates"), list)
+                        else {}
+                    ),
+                },
+            }
+        )
+    return {**result, "proposalEnvelopes": envelopes}
+
+
 def _merge_accumulated(
     figures: dict[str, Any], accumulated: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -239,6 +296,8 @@ def run_batches(
         {"step": "batch_start", "groups": len(groups), "chapters": len(chapters)}
     ]
     accumulated: list[dict[str, Any]] = []
+    # The ambiguous creates of earlier groups: no candidate for a later one (F-344-10).
+    earlier: list[dict[str, Any]] = []
     notes: list[str] = []
     citations: list[str] = []
     sources: list[dict[str, Any]] = []
@@ -286,6 +345,7 @@ def run_batches(
                 mode=mode,
                 **extra,
             )
+            result = without_open_candidates(result, open_choice_ids(earlier))
             if result.get("clarification"):
                 known_ids = {str(item.get("id")) for item in clarification_candidates}
                 clarification_candidates.extend(
@@ -339,6 +399,7 @@ def run_batches(
                     for proposal in proposals
                 )
             accumulated.extend(proposals)
+            earlier.append(result)
             if result.get("message"):
                 notes.append(f"{label}: {result['message']}")
             # The parts a chapter of this group was taken in, and what each carried (T-330).
