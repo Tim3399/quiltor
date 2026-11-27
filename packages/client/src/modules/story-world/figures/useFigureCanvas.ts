@@ -9,8 +9,9 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../../i18n";
-import { uid } from "../../../shared/id";
 import { useLatest } from "../../../shared/hooks/useLatest";
+import { uid } from "../../../shared/id";
+import { type BoardZoom, createBoardZoom, roundedBoardZoom } from "../boardZoom";
 import type { FigureKind, FigureNode, FigureState, PresenceEntry, TimelineMoment } from "../model";
 import type { FigureFlowNode } from "./FigureNode";
 import {
@@ -54,6 +55,8 @@ export type FigureCanvasController = {
   nodes: FigureFlowNode[];
   edges: Edge[];
   zoomTier: SemanticZoomTier;
+  /** The zoom the cards are sized for; the tier above is read from it (T-372). */
+  nodeZoom: BoardZoom;
   snapToGrid: boolean;
   gridOverride: boolean;
   setSnapToGrid: (value: boolean | ((current: boolean) => boolean)) => void;
@@ -90,7 +93,7 @@ export function useFigureCanvas({
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [gridOverride, setGridOverride] = useState(false);
   const [zoomTier, setZoomTier] = useState<SemanticZoomTier>("detail");
-  const [viewportZoom, setViewportZoom] = useState(1);
+  const [nodeZoom] = useState(createBoardZoom);
   const flow = useRef<ReactFlowInstance<FigureFlowNode, Edge> | null>(null);
   const updateNodeInternals = useUpdateNodeInternals();
   // Writable: commitNodePosition and alignAllNodes move it ahead to the value they hand to
@@ -116,12 +119,12 @@ export function useFigureCanvas({
     () => presenceByPlace(state.nodes, presence, timeline, activeMomentId),
     [state.nodes, presence, timeline, activeMomentId],
   );
-  // A detail card does not read the zoom: its compact sizes and its overview scale only apply
-  // in the other tiers. Handing it the zoom rebuilt every card on every step of the wheel.
-  const cardZoom = zoomTier === "detail" ? 1 : viewportZoom;
+  // The cards never get the zoom: the surface carries it as CSS variables, written from the
+  // board's own zoom (nodeZoom), so a step of the wheel inside a tier renders neither a card
+  // nor the board (T-372).
   const derivedNodes = useMemo(
-    () => createFigureFlowNodes(state.nodes, zoomTier, cardZoom),
-    [state.nodes, zoomTier, cardZoom],
+    () => createFigureFlowNodes(state.nodes, zoomTier),
+    [state.nodes, zoomTier],
   );
   // Read only, by the derivedNodes effect below.
   const nodeContextRef = useLatest({ timeline, activeMomentId, guestsByPlace });
@@ -331,6 +334,7 @@ export function useFigureCanvas({
     nodes,
     edges,
     zoomTier,
+    nodeZoom,
     snapToGrid,
     gridOverride,
     setSnapToGrid,
@@ -341,15 +345,13 @@ export function useFigureCanvas({
     onConnect,
     onInit: (instance) => {
       flow.current = instance;
-      const zoom = instance.getZoom();
-      setViewportZoom(zoom);
-      setZoomTier(semanticZoomTier(zoom));
+      nodeZoom.set(instance.getZoom());
+      setZoomTier(semanticZoomTier(nodeZoom.current));
     },
     onMove: (viewport) => {
-      const zoom = Math.round(viewport.zoom * 100) / 100;
-      setViewportZoom((current) => (current === zoom ? current : zoom));
+      nodeZoom.set(roundedBoardZoom(viewport.zoom));
       setZoomTier((current) => {
-        const next = semanticZoomTier(zoom);
+        const next = semanticZoomTier(nodeZoom.current);
         return current === next ? current : next;
       });
     },

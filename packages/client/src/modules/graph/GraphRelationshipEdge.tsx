@@ -6,10 +6,10 @@ import {
   getSmoothStepPath,
   type Node,
   Position,
-  useStore,
+  useStoreApi,
 } from "@xyflow/react";
 import { Clock3, GitFork } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useLayoutEffect, useRef } from "react";
 import { Button } from "../../design";
 import { GRAPH_CONNECTION_HANDLES } from "./connectionModel";
 import {
@@ -295,6 +295,14 @@ type InteractiveGraphEdgeLabelProps = {
   children: ReactNode;
 };
 
+function labelHitTargetSize(labelSize: GraphSize, viewportZoom: number): GraphSize {
+  const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
+  return {
+    width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+    height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
+  };
+}
+
 function InteractiveGraphEdgeLabel({
   id,
   className,
@@ -304,13 +312,14 @@ function InteractiveGraphEdgeLabel({
   onLabelClick,
   children,
 }: InteractiveGraphEdgeLabelProps) {
-  const viewportZoom = useStore((state) => state.transform[2]);
-  const safeViewportZoom = viewportZoom > 0 ? viewportZoom : 1;
+  // The zoom is read from the store, not subscribed to through React: a subscription rendered
+  // every label of the board again on every step of the wheel (T-372). The listener below
+  // writes the new hit area straight onto the button; a render for any other reason reads
+  // the zoom of that moment, so both always agree.
+  const store = useStoreApi();
+  const button = useRef<HTMLButtonElement>(null);
   const hitTargetSize = labelSize
-    ? {
-        width: Math.max(labelSize.width, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
-        height: Math.max(labelSize.height, INTERACTIVE_TARGET_SIZE / safeViewportZoom),
-      }
+    ? labelHitTargetSize(labelSize, store.getState().transform[2])
     : undefined;
   const hitTargetStyle = hitTargetSize
     ? {
@@ -321,9 +330,27 @@ function InteractiveGraphEdgeLabel({
         minHeight: `${hitTargetSize.height}px`,
       }
     : positionStyle;
+  const labelWidth = labelSize?.width;
+  const labelHeight = labelSize?.height;
+  useLayoutEffect(() => {
+    if (labelWidth === undefined || labelHeight === undefined) return;
+    let zoom = store.getState().transform[2];
+    return store.subscribe((state) => {
+      if (state.transform[2] === zoom) return;
+      zoom = state.transform[2];
+      const element = button.current;
+      if (!element) return;
+      const size = labelHitTargetSize({ width: labelWidth, height: labelHeight }, zoom);
+      element.style.width = `${size.width}px`;
+      element.style.height = `${size.height}px`;
+      element.style.minWidth = `${size.width}px`;
+      element.style.minHeight = `${size.height}px`;
+    });
+  }, [store, labelWidth, labelHeight]);
 
   return (
     <Button
+      ref={button}
       appearance="ghost"
       size="compact"
       labelOverflow="visible"

@@ -8,6 +8,7 @@ import { GRAPH_RELATIONSHIP_EDGE_TYPE, positionGraphRelationshipEdgeLabels } fro
 import type { FigureState } from "../model";
 import { useFigureEdgeLabels } from "./FigureCanvas";
 import { type FigureFlowNode, storyNodePropsEqual } from "./FigureNode";
+import { semanticZoomTier } from "./relationships";
 import { useFigureCanvas } from "./useFigureCanvas";
 
 const EMPTY: never[] = [];
@@ -23,7 +24,6 @@ function flowNode(id: string, x: number, extra: Partial<FigureFlowNode> = {}): F
       deceased: false,
       guests: EMPTY,
       zoomTier: "detail",
-      zoom: 1,
     },
     ...extra,
   };
@@ -118,6 +118,91 @@ describe("figure board performance", () => {
     act(() => result.current.onMove({ x: 0, y: 0, zoom: 1.25 }));
 
     expect(result.current.nodes).toBe(before);
+  });
+
+  it("does not rebuild the cards for a zoom step inside the overview tier", () => {
+    const state: FigureState = {
+      nodes: [{ id: "a", x: 0, y: 0, name: "Ada", type: "person" }],
+      edges: [],
+    };
+    const { result } = renderHook(
+      () =>
+        useFigureCanvas({
+          state,
+          onChange: vi.fn(),
+          selected: null,
+          timeline: EMPTY,
+          presence: EMPTY,
+          activeMomentId: null,
+          journeyOverlayOpen: false,
+          relationshipsVisible: true,
+          selectedEdgeId: null,
+          onSelectNode: vi.fn(),
+          onSelectEdge: vi.fn(),
+          onStopConnecting: vi.fn(),
+          onEnsureRelationshipsVisible: vi.fn(),
+          onConnectionError: vi.fn(),
+        }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <I18nProvider>
+            <ReactFlowProvider>{children}</ReactFlowProvider>
+          </I18nProvider>
+        ),
+      },
+    );
+    act(() => result.current.onMove({ x: 0, y: 0, zoom: 0.19 }));
+    const before = result.current;
+
+    act(() => result.current.onMove({ x: 0, y: 0, zoom: 0.22 }));
+
+    // Not even the board renders: the zoom inside a tier is no React state (T-372).
+    expect(result.current).toBe(before);
+    expect(result.current.zoomTier).toBe("overview");
+  });
+
+  it("sizes the cards by the tier they show when the view opens just under a tier boundary", () => {
+    const state: FigureState = {
+      nodes: [{ id: "a", x: 0, y: 0, name: "Ada", type: "person" }],
+      edges: [],
+    };
+    const { result } = renderHook(
+      () =>
+        useFigureCanvas({
+          state,
+          onChange: vi.fn(),
+          selected: null,
+          timeline: EMPTY,
+          presence: EMPTY,
+          activeMomentId: null,
+          journeyOverlayOpen: false,
+          relationshipsVisible: true,
+          selectedEdgeId: null,
+          onSelectNode: vi.fn(),
+          onSelectEdge: vi.fn(),
+          onStopConnecting: vi.fn(),
+          onEnsureRelationshipsVisible: vi.fn(),
+          onConnectionError: vi.fn(),
+        }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <I18nProvider>
+            <ReactFlowProvider>{children}</ReactFlowProvider>
+          </I18nProvider>
+        ),
+      },
+    );
+
+    // 0.337 rounds to 0.34, the compact tier; the fitted view itself is still the overview.
+    act(() =>
+      result.current.onInit({ getZoom: () => 0.337 } as unknown as Parameters<
+        typeof result.current.onInit
+      >[0]),
+    );
+
+    expect(result.current.zoomTier).toBe("overview");
+    expect(result.current.nodeZoom.current).toBe(0.337);
+    expect(semanticZoomTier(result.current.nodeZoom.current)).toBe(result.current.zoomTier);
   });
 
   it("skips rendering a card again when only its position or drag state changes", () => {

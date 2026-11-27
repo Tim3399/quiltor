@@ -7,6 +7,9 @@ import type { Manuscript } from "../../manuscript";
 import type { FigureState } from "../model";
 import { FigureWorkspace } from "./FigureWorkspace";
 
+// The edges the board handed to React Flow last, to see whether a zoom step built them anew.
+const renderedEdges: { current: unknown } = { current: null };
+
 vi.mock("@xyflow/react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@xyflow/react")>()),
   ReactFlowProvider: ({ children }: { children: ReactNode }) => children,
@@ -39,79 +42,85 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
     onMove: (event: null, viewport: { x: number; y: number; zoom: number }) => void;
     onNodeClick: (event: null, node: { id: string }) => void;
     onPaneClick?: () => void;
-  }) => (
-    <div
-      data-testid="figure-flow"
-      data-connection-line-type={connectionLineType}
-      data-default-edge-type={defaultEdgeOptions?.type}
-    >
-      {nodes.map((node) => (
-        <div key={node.id}>
-          <output aria-label={`Kontext ${node.id}`}>
-            {String(node.data.deceased)}:{node.data.zoomTier}
-          </output>
-          <button type="button" onClick={() => onNodeClick(null, node)}>
-            Testauswahl {node.id}
+  }) => {
+    renderedEdges.current = edges;
+    return (
+      <div
+        data-testid="figure-flow"
+        data-connection-line-type={connectionLineType}
+        data-default-edge-type={defaultEdgeOptions?.type}
+      >
+        {nodes.map((node) => (
+          <div key={node.id}>
+            <output aria-label={`Kontext ${node.id}`}>
+              {String(node.data.deceased)}:{node.data.zoomTier}
+            </output>
+            <button type="button" onClick={() => onNodeClick(null, node)}>
+              Testauswahl {node.id}
+            </button>
+          </div>
+        ))}
+        {edges.map((edge) => (
+          <button
+            type="button"
+            data-testid="rendered-relationship"
+            data-edge-id={edge.id}
+            key={edge.id}
+            onClick={() => onEdgeClick?.(null, edge)}
+          >
+            Kante {edge.id}
           </button>
-        </div>
-      ))}
-      {edges.map((edge) => (
+        ))}
+        {children}
         <button
           type="button"
-          data-testid="rendered-relationship"
-          data-edge-id={edge.id}
-          key={edge.id}
-          onClick={() => onEdgeClick?.(null, edge)}
+          disabled={!nodesConnectable}
+          onClick={() =>
+            onConnect({
+              source: "a",
+              target: "b",
+              sourceHandle: "neutral-bottom",
+              targetHandle: "neutral-top",
+            })
+          }
         >
-          Kante {edge.id}
+          Testverbindung eins
         </button>
-      ))}
-      {children}
-      <button
-        type="button"
-        disabled={!nodesConnectable}
-        onClick={() =>
-          onConnect({
-            source: "a",
-            target: "b",
-            sourceHandle: "neutral-bottom",
-            targetHandle: "neutral-top",
-          })
-        }
-      >
-        Testverbindung eins
-      </button>
-      <button
-        type="button"
-        disabled={!nodesConnectable}
-        onClick={() =>
-          onConnect({ source: "a", target: "c", sourceHandle: "out", targetHandle: "in" })
-        }
-      >
-        Testverbindung zwei
-      </button>
-      <button
-        type="button"
-        disabled={!nodesConnectable}
-        onClick={() =>
-          onConnect({
-            source: "b",
-            target: "c",
-            sourceHandle: "neutral-bottom",
-            targetHandle: "neutral-top",
-          })
-        }
-      >
-        Testverbindung drei
-      </button>
-      <button type="button" onClick={() => onMove(null, { x: 0, y: 0, zoom: 0.2 })}>
-        Testzoom
-      </button>
-      <button type="button" onClick={onPaneClick}>
-        Leere Fläche
-      </button>
-    </div>
-  ),
+        <button
+          type="button"
+          disabled={!nodesConnectable}
+          onClick={() =>
+            onConnect({ source: "a", target: "c", sourceHandle: "out", targetHandle: "in" })
+          }
+        >
+          Testverbindung zwei
+        </button>
+        <button
+          type="button"
+          disabled={!nodesConnectable}
+          onClick={() =>
+            onConnect({
+              source: "b",
+              target: "c",
+              sourceHandle: "neutral-bottom",
+              targetHandle: "neutral-top",
+            })
+          }
+        >
+          Testverbindung drei
+        </button>
+        <button type="button" onClick={() => onMove(null, { x: 0, y: 0, zoom: 0.2 })}>
+          Testzoom
+        </button>
+        <button type="button" onClick={() => onMove(null, { x: 0, y: 0, zoom: 0.22 })}>
+          Testzoom weiter
+        </button>
+        <button type="button" onClick={onPaneClick}>
+          Leere Fläche
+        </button>
+      </div>
+    );
+  },
   Background: () => null,
   Controls: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   ControlButton: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -128,6 +137,10 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
   Position: { Bottom: "bottom", Left: "left", Right: "right", Top: "top" },
   applyNodeChanges: (_changes: unknown, nodes: unknown) => nodes,
   useUpdateNodeInternals: () => vi.fn(),
+  useStoreApi: () => ({
+    getState: () => ({ transform: [0, 0, 1] }),
+    subscribe: () => () => {},
+  }),
 }));
 
 afterEach(cleanup);
@@ -182,6 +195,24 @@ function NewElementHarness() {
 }
 
 describe("FigureWorkspace relationships", () => {
+  it("hands React Flow the same edges after a zoom step inside a tier", () => {
+    render(
+      <EdgeInspectorHarness
+        initial={{
+          ...initialState,
+          edges: [{ id: "ab", from: "a", to: "b", label: "kennt" }],
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Testzoom" }));
+    const before = renderedEdges.current;
+
+    fireEvent.click(screen.getByRole("button", { name: "Testzoom weiter" }));
+
+    expect(before).not.toBeNull();
+    expect(renderedEdges.current).toBe(before);
+  });
+
   it("offers a useful first action instead of an empty grid", () => {
     render(<EmptyFigureHarness />);
 

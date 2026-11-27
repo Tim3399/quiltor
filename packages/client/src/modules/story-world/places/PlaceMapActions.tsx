@@ -12,7 +12,7 @@ import {
 import { IconButton } from "../../../design";
 import { useI18n } from "../../../i18n";
 import type { FigureNode } from "../model";
-import { type ImageCrop, IMAGE_ZOOM_RANGE, zoomedCrop } from "./placeImageCrop";
+import { IMAGE_ZOOM_RANGE, type ImageCrop, zoomedCrop } from "./placeImageCrop";
 
 export interface PlaceMapActionsProps {
   map: FigureNode;

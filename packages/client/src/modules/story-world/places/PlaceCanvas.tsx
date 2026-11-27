@@ -14,12 +14,12 @@ import { type ActivePlaceMapChromeProps, PlaceMapChromeOverlay } from "./PlaceMa
 import { PlaceMapEdgeHint } from "./PlaceMapEdgeHint";
 import { PlaceMapFrameProvider } from "./PlaceMapFrameContext";
 import { PlaceMapNode } from "./PlaceMapNode";
-import { measureClickTarget } from "./placeCanvasModel";
-import { PlaceMeasurePoint } from "./PlaceMeasurePoint";
 import { PlaceMeasurementOverlay } from "./PlaceMeasurementOverlay";
-import type { MeasureTarget } from "./placeCanvasModel";
-import { PlaceScaleCalibration, placeAt, useCalibrationGesture } from "./PlaceScaleCalibration";
+import { PlaceMeasurePoint } from "./PlaceMeasurePoint";
 import { type PlaceCardData, type PlaceFlowNode, placeNodeTypes } from "./PlaceNode";
+import { PlaceScaleCalibration, placeAt, useCalibrationGesture } from "./PlaceScaleCalibration";
+import type { MeasureTarget } from "./placeCanvasModel";
+import { measureClickTarget } from "./placeCanvasModel";
 import type { PlaceCanvasController } from "./usePlaceCanvas";
 import "./PlaceCanvas.css";
 

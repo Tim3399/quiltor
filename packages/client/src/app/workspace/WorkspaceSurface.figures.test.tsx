@@ -28,6 +28,10 @@ vi.mock("@xyflow/react", async (importOriginal) => ({
   Position: { Bottom: "bottom", Left: "left", Right: "right", Top: "top" },
   applyNodeChanges: (_changes: unknown, nodes: unknown) => nodes,
   useUpdateNodeInternals: () => vi.fn(),
+  useStoreApi: () => ({
+    getState: () => ({ transform: [0, 0, 1] }),
+    subscribe: () => () => {},
+  }),
 }));
 
 const manuscript = {

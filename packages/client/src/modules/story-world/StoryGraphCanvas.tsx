@@ -7,15 +7,29 @@ import {
   ReactFlow,
   type ReactFlowProps,
 } from "@xyflow/react";
-import { type DOMAttributes, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type DOMAttributes,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLatest } from "../../shared/hooks/useLatest";
 import { GraphViewportChrome, useArrangementLock } from "../graph";
-import type { SemanticZoomTier } from "./figures/relationships";
+import type { BoardZoom } from "./boardZoom";
+import { type SemanticZoomTier, semanticZoomTier } from "./figures/relationships";
+import { storyNodeZoomStyle } from "./StoryNodeCard";
 
 export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType extends Edge = Edge> {
   nodes: NodeType[];
   edges: EdgeType[];
   zoomTier: SemanticZoomTier;
+  /**
+   * The zoom the cards are sized for. Given, the surface carries the cards' zoom variables
+   * and the cards inherit them; the surface follows it without a render (T-372).
+   */
+  nodeZoom?: BoardZoom;
   flowProps: Omit<
     ReactFlowProps<NodeType, EdgeType>,
     "nodes" | "edges" | "children" | "fitView" | "minZoom" | "maxZoom" | "deleteKeyCode"
@@ -50,11 +64,22 @@ export interface StoryGraphCanvasProps<NodeType extends Node = Node, EdgeType ex
   >;
 }
 
+/** What the surface holds before the board reports a zoom: the detail tier at zoom 1. */
+const INITIAL_ZOOM_VARIABLES = storyNodeZoomStyle("detail", 1);
+
+function writeZoomVariables(element: HTMLElement, zoom: number) {
+  const tier = semanticZoomTier(zoom);
+  // A detail card does not read them; the board handed it 1 there.
+  const style = storyNodeZoomStyle(tier, tier === "detail" ? 1 : zoom);
+  for (const [name, value] of Object.entries(style)) element.style.setProperty(name, String(value));
+}
+
 /** Shared React Flow scaffold for story-world canvases. */
 export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
   nodes,
   edges,
   zoomTier,
+  nodeZoom,
   flowProps,
   className = "",
   showGrid = true,
@@ -87,10 +112,20 @@ export function StoryGraphCanvas<NodeType extends Node, EdgeType extends Edge>({
     return () => observer.disconnect();
   }, []);
 
+  // A layout effect of the canvas itself: the surface's ref is set by then, so the first paint
+  // already carries the board's zoom.
+  useLayoutEffect(() => {
+    const element = surface.current;
+    if (!nodeZoom || !element) return;
+    writeZoomVariables(element, nodeZoom.current);
+    return nodeZoom.subscribe((zoom) => writeZoomVariables(element, zoom));
+  }, [nodeZoom]);
+
   return (
     <div
       {...surfaceListeners}
       ref={surface}
+      style={nodeZoom ? INITIAL_ZOOM_VARIABLES : undefined}
       className={`flow-area graph-viewport-surface zoom-${zoomTier} ${hasVisibleMinimap ? "has-minimap" : ""} ${className}`.trim()}
     >
       {overlay}

@@ -19,9 +19,29 @@ function safeViewportZoom(viewportZoom: number): number {
   return Number.isFinite(viewportZoom) && viewportZoom > 0 ? Math.max(viewportZoom, 0.08) : 1;
 }
 
+/**
+ * The zoom-dependent sizes of a card, as CSS variables. A canvas sets them once on its
+ * surface and every card inherits them; a card that sets them itself had to render again
+ * on every step of the wheel, which on a large world was a commit per card (T-372).
+ */
+export function storyNodeZoomStyle(
+  zoomTier: SemanticZoomTier,
+  viewportZoom: number,
+): CSSProperties {
+  const safeZoom = safeViewportZoom(viewportZoom);
+  return {
+    "--semantic-scale": zoomTier === "overview" ? 1 / safeZoom : 1,
+    "--node-compact-height": `${storyNodeCompactLayoutHeight(viewportZoom, 32.5)}px`,
+    "--node-compact-touch-height": `${storyNodeCompactLayoutHeight(viewportZoom, 45)}px`,
+    "--node-compact-width": `${storyNodeCompactLayoutWidth(viewportZoom, 98)}px`,
+    "--node-compact-font-size": `${14 / safeZoom}px`,
+  } as CSSProperties;
+}
+
 export interface StoryNodeCardProps extends HTMLAttributes<HTMLDivElement> {
   zoomTier: SemanticZoomTier;
-  viewportZoom: number;
+  /** Left out when the canvas sets the zoom variables on its surface. */
+  viewportZoom?: number;
   kind?: CardKind;
   important?: boolean;
   selected?: boolean;
@@ -42,14 +62,7 @@ export function StoryNodeCard({
   style,
   ...props
 }: StoryNodeCardProps) {
-  const safeZoom = safeViewportZoom(viewportZoom);
-  const lodStyle = {
-    "--semantic-scale": zoomTier === "overview" ? 1 / safeZoom : 1,
-    "--node-compact-height": `${storyNodeCompactLayoutHeight(viewportZoom, 32.5)}px`,
-    "--node-compact-touch-height": `${storyNodeCompactLayoutHeight(viewportZoom, 45)}px`,
-    "--node-compact-width": `${storyNodeCompactLayoutWidth(viewportZoom, 98)}px`,
-    "--node-compact-font-size": `${14 / safeZoom}px`,
-  } as CSSProperties;
+  const lodStyle = viewportZoom === undefined ? {} : storyNodeZoomStyle(zoomTier, viewportZoom);
 
   return (
     <div

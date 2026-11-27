@@ -4,7 +4,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { createBoardZoom } from "./boardZoom";
 import { StoryGraphCanvas } from "./StoryGraphCanvas";
+import { storyNodeZoomStyle } from "./StoryNodeCard";
 
 vi.mock("@xyflow/react", () => ({
   BackgroundVariant: { Lines: "lines" },
@@ -60,6 +62,78 @@ vi.mock("@xyflow/react", () => ({
 afterEach(cleanup);
 
 describe("StoryGraphCanvas", () => {
+  it("writes the cards' zoom variables onto the surface on a zoom step, without a render", () => {
+    const zoom = createBoardZoom();
+    zoom.set(0.2);
+    let renders = 0;
+    function Counted() {
+      renders += 1;
+      return null;
+    }
+    const view = render(
+      <I18nProvider>
+        <StoryGraphCanvas
+          nodes={[]}
+          edges={[]}
+          zoomTier="overview"
+          nodeZoom={zoom}
+          gridSize={20}
+          flowProps={{}}
+          flowChildren={<Counted />}
+        />
+      </I18nProvider>,
+    );
+    const surface = view.container.querySelector<HTMLElement>(".flow-area");
+    if (!surface) throw new Error("no surface");
+    const expected = (zoom: number) =>
+      render(<div style={storyNodeZoomStyle("overview", zoom)} />).container
+        .firstElementChild as HTMLElement;
+    expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
+      expected(0.2).style.getPropertyValue("--node-compact-width"),
+    );
+    const rendered = renders;
+
+    zoom.set(0.22);
+
+    expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
+      expected(0.22).style.getPropertyValue("--node-compact-width"),
+    );
+    expect(surface.style.getPropertyValue("--semantic-scale")).toBe(
+      expected(0.22).style.getPropertyValue("--semantic-scale"),
+    );
+    expect(renders).toBe(rendered);
+    view.unmount();
+    zoom.set(0.3);
+    expect(surface.style.getPropertyValue("--node-compact-width")).toBe(
+      expected(0.22).style.getPropertyValue("--node-compact-width"),
+    );
+  });
+
+  it("opens with the variables of the tier its cards show, just under a tier boundary", () => {
+    // 0.337 is the overview; rounded it would be 0.34, the compact tier (F-372-1).
+    const zoom = createBoardZoom();
+    zoom.set(0.337);
+    const view = render(
+      <I18nProvider>
+        <StoryGraphCanvas
+          nodes={[]}
+          edges={[]}
+          zoomTier="overview"
+          nodeZoom={zoom}
+          gridSize={20}
+          flowProps={{}}
+        />
+      </I18nProvider>,
+    );
+    const surface = view.container.querySelector<HTMLElement>(".flow-area");
+    const expected = render(<div style={storyNodeZoomStyle("overview", 0.337)} />).container
+      .firstElementChild as HTMLElement;
+
+    expect(surface?.style.getPropertyValue("--semantic-scale")).toBe(
+      expected.style.getPropertyValue("--semantic-scale"),
+    );
+  });
+
   it("provides graph chrome and suppresses the overview grid", () => {
     const view = render(
       <I18nProvider>

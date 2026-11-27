@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { ConfirmDialog } from "../../../design";
 import { useI18n } from "../../../i18n";
-import { uid } from "../../../shared/id";
 import { useLatest } from "../../../shared/hooks/useLatest";
+import { uid } from "../../../shared/id";
 import { type Chapter, type Manuscript, orderedChapters } from "../../manuscript";
 import type { FigureState, TimelineMoment, TimeSystem, TimeSystemKind } from "../model";
 import { storyShortcutLabel } from "../shortcutLabels";

@@ -5,11 +5,11 @@ import type { MapScale } from "../model";
 import { PlaceMapActions, type PlaceMapActionsProps } from "./PlaceMapActions";
 import { PlaceMapScaleControl } from "./PlaceMapScaleControl";
 import { formatScale, mapScaleBar, physicalGridDistance } from "./placeMap";
-import { formatPlaceNumber } from "./placeNumber";
 import type {
   MapChromeLayout as PlaceMapChromeLayout,
   MapChromeSize as PlaceMapChromeSize,
 } from "./placeMapChromeModel";
+import { formatPlaceNumber } from "./placeNumber";
 import "./PlaceMapChrome.css";
 
 export interface PlaceMapChromeProps extends Omit<PlaceMapActionsProps, "expanded" | "onExpand"> {

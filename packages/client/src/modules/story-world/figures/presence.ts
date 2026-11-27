@@ -1,7 +1,7 @@
-import type { FigureNode, PresenceEntry, TimelineMoment, TimeSystem } from "../model";
 import { uid } from "../../../shared/id";
-import { figureIsDeceased } from "./relationships";
+import type { FigureNode, PresenceEntry, TimelineMoment, TimeSystem } from "../model";
 import { formatDuration, momentDateDiffDays } from "./date";
+import { figureIsDeceased } from "./relationships";
 
 export function momentIndex(timeline: TimelineMoment[], momentId?: string): number {
   if (!momentId) return -1;

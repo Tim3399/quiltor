@@ -31,14 +31,14 @@ const state: FigureState = {
 
 describe("figure canvas model", () => {
   it("keeps node persistence flags and semantic LOD in the flow projection", () => {
-    const nodes = createFigureFlowNodes(state.nodes, "overview", 0.2);
+    const nodes = createFigureFlowNodes(state.nodes, "overview");
 
     expect(nodes.map((node) => node.position)).toEqual([
       { x: 0, y: 0 },
       { x: 300, y: 0 },
       { x: 150, y: 240 },
     ]);
-    expect(nodes[0].data).toMatchObject({ zoomTier: "overview", zoom: 0.2 });
+    expect(nodes[0].data).toMatchObject({ zoomTier: "overview" });
     expect(nodes[1].draggable).toBe(false);
 
     const withGuests = applyFigureNodeContext(
@@ -126,7 +126,6 @@ describe("belongsOnFigureBoard", () => {
         { id: "later", x: 0, y: 0, name: "Später", type: "ort" },
       ],
       "overview",
-      0.2,
     );
 
     expect(nodes.map((node) => node.zIndex)).toEqual([4, 0]);
@@ -134,7 +133,7 @@ describe("belongsOnFigureBoard", () => {
 
   it("leaves a map out, because it is the sheet and not an element of the world", () => {
     expect(belongsOnFigureBoard(world.nodes[2])).toBe(false);
-    expect(createFigureFlowNodes(world.nodes, "detail", 1).map((node) => node.id)).toEqual([
+    expect(createFigureFlowNodes(world.nodes, "detail").map((node) => node.id)).toEqual([
       "mara",
       "hafen",
     ]);
@@ -145,7 +144,7 @@ describe("belongsOnFigureBoard", () => {
   });
 
   it("changes nothing in the document -- the filtering happens when drawing", () => {
-    createFigureFlowNodes(world.nodes, "detail", 1);
+    createFigureFlowNodes(world.nodes, "detail");
 
     expect(world.nodes).toHaveLength(3);
   });
