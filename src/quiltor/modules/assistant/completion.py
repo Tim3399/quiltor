@@ -21,7 +21,8 @@ from quiltor.modules.assistant.batch import (
     _merge_accumulated,
     broad_scope_reply,
     estimate_batch_seconds,
-    foldable_proposals,
+    open_choice_ids,
+    without_open_candidates,
 )
 from quiltor.modules.assistant.budget import (
     EXTRACTION_PART_PROPOSALS,
@@ -619,7 +620,7 @@ def complete_request(
             raise InferenceUnavailableError("cancelled")
         world = (
             _merge_accumulated(
-                figures, [item for result in results for item in foldable_proposals(result)]
+                figures, [item for result in results for item in result.get("proposals") or []]
             )
             if results
             else figures
@@ -633,6 +634,7 @@ def complete_request(
         )
         sent = runtime._extraction_context
         result = _with_original_ids(result, origin)
+        result = without_open_candidates(result, open_choice_ids(results))
         if sent is not None:
             # What of the chapters this part carried, as paragraphs of the original chapter:
             # the trace shows the coverage without the prompt (T-330).

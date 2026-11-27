@@ -156,27 +156,77 @@ class AmbiguousCreateTests(unittest.TestCase):
         self.assertEqual(set(choices), {"new:b", "new:c"})
         self.assertEqual(sorted(choices["new:c"]), ["oda", "x-karl"])
 
-    def test_an_open_choice_of_one_group_is_not_in_the_next_groups_world(self):
+    def test_the_same_open_name_in_two_parts_is_one_card(self):
+        # F-344-12: "Herr Brandt" in both parts, each with a relationship. One open create,
+        # both relationships on its tempId, as on the base before F-344-10.
+        figures = copy.deepcopy(FIGURES)
+        figures["nodes"].append({"id": "x-karl", "type": "person", "name": "Karl Brandt"})
+
+        def part(other):
+            relation = {
+                "kind": "create_relationship",
+                "relationship": {
+                    "from": "new:b", "to": other, "label": "kennt", "directed": True,
+                    "lineStyle": "solid", "relationshipKind": "general", "color": "auto",
+                },
+            }  # fmt: skip
+            return {
+                "message": "ok",
+                "citations": [],
+                "proposals": [_brandt("new:b", "Herr Brandt"), relation],
+            }
+
+        manuscript, chapter_id, _ = marked_chapter(2000)
+        runtime, inference = _helper().runtime(
+            part("oda"), part("iven"), *[parts.REPLY] * 20, tokens_per_char=0.9 * 1.1 / 3
+        )
+        result = runtime.complete(
+            EXTRACTION, manuscript, figures, chapter_ids=[chapter_id], mode="world_extraction"
+        )
+        self.assertGreaterEqual(len(inference.calls), 2)
+        creates = [p for p in result["proposals"] if p["kind"] == "create_element"]
+        self.assertEqual([p["tempId"] for p in creates], ["new:b"])
+        relations = [
+            p["relationship"] for p in result["proposals"] if p["kind"] == "create_relationship"
+        ]
+        self.assertEqual(
+            sorted((r["from"], r["to"]) for r in relations), [("new:b", "iven"), ("new:b", "oda")]
+        )
+
+    def test_an_open_choice_of_one_group_is_no_candidate_in_the_next(self):
         runtime, _ = runtime_tests.AssistantRuntimeCompleteTests()._runtime(
             tokens=2000, heavy=("a", "b")
         )
-        open_one = _brandt("new:b", "Herr Brandt")
+        replies = iter(
+            [
+                (_brandt("new:b", "Herr Brandt"), ["oda", "x-karl"]),
+                (_brandt("new:c", "Brandt"), ["new:b", "oda", "x-karl"]),
+            ]
+        )
         worlds = []
 
         def complete(_question, _manuscript, figures, _history, *, chapter_ids, mode, **_options):
             worlds.append({str(node.get("id")) for node in figures.get("nodes") or []})
+            proposal, candidates = next(replies)
             return {
                 "message": "ok",
                 "citations": [],
                 "sources": [],
-                "proposals": [open_one],
+                "proposals": [proposal],
                 "proposalEnvelopes": [
-                    {"proposal": open_one, "resolution": {"outcome": "ambiguous"}}
+                    {
+                        "proposal": proposal,
+                        "resolution": {
+                            "outcome": "ambiguous",
+                            "candidateIds": candidates,
+                            "candidates": [{"id": item, "name": item} for item in candidates],
+                        },
+                    }
                 ],
             }
 
         runtime.complete = complete
-        runtime._run_batches(
+        result = runtime._run_batches(
             "Update",
             {
                 "chapters": [
@@ -189,27 +239,38 @@ class AmbiguousCreateTests(unittest.TestCase):
             None,
             mode="world_extraction",
         )
-        self.assertEqual(len(worlds), 2)
-        self.assertNotIn("new:b", worlds[1])
+        # Still folded, so the same name would resolve to it ...
+        self.assertIn("new:b", worlds[1])
+        # ... but never offered as an element to choose.
+        second = result["proposalEnvelopes"][1]["resolution"]
+        self.assertEqual(second["candidateIds"], ["oda", "x-karl"])
+        self.assertEqual([item["id"] for item in second["candidates"]], ["oda", "x-karl"])
 
-    def test_a_resolved_create_is_still_folded(self):
-        from quiltor.modules.assistant.batch import foldable_proposals
+    def test_an_open_choice_keeps_itself_as_its_own_tempid(self):
+        from quiltor.modules.assistant.batch import open_choice_ids, without_open_candidates
 
         open_one = _brandt("new:b", "Herr Brandt")
-        plain = _brandt("new:n", "Neue Figur")
-        hanging = {
-            "kind": "create_relationship",
-            "relationship": {"from": "new:b", "to": "oda", "label": "kennt"},
+        earlier = {
+            "proposals": [open_one],
+            "proposalEnvelopes": [{"proposal": open_one, "resolution": {"outcome": "ambiguous"}}],
         }
-        result = {
-            "proposals": [open_one, plain, hanging],
+        again = {
+            "proposals": [open_one],
             "proposalEnvelopes": [
-                {"proposal": open_one, "resolution": {"outcome": "ambiguous"}},
-                {"proposal": plain, "resolution": {"outcome": "create"}},
-                {"proposal": hanging},
+                {
+                    "proposal": open_one,
+                    "resolution": {"outcome": "ambiguous", "candidateIds": ["new:b", "oda"]},
+                },
+                {"proposal": _brandt("new:n", "Neu"), "resolution": {"outcome": "create"}},
             ],
         }
-        self.assertEqual(foldable_proposals(result), [plain])
+        ids = open_choice_ids([earlier])
+        self.assertEqual(ids, {"new:b"})
+        kept = without_open_candidates(again, ids)
+        self.assertEqual(
+            kept["proposalEnvelopes"][0]["resolution"]["candidateIds"], ["new:b", "oda"]
+        )
+        self.assertEqual(kept["proposalEnvelopes"][1], again["proposalEnvelopes"][1])
 
 
 NAMES = [f"{first} {last}" for first in ("Alma", "Bruno", "Cilly", "Detlef", "Edda", "Fritjof")
