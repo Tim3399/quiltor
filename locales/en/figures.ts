@@ -62,8 +62,6 @@ export const figures = {
   openInInspector: "Open in inspector",
   showGrid: "Show grid",
   hideGrid: "Hide grid",
-  showTimeline: "Show timeline",
-  hideTimeline: "Hide timeline",
   showPaths: "Show paths",
   hidePaths: "Hide paths",
   figureInspectorLabel: "Character inspector",

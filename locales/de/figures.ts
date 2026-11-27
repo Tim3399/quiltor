@@ -62,8 +62,6 @@ export const figures = {
   openInInspector: "Im Inspector öffnen",
   showGrid: "Raster einblenden",
   hideGrid: "Raster ausblenden",
-  showTimeline: "Zeit einblenden",
-  hideTimeline: "Zeit ausblenden",
   showPaths: "Wege einblenden",
   hidePaths: "Wege ausblenden",
   figureInspectorLabel: "Figuren-Inspector",

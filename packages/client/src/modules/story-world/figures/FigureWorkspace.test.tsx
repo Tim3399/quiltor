@@ -205,7 +205,7 @@ describe("FigureWorkspace relationships", () => {
     expect(screen.getByLabelText("Rollen")).not.toHaveTextContent("Rolle");
   });
 
-  it("marks the canvas when the timeline needs its own overlay zone", () => {
+  it("docks the timeline above the canvas and toggles it from the toolbar", () => {
     const state: FigureState = {
       nodes: [],
       edges: [],
@@ -217,7 +217,19 @@ describe("FigureWorkspace relationships", () => {
       </I18nProvider>,
     );
 
-    expect(container.querySelector(".flow-area")).toHaveClass("has-timeline");
+    const stage = container.querySelector(".figure-stage");
+    expect(stage?.firstElementChild).toHaveClass("timeline-strip");
+    expect(stage?.lastElementChild).toHaveClass("flow-area");
+    const toggle = screen.getByRole("button", { name: "Zeit" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    // Pressed alone, like "Verbinden": aria-controls would point nowhere once it is hidden.
+    expect(toggle).not.toHaveAttribute("aria-controls");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelector(".timeline-strip")).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Zeit (ein|aus)blenden/ })).toBeNull();
   });
 
   it("shows the minimap by default and keeps its toggle in the graph controls", () => {

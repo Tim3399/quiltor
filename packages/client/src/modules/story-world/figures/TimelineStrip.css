@@ -1,10 +1,10 @@
+/* Docked above the canvas in its own grid row (T-328), not floating over it: a flat band
+   with a dividing line, no shadow and no radius. It shares no area with dock, minimap or
+   lock button any more, so it has no rules for getting out of their way. The row caps it
+   at 40% of the stage (fit-content in .figure-stage); beyond that it scrolls inside. */
 .timeline-strip {
-  position: absolute;
-  z-index: var(--z-float-strip);
-  right: 14px;
-  bottom: 14px;
-  left: 14px;
   min-height: 58px;
+  overflow-y: auto;
   /* A row that wraps rather than a fixed three-column grid (T-326). Beside the minimap the
      strip can be narrow; the grid then left the track its 120px floor, which cut the first
      moment off mid-title, and squeezed the new-moment field to an empty sliver. Now the
@@ -15,14 +15,12 @@
   align-items: center;
   gap: var(--space-10);
   padding: var(--space-8) var(--space-10);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
+  border-bottom: 1px solid var(--line-strong);
   background: var(--panel);
-  box-shadow: var(--shadow);
 }
 
 .timeline-strip.is-playing {
-  border-color: var(--accent-primary-border);
+  border-bottom-color: var(--accent-primary-border);
 }
 
 .timeline-playing .react-flow__edge {
@@ -243,12 +241,6 @@
   text-transform: uppercase;
 }
 
-.flow-area .timeline-strip {
-  right: var(--graph-minimap-safe-inline-end, var(--graph-viewport-inset, var(--space-14)));
-  bottom: var(--graph-viewport-inset, var(--space-14));
-  left: var(--graph-controls-safe-inline-end, 62px);
-}
-
 @media (max-width: 900px) {
   .timeline-add {
     flex-basis: 100%;
@@ -264,23 +256,9 @@
   }
 }
 
-@media (max-width: 820px) {
-  .flow-area .timeline-strip {
-    right: var(--graph-minimap-safe-inline-end, var(--graph-viewport-inset, var(--space-14)));
-  }
-}
-
 @media (max-width: 640px) {
-  .flow-area .timeline-strip {
-    right: var(--graph-minimap-safe-inline-end, var(--graph-viewport-inset, var(--space-14)));
-    bottom: var(--graph-viewport-inset, var(--space-14));
-    left: var(--graph-controls-safe-inline-end, 62px);
-  }
-
   .timeline-strip {
-    max-height: min(52%, 360px);
     gap: var(--space-8);
-    overflow-y: auto;
     padding: var(--space-8);
   }
 
@@ -339,29 +317,7 @@
   }
 }
 
-/* Between hand width and desk the canvas grows too narrow for dock, strip and minimap to
-   fit side by side -- the strip would be given a negative width there and lie beneath the
-   minimap. It moves over it instead of disappearing. */
-@media (max-width: 1099px) {
-  .flow-area.has-minimap .timeline-strip {
-    right: var(--graph-viewport-inset, var(--space-14));
-    bottom: var(--graph-edge-inspector-safe-bottom, var(--graph-viewport-inset, var(--space-14)));
-  }
-}
-
-/* At hand width the dock stands as a tower in the bottom-left corner and the minimap is
-   hidden there. Up to this point the strip stood beside the tower -- at a window width of
-   390px it was left eighteen pixels, in which „Gesamtsicht" collapsed to 20 and the date
-   field to 18 pixels, narrower than a fingertip. It now takes the width entirely and moves
-   over the tower. */
 @media (max-width: 640px) {
-  .flow-area .timeline-strip,
-  .flow-area.has-minimap .timeline-strip {
-    right: var(--graph-viewport-inset, var(--space-14));
-    bottom: var(--graph-controls-safe-block-end, var(--graph-viewport-inset, var(--space-14)));
-    left: var(--graph-viewport-inset, var(--space-14));
-  }
-
   .timeline-heading {
     flex-wrap: wrap;
   }

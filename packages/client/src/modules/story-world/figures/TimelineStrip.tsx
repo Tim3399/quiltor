@@ -1,5 +1,5 @@
 import { Clock3, Pause, Play, Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type Ref, useEffect, useRef, useState } from "react";
 import { Button, IconButton, ScrollArea, TextField } from "../../../design";
 import { useI18n } from "../../../i18n";
 import { NoteEditor, noteFocusCopy } from "../../notes";
@@ -18,6 +18,8 @@ export type TimelineStripProps = {
   onDelete: (moment: TimelineMoment) => void;
   /** Set when the active moment must not be deleted; shown next to the disabled action. */
   deleteBlockedReason?: string;
+  /** The strip's root, measured by the workspace to keep the graph below it still. */
+  rootRef?: Ref<HTMLElement>;
 };
 
 export function TimelineStrip({
@@ -30,6 +32,7 @@ export function TimelineStrip({
   onPatch,
   onDelete,
   deleteBlockedReason,
+  rootRef,
 }: TimelineStripProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
@@ -61,6 +64,7 @@ export function TimelineStrip({
 
   return (
     <section
+      ref={rootRef}
       className={`timeline-strip ${playing ? "is-playing" : ""}`}
       aria-label={t("timelineStripLabel")}
     >

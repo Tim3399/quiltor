@@ -34,9 +34,7 @@ const INTERFACE = {
     chapterText: "Kapiteltext", // manuscript.chapterText
     figures: "Figuren", // shell.figures
     figuresCanvas: "Figuren und Beziehungen", // figures.figuresAndRelationsLabel
-    viewMenu: "Ansicht", // figures.figureViewMenu
-    hideTime: "Zeit ausblenden", // figures.hideTimeline
-    showTime: "Zeit einblenden", // figures.showTimeline
+    timeToggle: "Zeit", // timeline.timeToggle
     timeline: "Timeline", // shared.timeline
     places: "Orte", // shell.places
     placesCanvas: "Orte verwalten", // places.placesLabel
@@ -70,9 +68,7 @@ const INTERFACE = {
     chapterText: "Chapter text",
     figures: "Characters",
     figuresCanvas: "Characters and relationships",
-    viewMenu: "View",
-    hideTime: "Hide timeline",
-    showTime: "Show timeline",
+    timeToggle: "Time",
     timeline: "Timeline",
     places: "Places",
     placesCanvas: "Manage places",
@@ -260,11 +256,9 @@ try {
 
   await page.getByRole("button", { name: ui.figures, exact: true }).click();
   await page.getByLabel(ui.figuresCanvas, { exact: true }).waitFor();
-  const viewMenu = page.getByRole("button", { name: ui.viewMenu, exact: true });
-  await viewMenu.click();
-  const hideTime = page.getByRole("menuitem", { name: ui.hideTime, exact: true });
-  if (await hideTime.isVisible()) await hideTime.click();
-  else await page.keyboard.press("Escape");
+  // The time strip is docked above the canvas and toggled from the toolbar (T-328).
+  const timeToggle = page.getByRole("button", { name: ui.timeToggle, exact: true });
+  if ((await timeToggle.getAttribute("aria-pressed")) === "true") await timeToggle.click();
   // A place drawn on its own map is a sheet, not a figure: the board leaves it out
   // (belongsOnFigureBoard in figureCanvasModel.ts).
   await expect(page.locator(".story-node")).toHaveCount(
@@ -273,13 +267,12 @@ try {
   await page.locator(".react-flow__controls-fitview").click();
   await capture("world-graph");
 
-  await viewMenu.click();
-  await page.getByRole("menuitem", { name: ui.showTime, exact: true }).click();
+  await timeToggle.click();
   await page.getByRole("button", { name: momentTitle("t2"), exact: true }).click();
-  // Four rows of cards do not fit between the toolbar and the time panel at the detail tier
-  // (it would need a zoom of about 0.65; semanticZoomTier keeps details from 0.68). The view
-  // therefore frames what changes at t2 -- Iven and Mara working together, both present in the
-  // Tidal Archive -- and lets the bottom row, which has no state at t2, go under the panel whole
+  // Four rows of cards do not fit below the docked time strip at the detail tier (it would
+  // need a zoom of about 0.65; semanticZoomTier keeps details from 0.68). The view therefore
+  // frames what changes at t2 -- Iven and Mara working together, both present in the Tidal
+  // Archive -- and lets the bottom row, which has no state at t2, leave the canvas whole
   // instead of cut in half.
   await page.locator(".react-flow__controls-fitview").click();
   await settle("timeline-playback fit");
@@ -292,13 +285,13 @@ try {
   await page.mouse.move(focus.x, focus.y);
   await page.mouse.wheel(0, -60);
   await settle("timeline-playback zoom");
-  // Pan the focus to the middle of the band between toolbar and time panel. The drag starts on
-  // empty board; it must never grab a card and move it.
-  const panel = await page.getByRole("button", { name: ui.overview, exact: true }).boundingBox();
-  const target = { x: 815, y: (97 + panel.y - 20) / 2 };
+  // Pan the focus to the middle of the map, which since T-328 lies below the docked time
+  // strip. The drag starts on empty board; it must never grab a card and move it.
+  const board = await page.locator(".figure-stage > .flow-area").boundingBox();
+  const target = { x: board.x + board.width / 2, y: board.y + board.height / 2 };
   const moved = await page.evaluate(
-    ([dx, dy]) => {
-      for (let y = 140; y < 700; y += 20) {
+    ([dx, dy, top]) => {
+      for (let y = top + 20; y < 860; y += 20) {
         for (let x = 260; x < 1400; x += 20) {
           const free = (px, py) => {
             const hit = document.elementFromPoint(px, py);
@@ -309,7 +302,7 @@ try {
       }
       return null;
     },
-    [target.x - focus.x, target.y - focus.y],
+    [target.x - focus.x, target.y - focus.y, board.y],
   );
   if (!moved) throw new Error("No empty board to pan the timeline view from.");
   await page.mouse.move(moved[0], moved[1]);

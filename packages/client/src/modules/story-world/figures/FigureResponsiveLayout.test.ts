@@ -31,9 +31,12 @@ describe("figure workspace responsive layout contracts", () => {
       /\.graph-viewport-surface \.react-flow__panel\.react-flow__minimap\s*\{[^}]*top:\s*auto;[^}]*right:\s*var\(--graph-viewport-inset\);[^}]*bottom:\s*var\(--graph-viewport-inset\);[^}]*left:\s*auto;[^}]*margin:\s*0;/s,
     );
     expect(canvas).not.toMatch(/\.has-timeline \.react-flow__minimap\s*\{/);
+    // Docked above the canvas (T-328): its row is capped by the stage, not by the strip, so
+    // no empty band is left under a strip that shrank inside a taller auto row.
     expect(canvas).toMatch(
-      /\.flow-area\.has-timeline\.has-minimap \.timeline-strip\s*\{[^}]*right:\s*calc\([\s\S]*var\(--graph-minimap-inline-size\)/,
+      /\.figure-stage\s*\{[^}]*grid-template-rows:\s*fit-content\(40%\) minmax\(0, 1fr\);/,
     );
+    expect(canvas).not.toMatch(/\.timeline-strip/);
     expect(viewportChrome).toMatch(
       /\.graph-viewport-surface\.has-minimap\s*\{[^}]*--graph-edge-inspector-safe-bottom:\s*calc\([\s\S]*var\(--graph-minimap-block-size\)/,
     );
@@ -43,16 +46,12 @@ describe("figure workspace responsive layout contracts", () => {
     expect(stylesheet("../StoryGraph.css")).not.toMatch(
       /@media \(max-width: 820px\)[\s\S]*?\.react-flow__minimap\s*\{[^}]*display:\s*none;/,
     );
-    expect(timeline).toMatch(
-      // The strip keeps clear of both: the dock on the left, the minimap on the right.
-      /\.flow-area \.timeline-strip\s*\{[^}]*right:\s*var\(--graph-minimap-safe-inline-end,[^}]*left:\s*var\(--graph-controls-safe-inline-end,/s,
-    );
-    expect(timeline).not.toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.flow-area \.timeline-strip\s*\{[^}]*left:\s*var\(--space-8\);/,
-    );
-    expect(timeline).toMatch(
-      /@media \(max-width: 640px\)[\s\S]*?\.timeline-strip\s*\{[^}]*max-height:\s*min\(52%, 360px\);[^}]*overflow-y:\s*auto;/,
-    );
+    // The strip shares no area with dock, minimap or lock button any more: it neither
+    // floats nor carries rules for getting out of their way, and scrolls inside its row.
+    expect(timeline).not.toMatch(/\.flow-area[^{]*\.timeline-strip/);
+    expect(timeline).not.toMatch(/\.timeline-strip\s*\{[^}]*position:\s*absolute/);
+    expect(timeline).not.toMatch(/\.timeline-strip\s*\{[^}]*max-height/);
+    expect(timeline).toMatch(/\.timeline-strip\s*\{[^}]*overflow-y:\s*auto;/);
     expect(inspector).toMatch(
       /@media \(max-width: 640px\)[\s\S]*?\.figure-inspector\s*\{[^}]*top:\s*auto;[^}]*left:\s*0;[^}]*width:\s*100%;[^}]*height:\s*min\(58%, 440px\);/,
     );

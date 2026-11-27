@@ -44,6 +44,17 @@ function waitForSuccessfulStoryWorldWrite(page: Page, payloadMarker: string) {
   );
 }
 
+/** Opens the figure board's view controls: the toolbar's view menu, or "Verwalten" at phone
+ *  width, where they stand as a section of their own (T-328, D-262). */
+async function openFigureViewMenu(page: Page) {
+  const view = page.getByRole("button", { name: "Ansicht", exact: true });
+  if (await view.isVisible()) {
+    await view.click();
+    return;
+  }
+  await page.getByRole("button", { name: "Verwalten", exact: true }).click();
+}
+
 async function expectKeyboardMenuContract(page: Page, triggerName: string, menuName = triggerName) {
   const trigger = page.getByRole("button", { name: triggerName, exact: true });
   await trigger.focus();
@@ -262,7 +273,13 @@ test("Menus and submenus hold the shared keyboard, focus and viewport contract",
 
       await page.getByRole("button", { name: "Figuren", exact: true }).click();
       await expectKeyboardMenuContract(page, "Element", "Element erstellen");
-      await expectKeyboardMenuContract(page, "Ansicht");
+      if (viewport.width > 429) {
+        await expectKeyboardMenuContract(page, "Ansicht");
+      } else {
+        // At phone width "Zeit" takes the view menu's place and the view menu moves into
+        // "Verwalten" as a submenu (T-328).
+        await expect(page.getByRole("button", { name: "Ansicht", exact: true })).toHaveCount(0);
+      }
       await expectKeyboardMenuContract(page, "Verwalten");
 
       await page.getByRole("button", { name: "Timeline", exact: true }).click();
@@ -2547,12 +2564,12 @@ test("The minimap tells element kinds apart and the grid can be released", async
   await expect(page.locator(".react-flow__background path")).toHaveCount(
     zoomTier === "overview" ? 0 : 1,
   );
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+  await openFigureViewMenu(page);
   await page.getByRole("menuitem", { name: "Anordnen", exact: true }).click();
   await expect
     .poll(() => page.locator(".react-flow__node").first().getAttribute("style"))
     .toContain("translate(96px, 96px)");
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
+  await openFigureViewMenu(page);
   await page.getByRole("menuitem", { name: "Raster ausblenden", exact: true }).click();
   await expect(page.locator(".react-flow__background")).toHaveCount(0);
 
@@ -2596,8 +2613,7 @@ test("The minimap tells element kinds apart and the grid can be released", async
     Math.abs((minimapAfterToggle?.y ?? 0) - (minimapBeforeToggle?.y ?? 0)),
   ).toBeLessThanOrEqual(1);
 
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await page.getByRole("button", { name: "Zeit", exact: true }).click();
   const minimapWithTimeline = await minimap.boundingBox();
   const timeline = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
   const controls = await page.getByLabel("Kartensteuerung").boundingBox();
@@ -2761,8 +2777,7 @@ test("The timeline strip plays back relationship states and times of death", asy
   ).toBeVisible();
   const controlsBeforeTimeline = await page.locator(".react-flow__controls").boundingBox();
   const minimapBeforeTimeline = await page.locator(".react-flow__minimap").boundingBox();
-  await page.getByRole("button", { name: "Ansicht", exact: true }).click();
-  await page.getByRole("menuitem", { name: "Zeit einblenden", exact: true }).click();
+  await page.getByRole("button", { name: "Zeit", exact: true }).click();
   const stripBox = await page.getByLabel("Beziehungen über die Zeit").boundingBox();
   const controlsBox = await page.locator(".react-flow__controls").boundingBox();
   const minimapBox = await page.locator(".react-flow__minimap").boundingBox();

@@ -665,13 +665,12 @@ async function figuresScenario(s: Session): Promise<void> {
   await s.view("workspace.figures");
   await s.enumerate("workspace.figures", start);
 
-  // On a phone the time strip covers most of the canvas. Node interactions need the nodes on
+  // On a phone the time strip takes up to 40% of the stage above the canvas. Node interactions need the nodes on
   // screen, so the later steps hide it and fit the view, as visual-baseline.spec.ts does.
   const base = async () => {
     await start();
     if (s.layout !== "compact") return;
-    await s.tap(s.button("Ansicht"));
-    await s.tap(page.getByRole("menuitem", { name: "Zeit ausblenden", exact: true }));
+    await s.tap(page.getByRole("button", { name: "Zeit", exact: true, pressed: true }));
     await expect(page.locator(".figure-workspace .timeline-strip")).toHaveCount(0);
     await s.tap(page.locator(".figure-workspace .react-flow__controls-fitview"));
     await stillCanvas(page);
